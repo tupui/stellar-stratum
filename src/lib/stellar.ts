@@ -123,18 +123,20 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     } catch (error) {
       console.warn('Using base kit for connection:', error);
     }
-    
-    // Set the selected wallet
-    kit.setWallet(walletId);
-    
-    // Special handling for hardware wallets
+
+    // Special handling for hardware wallets with account selection
     const isLedger = walletId.toLowerCase().includes('ledger');
     const isTrezor = walletId.toLowerCase().includes('trezor');
     
     if (isLedger || isTrezor) {
-      // Hardware wallet specific error handling
+      // For hardware wallets, we might be able to get multiple accounts
       try {
         console.log('Connecting to hardware wallet:', walletId);
+        
+        // Set the wallet first
+        kit.setWallet(walletId);
+        
+        // Try to get address - this will trigger the account selection modal
         const { address } = await kit.getAddress();
         
         // Get wallet info
@@ -160,6 +162,8 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
             throw new Error('Connection denied. Please approve the connection on your Ledger device.');
           } else if (errorMsg.includes('timeout')) {
             throw new Error('Connection timeout. Please check your Ledger device and try again.');
+          } else if (errorMsg.includes('cancelled') || errorMsg.includes('cancel')) {
+            throw new Error('Account selection cancelled. Please try again and select an account.');
           }
         }
         
@@ -175,6 +179,9 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
         throw new Error(`Hardware wallet connection failed: ${hwError?.message || 'Unknown error'}`);
       }
     }
+
+    // Set the selected wallet
+    kit.setWallet(walletId);
 
     // Regular wallet connection flow
     try {
