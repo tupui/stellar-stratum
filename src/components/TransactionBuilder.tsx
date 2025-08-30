@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Send, FileCode, ArrowLeft, Copy, Check, ExternalLink } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -29,6 +30,12 @@ interface TransactionBuilderProps {
   onBack: () => void;
   accountPublicKey: string;
   accountData: {
+    balances: Array<{
+      asset_type: string;
+      asset_code?: string;
+      asset_issuer?: string;
+      balance: string;
+    }>;
     signers: Array<{
       key: string;
       weight: number;
@@ -47,8 +54,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
     destination: '',
     amount: '',
     asset: 'XLM',
+    assetIssuer: '',
     memo: '',
   });
+  const [trustlineError, setTrustlineError] = useState<string>('');
   const [xdrData, setXdrData] = useState({
     input: '',
     output: '',
@@ -62,17 +71,68 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet' } | null>(null);
 
+  // Check trustline for non-XLM assets
+  const checkTrustline = async (destination: string, assetCode: string, assetIssuer: string) => {
+    if (assetCode === 'XLM') return true;
+    
+    try {
+      const server = currentNetwork === 'testnet'
+        ? new Horizon.Server('https://horizon-testnet.stellar.org')
+        : new Horizon.Server('https://horizon.stellar.org');
+      
+      const account = await server.loadAccount(destination);
+      const hasTrustline = account.balances.some(balance => 
+        'asset_code' in balance && 
+        balance.asset_code === assetCode && 
+        balance.asset_issuer === assetIssuer
+      );
+      
+      return hasTrustline;
+    } catch (error) {
+      // If we can't load the account, it might not exist
+      throw new Error('Destination account does not exist');
+    }
+  };
+
   const handlePaymentBuild = async () => {
-    if (!paymentData.destination || !paymentData.amount) {
+    if (!paymentData.destination || !paymentData.amount || !paymentData.asset) {
       toast({
         title: "Missing fields",
-        description: "Please fill in destination and amount",
+        description: "Please fill in all required fields",
         variant: "destructive",
       });
       return;
     }
 
-    setIsBuilding(true);
+    // Check for trustline if not XLM
+    if (paymentData.asset !== 'XLM') {
+      if (!paymentData.assetIssuer) {
+        toast({
+          title: "Missing asset issuer",
+          description: "Asset issuer is required for non-XLM assets",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsBuilding(true);
+      try {
+        const hasTrustline = await checkTrustline(paymentData.destination, paymentData.asset, paymentData.assetIssuer);
+        if (!hasTrustline) {
+          setTrustlineError('The destination account does not have a trustline for this asset');
+          setIsBuilding(false);
+          return;
+        }
+        setTrustlineError('');
+      } catch (error) {
+        setTrustlineError(error instanceof Error ? error.message : 'Failed to verify trustline');
+        setIsBuilding(false);
+        return;
+      }
+    } else {
+      setTrustlineError('');
+      setIsBuilding(true);
+    }
     
     try {
       // Determine network and Horizon server
@@ -91,9 +151,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       });
 
       // Add payment operation
+      const asset = paymentData.asset === 'XLM' 
+        ? Asset.native() 
+        : new Asset(paymentData.asset, paymentData.assetIssuer);
+      
       transaction.addOperation(Operation.payment({
         destination: paymentData.destination,
-        asset: Asset.native(), // XLM
+        asset,
         amount: paymentData.amount,
       }));
 
@@ -325,7 +389,12 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
     }, 0);
   };
 
-  const canSubmitToNetwork = getCurrentWeight() >= accountData.thresholds.med_threshold;
+  const getRequiredWeight = () => {
+    // If threshold is 0, default to 1 signature required
+    return accountData.thresholds.med_threshold || 1;
+  };
+
+  const canSubmitToNetwork = getCurrentWeight() >= getRequiredWeight();
   const canSubmitToRefractor = Boolean(xdrData.output || xdrData.input);
 
   const copyXDR = async () => {
@@ -341,6 +410,32 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       });
     }
   };
+
+  // Get available assets from account balances
+  const getAvailableAssets = () => {
+    const assets = [{ code: 'XLM', issuer: '', name: 'Stellar Lumens' }];
+    
+    accountData.balances.forEach(balance => {
+      if (balance.asset_type !== 'native' && balance.asset_code && balance.asset_issuer) {
+        assets.push({
+          code: balance.asset_code,
+          issuer: balance.asset_issuer,
+          name: balance.asset_code
+        });
+      }
+    });
+    
+    return assets;
+  };
+
+  const availableAssets = getAvailableAssets();
+
+  // Check if form is valid for payment build
+  const isPaymentFormValid = paymentData.destination && 
+    paymentData.amount && 
+    paymentData.asset &&
+    (paymentData.asset === 'XLM' || paymentData.assetIssuer) &&
+    !trustlineError;
 
   return (
     <div className="min-h-screen bg-background p-6">
@@ -416,9 +511,29 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
                         value={paymentData.amount}
                         onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
                       />
-                      <div className="w-20 bg-secondary rounded-lg flex items-center justify-center">
-                        <span className="text-sm font-medium">XLM</span>
-                      </div>
+                      <Select
+                        value={paymentData.asset}
+                        onValueChange={(value) => {
+                          const selectedAsset = availableAssets.find(asset => asset.code === value);
+                          setPaymentData(prev => ({ 
+                            ...prev, 
+                            asset: value,
+                            assetIssuer: selectedAsset?.issuer || ''
+                          }));
+                          setTrustlineError(''); // Clear error when changing asset
+                        }}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableAssets.map(asset => (
+                            <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                              {asset.code}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>
@@ -431,10 +546,19 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
                     onChange={(e) => setPaymentData(prev => ({ ...prev, memo: e.target.value }))}
                   />
                 </div>
+                
+                {/* Trustline Error */}
+                {trustlineError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                    <p className="text-sm text-red-700 dark:text-red-300">{trustlineError}</p>
+                  </div>
+                )}
+                
                 <Button 
                   onClick={handlePaymentBuild} 
-                  disabled={isBuilding}
-                  className="w-full bg-gradient-primary hover:opacity-90"
+                  disabled={isBuilding || !isPaymentFormValid}
+                  className="w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50"
                 >
                   {isBuilding ? (
                     <div className="flex items-center gap-2">
@@ -501,7 +625,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
             signers={accountData.signers}
             currentAccountKey={accountPublicKey}
             signedBy={signedBy}
-            requiredWeight={accountData.thresholds.med_threshold}
+            requiredWeight={getRequiredWeight()}
             onSignWithSigner={handleSignWithSigner}
             isSigning={isSigning}
           />
