@@ -5,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { Copy, Eye, EyeOff, Shield, Users, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
+import { AssetBalancePanel } from './AssetBalancePanel';
 
 interface AccountData {
   publicKey: string;
@@ -105,34 +106,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
         </Card>
 
         {/* Balances */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle>Asset Balances</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {accountData.balances.map((balance, index) => (
-                <div key={index} className="flex justify-between items-center p-3 bg-secondary/50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <AssetIcon 
-                      assetCode={balance.asset_code}
-                      assetIssuer={balance.asset_type !== 'native' ? (balance as any).asset_issuer : undefined}
-                      size={32}
-                    />
-                    <div>
-                      <p className="font-medium">{balance.asset_code || 'Stellar Lumens'}</p>
-                      <p className="text-sm text-muted-foreground">{balance.asset_type}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono font-medium">{parseFloat(balance.balance).toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">{balance.asset_code || 'XLM'}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <AssetBalancePanel balances={accountData.balances} />
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Thresholds */}
