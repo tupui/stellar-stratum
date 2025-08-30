@@ -2,7 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Eye, EyeOff, Shield, Users, AlertTriangle } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
@@ -34,10 +35,7 @@ interface AccountOverviewProps {
 }
 
 export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect }: AccountOverviewProps) => {
-  const [showFullKey, setShowFullKey] = useState(true);
-
   const truncateKey = (key: string) => {
-    if (showFullKey) return key;
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
   };
 
@@ -82,16 +80,9 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
               <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
                 <div>
                   <p className="text-sm text-muted-foreground">Public Key</p>
-                  <p className="font-mono text-sm">{truncateKey(accountData.publicKey)}</p>
+                  <p className="font-mono text-sm break-all">{accountData.publicKey}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowFullKey(!showFullKey)}
-                  >
-                    {showFullKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -159,17 +150,38 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {accountData.signers.map((signer, index) => (
-                  <div key={index} className="flex justify-between items-center p-3 bg-secondary/50 rounded-lg">
-                    <div>
-                      <p className="font-mono text-sm">{truncateKey(signer.key)}</p>
-                      <p className="text-xs text-muted-foreground capitalize">{signer.type}</p>
+                <TooltipProvider>
+                  {accountData.signers.map((signer, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-secondary/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <p className="font-mono text-sm cursor-help hover:text-primary transition-colors">
+                                {truncateKey(signer.key)}
+                              </p>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-xs">
+                              <p className="font-mono text-xs break-all">{signer.key}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <p className="text-xs text-muted-foreground capitalize">{signer.type}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => copyToClipboard(signer.key)}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <Badge variant="outline">
+                        Weight: {signer.weight}
+                      </Badge>
                     </div>
-                    <Badge variant="outline">
-                      Weight: {signer.weight}
-                    </Badge>
-                  </div>
-                ))}
+                  ))}
+                </TooltipProvider>
               </div>
             </CardContent>
           </Card>

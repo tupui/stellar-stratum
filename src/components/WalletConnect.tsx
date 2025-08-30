@@ -171,7 +171,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
     
     try {
       // Call Soroban Domains API
-      const response = await fetch(`https://api.sorobandomains.org/domain/${sorobanDomain.trim().toLowerCase()}`);
+      const response = await fetch(`https://api.sorobandomains.org/api/domain/${sorobanDomain.trim().toLowerCase()}`);
       
       if (!response.ok) {
         throw new Error('Domain not found or API error');
@@ -179,7 +179,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
       
       const data = await response.json();
       
-      if (!data.address) {
+      if (!data.stellar_address) {
         throw new Error('No address found for this domain');
       }
 
@@ -189,7 +189,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
         duration: 2000,
       });
 
-      onConnect("Soroban Domain", data.address);
+      onConnect("Soroban Domain", data.stellar_address);
     } catch (error) {
       console.error('Failed to resolve Soroban domain:', error);
       
@@ -279,42 +279,6 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
           ) : (
             <>
 
-              {/* Manual Address Input */}
-              {showManualInput && (
-                <div className="mb-4 p-4 border border-border rounded-lg bg-secondary/20">
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="manual-address" className="text-sm font-medium">
-                        Stellar Public Key
-                      </Label>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Enter a Stellar address to view account details (no signing required)
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        id="manual-address"
-                        placeholder="GABC...XYZ (56 characters)"
-                        value={manualAddress}
-                        onChange={(e) => setManualAddress(e.target.value)}
-                        className="font-mono text-sm"
-                        maxLength={56}
-                      />
-                      <Button 
-                        onClick={handleManualConnect}
-                        disabled={!manualAddress.trim()}
-                        size="sm"
-                      >
-                        <Plus className="w-4 h-4 mr-1" />
-                        Connect
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {showManualInput && <Separator className="my-4" />}
-
               {/* Wallet Options */}
               <div className="space-y-3">
                 {/* Manual Address as a card option */}
@@ -376,12 +340,12 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
                     <div className="space-y-3">
                       <div>
                         <Label htmlFor="soroban-domain" className="text-sm font-medium">Soroban Domain</Label>
-                        <p className="text-xs text-muted-foreground mt-1">Enter a domain name (e.g., tansu) to resolve to Stellar address</p>
+                        <p className="text-xs text-muted-foreground mt-1">Enter a domain name to resolve to Stellar address</p>
                       </div>
                       <div className="flex gap-2">
                         <Input 
                           id="soroban-domain" 
-                          placeholder="tansu" 
+                          placeholder="mydomain" 
                           value={sorobanDomain} 
                           onChange={(e) => setSorobanDomain(e.target.value)} 
                           className="text-sm" 

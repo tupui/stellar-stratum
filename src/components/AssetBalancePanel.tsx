@@ -32,10 +32,13 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
     : assetsWithPrices;
 
   const formatPrice = (price: number): string => {
-    if (price === 0) return 'N/A';
-    if (price < 0.01) return `$${price.toFixed(6)}`;
-    if (price < 1) return `$${price.toFixed(4)}`;
-    return `$${price.toFixed(2)}`;
+    const convertedPrice = quoteCurrency === 'EUR' ? price * 0.85 : price;
+    const symbol = quoteCurrency === 'EUR' ? '€' : '$';
+    
+    if (convertedPrice === 0) return 'N/A';
+    if (convertedPrice < 0.01) return `${symbol}${convertedPrice.toFixed(6)}`;
+    if (convertedPrice < 1) return `${symbol}${convertedPrice.toFixed(4)}`;
+    return `${symbol}${convertedPrice.toFixed(2)}`;
   };
 
   const formatValue = (value: number): string => {
@@ -104,7 +107,11 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
                   <SelectItem value="EUR">EUR</SelectItem>
                 </SelectContent>
               </Select>
-              <DollarSign className="w-8 h-8 text-primary/50" />
+              {quoteCurrency === 'EUR' ? (
+                <span className="w-8 h-8 text-primary/50 flex items-center justify-center text-2xl font-bold">€</span>
+              ) : (
+                <DollarSign className="w-8 h-8 text-primary/50" />
+              )}
             </div>
           </div>
         </div>

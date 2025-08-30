@@ -27,9 +27,8 @@ const getHardwareModules = async () => {
   try {
     const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
     modules.push(new LedgerModule());
-    console.log('Ledger module loaded successfully');
   } catch (ledgerError) {
-    console.warn('Ledger module failed to load:', ledgerError);
+    console.warn('Ledger module not available');
   }
 
   // Try to load Trezor module
@@ -40,9 +39,8 @@ const getHardwareModules = async () => {
       appName: "Stellar Multisig Wallet",
       email: "support@yourdomain.com",
     }));
-    console.log('Trezor module loaded successfully');
   } catch (error) {
-    console.warn('Trezor module not available:', error);
+    console.warn('Trezor module not available');
   }
 
   return modules;
@@ -92,106 +90,19 @@ export interface AccountData {
 
 export const connectWallet = async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
   try {
-    console.log('Attempting to connect wallet with ID:', walletId);
-    
     // Use the enhanced kit that has hardware wallets loaded
     let kit = stellarKit;
     try {
       kit = await createStellarKit();
     } catch (error) {
-      console.warn('Using base kit for connection:', error);
-    }
-
-    // Special handling for hardware wallets with account selection
-    const isLedger = walletId.toLowerCase().includes('ledger');
-    const isTrezor = walletId.toLowerCase().includes('trezor');
-    
-    if (isLedger || isTrezor) {
-      // For hardware wallets, we might be able to get multiple accounts
-      try {
-        console.log('Connecting to hardware wallet:', walletId);
-        
-        // Set the wallet first
-        kit.setWallet(walletId);
-        
-        // Try to get address - this will trigger the account selection modal
-        const { address } = await kit.getAddress();
-        
-        // Get wallet info
-        const supportedWallets = await kit.getSupportedWallets();
-        const walletInfo = supportedWallets.find(w => w.id === walletId);
-        
-        return {
-          publicKey: address,
-          walletName: walletInfo?.name || walletId
-        };
-      } catch (hwError: any) {
-        console.error('Hardware wallet error:', hwError);
-        const errorMsg = String(hwError?.message || '').toLowerCase();
-        
-        if (isLedger) {
-          if (errorMsg.includes('no device') || errorMsg.includes('not found')) {
-            throw new Error('Ledger device not found. Please connect your Ledger device via USB.');
-          } else if (errorMsg.includes('locked') || errorMsg.includes('unlock')) {
-            throw new Error('Please unlock your Ledger device and try again.');
-          } else if (errorMsg.includes('app') || errorMsg.includes('stellar')) {
-            throw new Error('Please open the Stellar app on your Ledger device.');
-          } else if (errorMsg.includes('denied') || errorMsg.includes('rejected')) {
-            throw new Error('Connection denied. Please approve the connection on your Ledger device.');
-          } else if (errorMsg.includes('timeout')) {
-            throw new Error('Connection timeout. Please check your Ledger device and try again.');
-          } else if (errorMsg.includes('cancelled') || errorMsg.includes('cancel')) {
-            throw new Error('Account selection cancelled. Please try again and select an account.');
-          }
-        }
-        
-        if (isTrezor) {
-          if (errorMsg.includes('bridge') || errorMsg.includes('not found')) {
-            throw new Error('Trezor Bridge not found. Please install Trezor Bridge and connect your device.');
-          } else if (errorMsg.includes('popup') || errorMsg.includes('cancelled')) {
-            throw new Error('Connection cancelled. Please approve the connection in the Trezor popup.');
-          }
-        }
-        
-        // Generic hardware wallet error
-        throw new Error(`Hardware wallet connection failed: ${hwError?.message || 'Unknown error'}`);
-      }
+      console.warn('Using base kit for connection');
     }
 
     // Set the selected wallet
     kit.setWallet(walletId);
-
-    // Regular wallet connection flow
-    try {
-      // @ts-ignore - connect may not exist for all modules
-      if (typeof (kit as any).connect === 'function') {
-        await (kit as any).connect();
-      }
-    } catch (e) {
-      // Ignore connect errors here, we'll retry on getAddress
-    }
     
-    // Request address (triggers permission prompt when needed)
-    let address: string;
-    try {
-      ({ address } = await kit.getAddress());
-    } catch (err: any) {
-      const msg = String(err?.message || '').toLowerCase();
-      if (msg.includes('not connected') || msg.includes('connect')) {
-        // Retry after attempting connect
-        try {
-          // @ts-ignore
-          if (typeof (kit as any).connect === 'function') {
-            await (kit as any).connect();
-          }
-          ({ address } = await kit.getAddress());
-        } catch (retryErr) {
-          throw retryErr;
-        }
-      } else {
-        throw err;
-      }
-    }
+    // Request address (triggers permission prompt and account selection for hardware wallets)
+    const { address } = await kit.getAddress();
     
     // Get wallet info
     const supportedWallets = await kit.getSupportedWallets();
@@ -203,7 +114,20 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     };
   } catch (error) {
     console.error('Failed to connect wallet:', error);
-    throw error; // Re-throw the error as-is to preserve specific error messages
+    
+    // Provide user-friendly error messages
+    const errorMsg = String(error || '').toLowerCase();
+    const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
+    
+    if (isHardware) {
+      if (errorMsg.includes('cancelled') || errorMsg.includes('denied')) {
+        throw new Error('Connection cancelled. Please try again and approve the connection.');
+      } else if (errorMsg.includes('not found') || errorMsg.includes('no device')) {
+        throw new Error('Hardware wallet not found. Please connect your device and try again.');
+      }
+    }
+    
+    throw error;
   }
 };
 
