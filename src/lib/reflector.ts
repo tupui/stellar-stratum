@@ -174,25 +174,65 @@ const getUsdcToUsdRate = async (): Promise<number> => {
   }
 };
 
-// Price cache for fallback to previous values
-const priceCache: Record<string, { price: number; timestamp: number }> = {};
+// Price cache for fallback to previous values with localStorage persistence
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_KEY = 'stellar_asset_prices';
+
+interface PriceCacheEntry {
+  price: number;
+  timestamp: number;
+}
+
+interface PriceCache {
+  [assetKey: string]: PriceCacheEntry;
+}
+
+const loadPriceCache = (): PriceCache => {
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+  } catch (error) {
+    console.warn('Failed to load price cache from localStorage:', error);
+  }
+  return {};
+};
+
+const savePriceCache = (cache: PriceCache): void => {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Failed to save price cache to localStorage:', error);
+  }
+};
 
 const getCachedPrice = (assetKey: string): number => {
-  const cached = priceCache[assetKey];
+  const cache = loadPriceCache();
+  const cached = cache[assetKey];
+  
   if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
     console.log(`Using cached price for ${assetKey}: ${cached.price}`);
     return cached.price;
   }
+  
+  // Clean expired entry
+  if (cached && (Date.now() - cached.timestamp) >= CACHE_DURATION) {
+    delete cache[assetKey];
+    savePriceCache(cache);
+  }
+  
   return 0;
 };
 
 const setCachedPrice = (assetKey: string, price: number): void => {
   if (price > 0) {
-    priceCache[assetKey] = {
+    const cache = loadPriceCache();
+    cache[assetKey] = {
       price,
       timestamp: Date.now()
     };
+    savePriceCache(cache);
   }
 };
 
