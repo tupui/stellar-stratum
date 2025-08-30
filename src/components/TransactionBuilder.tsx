@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Send, FileCode, ArrowLeft, Copy, Check } from 'lucide-react';
+import { Send, FileCode, ArrowLeft, Copy, Check, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -59,6 +59,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
   const [currentNetwork, setCurrentNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
+  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet' } | null>(null);
 
   const handlePaymentBuild = async () => {
     if (!paymentData.destination || !paymentData.amount) {
@@ -235,6 +236,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
     setIsSubmitting(true);
     try {
       const result = await submitTransaction(xdrToSubmit, currentNetwork);
+      
+      // Store success data for display
+      setSuccessData({ hash: result.hash, network: currentNetwork });
+      
       toast({
         title: "Transaction submitted successfully",
         description: `Transaction hash: ${result.hash}`,
@@ -497,6 +502,52 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
           onPullTransaction={handlePullFromRefractor}
           lastRefractorId={refractorId}
         />
+
+        {/* Transaction Success */}
+        {successData && (
+          <Card className="shadow-card border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+            <CardHeader>
+              <CardTitle className="text-green-700 dark:text-green-300 flex items-center gap-2">
+                <Check className="w-5 h-5" />
+                Transaction Submitted Successfully
+              </CardTitle>
+              <CardDescription>
+                Your transaction has been successfully submitted to the Stellar network
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Transaction Hash</Label>
+                <div className="bg-background p-3 rounded-lg">
+                  <p className="font-mono text-sm break-all">{successData.hash}</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    const baseUrl = successData.network === 'testnet' 
+                      ? 'https://stellar.expert/explorer/testnet' 
+                      : 'https://stellar.expert/explorer/public';
+                    window.open(`${baseUrl}/tx/${successData.hash}`, '_blank');
+                  }}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  View on Stellar Expert
+                </Button>
+                
+                <Button 
+                  variant="secondary"
+                  onClick={() => setSuccessData(null)}
+                >
+                  Create Another Transaction
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
       </div>
     </div>
