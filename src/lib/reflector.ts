@@ -159,7 +159,7 @@ const getOracleAssets = async (oracle: OracleConfig): Promise<string[]> => {
   try {
     const { Contract, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
     
-    const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
+    const rpcServer = new rpc.Server('https://stellar-mainnet.liquify.com/api=41EEWAH79Y5OCGI7/mainnet');
     const contract = new Contract(oracle.contract);
     
     const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
@@ -173,22 +173,38 @@ const getOracleAssets = async (oracle: OracleConfig): Promise<string[]> => {
     .setTimeout(30)
     .build();
       
-    const simResult = await rpcServer.simulateTransaction(transaction);
+      const simResult = await rpcServer.simulateTransaction(transaction);
+    
+    console.log(`Assets simulation result for ${oracle.contract}:`, {
+      success: !('error' in simResult),
+      hasResult: 'result' in simResult,
+      hasRetval: 'result' in simResult && simResult.result && 'retval' in simResult.result
+    });
     
     if ('error' in simResult) {
+      console.error(`Assets fetch failed for ${oracle.contract}:`, simResult.error);
       throw new Error(`Assets fetch failed: ${simResult.error}`);
     }
     
     if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
       const { scValToNative } = await import('@stellar/stellar-sdk');
       
-      // First try to convert the raw XDR to native value
+      // Parse the XDR result properly
       let resultValue;
       try {
+        // Log the raw XDR first
+        console.log(`Raw XDR retval for assets from ${oracle.contract}:`, simResult.result.retval);
+        
         resultValue = scValToNative(simResult.result.retval);
-        console.log(`Raw oracle assets result for ${oracle.contract}:`, resultValue);
+        console.log(`Parsed assets result for ${oracle.contract}:`, {
+          type: typeof resultValue,
+          isArray: Array.isArray(resultValue),
+          length: Array.isArray(resultValue) ? resultValue.length : 'N/A',
+          sample: Array.isArray(resultValue) ? resultValue.slice(0, 3) : resultValue
+        });
       } catch (error) {
-        console.warn(`Failed to parse assets XDR for ${oracle.contract}:`, error);
+        console.error(`Failed to parse assets XDR for ${oracle.contract}:`, error);
+        console.log(`Raw XDR that failed:`, simResult.result.retval);
         return [];
       }
       
@@ -301,7 +317,7 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
   try {
     const { Contract, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
     
-    const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
+    const rpcServer = new rpc.Server('https://stellar-mainnet.liquify.com/api=41EEWAH79Y5OCGI7/mainnet');
     const contract = new Contract(oracle.contract);
     
     console.log(`Fetching price for ${assetCode} from oracle ${oracle.contract}`);
@@ -333,19 +349,38 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
     .setTimeout(30)
     .build();
       
-    const simResult = await rpcServer.simulateTransaction(transaction);
+      const simResult = await rpcServer.simulateTransaction(transaction);
+    
+    console.log(`Price simulation result for ${assetCode} from ${oracle.contract}:`, {
+      success: !('error' in simResult),
+      hasResult: 'result' in simResult,
+      hasRetval: 'result' in simResult && simResult.result && 'retval' in simResult.result,
+      fullResult: simResult
+    });
     
     if ('error' in simResult) {
+      console.error(`Price fetch failed for ${assetCode} from ${oracle.contract}:`, simResult.error);
       throw new Error(`Price fetch failed: ${simResult.error}`);
     }
     
     if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
       let resultValue;
       try {
+        // Log the raw XDR first
+        console.log(`Raw XDR retval for ${assetCode} from ${oracle.contract}:`, simResult.result.retval);
+        
         resultValue = scValToNative(simResult.result.retval);
-        console.log(`Raw oracle price result for ${assetCode} from ${oracle.contract}:`, resultValue);
+        console.log(`Parsed price result for ${assetCode} from ${oracle.contract}:`, {
+          type: typeof resultValue,
+          hasPrice: resultValue && typeof resultValue === 'object' && 'price' in resultValue,
+          hasSome: resultValue && typeof resultValue === 'object' && 'Some' in resultValue,
+          isNull: resultValue === null,
+          hasNone: resultValue && typeof resultValue === 'object' && 'None' in resultValue,
+          fullResult: resultValue
+        });
       } catch (error) {
-        console.warn(`Failed to parse price XDR for ${assetCode} from ${oracle.contract}:`, error);
+        console.error(`Failed to parse price XDR for ${assetCode} from ${oracle.contract}:`, error);
+        console.log(`Raw XDR that failed:`, simResult.result.retval);
         return 0;
       }
       

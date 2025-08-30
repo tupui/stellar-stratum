@@ -46,27 +46,36 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
   };
 
   useEffect(() => {
-    loadWallets();
+    let interval: NodeJS.Timeout;
+    let timeout: NodeJS.Timeout;
     
-    // Check for wallet availability every 2 seconds, but stop if we find available wallets
-    const interval = setInterval(() => {
-      if (supportedWallets.some(wallet => wallet.isAvailable)) {
+    const checkWallets = async () => {
+      await loadWallets();
+      const wallets = await getSupportedWallets();
+      
+      // Stop scanning if we found available wallets
+      if (wallets.some(wallet => wallet.isAvailable)) {
         clearInterval(interval);
-        return;
+        clearTimeout(timeout);
+        setLoading(false);
       }
-      loadWallets();
-    }, 2000);
+    };
     
-    // Stop checking after 10 seconds maximum
-    const timeout = setTimeout(() => {
+    checkWallets();
+    
+    // Check for wallet availability every 2 seconds for max 10 seconds
+    interval = setInterval(checkWallets, 2000);
+    timeout = setTimeout(() => {
       clearInterval(interval);
+      clearTimeout(timeout);
+      setLoading(false);
     }, 10000);
     
     return () => {
       clearInterval(interval);
       clearTimeout(timeout);
     };
-  }, [supportedWallets]);
+  }, []);
 
   const getWalletIcon = (wallet: ISupportedWallet) => {
     const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
@@ -287,20 +296,6 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm text-muted-foreground">
-              {supportedWallets.length} wallet{supportedWallets.length !== 1 ? 's' : ''} available
-            </p>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={loadWallets}
-              disabled={loading}
-              className="h-8 px-2"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
           
           {loading && supportedWallets.length === 0 ? (
             <div className="flex items-center justify-center py-8">
