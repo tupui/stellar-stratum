@@ -65,21 +65,20 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   // Step 1: Ensure asset lists are loaded first
   await ensureAssetListsLoaded();
   
-  // Step 2: Check which oracle supports this asset
-  const supportingOracle = findSupportingOracle(assetCode, assetIssuer);
-  if (!supportingOracle) {
+  // Step 2: Resolve oracle and correctly shaped asset for that oracle
+  const resolved = resolveOracleAndAsset(assetCode, assetIssuer);
+  if (!resolved) {
     console.log(`Asset ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} not available in any oracle - assigning N/A`);
     return 0; // N/A - not supported
   }
   
-  // Step 3: Create proper Asset object and get price from the supporting oracle
-  const asset = createAssetObject(assetCode, assetIssuer);
+  const { oracle, asset } = resolved;
   try {
-    const price = await getOracleAssetPriceWithRetry(supportingOracle, asset);
-    console.log(`Got price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${supportingOracle.contract}: ${price}`);
+    const price = await getOracleAssetPriceWithRetry(oracle, asset);
+    console.log(`Got price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}: ${price}`);
     return price;
   } catch (error) {
-    console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${supportingOracle.contract}:`, error);
+    console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}:`, error);
     return 0; // N/A - failed to fetch
   }
 };
@@ -162,8 +161,8 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
   return [];
 };
 
-// Find which oracle supports the given asset
-const findSupportingOracle = (assetCode: string, assetIssuer?: string): OracleConfig | null => {
+// Resolve which oracle supports the given asset AND the correct Asset shape for that oracle
+const resolveOracleAndAsset = (assetCode: string, assetIssuer?: string): { oracle: OracleConfig; asset: Asset } | null => {
   const oracles = [REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.FX];
   
   for (const oracle of oracles) {
@@ -174,31 +173,31 @@ const findSupportingOracle = (assetCode: string, assetIssuer?: string): OracleCo
       console.log(`Checking oracle ${oracle.contract} with ${cached.assets.length} assets for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}`);
       console.log(`First 10 assets in ${oracle.contract}:`, cached.assets.slice(0, 10));
       
-      // Check for exact symbol match
+      // 1) Direct symbol match => use Other type with symbol
       if (cached.assets.includes(assetCode)) {
         console.log(`Found ${assetCode} in ${oracle.contract}`);
-        return oracle;
+        return { oracle, asset: { type: AssetType.Other, code: assetCode } };
       }
       
-      // For issued assets (Stellar assets), check stellar_ format first
+      // 2) Issued/Stellar assets
       if (assetIssuer) {
+        // Prefer stellar_{issuer} format
         const stellarFormat = `stellar_${assetIssuer}`;
         if (cached.assets.includes(stellarFormat)) {
           console.log(`Found ${assetCode} with issuer in ${oracle.contract} as ${stellarFormat}`);
-          return oracle;
+          return { oracle, asset: { type: AssetType.Stellar, code: assetIssuer } };
         }
         
-        // Try other formats as fallback
+        // Fallback formats
         const formats = [
           assetIssuer,
           `${assetCode}_${assetIssuer}`,
           `${assetCode}:${assetIssuer}`
         ];
-        
         for (const format of formats) {
           if (cached.assets.includes(format)) {
             console.log(`Found ${assetCode} with issuer in ${oracle.contract} as ${format}`);
-            return oracle;
+            return { oracle, asset: { type: AssetType.Stellar, code: assetIssuer } };
           }
         }
       }
