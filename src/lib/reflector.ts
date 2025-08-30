@@ -180,11 +180,16 @@ const findSupportingOracle = (assetCode: string, assetIssuer?: string): OracleCo
         return oracle;
       }
       
-      // For issued assets (Stellar assets), the format might be different
+      // For issued assets (Stellar assets), check stellar_ format first
       if (assetIssuer) {
-        // Try different formats that might be used
+        const stellarFormat = `stellar_${assetIssuer}`;
+        if (cached.assets.includes(stellarFormat)) {
+          console.log(`Found ${assetCode} with issuer in ${oracle.contract} as ${stellarFormat}`);
+          return oracle;
+        }
+        
+        // Try other formats as fallback
         const formats = [
-          `stellar_${assetIssuer}`,
           assetIssuer,
           `${assetCode}_${assetIssuer}`,
           `${assetCode}:${assetIssuer}`
