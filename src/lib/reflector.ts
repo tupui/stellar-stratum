@@ -68,12 +68,9 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   
   for (const oracle of oracles) {
     try {
-      const oracleData = await getOracleData(oracle);
-      if (oracleData) {
-        const price = extractAssetPrice(oracleData, assetCode, oracle, assetIssuer);
-        if (price > 0) {
-          return price;
-        }
+      const price = await getOracleAssetPrice(oracle, assetCode, assetIssuer);
+      if (price > 0) {
+        return price;
       }
     } catch (error) {
       console.warn(`Failed to fetch from ${oracle.contract}:`, error);
@@ -84,14 +81,14 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   return 0;
 };
 
-// Get all oracle data with a single contract call per oracle
-const getOracleData = async (oracle: OracleConfig): Promise<any> => {
-  const cacheKey = oracle.contract;
+// Get individual asset price from oracle
+const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
+  const cacheKey = `${oracle.contract}:${assetCode}:${assetIssuer || ''}`;
   const cached = oracleDataCache[cacheKey];
   
   // Return cached data if still valid
   if (cached && (Date.now() - cached.timestamp) < ORACLE_CACHE_DURATION) {
-    console.log(`Using cached oracle data for ${oracle.contract}`);
+    console.log(`Using cached price for ${assetCode} from ${oracle.contract}: ${cached.data}`);
     return cached.data;
   }
   
@@ -102,14 +99,23 @@ const getOracleData = async (oracle: OracleConfig): Promise<any> => {
     const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
     const contract = new Contract(oracle.contract);
     
-    console.log(`Fetching all asset prices from oracle ${oracle.contract}`);
+    console.log(`Fetching price for ${assetCode} from oracle ${oracle.contract}`);
     
     // Build the contract call transaction for simulation
     const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
     const account = await rpcServer.getAccount(simulationAccount);
     
-    // Try different method names for getting all assets/prices
-    const methodNames = ['assets', 'prices', 'get_assets', 'get_prices', 'all_prices'];
+    // Create asset parameter
+    let assetParam;
+    if (!assetCode || assetCode === 'XLM') {
+      assetParam = nativeToScVal('Native', { type: 'symbol' });
+    } else {
+      // For issued assets, try different parameter formats
+      assetParam = nativeToScVal(assetCode, { type: 'symbol' });
+    }
+    
+    // Try different method names for getting individual asset prices
+    const methodNames = ['price', 'lastprice', 'get_price', 'asset_price', 'get_asset_price'];
     
     for (const method of methodNames) {
       try {
@@ -118,7 +124,7 @@ const getOracleData = async (oracle: OracleConfig): Promise<any> => {
           fee: '100000',
           networkPassphrase: Networks.PUBLIC,
         })
-        .addOperation(contract.call(method))
+        .addOperation(contract.call(method, assetParam))
         .setTimeout(30)
         .build();
           
@@ -126,96 +132,53 @@ const getOracleData = async (oracle: OracleConfig): Promise<any> => {
         
         // Check if simulation was successful
         if ('error' in simResult) {
-          console.warn(`Simulation error for ${method} on ${oracle.contract}:`, simResult.error);
+          console.warn(`Simulation error for ${method}(${assetCode}) on ${oracle.contract}:`, simResult.error);
           continue;
         }
         
         // Check for successful result
         if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
-          // Extract the data from the result
+          // Extract the price from the result
           const resultValue = scValToNative(simResult.result.retval);
-          console.log(`Oracle ${oracle.contract} returned data:`, resultValue);
+          console.log(`Oracle ${oracle.contract} returned for ${assetCode}:`, resultValue);
           
-          // Cache the successful result
-          oracleDataCache[cacheKey] = {
-            data: resultValue,
-            timestamp: Date.now()
-          };
+          let price = 0;
+          if (typeof resultValue === 'number') {
+            price = resultValue;
+          } else if (typeof resultValue === 'string') {
+            price = parseFloat(resultValue);
+          } else if (resultValue && typeof resultValue === 'object' && 'price' in resultValue) {
+            price = parseFloat(String(resultValue.price));
+          }
           
-          return resultValue;
+          // Apply decimals scaling if we have a valid price
+          if (price > 0) {
+            const scaledPrice = price / Math.pow(10, oracle.decimals);
+            console.log(`Scaled price for ${assetCode}: ${scaledPrice}`);
+            
+            // Cache the successful result
+            oracleDataCache[cacheKey] = {
+              data: scaledPrice,
+              timestamp: Date.now()
+            };
+            
+            return scaledPrice;
+          }
         }
       } catch (methodError) {
-        console.warn(`Method ${method} failed on ${oracle.contract}:`, methodError);
+        console.warn(`Method ${method}(${assetCode}) failed on ${oracle.contract}:`, methodError);
         continue;
       }
     }
     
-    return null;
-
-  } catch (error) {
-    console.warn(`Oracle ${oracle.contract} data fetch failed:`, error);
-    return null;
-  }
-};
-
-// Extract specific asset price from oracle data
-const extractAssetPrice = (oracleData: any, assetCode: string, oracle: OracleConfig, assetIssuer?: string): number => {
-  try {
-    if (!oracleData) return 0;
-    
-    // Handle different oracle data formats
-    let price = 0;
-    
-    // If it's an array of assets/prices
-    if (Array.isArray(oracleData)) {
-      const assetData = oracleData.find(item => {
-        if (typeof item === 'object' && item.asset) {
-          if (!assetCode || assetCode === 'XLM') {
-            return item.asset === 'XLM' || item.asset === 'Native';
-          }
-          return item.asset === assetCode || (item.code === assetCode && item.issuer === assetIssuer);
-        }
-        return false;
-      });
-      
-      if (assetData && assetData.price) {
-        price = parseFloat(assetData.price);
-      }
-    }
-    
-    // If it's an object with asset keys
-    else if (typeof oracleData === 'object') {
-      const assetKey = !assetCode || assetCode === 'XLM' ? 'XLM' : assetCode;
-      
-      // Try different key formats
-      const possibleKeys = [assetKey, `${assetKey}:${assetIssuer}`, 'Native'];
-      
-      for (const key of possibleKeys) {
-        if (oracleData[key] && typeof oracleData[key] === 'number') {
-          price = oracleData[key];
-          break;
-        }
-        if (oracleData[key] && oracleData[key].price) {
-          price = parseFloat(oracleData[key].price);
-          break;
-        }
-      }
-    }
-    
-    // Apply decimals scaling if we have a valid price
-    if (price > 0) {
-      const scaledPrice = price / Math.pow(10, oracle.decimals);
-      console.log(`Extracted price for ${assetCode}: ${scaledPrice}`);
-      return scaledPrice;
-    }
-    
     return 0;
 
   } catch (error) {
-    console.warn(`Failed to extract price for ${assetCode}:`, error);
+    console.warn(`Oracle ${oracle.contract} price fetch failed for ${assetCode}:`, error);
     return 0;
   }
 };
+
 
 
 

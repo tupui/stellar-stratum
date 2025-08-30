@@ -76,7 +76,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
     const convertedValue = quoteCurrency === 'EUR' ? value * 0.85 : value; // Simple EUR conversion
     const symbol = quoteCurrency === 'EUR' ? '€' : '$';
     
-    if (convertedValue === 0) return `${symbol}0.00`;
+    if (convertedValue === 0) return 'N/A';
     if (convertedValue < 0.01) return `<${symbol}0.01`;
     return `${symbol}${convertedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
@@ -213,9 +213,13 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                       <p className="text-sm text-muted-foreground">
                         {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_type}
                       </p>
-                      {asset.priceUSD > 0 && (
+                      {asset.priceUSD > 0 ? (
                         <p className="text-xs text-muted-foreground">
                           {formatPrice(asset.priceUSD)} per {asset.symbol}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Price unavailable
                         </p>
                       )}
                     </div>
