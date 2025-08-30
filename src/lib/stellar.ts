@@ -116,8 +116,55 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
   try {
     // Set the selected wallet
     stellarKit.setWallet(walletId);
+    
+    // Special handling for hardware wallets
+    const isLedger = walletId.toLowerCase().includes('ledger');
+    const isTrezor = walletId.toLowerCase().includes('trezor');
+    
+    if (isLedger || isTrezor) {
+      // Hardware wallet specific error handling
+      try {
+        const { address } = await stellarKit.getAddress();
+        
+        // Get wallet info
+        const supportedWallets = await stellarKit.getSupportedWallets();
+        const walletInfo = supportedWallets.find(w => w.id === walletId);
+        
+        return {
+          publicKey: address,
+          walletName: walletInfo?.name || walletId
+        };
+      } catch (hwError: any) {
+        const errorMsg = String(hwError?.message || '').toLowerCase();
+        
+        if (isLedger) {
+          if (errorMsg.includes('no device') || errorMsg.includes('not found')) {
+            throw new Error('Ledger device not found. Please connect your Ledger device via USB.');
+          } else if (errorMsg.includes('locked') || errorMsg.includes('unlock')) {
+            throw new Error('Please unlock your Ledger device and try again.');
+          } else if (errorMsg.includes('app') || errorMsg.includes('stellar')) {
+            throw new Error('Please open the Stellar app on your Ledger device.');
+          } else if (errorMsg.includes('denied') || errorMsg.includes('rejected')) {
+            throw new Error('Connection denied. Please approve the connection on your Ledger device.');
+          } else if (errorMsg.includes('timeout')) {
+            throw new Error('Connection timeout. Please check your Ledger device and try again.');
+          }
+        }
+        
+        if (isTrezor) {
+          if (errorMsg.includes('bridge') || errorMsg.includes('not found')) {
+            throw new Error('Trezor Bridge not found. Please install Trezor Bridge and connect your device.');
+          } else if (errorMsg.includes('popup') || errorMsg.includes('cancelled')) {
+            throw new Error('Connection cancelled. Please approve the connection in the Trezor popup.');
+          }
+        }
+        
+        // Generic hardware wallet error
+        throw new Error(`Hardware wallet connection failed: ${hwError?.message || 'Unknown error'}`);
+      }
+    }
 
-    // Some wallets (e.g., Freighter) may require an explicit connect
+    // Regular wallet connection flow
     try {
       // @ts-ignore - connect may not exist for all modules
       if (typeof (stellarKit as any).connect === 'function') {
@@ -159,7 +206,7 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     };
   } catch (error) {
     console.error('Failed to connect wallet:', error);
-    throw new Error(`Failed to connect to ${walletId}`);
+    throw error; // Re-throw the error as-is to preserve specific error messages
   }
 };
 

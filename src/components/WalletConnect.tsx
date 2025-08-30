@@ -86,6 +86,12 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
     const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
     
     if (isHardware) {
+      if (wallet.id.toLowerCase().includes('ledger')) {
+        return 'Connect via USB, unlock device & open Stellar app';
+      }
+      if (wallet.id.toLowerCase().includes('trezor')) {
+        return 'Requires Trezor Bridge & device connection';
+      }
       return 'Hardware wallet';
     }
     
@@ -112,15 +118,21 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
       toast({
         title: "Wallet connected",
         description: `Successfully connected to ${walletName}`,
+        duration: 2000,
       });
       
       onConnect(walletName, publicKey);
     } catch (error) {
       console.error('Failed to connect wallet:', error);
+      
+      const errorMessage = error instanceof Error ? error.message : "Failed to connect wallet";
+      const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
+      
       toast({
         title: "Connection failed",
-        description: error instanceof Error ? error.message : "Failed to connect wallet",
+        description: errorMessage,
         variant: "destructive",
+        duration: isHardware ? 6000 : 3000, // Longer duration for hardware wallet errors
       });
     } finally {
       setConnecting(null);
