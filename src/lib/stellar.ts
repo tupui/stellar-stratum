@@ -114,8 +114,18 @@ export interface AccountData {
 
 export const connectWallet = async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
   try {
+    console.log('Attempting to connect wallet with ID:', walletId);
+    
+    // Use the enhanced kit that has hardware wallets loaded
+    let kit = stellarKit;
+    try {
+      kit = await createStellarKit();
+    } catch (error) {
+      console.warn('Using base kit for connection:', error);
+    }
+    
     // Set the selected wallet
-    stellarKit.setWallet(walletId);
+    kit.setWallet(walletId);
     
     // Special handling for hardware wallets
     const isLedger = walletId.toLowerCase().includes('ledger');
@@ -124,10 +134,11 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     if (isLedger || isTrezor) {
       // Hardware wallet specific error handling
       try {
-        const { address } = await stellarKit.getAddress();
+        console.log('Connecting to hardware wallet:', walletId);
+        const { address } = await kit.getAddress();
         
         // Get wallet info
-        const supportedWallets = await stellarKit.getSupportedWallets();
+        const supportedWallets = await kit.getSupportedWallets();
         const walletInfo = supportedWallets.find(w => w.id === walletId);
         
         return {
@@ -135,6 +146,7 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
           walletName: walletInfo?.name || walletId
         };
       } catch (hwError: any) {
+        console.error('Hardware wallet error:', hwError);
         const errorMsg = String(hwError?.message || '').toLowerCase();
         
         if (isLedger) {
@@ -167,8 +179,8 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     // Regular wallet connection flow
     try {
       // @ts-ignore - connect may not exist for all modules
-      if (typeof (stellarKit as any).connect === 'function') {
-        await (stellarKit as any).connect();
+      if (typeof (kit as any).connect === 'function') {
+        await (kit as any).connect();
       }
     } catch (e) {
       // Ignore connect errors here, we'll retry on getAddress
@@ -177,17 +189,17 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     // Request address (triggers permission prompt when needed)
     let address: string;
     try {
-      ({ address } = await stellarKit.getAddress());
+      ({ address } = await kit.getAddress());
     } catch (err: any) {
       const msg = String(err?.message || '').toLowerCase();
       if (msg.includes('not connected') || msg.includes('connect')) {
         // Retry after attempting connect
         try {
           // @ts-ignore
-          if (typeof (stellarKit as any).connect === 'function') {
-            await (stellarKit as any).connect();
+          if (typeof (kit as any).connect === 'function') {
+            await (kit as any).connect();
           }
-          ({ address } = await stellarKit.getAddress());
+          ({ address } = await kit.getAddress());
         } catch (retryErr) {
           throw retryErr;
         }
@@ -197,7 +209,7 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     }
     
     // Get wallet info
-    const supportedWallets = await stellarKit.getSupportedWallets();
+    const supportedWallets = await kit.getSupportedWallets();
     const walletInfo = supportedWallets.find(w => w.id === walletId);
     
     return {
@@ -263,6 +275,7 @@ export const getSupportedWallets = async (): Promise<ISupportedWallet[]> => {
     }
     
     const wallets = await kit.getSupportedWallets();
+    console.log('Available wallets:', wallets.map(w => ({ id: w.id, name: w.name, available: w.isAvailable })));
     
     // Filter and prioritize wallets
     const priorityOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'albedo', 'rabet'];
