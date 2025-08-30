@@ -47,35 +47,51 @@ export interface AssetPrice {
 }
 
 export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): Promise<number> => {
+  const assetKey = assetIssuer ? `${assetCode}:${assetIssuer}` : (assetCode || 'XLM');
+  
   try {
     // For native XLM
     if (!assetCode || assetCode === 'XLM') {
       // Try Reflector oracles first, then CoinGecko as fallback
       const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
       if (reflectorPrice > 0) {
+        setCachedPrice(assetKey, reflectorPrice);
         return reflectorPrice;
       }
-      return await fetchCoinGeckoPrice('stellar');
+      
+      const coinGeckoPrice = await fetchCoinGeckoPrice('stellar');
+      if (coinGeckoPrice > 0) {
+        setCachedPrice(assetKey, coinGeckoPrice);
+        return coinGeckoPrice;
+      }
+      
+      // Fallback to cached price
+      return getCachedPrice(assetKey);
     }
 
     // Try Reflector oracles first for all assets
     const reflectorPrice = await fetchReflectorPrice(assetCode, assetIssuer);
     if (reflectorPrice > 0) {
+      setCachedPrice(assetKey, reflectorPrice);
       return reflectorPrice;
     }
 
     // Fallback to CoinGecko for known assets
     const coinId = ASSET_ID_MAP[assetCode];
     if (coinId) {
-      return await fetchCoinGeckoPrice(coinId);
+      const coinGeckoPrice = await fetchCoinGeckoPrice(coinId);
+      if (coinGeckoPrice > 0) {
+        setCachedPrice(assetKey, coinGeckoPrice);
+        return coinGeckoPrice;
+      }
     }
 
-    // Final fallback to static prices
-    return getFallbackPrice(assetCode);
+    // Final fallback to cached price
+    return getCachedPrice(assetKey);
 
   } catch (error) {
     console.warn(`Failed to get price for ${assetCode}:`, error);
-    return getFallbackPrice(assetCode);
+    return getCachedPrice(assetKey);
   }
 };
 
@@ -158,20 +174,26 @@ const getUsdcToUsdRate = async (): Promise<number> => {
   }
 };
 
-// Fallback prices based on recent market data (in USD)
-const getFallbackPrice = (assetCode: string): number => {
-  const fallbackPrices: Record<string, number> = {
-    'XLM': 0.36, // Stellar Lumens
-    'USDC': 1.0, // USD Coin
-    'EURC': 1.15, // Euro Coin (approximate EUR/USD)
-    'AQUA': 0.00088, // Aqua token
-    'yUSDC': 1.0, // Yield USDC
-    'BTC': 65000, // Bitcoin
-    'ETH': 2600, // Ethereum
-    'XRF': 0.125, // Reflector token (from Reflector oracle)
-  };
+// Price cache for fallback to previous values
+const priceCache: Record<string, { price: number; timestamp: number }> = {};
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-  return fallbackPrices[assetCode?.toUpperCase() || ''] || 0;
+const getCachedPrice = (assetKey: string): number => {
+  const cached = priceCache[assetKey];
+  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+    console.log(`Using cached price for ${assetKey}: ${cached.price}`);
+    return cached.price;
+  }
+  return 0;
+};
+
+const setCachedPrice = (assetKey: string, price: number): void => {
+  if (price > 0) {
+    priceCache[assetKey] = {
+      price,
+      timestamp: Date.now()
+    };
+  }
 };
 
 export const getAssetSymbol = (assetCode?: string): string => {
