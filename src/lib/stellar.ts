@@ -24,15 +24,13 @@ const getHardwareModules = async () => {
   const modules: any[] = [];
   
   try {
-    // Try to load Ledger module with Buffer polyfill
-    const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
+    // Ensure Buffer is available BEFORE loading Ledger module
     const { Buffer } = await import('buffer');
-    
-    // Make Buffer available for this module only
-    if (typeof window !== 'undefined') {
-      (window as any).Buffer = Buffer;
+    if (typeof globalThis !== 'undefined' && !(globalThis as any).Buffer) {
+      (globalThis as any).Buffer = Buffer;
     }
-    
+
+    const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
     modules.push(new LedgerModule());
   } catch (error) {
     console.warn('Ledger module not available:', error);
@@ -100,9 +98,38 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
   try {
     // Set the selected wallet
     stellarKit.setWallet(walletId);
+
+    // Some wallets (e.g., Freighter) may require an explicit connect
+    try {
+      // @ts-ignore - connect may not exist for all modules
+      if (typeof (stellarKit as any).connect === 'function') {
+        await (stellarKit as any).connect();
+      }
+    } catch (e) {
+      // Ignore connect errors here, we'll retry on getAddress
+    }
     
-    // Request access/connection
-    const { address } = await stellarKit.getAddress();
+    // Request address (triggers permission prompt when needed)
+    let address: string;
+    try {
+      ({ address } = await stellarKit.getAddress());
+    } catch (err: any) {
+      const msg = String(err?.message || '').toLowerCase();
+      if (msg.includes('not connected') || msg.includes('connect')) {
+        // Retry after attempting connect
+        try {
+          // @ts-ignore
+          if (typeof (stellarKit as any).connect === 'function') {
+            await (stellarKit as any).connect();
+          }
+          ({ address } = await stellarKit.getAddress());
+        } catch (retryErr) {
+          throw retryErr;
+        }
+      } else {
+        throw err;
+      }
+    }
     
     // Get wallet info
     const supportedWallets = await stellarKit.getSupportedWallets();
