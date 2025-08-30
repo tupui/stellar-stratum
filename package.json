@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@creit.tech/sorobandomains-sdk": "^0.1.6",
     "@creit.tech/stellar-wallets-kit": "^1.9.1",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
