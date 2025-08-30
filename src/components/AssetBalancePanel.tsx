@@ -19,12 +19,25 @@ interface AssetBalance {
 
 interface AssetBalancePanelProps {
   balances: AssetBalance[];
+  onRefreshBalances?: () => Promise<void>;
 }
 
-export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
+export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalancePanelProps) => {
   const { assetsWithPrices, totalValueUSD, loading, error, refetch } = useAssetPrices(balances);
   const [quoteCurrency, setQuoteCurrency] = useState('USD');
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
+
+  const handleRefresh = async () => {
+    try {
+      if (onRefreshBalances) {
+        await onRefreshBalances();
+      }
+    } catch (e) {
+      console.error('Failed to refresh balances:', e);
+    } finally {
+      await refetch();
+    }
+  };
 
   // Filter assets based on hide small balances toggle
   const filteredAssets = hideSmallBalances 
@@ -75,7 +88,7 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={refetch}
+              onClick={handleRefresh}
               disabled={loading}
               className="h-8 px-2"
             >

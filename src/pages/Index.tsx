@@ -33,9 +33,11 @@ const Index = () => {
   const [connectedWallet, setConnectedWallet] = useState<string>('');
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [publicKey, setPublicKey] = useState<string>('');
 
   const handleWalletConnect = async (walletType: string, publicKey: string) => {
     setConnectedWallet(walletType);
+    setPublicKey(publicKey);
     setLoading(true);
     
     try {
@@ -45,15 +47,15 @@ const Index = () => {
       setAppState('dashboard');
       
       toast({
-        title: "Account loaded",
-        description: "Successfully loaded account data from Stellar network",
+        title: 'Account loaded',
+        description: 'Successfully loaded account data from Stellar network',
       });
     } catch (error) {
       console.error('Failed to load account:', error);
       toast({
-        title: "Failed to load account",
-        description: error instanceof Error ? error.message : "Could not load account data",
-        variant: "destructive",
+        title: 'Failed to load account',
+        description: error instanceof Error ? error.message : 'Could not load account data',
+        variant: 'destructive',
       });
       
       // Fall back to connection screen
@@ -78,6 +80,7 @@ const Index = () => {
 
   const handleDisconnect = () => {
     setConnectedWallet('');
+    setPublicKey('');
     setAccountData(null);
     setAppState('connecting');
   };
@@ -109,12 +112,19 @@ const Index = () => {
   }
 
   if (appState === 'dashboard' && accountData) {
+    const onRefreshBalances = async () => {
+      if (!publicKey) return;
+      const realAccountData = await fetchAccountData(publicKey);
+      setAccountData(realAccountData);
+    };
+
     return (
       <AccountOverview 
         accountData={accountData}
         onInitiateTransaction={handleInitiateTransaction}
         onSignTransaction={handleSignTransaction}
         onDisconnect={handleDisconnect}
+        onRefreshBalances={onRefreshBalances}
       />
     );
   }

@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Users, CheckCircle, Circle, Plus } from 'lucide-react';
 import { Transaction, Networks } from '@stellar/stellar-sdk';
+import { getSupportedWallets } from '@/lib/stellar';
+import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 
 interface Signer {
   key: string;
@@ -25,7 +27,7 @@ interface SignerSelectorProps {
   currentAccountKey: string;
   signedBy: SignedBySigner[];
   requiredWeight: number;
-  onSignWithSigner: (signerKey: string) => Promise<void>;
+  onSignWithSigner: (signerKey: string, walletId: string) => Promise<void>;
   isSigning: boolean;
 }
 
@@ -40,8 +42,21 @@ export const SignerSelector = ({
   isSigning 
 }: SignerSelectorProps) => {
   const [selectedSigner, setSelectedSigner] = useState<string>('');
+  const [selectedWalletId, setSelectedWalletId] = useState<string>('');
+  const [wallets, setWallets] = useState<ISupportedWallet[]>([]);
   const [existingSignatures, setExistingSignatures] = useState<string[]>([]);
 
+  // Load available wallets for signing (no manual/domains here)
+  useEffect(() => {
+    (async () => {
+      try {
+        const ws = await getSupportedWallets();
+        setWallets(ws.filter(w => w.isAvailable));
+      } catch (e) {
+        console.error('Failed to load wallets for signing:', e);
+      }
+    })();
+  }, []);
   // Extract existing signatures from XDR
   useEffect(() => {
     try {
@@ -122,9 +137,10 @@ export const SignerSelector = ({
   const hasMinimumSignatures = currentWeight >= requiredWeight;
 
   const handleSign = async () => {
-    if (selectedSigner) {
-      await onSignWithSigner(selectedSigner);
+    if (selectedSigner && selectedWalletId) {
+      await onSignWithSigner(selectedSigner, selectedWalletId);
       setSelectedSigner('');
+      setSelectedWalletId('');
     }
   };
 
@@ -187,7 +203,7 @@ export const SignerSelector = ({
             <p className="text-sm text-muted-foreground">All signers have signed</p>
           ) : (
             <>
-              <div className="flex gap-2">
+              <div className="flex flex-col md:flex-row gap-2">
                 <Select value={selectedSigner} onValueChange={setSelectedSigner}>
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Select a signer to sign with" />
@@ -210,9 +226,23 @@ export const SignerSelector = ({
                     ))}
                   </SelectContent>
                 </Select>
+
+                <Select value={selectedWalletId} onValueChange={setSelectedWalletId}>
+                  <SelectTrigger className="flex-1 md:max-w-xs">
+                    <SelectValue placeholder="Select wallet to sign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wallets.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 <Button 
                   onClick={handleSign} 
-                  disabled={!selectedSigner || isSigning}
+                  disabled={!selectedSigner || !selectedWalletId || isSigning}
                   size="sm"
                 >
                   {isSigning ? (

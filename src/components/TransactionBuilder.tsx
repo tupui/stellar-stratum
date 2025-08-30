@@ -19,6 +19,7 @@ import {
   Horizon
 } from '@stellar/stellar-sdk';
 import { signTransaction, horizonServer, submitTransaction, submitToRefractor, pullFromRefractor } from '@/lib/stellar';
+import { signWithWallet } from '@/lib/walletKit';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
@@ -200,29 +201,38 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
     }
   };
 
-  const handleSignWithSigner = async (signerKey: string) => {
+  const handleSignWithSigner = async (signerKey: string, walletId: string) => {
     const xdrToSign = xdrData.output || xdrData.input;
     if (!xdrToSign) return;
-    
+
     setIsSigning(true);
     try {
-      const signedXdr = await signTransaction(xdrToSign);
+      const { signedXdr, address, walletName } = await signWithWallet(xdrToSign, walletId, currentNetwork);
+
+      if (address !== signerKey) {
+        throw new Error(
+          `Selected wallet (${walletName}) returned a different address. ` +
+          `Expected ${signerKey.slice(0, 8)}... but got ${address.slice(0, 8)}... ` +
+          `Please switch account in the wallet to match the signer and try again.`
+        );
+      }
+
       setXdrData(prev => ({ ...prev, output: signedXdr }));
-      
+
       // Add to signed by list
       setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
-      
+
       toast({
-        title: "Transaction signed",
-        description: `Signed with ${signerKey.slice(0, 8)}...${signerKey.slice(-8)}`,
+        title: 'Transaction signed',
+        description: `Signed with ${walletName}`,
         duration: 2000,
       });
     } catch (error) {
       console.error('Signing error:', error);
       toast({
-        title: "Signing failed",
-        description: error instanceof Error ? error.message : "Failed to sign transaction",
-        variant: "destructive",
+        title: 'Signing failed',
+        description: error instanceof Error ? error.message : 'Failed to sign transaction',
+        variant: 'destructive',
       });
     } finally {
       setIsSigning(false);

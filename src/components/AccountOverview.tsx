@@ -32,9 +32,10 @@ interface AccountOverviewProps {
   onInitiateTransaction: () => void;
   onSignTransaction: () => void;
   onDisconnect: () => void;
+  onRefreshBalances: () => Promise<void>;
 }
 
-export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect }: AccountOverviewProps) => {
+export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
   const truncateKey = (key: string) => {
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
   };
@@ -97,7 +98,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
         </Card>
 
         {/* Balances */}
-        <AssetBalancePanel balances={accountData.balances} />
+        <AssetBalancePanel balances={accountData.balances} onRefreshBalances={onRefreshBalances} />
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Thresholds */}
