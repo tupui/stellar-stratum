@@ -91,8 +91,30 @@ export interface AccountData {
 export const connectWallet = async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
   try {
     console.log('Connecting to wallet:', walletId);
+
+    // Direct Freighter path for reliability
+    if (walletId.toLowerCase().includes('freighter')) {
+      const w = (window as any).freighterApi;
+      if (!w) {
+        throw new Error('Freighter extension not detected');
+      }
+      try {
+        if (typeof w.isConnected === 'function') {
+          const connected = await w.isConnected();
+          if (!connected && typeof w.connect === 'function') {
+            await w.connect();
+          }
+        }
+      } catch {}
+
+      const address = (await (w.getPublicKey?.() || w.requestPublicKey?.())) as string;
+      if (!address || !/^G[A-Z2-7]{55}$/.test(address)) {
+        throw new Error('Freighter did not return a valid public key');
+      }
+      return { publicKey: address, walletName: 'Freighter' };
+    }
     
-    // Use the enhanced kit that has hardware wallets loaded
+    // Use the enhanced kit that has hardware wallets loaded for others
     let kit = stellarKit;
     try {
       kit = await createStellarKit();

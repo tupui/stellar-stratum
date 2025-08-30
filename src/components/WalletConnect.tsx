@@ -171,19 +171,19 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
     
     try {
       // Import Soroban Domains SDK
-      const { SorobanDomainsSDK, Domain404Error } = await import('@creit.tech/sorobandomains-sdk');
-      const SDK = await import('@stellar/stellar-sdk');
+      const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
+      const SDK: any = await import('@stellar/stellar-sdk');
       
       // Initialize SDK - handle different SDK versions
       let rpcServer;
       
       try {
         // @ts-ignore - Handle different SDK versions
-        rpcServer = new SDK.SorobanRpc.Server('https://mainnet.stellar.validationcloud.io/v1/no-key');
+        rpcServer = new SDK.SorobanRpc.Server('https://mainnet.sorobanrpc.com');
       } catch {
         try {
           // @ts-ignore - Alternative RPC server constructor
-          rpcServer = new SDK.Soroban.Server('https://mainnet.stellar.validationcloud.io/v1/no-key');
+          rpcServer = new SDK.Soroban.Server('https://mainnet.sorobanrpc.com');
         } catch {
           // @ts-ignore - Fallback to minimal mock object
           rpcServer = { 
@@ -197,8 +197,8 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
         stellarSDK: SDK,
         rpc: rpcServer,
         network: SDK.Networks.PUBLIC,
-        vaultsContractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHAGK6W2F',
-        valuesDatabaseContractId: 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQAHHAGK6W2F',
+        vaultsContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
+        valuesDatabaseContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
         defaultFee: '10000000',
         defaultTimeout: 300,
         simulationAccount: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
