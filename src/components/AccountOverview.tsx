@@ -64,9 +64,6 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             <Button onClick={onInitiateTransaction} className="bg-gradient-primary hover:opacity-90">
               Initiate Transaction
             </Button>
-            <Button variant="outline" onClick={onSignTransaction}>
-              Sign Transaction
-            </Button>
           </div>
         </div>
 
