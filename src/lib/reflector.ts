@@ -104,7 +104,7 @@ const ensureAssetListsLoaded = async (): Promise<void> => {
 };
 
 // Get available assets from oracle with retry logic
-const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number = 3): Promise<string[]> => {
+const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number = 1): Promise<string[]> => {
   const cacheKey = `assets_${oracle.contract}`;
   const cached = oracleAssetsCache[cacheKey];
   
@@ -260,7 +260,7 @@ const findSupportingOracle = (assetCode: string, assetIssuer?: string): OracleCo
 };
 
 // Get individual asset price from oracle with retry logic
-const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string, maxRetries: number = 3): Promise<number> => {
+const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string, maxRetries: number = 1): Promise<number> => {
   const cacheKey = `${oracle.contract}:${assetCode}:${assetIssuer || ''}`;
   const cached = oraclePriceCache[cacheKey];
   
@@ -324,17 +324,17 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
     const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
     const account = await rpcServer.getAccount(simulationAccount);
     
-    // Create asset parameter matching the Asset enum format: ["Stellar", address] or ["Other", symbol]
+    // Create asset parameter - try different formats to see which works
     let assetParam;
     if (!assetCode || assetCode === 'XLM') {
-      // For native XLM - use Other variant
-      assetParam = nativeToScVal(['Other', 'XLM']);
+      // For native XLM - try string format first
+      assetParam = nativeToScVal('XLM');
     } else if (assetIssuer) {
-      // For issued assets - use Stellar variant with issuer address
-      assetParam = nativeToScVal(['Stellar', assetIssuer]);
+      // For issued assets - try contract address format
+      assetParam = nativeToScVal(assetIssuer);
     } else {
-      // For other symbols - use Other variant
-      assetParam = nativeToScVal(['Other', assetCode]);
+      // For other symbols - try string format
+      assetParam = nativeToScVal(assetCode);
     }
     
     console.log(`Asset parameter for ${assetCode}:`, assetParam);
