@@ -549,9 +549,19 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
                 
                 {/* Trustline Error */}
                 {trustlineError && (
-                  <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
-                    <p className="text-sm text-red-700 dark:text-red-300">{trustlineError}</p>
+                  <div className="relative p-4 bg-gradient-to-r from-destructive/10 to-destructive/5 border border-destructive/20 rounded-xl backdrop-blur-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center">
+                        <AlertTriangle className="w-5 h-5 text-destructive" />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <h4 className="font-semibold text-destructive">Trustline Required</h4>
+                        <p className="text-sm text-destructive/80 leading-relaxed">{trustlineError}</p>
+                        <div className="text-xs text-destructive/60 mt-2">
+                          The recipient must establish a trustline before receiving this asset.
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
                 
