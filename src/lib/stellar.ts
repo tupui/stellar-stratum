@@ -94,10 +94,19 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
 
     // Direct Freighter path for reliability
     if (walletId.toLowerCase().includes('freighter')) {
+      console.log('Checking for Freighter...');
+      console.log('window.freighterApi:', (window as any).freighterApi);
+      console.log('window.freighter:', (window as any).freighter);
+      console.log('window keys containing freighter:', Object.keys(window).filter(k => k.toLowerCase().includes('freighter')));
+      
       const w = (window as any).freighterApi || (window as any).freighter;
       if (!w) {
+        console.log('Freighter extension not found in window object');
         throw new Error('Freighter extension not detected');
       }
+      
+      console.log('Freighter object found:', w);
+      console.log('Freighter methods:', Object.keys(w));
       
       try {
         const isConnected = typeof w.isConnected === 'function' ? await w.isConnected() : false;

@@ -99,7 +99,7 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
             </div>
             <div className="flex items-center gap-2">
               <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
-                <SelectTrigger className="w-16 h-8 border-0 bg-transparent">
+                <SelectTrigger className="w-20 h-8 border-0 bg-transparent px-2">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
