@@ -98,8 +98,8 @@ const getOracleData = async (oracle: OracleConfig): Promise<any> => {
   try {
     const { Contract, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
     
-    // Use a CORS-friendly RPC endpoint
-    const rpcServer = new rpc.Server('https://soroban-rpc.mainnet.stellar.gateway.fm');
+    // Use the primary free RPC endpoint
+    const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
     const contract = new Contract(oracle.contract);
     
     console.log(`Fetching all asset prices from oracle ${oracle.contract}`);
