@@ -22,41 +22,19 @@ const getBaseModules = () => {
 // Safely add hardware wallet modules with error handling
 const getHardwareModules = async () => {
   const modules: any[] = [];
-  
-  // Set up Buffer globally FIRST - before any module imports
+
+  // Try to load Ledger module
   try {
-    const { Buffer } = await import('buffer');
-    
-    // Make Buffer available globally in multiple ways for maximum compatibility
-    if (typeof window !== 'undefined') {
-      (window as any).Buffer = Buffer;
-    }
-    if (typeof globalThis !== 'undefined') {
-      (globalThis as any).Buffer = Buffer;
-    }
-    if (typeof global !== 'undefined') {
-      (global as any).Buffer = Buffer;
-    }
-    
-    // Small delay to ensure Buffer is properly set before module evaluation
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Now try to load Ledger module
-    try {
-      const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
-      modules.push(new LedgerModule());
-      console.log('Ledger module loaded successfully');
-    } catch (ledgerError) {
-      console.warn('Ledger module failed to load:', ledgerError);
-    }
-  } catch (bufferError) {
-    console.warn('Buffer polyfill failed:', bufferError);
+    const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
+    modules.push(new LedgerModule());
+    console.log('Ledger module loaded successfully');
+  } catch (ledgerError) {
+    console.warn('Ledger module failed to load:', ledgerError);
   }
-  
+
+  // Try to load Trezor module
   try {
-    // Try to load Trezor module
     const { TrezorModule } = await import('@creit.tech/stellar-wallets-kit/modules/trezor.module');
-    
     modules.push(new TrezorModule({
       appUrl: typeof window !== 'undefined' ? window.location.origin : 'https://localhost:5173',
       appName: "Stellar Multisig Wallet",
@@ -66,7 +44,7 @@ const getHardwareModules = async () => {
   } catch (error) {
     console.warn('Trezor module not available:', error);
   }
-  
+
   return modules;
 };
 
