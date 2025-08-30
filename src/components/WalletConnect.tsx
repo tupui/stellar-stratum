@@ -48,13 +48,16 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
   useEffect(() => {
     loadWallets();
     
-    // Check for wallet availability every 2 seconds for the first 10 seconds
-    // This helps detect browser extensions that load after page load
+    // Check for wallet availability every 2 seconds, but stop if we find available wallets
     const interval = setInterval(() => {
+      if (supportedWallets.some(wallet => wallet.isAvailable)) {
+        clearInterval(interval);
+        return;
+      }
       loadWallets();
     }, 2000);
     
-    // Stop checking after 10 seconds
+    // Stop checking after 10 seconds maximum
     const timeout = setTimeout(() => {
       clearInterval(interval);
     }, 10000);
@@ -63,7 +66,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
       clearInterval(interval);
       clearTimeout(timeout);
     };
-  }, []);
+  }, [supportedWallets]);
 
   const getWalletIcon = (wallet: ISupportedWallet) => {
     const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');

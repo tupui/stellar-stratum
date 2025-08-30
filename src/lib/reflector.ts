@@ -181,7 +181,16 @@ const getOracleAssets = async (oracle: OracleConfig): Promise<string[]> => {
     
     if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
       const { scValToNative } = await import('@stellar/stellar-sdk');
-      const resultValue = scValToNative(simResult.result.retval);
+      
+      // First try to convert the raw XDR to native value
+      let resultValue;
+      try {
+        resultValue = scValToNative(simResult.result.retval);
+        console.log(`Raw oracle assets result for ${oracle.contract}:`, resultValue);
+      } catch (error) {
+        console.warn(`Failed to parse assets XDR for ${oracle.contract}:`, error);
+        return [];
+      }
       
       // Extract asset symbols from the Vec<Asset> result
       const assetSymbols: string[] = [];
@@ -194,11 +203,15 @@ const getOracleAssets = async (oracle: OracleConfig): Promise<string[]> => {
             } else if ('Stellar' in asset) {
               // For Stellar assets, use the issuer address as identifier
               assetSymbols.push(`stellar_${asset.Stellar}`);
+            } else if (typeof asset === 'string') {
+              // Handle direct string assets
+              assetSymbols.push(asset);
             }
           }
         }
       }
       
+      console.log(`Parsed ${assetSymbols.length} assets from ${oracle.contract}:`, assetSymbols.slice(0, 5), '...');
       return assetSymbols;
     }
     
@@ -327,8 +340,14 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
     }
     
     if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
-      const resultValue = scValToNative(simResult.result.retval);
-      console.log(`Oracle ${oracle.contract} returned for ${assetCode}:`, resultValue);
+      let resultValue;
+      try {
+        resultValue = scValToNative(simResult.result.retval);
+        console.log(`Raw oracle price result for ${assetCode} from ${oracle.contract}:`, resultValue);
+      } catch (error) {
+        console.warn(`Failed to parse price XDR for ${assetCode} from ${oracle.contract}:`, error);
+        return 0;
+      }
       
       // Handle Option<PriceData> result
       if (resultValue && typeof resultValue === 'object') {
@@ -337,22 +356,35 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
         // Handle Some(PriceData) case
         if ('Some' in resultValue && resultValue.Some) {
           const priceData = resultValue.Some;
+          console.log(`PriceData from Some:`, priceData);
           if (priceData && typeof priceData === 'object' && 'price' in priceData) {
             price = parseFloat(String(priceData.price));
           }
         }
-        // Handle direct PriceData case
+        // Handle direct PriceData case  
         else if ('price' in resultValue) {
+          console.log(`Direct PriceData:`, resultValue);
           price = parseFloat(String(resultValue.price));
+        }
+        // Handle None case or other structures
+        else if (resultValue === null || 'None' in resultValue) {
+          console.log(`No price data available for ${assetCode}`);
+          return 0;
+        }
+        // Handle if the result is a direct number
+        else if (typeof resultValue === 'number' || typeof resultValue === 'string') {
+          price = parseFloat(String(resultValue));
         }
         
         // Apply decimals scaling
         if (price > 0) {
           const scaledPrice = price / Math.pow(10, oracle.decimals);
-          console.log(`Scaled price for ${assetCode}: ${scaledPrice}`);
+          console.log(`Scaled price for ${assetCode}: ${scaledPrice} (raw: ${price}, decimals: ${oracle.decimals})`);
           return scaledPrice;
         }
       }
+      
+      console.log(`No valid price found for ${assetCode} from ${oracle.contract}`);
     }
     
     return 0;
