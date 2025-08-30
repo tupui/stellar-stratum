@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Wallet, Shield, ArrowRight } from 'lucide-react';
+import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb } from 'lucide-react';
 import { getSupportedWallets, connectWallet } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
@@ -15,24 +15,93 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
   const { toast } = useToast();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [supportedWallets, setSupportedWallets] = useState<ISupportedWallet[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadWallets = async () => {
+    try {
+      setLoading(true);
+      const wallets = await getSupportedWallets();
+      setSupportedWallets(wallets);
+    } catch (error) {
+      console.error('Failed to load wallets:', error);
+      toast({
+        title: "Failed to load wallets",
+        description: "Could not load supported wallets",
+        variant: "destructive",
+        duration: 2000,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadWallets = async () => {
-      try {
-        const wallets = await getSupportedWallets();
-        setSupportedWallets(wallets);
-      } catch (error) {
-        console.error('Failed to load wallets:', error);
-        toast({
-          title: "Failed to load wallets",
-          description: "Could not load supported wallets",
-          variant: "destructive",
-        });
-      }
-    };
-    
     loadWallets();
-  }, [toast]);
+    
+    // Check for wallet availability every 2 seconds for the first 10 seconds
+    // This helps detect browser extensions that load after page load
+    const interval = setInterval(() => {
+      loadWallets();
+    }, 2000);
+    
+    // Stop checking after 10 seconds
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+    }, 10000);
+    
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  const getWalletIcon = (wallet: ISupportedWallet) => {
+    const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+    
+    if (isHardware) {
+      return <Usb className="w-8 h-8 text-primary" />;
+    }
+    
+    return wallet.icon ? (
+      <img 
+        src={wallet.icon} 
+        alt={wallet.name} 
+        className="w-8 h-8 rounded"
+        onError={(e) => {
+          // Fallback to text icon if image fails to load
+          const target = e.target as HTMLImageElement;
+          target.style.display = 'none';
+          const fallback = target.nextElementSibling as HTMLElement;
+          if (fallback) fallback.style.display = 'flex';
+        }}
+      />
+    ) : (
+      <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground">
+        {wallet.name.charAt(0)}
+      </div>
+    );
+  };
+
+  const getWalletDescription = (wallet: ISupportedWallet) => {
+    const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+    
+    if (isHardware) {
+      return 'Hardware wallet';
+    }
+    
+    if (wallet.isAvailable) {
+      return 'Available';
+    }
+    
+    // Check if it's a browser extension
+    if (wallet.id.toLowerCase().includes('freighter') || 
+        wallet.id.toLowerCase().includes('rabet') ||
+        wallet.id.toLowerCase().includes('xbull')) {
+      return 'Extension required';
+    }
+    
+    return 'Install required';
+  };
 
   const handleConnect = async (walletId: string, walletName: string) => {
     setConnecting(walletId);
@@ -71,46 +140,67 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {supportedWallets.map((wallet) => (
-            <Button
-              key={wallet.id}
-              variant="outline"
-              className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-              onClick={() => handleConnect(wallet.id, wallet.name)}
-              disabled={connecting !== null}
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm text-muted-foreground">
+              {supportedWallets.length} wallet{supportedWallets.length !== 1 ? 's' : ''} available
+            </p>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={loadWallets}
+              disabled={loading}
+              className="h-8 px-2"
             >
-              <div className="flex items-center gap-3">
-                <img 
-                  src={wallet.icon} 
-                  alt={wallet.name} 
-                  className="w-8 h-8 rounded"
-                  onError={(e) => {
-                    // Fallback to text icon if image fails to load
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                    const fallback = target.nextElementSibling as HTMLElement;
-                    if (fallback) fallback.style.display = 'flex';
-                  }}
-                />
-                <div 
-                  className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden"
-                >
-                  {wallet.name.charAt(0)}
-                </div>
-                <div className="text-left">
-                  <div className="font-medium">{wallet.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {wallet.isAvailable ? 'Available' : 'Install required'}
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+          
+          {loading && supportedWallets.length === 0 ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Loading wallets...</span>
+              </div>
+            </div>
+          ) : supportedWallets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">No wallets found</p>
+              <Button variant="outline" size="sm" onClick={loadWallets} className="mt-2">
+                Try Again
+              </Button>
+            </div>
+          ) : (
+            supportedWallets.map((wallet) => (
+              <Button
+                key={wallet.id}
+                variant="outline"
+                className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                onClick={() => handleConnect(wallet.id, wallet.name)}
+                disabled={connecting !== null}
+              >
+                <div className="flex items-center gap-3">
+                  {getWalletIcon(wallet)}
+                  <div 
+                    className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden"
+                  >
+                    {wallet.name.charAt(0)}
+                  </div>
+                  <div className="text-left">
+                    <div className="font-medium">{wallet.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {getWalletDescription(wallet)}
+                    </div>
                   </div>
                 </div>
-              </div>
-              {connecting === wallet.id ? (
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <ArrowRight className="w-4 h-4" />
-              )}
-            </Button>
-          ))}
+                {connecting === wallet.id ? (
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <ArrowRight className="w-4 h-4" />
+                )}
+              </Button>
+            ))
+          )}
           
           <div className="pt-4 border-t border-border">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

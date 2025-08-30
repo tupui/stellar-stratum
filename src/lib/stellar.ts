@@ -1,16 +1,38 @@
 import { 
   StellarWalletsKit, 
   WalletNetwork, 
-  allowAllModules,
-  ISupportedWallet 
+  ISupportedWallet,
+  xBullModule,
+  FreighterModule,
+  AlbedoModule,
+  RabetModule
 } from '@creit.tech/stellar-wallets-kit';
+import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
+import { TrezorModule } from '@creit.tech/stellar-wallets-kit/modules/trezor.module';
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
-// Initialize Stellar Wallets Kit instance
+// Make Buffer globally available for Ledger support
+if (typeof window !== 'undefined' && !window.Buffer) {
+  const { Buffer } = require('buffer');
+  window.Buffer = Buffer;
+}
+
+// Initialize Stellar Wallets Kit instance with hardware wallet support
 export const stellarKit = new StellarWalletsKit({
   network: WalletNetwork.PUBLIC, // Change to TESTNET for testing
   selectedWalletId: undefined,
-  modules: allowAllModules(),
+  modules: [
+    new xBullModule(),
+    new FreighterModule(),
+    new AlbedoModule(),
+    new RabetModule(),
+    new LedgerModule(),
+    new TrezorModule({
+      appUrl: typeof window !== 'undefined' ? window.location.origin : 'https://localhost:5173',
+      appName: "Stellar Multisig Wallet",
+      email: "support@yourdomain.com", // Replace with your support email
+    }),
+  ],
 });
 
 // Horizon server for account data
@@ -99,7 +121,32 @@ export const fetchAccountData = async (publicKey: string): Promise<AccountData> 
 };
 
 export const getSupportedWallets = async (): Promise<ISupportedWallet[]> => {
-  return stellarKit.getSupportedWallets();
+  try {
+    const wallets = await stellarKit.getSupportedWallets();
+    
+    // Filter and prioritize wallets
+    const priorityOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'albedo', 'rabet', 'walletconnect'];
+    
+    return wallets
+      .filter(wallet => wallet.name) // Only include wallets with names
+      .sort((a, b) => {
+        const aIndex = priorityOrder.indexOf(a.id.toLowerCase());
+        const bIndex = priorityOrder.indexOf(b.id.toLowerCase());
+        
+        // If both are in priority list, sort by index
+        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+        
+        // If only one is in priority list, prioritize it
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        
+        // Otherwise sort alphabetically
+        return a.name.localeCompare(b.name);
+      });
+  } catch (error) {
+    console.error('Failed to get supported wallets:', error);
+    throw error;
+  }
 };
 
 export const signTransaction = async (xdr: string): Promise<string> => {
