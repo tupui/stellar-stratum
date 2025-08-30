@@ -171,35 +171,44 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
               </Button>
             </div>
           ) : (
-            supportedWallets.map((wallet) => (
-              <Button
-                key={wallet.id}
-                variant="outline"
-                className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-                onClick={() => handleConnect(wallet.id, wallet.name)}
-                disabled={connecting !== null}
-              >
-                <div className="flex items-center gap-3">
-                  {getWalletIcon(wallet)}
-                  <div 
-                    className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden"
-                  >
-                    {wallet.name.charAt(0)}
-                  </div>
-                  <div className="text-left">
-                    <div className="font-medium">{wallet.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {getWalletDescription(wallet)}
+            supportedWallets.map((wallet) => {
+              const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+              
+              return (
+                <Button
+                  key={wallet.id}
+                  variant="outline"
+                  className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                  onClick={() => handleConnect(wallet.id, wallet.name)}
+                  disabled={connecting !== null}
+                >
+                  <div className="flex items-center gap-3">
+                    {getWalletIcon(wallet)}
+                    <div 
+                      className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden"
+                    >
+                      {wallet.name.charAt(0)}
+                    </div>
+                    <div className="text-left">
+                      <div className="font-medium">{wallet.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {getWalletDescription(wallet)}
+                        {isHardware && (
+                          <span className="ml-2 text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
+                            Hardware
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                {connecting === wallet.id ? (
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <ArrowRight className="w-4 h-4" />
-                )}
-              </Button>
-            ))
+                  {connecting === wallet.id ? (
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-4 h-4" />
+                  )}
+                </Button>
+              );
+            })
           )}
           
           <div className="pt-4 border-t border-border">

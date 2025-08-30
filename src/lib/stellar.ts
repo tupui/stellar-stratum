@@ -23,17 +23,34 @@ const getBaseModules = () => {
 const getHardwareModules = async () => {
   const modules: any[] = [];
   
+  // Set up Buffer globally FIRST - before any module imports
   try {
-    // Ensure Buffer is available BEFORE loading Ledger module
     const { Buffer } = await import('buffer');
-    if (typeof globalThis !== 'undefined' && !(globalThis as any).Buffer) {
+    
+    // Make Buffer available globally in multiple ways for maximum compatibility
+    if (typeof window !== 'undefined') {
+      (window as any).Buffer = Buffer;
+    }
+    if (typeof globalThis !== 'undefined') {
       (globalThis as any).Buffer = Buffer;
     }
-
-    const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
-    modules.push(new LedgerModule());
-  } catch (error) {
-    console.warn('Ledger module not available:', error);
+    if (typeof global !== 'undefined') {
+      (global as any).Buffer = Buffer;
+    }
+    
+    // Small delay to ensure Buffer is properly set before module evaluation
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Now try to load Ledger module
+    try {
+      const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
+      modules.push(new LedgerModule());
+      console.log('Ledger module loaded successfully');
+    } catch (ledgerError) {
+      console.warn('Ledger module failed to load:', ledgerError);
+    }
+  } catch (bufferError) {
+    console.warn('Buffer polyfill failed:', bufferError);
   }
   
   try {
@@ -45,6 +62,7 @@ const getHardwareModules = async () => {
       appName: "Stellar Multisig Wallet",
       email: "support@yourdomain.com",
     }));
+    console.log('Trezor module loaded successfully');
   } catch (error) {
     console.warn('Trezor module not available:', error);
   }
