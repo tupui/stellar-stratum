@@ -129,6 +129,95 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
 
 const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
   try {
+    // Call the oracle contract directly using Stellar RPC
+    const rpcUrl = 'https://soroban-rpc.stellar.org';
+    
+    // Create the contract call to get all prices
+    const contractCall = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'simulateTransaction',
+      params: {
+        transaction: await buildGetPricesTransaction(oracle.contract),
+      }
+    };
+
+    const response = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(contractCall),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Oracle ${oracle.contract} RPC error: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (result.error) {
+      throw new Error(`Oracle contract error: ${result.error.message}`);
+    }
+
+    // Parse the contract response to find our asset
+    const price = await parseOracleResponse(result, assetCode, oracle, assetIssuer);
+    
+    if (price > 0) {
+      console.log(`Found ${assetCode} price: ${price} ${oracle.base} from oracle ${oracle.contract}`);
+      return price;
+    }
+    
+    return 0;
+
+  } catch (error) {
+    console.warn(`Oracle ${oracle.contract} contract call failed for ${assetCode}:`, error);
+    // Fallback to web scraping for now
+    return await fetchPriceFromOracleWeb(oracle, assetCode, assetIssuer);
+  }
+};
+
+const buildGetPricesTransaction = async (contractAddress: string): Promise<string> => {
+  // This is a simplified version - in a real implementation, you'd use Stellar SDK
+  // to build a proper transaction that calls the oracle's get_prices method
+  // For now, we'll use a basic structure
+  const { TransactionBuilder, Keypair, Networks } = await import('@stellar/stellar-sdk');
+  
+  try {
+    const sourceKeypair = Keypair.random(); // Temporary keypair for simulation
+    const sourceAccount = await import('@stellar/stellar-sdk').then(({ Account }) => 
+      new Account(sourceKeypair.publicKey(), '1')
+    );
+    
+    const transaction = new TransactionBuilder(
+      sourceAccount,
+      { fee: '100', networkPassphrase: Networks.PUBLIC }
+    )
+    .setTimeout(30)
+    .build();
+    
+    return transaction.toXDR();
+  } catch (error) {
+    console.warn('Failed to build transaction:', error);
+    throw error;
+  }
+};
+
+const parseOracleResponse = async (response: any, assetCode: string, oracle: OracleConfig, assetIssuer?: string): Promise<number> => {
+  try {
+    // Parse the Soroban contract response
+    // This would need to be implemented based on the actual oracle contract structure
+    // For now, return 0 to trigger fallback
+    return 0;
+  } catch (error) {
+    console.warn('Failed to parse oracle response:', error);
+    return 0;
+  }
+};
+
+// Fallback web scraping method (existing implementation)
+const fetchPriceFromOracleWeb = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
+  try {
     const response = await fetch(oracle.url, {
       headers: {
         'accept': 'text/html',
@@ -141,70 +230,35 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
 
     const html = await response.text();
     
-    // Debug XRF specifically
-    if (assetCode === 'XRF') {
-      console.log('XRF Debug: Searching in oracle', oracle.contract);
-      console.log('XRF Debug: HTML length', html.length);
-      
-      // Look for any mention of reflector or XRF (case insensitive)
-      const hasReflector = /reflector/i.test(html);
-      const hasXrf = /xrf/i.test(html);
-      console.log('XRF Debug: HTML contains reflector?', hasReflector);
-      console.log('XRF Debug: HTML contains XRF?', hasXrf);
-      
-      // Check for the specific issuer address
-      const xrfIssuer = 'GCHI6I3X62ND5XUMWINNNKXS2HPYZWKFQBZZYBSMHJ4MIP2XJXSZTXRF';
-      const hasXrfIssuer = html.includes(xrfIssuer);
-      console.log('XRF Debug: HTML contains XRF issuer?', hasXrfIssuer);
-      
-      if (hasXrfIssuer) {
-        // Find the context around the XRF issuer
-        const issuerIndex = html.indexOf(xrfIssuer);
-        const contextStart = Math.max(0, issuerIndex - 200);
-        const contextEnd = Math.min(html.length, issuerIndex + 200);
-        const context = html.substring(contextStart, contextEnd);
-        console.log('XRF Debug: Context around issuer:', context);
-        
-        // Look for price pattern in context
-        const priceInContext = context.match(/(\d+\.?\d*)\s*(USDC|USD)/);
-        if (priceInContext) {
-          console.log('XRF Debug: Found price in context:', priceInContext[1], priceInContext[2]);
-          return parseFloat(priceInContext[1]);
-        }
-      }
-      
-      // If we still can't find it, log a sample of the HTML
-      if (oracle.contract === 'CALI2BYU2JE6WVRUFYTS6MSBNEHGJ35P4AVCZYF3B6QOE3QKOB2PLE6M') {
-        console.log('XRF Debug: Sample HTML from Stellar oracle (first 1000 chars):', html.substring(0, 1000));
-      }
-    }
-    
-    // Parse HTML to find the asset price
+    // Enhanced regex patterns for better matching
     let regex: RegExp;
     
-    if (assetIssuer) {
+    if (assetCode === 'XRF') {
+      // Specific pattern for XRF with reflector.network domain
+      regex = new RegExp(`XRF[^0-9]*reflector\\.network[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
+    } else if (assetIssuer) {
       // For assets with issuer, look for asset code + shortened issuer + price
-      const shortIssuer = assetIssuer.substring(0, 4) + '…' + assetIssuer.substring(-4);
+      const shortIssuer = assetIssuer.substring(0, 4) + '…' + assetIssuer.slice(-4);
       regex = new RegExp(`${assetCode}[^0-9]*${shortIssuer}[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
     } else if (assetCode === 'XLM') {
       // For XLM, look for "XLMstellar.org" pattern
       regex = new RegExp(`XLM[^0-9]*stellar\\.org[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
     } else {
-      // For other assets, look for just asset code + price with more flexible matching
+      // For other assets, look for just asset code + price
       regex = new RegExp(`${assetCode}[^0-9A-Za-z]*[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
     }
     
     const match = html.match(regex);
     
     if (match && match[1]) {
-      console.log(`Found ${assetCode} price: ${match[1]} ${oracle.base} from oracle ${oracle.contract}`);
+      console.log(`Found ${assetCode} price: ${match[1]} ${oracle.base} from oracle web ${oracle.contract}`);
       return parseFloat(match[1]);
     }
     
     return 0;
 
   } catch (error) {
-    console.warn(`Oracle ${oracle.contract} price fetch failed for ${assetCode}:`, error);
+    console.warn(`Oracle ${oracle.contract} web fetch failed for ${assetCode}:`, error);
     return 0;
   }
 };
