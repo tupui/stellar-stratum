@@ -1,21 +1,43 @@
-// Price fetching using CoinGecko API (free tier) and Reflector Oracle
+// Price fetching using CoinGecko API (free tier) and Reflector Oracles
 const COINGECKO_API = 'https://api.coingecko.com/api/v3';
-const REFLECTOR_ORACLE_URL = 'https://reflector.network/oracles/public/CALI2BYU2JE6WVRUFYTS6MSBNEHGJ35P4AVCZYF3B6QOE3QKOB2PLE6M';
 
-// Asset mapping for CoinGecko price fetching
+// Oracle configuration type
+type OracleConfig = {
+  contract: string;
+  base: string;
+  decimals: number;
+  url: string;
+};
+
+// Reflector Oracle Contracts
+const REFLECTOR_ORACLES = {
+  CEX_DEX: {
+    contract: 'CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN',
+    base: 'USD',
+    decimals: 14,
+    url: 'https://reflector.network/oracles/public/CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN'
+  },
+  STELLAR: {
+    contract: 'CALI2BYU2JE6WVRUFYTS6MSBNEHGJ35P4AVCZYF3B6QOE3QKOB2PLE6M',
+    base: 'USDC',
+    decimals: 14,
+    url: 'https://reflector.network/oracles/public/CALI2BYU2JE6WVRUFYTS6MSBNEHGJ35P4AVCZYF3B6QOE3QKOB2PLE6M'
+  },
+  FX: {
+    contract: 'CBKGPWGKSKZF52CFHMTRR23TBWTPMRDIYZ4O2P5VS65BMHYH4DXMCJZC',
+    base: 'USD',
+    decimals: 14,
+    url: 'https://reflector.network/oracles/public/CBKGPWGKSKZF52CFHMTRR23TBWTPMRDIYZ4O2P5VS65BMHYH4DXMCJZC'
+  }
+} as const satisfies Record<string, OracleConfig>;
+
+// Asset mapping for CoinGecko price fetching (fallback)
 const ASSET_ID_MAP: Record<string, string> = {
   'XLM': 'stellar',
   'USDC': 'usd-coin',
   'EURC': 'euro-coin',
   'BTC': 'bitcoin',
   'ETH': 'ethereum',
-};
-
-// Assets supported by Reflector Oracle (prices in USDC)
-const REFLECTOR_ASSETS: Record<string, string> = {
-  'AQUA': 'GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA',
-  'XRF': 'GCHI6I3X62ND5XUMWINNNKXS2HPYZWKFQBZZYBSMHJ4MIP2XJXSZTXRF',
-  'USDC': 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN', // Circle USDC
 };
 
 export interface AssetPrice {
@@ -28,32 +50,27 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
   try {
     // For native XLM
     if (!assetCode || assetCode === 'XLM') {
+      // Try Reflector oracles first, then CoinGecko as fallback
+      const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
+      if (reflectorPrice > 0) {
+        return reflectorPrice;
+      }
       return await fetchCoinGeckoPrice('stellar');
     }
 
-    // Check if asset is supported by Reflector Oracle first
-    if (assetCode && REFLECTOR_ASSETS[assetCode] && 
-        (!assetIssuer || REFLECTOR_ASSETS[assetCode] === assetIssuer)) {
-      const reflectorPrice = await fetchReflectorPrice(assetCode);
-      if (reflectorPrice > 0) {
-        // Convert USDC price to USD (in case USDC depegs)
-        const usdcToUsd = await getUsdcToUsdRate();
-        return reflectorPrice * usdcToUsd;
-      }
+    // Try Reflector oracles first for all assets
+    const reflectorPrice = await fetchReflectorPrice(assetCode, assetIssuer);
+    if (reflectorPrice > 0) {
+      return reflectorPrice;
     }
 
-    // For USDC, get actual rate (don't assume 1:1 with USD)
-    if (assetCode === 'USDC') {
-      return await fetchCoinGeckoPrice('usd-coin');
-    }
-
-    // For other known assets in CoinGecko
+    // Fallback to CoinGecko for known assets
     const coinId = ASSET_ID_MAP[assetCode];
     if (coinId) {
       return await fetchCoinGeckoPrice(coinId);
     }
 
-    // For unknown assets, try to get a fallback price
+    // Final fallback to static prices
     return getFallbackPrice(assetCode);
 
   } catch (error) {
@@ -86,46 +103,69 @@ const fetchCoinGeckoPrice = async (coinId: string): Promise<number> => {
   }
 };
 
-const fetchReflectorPrice = async (assetCode: string): Promise<number> => {
+const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
+  // Try all oracle contracts in order of preference
+  const oracles = [REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.FX];
+  
+  for (const oracle of oracles) {
+    try {
+      const price = await fetchPriceFromOracle(oracle, assetCode, assetIssuer);
+      if (price > 0) {
+        // Convert to USD if the base is not USD
+        if (oracle.base === 'USDC') {
+          const usdcToUsd = await getUsdcToUsdRate();
+          return price * usdcToUsd;
+        }
+        return price;
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch from ${oracle.contract}:`, error);
+      continue;
+    }
+  }
+  
+  return 0;
+};
+
+const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
   try {
-    const response = await fetch(REFLECTOR_ORACLE_URL, {
+    const response = await fetch(oracle.url, {
       headers: {
         'accept': 'text/html',
       },
     });
 
     if (!response.ok) {
-      throw new Error(`Reflector API error: ${response.status}`);
+      throw new Error(`Oracle ${oracle.contract} API error: ${response.status}`);
     }
 
     const html = await response.text();
     
     // Parse HTML to find the asset price
-    // Look for pattern: assetCode followed by price in USDC
-    const assetIssuer = REFLECTOR_ASSETS[assetCode];
-    if (!assetIssuer) return 0;
+    let regex: RegExp;
     
-    // Create regex to find asset price (look for asset code followed by issuer and price in USDC)
-    const shortIssuer = assetIssuer.substring(0, 4) + '…' + assetIssuer.substring(-4);
-    const regex = new RegExp(`${assetCode}[^0-9]*${shortIssuer}[^0-9]*([0-9]+\\.?[0-9]*) USDC`, 'i');
+    if (assetIssuer) {
+      // For assets with issuer, look for asset code + shortened issuer + price
+      const shortIssuer = assetIssuer.substring(0, 4) + '…' + assetIssuer.substring(-4);
+      regex = new RegExp(`${assetCode}[^0-9]*${shortIssuer}[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
+    } else if (assetCode === 'XLM') {
+      // For XLM, look for "XLMstellar.org" pattern
+      regex = new RegExp(`${assetCode}stellar\\.org[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
+    } else {
+      // For other assets, look for just asset code + price
+      regex = new RegExp(`${assetCode}[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
+    }
+    
     const match = html.match(regex);
     
     if (match && match[1]) {
       return parseFloat(match[1]);
     }
     
-    // Fallback: look for just asset code and price
-    const simpleRegex = new RegExp(`${assetCode}[^0-9]*([0-9]+\\.?[0-9]*) USDC`, 'i');
-    const simpleMatch = html.match(simpleRegex);
-    
-    if (simpleMatch && simpleMatch[1]) {
-      return parseFloat(simpleMatch[1]);
-    }
-    
     return 0;
 
   } catch (error) {
-    console.warn(`Reflector price fetch failed for ${assetCode}:`, error);
+    console.warn(`Oracle ${oracle.contract} price fetch failed for ${assetCode}:`, error);
     return 0;
   }
 };
