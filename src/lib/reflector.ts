@@ -163,7 +163,7 @@ const getOracleAssets = async (oracle: OracleConfig): Promise<string[]> => {
   try {
     const { Contract, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
     
-    const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
+    const rpcServer = new rpc.Server('https://stellar-mainnet.liquify.com/api=41EEWAH79Y5OCGI7/mainnet');
     const contract = new Contract(oracle.contract);
     
     const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
@@ -292,7 +292,7 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
   try {
     const { Contract, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
     
-    const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
+    const rpcServer = new rpc.Server('https://stellar-mainnet.liquify.com/api=41EEWAH79Y5OCGI7/mainnet');
     const contract = new Contract(oracle.contract);
     
     console.log(`Fetching price for ${assetCode} from oracle ${oracle.contract}`);
