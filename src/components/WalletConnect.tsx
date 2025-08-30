@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info } from 'lucide-react';
 import { getSupportedWallets, connectWallet } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
@@ -86,12 +87,6 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
     const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
     
     if (isHardware) {
-      if (wallet.id.toLowerCase().includes('ledger')) {
-        return 'Connect via USB, unlock device & open Stellar app';
-      }
-      if (wallet.id.toLowerCase().includes('trezor')) {
-        return 'Requires Trezor Bridge & device connection';
-      }
       return 'Hardware wallet';
     }
     
@@ -107,6 +102,19 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
     }
     
     return 'Install required';
+  };
+
+  const getWalletTooltip = (wallet: ISupportedWallet) => {
+    if (wallet.id.toLowerCase().includes('ledger')) {
+      return 'Hardware wallet setup: 1) Connect via USB 2) Unlock device 3) Open Stellar app';
+    }
+    if (wallet.id.toLowerCase().includes('trezor')) {
+      return 'Hardware wallet setup: 1) Install Trezor Bridge 2) Connect device 3) Approve connection';
+    }
+    if (!wallet.isAvailable) {
+      return `Install the ${wallet.name} browser extension to connect`;
+    }
+    return `Connect with ${wallet.name}`;
   };
 
   const handleConnect = async (walletId: string, walletName: string) => {
@@ -187,38 +195,51 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
               const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
               
               return (
-                <Button
-                  key={wallet.id}
-                  variant="outline"
-                  className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-                  onClick={() => handleConnect(wallet.id, wallet.name)}
-                  disabled={connecting !== null}
-                >
-                  <div className="flex items-center gap-3">
-                    {getWalletIcon(wallet)}
-                    <div 
-                      className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden"
-                    >
-                      {wallet.name.charAt(0)}
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">{wallet.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {getWalletDescription(wallet)}
-                        {isHardware && (
-                          <span className="ml-2 text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
-                            Hardware
-                          </span>
+                <TooltipProvider key={wallet.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                        onClick={() => handleConnect(wallet.id, wallet.name)}
+                        disabled={connecting !== null}
+                      >
+                        <div className="flex items-center gap-3">
+                          {getWalletIcon(wallet)}
+                          <div 
+                            className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden"
+                          >
+                            {wallet.name.charAt(0)}
+                          </div>
+                          <div className="text-left">
+                            <div className="font-medium flex items-center gap-2">
+                              {wallet.name}
+                              {isHardware && (
+                                <Info className="w-3 h-3 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              {getWalletDescription(wallet)}
+                              {isHardware && (
+                                <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
+                                  Hardware
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        {connecting === wallet.id ? (
+                          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <ArrowRight className="w-4 h-4" />
                         )}
-                      </div>
-                    </div>
-                  </div>
-                  {connecting === wallet.id ? (
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <ArrowRight className="w-4 h-4" />
-                  )}
-                </Button>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs">
+                      <p>{getWalletTooltip(wallet)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               );
             })
           )}
