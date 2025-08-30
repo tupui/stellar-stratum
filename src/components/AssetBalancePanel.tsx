@@ -25,7 +25,6 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
   const { assetsWithPrices, totalValueUSD, loading, error, refetch } = useAssetPrices(balances);
   const [quoteCurrency, setQuoteCurrency] = useState('USD');
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
-  const [showValues, setShowValues] = useState(true);
 
   // Filter assets based on hide small balances toggle
   const filteredAssets = hideSmallBalances 
@@ -40,9 +39,12 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
   };
 
   const formatValue = (value: number): string => {
-    if (value === 0) return '$0.00';
-    if (value < 0.01) return '<$0.01';
-    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const convertedValue = quoteCurrency === 'EUR' ? value * 0.85 : value; // Simple EUR conversion
+    const symbol = quoteCurrency === 'EUR' ? '€' : '$';
+    
+    if (convertedValue === 0) return `${symbol}0.00`;
+    if (convertedValue < 0.01) return `<${symbol}0.01`;
+    return `${symbol}${convertedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatBalance = (balance: string): string => {
@@ -80,62 +82,44 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
         </div>
 
         {/* Total Value Display */}
-        {showValues && (
-          <div className="mt-4 p-4 bg-gradient-primary/10 rounded-lg border border-primary/20">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
-                <p className="text-2xl font-bold text-primary">
-                  {loading ? (
-                    <span className="animate-pulse">Loading...</span>
-                  ) : (
-                    formatValue(totalValueUSD)
-                  )}
-                </p>
-              </div>
+        <div className="mt-4 p-4 bg-gradient-primary/10 rounded-lg border border-primary/20">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
+              <p className="text-2xl font-bold text-primary">
+                {loading ? (
+                  <span className="animate-pulse">Loading...</span>
+                ) : (
+                  formatValue(totalValueUSD)
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
+                <SelectTrigger className="w-16 h-8 border-0 bg-transparent">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD</SelectItem>
+                  <SelectItem value="EUR">EUR</SelectItem>
+                </SelectContent>
+              </Select>
               <DollarSign className="w-8 h-8 text-primary/50" />
             </div>
           </div>
-        )}
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
         {/* Controls */}
-        <div className="flex items-center justify-between gap-4 p-3 bg-secondary/30 rounded-lg">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="hide-small"
-                checked={hideSmallBalances}
-                onCheckedChange={setHideSmallBalances}
-              />
-              <Label htmlFor="hide-small" className="text-sm">Hide &lt; $10</Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="show-values"
-                checked={showValues}
-                onCheckedChange={setShowValues}
-              />
-              <Label htmlFor="show-values" className="text-sm flex items-center gap-1">
-                {showValues ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                Values
-              </Label>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Label htmlFor="currency" className="text-sm">Currency:</Label>
-            <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
-              <SelectTrigger className="w-20 h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USD">USD</SelectItem>
-                <SelectItem value="EUR">EUR</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="flex items-center justify-start gap-4 p-3 bg-secondary/30 rounded-lg">
+          <div className="flex items-center space-x-3">
+            <Switch
+              id="hide-small"
+              checked={hideSmallBalances}
+              onCheckedChange={setHideSmallBalances}
+            />
+            <Label htmlFor="hide-small" className="text-sm">Hide &lt; $10</Label>
           </div>
         </div>
 
@@ -182,7 +166,7 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
                       <p className="text-sm text-muted-foreground">
                         {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_type}
                       </p>
-                      {showValues && asset.priceUSD > 0 && (
+                      {asset.priceUSD > 0 && (
                         <p className="text-xs text-muted-foreground">
                           {formatPrice(asset.priceUSD)} per {asset.symbol}
                         </p>
@@ -195,11 +179,9 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
                       {formatBalance(asset.balance)}
                     </p>
                     <p className="text-sm text-muted-foreground">{asset.symbol}</p>
-                    {showValues && (
-                      <p className="text-sm font-medium text-primary">
-                        {formatValue(asset.valueUSD)}
-                      </p>
-                    )}
+                    <p className="text-sm font-medium text-primary">
+                      {formatValue(asset.valueUSD)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -218,11 +200,6 @@ export const AssetBalancePanel = ({ balances }: AssetBalancePanelProps) => {
                   <span className="ml-1">(&gt;= $10)</span>
                 )}
               </span>
-              {showValues && (
-                <span className="font-medium">
-                  Total: {formatValue(totalValueUSD)}
-                </span>
-              )}
             </div>
           </>
         )}

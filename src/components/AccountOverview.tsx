@@ -34,7 +34,7 @@ interface AccountOverviewProps {
 }
 
 export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect }: AccountOverviewProps) => {
-  const [showFullKey, setShowFullKey] = useState(false);
+  const [showFullKey, setShowFullKey] = useState(true);
 
   const truncateKey = (key: string) => {
     if (showFullKey) return key;
