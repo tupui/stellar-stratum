@@ -111,7 +111,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
 
   const getWalletTooltip = (wallet: ISupportedWallet) => {
     if (wallet.id.toLowerCase().includes('ledger')) {
-      return 'Hardware wallet setup: 1) Connect via USB 2) Unlock device 3) Open Stellar app 4) Select account from device modal (balances will be shown)';
+      return 'Hardware wallet setup: 1) Connect via USB 2) Unlock device 3) Open Stellar app 4) Select account from device modal';
     }
     if (wallet.id.toLowerCase().includes('trezor')) {
       return 'Hardware wallet setup: 1) Install Trezor Bridge 2) Connect device 3) Approve connection 4) Select account from device modal';
@@ -227,18 +227,6 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
             </div>
           ) : (
             <>
-              {/* Manual Address Input Toggle */}
-              <div className="flex justify-center mb-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowManualInput(!showManualInput)}
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                >
-                  <KeyRound className="w-4 h-4 mr-2" />
-                  {showManualInput ? 'Hide Manual Input' : 'Enter Address Manually'}
-                </Button>
-              </div>
 
               {/* Manual Address Input */}
               {showManualInput && (
@@ -278,6 +266,42 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
 
               {/* Wallet Options */}
               <div className="space-y-3">
+                {/* Manual Address as a card option */}
+                <Button
+                  variant="outline"
+                  className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                  onClick={() => setShowManualInput(!showManualInput)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center">
+                      <KeyRound className="w-4 h-4 text-primary-foreground" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-medium">Enter address manually</div>
+                      <div className="text-sm text-muted-foreground">View any account by public key</div>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+
+                {showManualInput && (
+                  <div className="p-4 border border-border rounded-lg bg-secondary/20">
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="manual-address" className="text-sm font-medium">Stellar Public Key</Label>
+                        <p className="text-xs text-muted-foreground mt-1">Enter a Stellar address to view account details (no signing required)</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input id="manual-address" placeholder="GABC...XYZ (56 characters)" value={manualAddress} onChange={(e) => setManualAddress(e.target.value)} className="font-mono text-sm" maxLength={56} />
+                        <Button onClick={handleManualConnect} disabled={!manualAddress.trim()} size="sm">
+                          <Plus className="w-4 h-4 mr-1" />
+                          Connect
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {supportedWallets.map((wallet) => {
                   const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
                   
@@ -293,9 +317,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
                           >
                             <div className="flex items-center gap-3">
                               {getWalletIcon(wallet)}
-                              <div 
-                                className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden"
-                              >
+                              <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden">
                                 {wallet.name.charAt(0)}
                               </div>
                               <div className="text-left">
@@ -334,9 +356,8 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
           )}
           
           <div className="pt-4 border-t border-border">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Wallet className="w-4 h-4" />
-              <span>Secure connection protected by encryption</span>
+            <div className="text-center text-xs text-muted-foreground">
+              © 2025 Tansu, Consulting Manao GmbH
             </div>
           </div>
         </CardContent>

@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import nodePolyfills from "vite-plugin-node-polyfills";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
@@ -10,9 +11,9 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
   },
   plugins: [
+    nodePolyfills(),
     react(),
-    mode === 'development' &&
-    componentTagger(),
+    mode === 'development' && componentTagger(),
   ].filter(Boolean),
   define: {
     global: 'globalThis',
