@@ -93,9 +93,9 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
   }
   
   try {
-    const { Contract, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
+    const { Contract, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder, Address } = await import('@stellar/stellar-sdk');
     
-    // Use the primary free RPC endpoint
+    // Use the RPC endpoint
     const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
     const contract = new Contract(oracle.contract);
     
@@ -105,50 +105,66 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
     const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
     const account = await rpcServer.getAccount(simulationAccount);
     
-    // Create asset parameter
+    // Create asset parameter according to Reflector API
     let assetParam;
     if (!assetCode || assetCode === 'XLM') {
-      assetParam = nativeToScVal('Native', { type: 'symbol' });
+      // For native XLM - use Other(Symbol) format as per docs
+      assetParam = nativeToScVal({
+        tag: 'Other',
+        values: [nativeToScVal('XLM', { type: 'symbol' })]
+      }, { type: 'instance' });
+    } else if (assetIssuer) {
+      // For issued assets - use Stellar(Address) format
+      assetParam = nativeToScVal({
+        tag: 'Stellar',
+        values: [nativeToScVal(assetIssuer, { type: 'address' })]
+      }, { type: 'instance' });
     } else {
-      // For issued assets, try different parameter formats
-      assetParam = nativeToScVal(assetCode, { type: 'symbol' });
+      // For other symbols - use Other(Symbol) format
+      assetParam = nativeToScVal({
+        tag: 'Other',
+        values: [nativeToScVal(assetCode, { type: 'symbol' })]
+      }, { type: 'instance' });
     }
     
-    // Try different method names for getting individual asset prices
-    const methodNames = ['price', 'lastprice', 'get_price', 'asset_price', 'get_asset_price'];
-    
-    for (const method of methodNames) {
-      try {
-        // Build transaction with proper TransactionBuilder
-        const transaction = new TransactionBuilder(account, {
-          fee: '100000',
-          networkPassphrase: Networks.PUBLIC,
-        })
-        .addOperation(contract.call(method, assetParam))
-        .setTimeout(30)
-        .build();
-          
-        const simResult = await rpcServer.simulateTransaction(transaction);
+    try {
+      // Use the correct method name from documentation: lastprice
+      const transaction = new TransactionBuilder(account, {
+        fee: '100000',
+        networkPassphrase: Networks.PUBLIC,
+      })
+      .addOperation(contract.call('lastprice', assetParam))
+      .setTimeout(30)
+      .build();
         
-        // Check if simulation was successful
-        if ('error' in simResult) {
-          console.warn(`Simulation error for ${method}(${assetCode}) on ${oracle.contract}:`, simResult.error);
-          continue;
-        }
+      const simResult = await rpcServer.simulateTransaction(transaction);
+      
+      // Check if simulation was successful
+      if ('error' in simResult) {
+        console.warn(`Simulation error for lastprice(${assetCode}) on ${oracle.contract}:`, simResult.error);
+        return 0;
+      }
+      
+      // Check for successful result
+      if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
+        // Extract the price from the result
+        const resultValue = scValToNative(simResult.result.retval);
+        console.log(`Oracle ${oracle.contract} returned for ${assetCode}:`, resultValue);
         
-        // Check for successful result
-        if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
-          // Extract the price from the result
-          const resultValue = scValToNative(simResult.result.retval);
-          console.log(`Oracle ${oracle.contract} returned for ${assetCode}:`, resultValue);
-          
+        // The result should be Option<PriceData> where PriceData has { price, timestamp }
+        if (resultValue && typeof resultValue === 'object') {
           let price = 0;
-          if (typeof resultValue === 'number') {
-            price = resultValue;
-          } else if (typeof resultValue === 'string') {
-            price = parseFloat(resultValue);
-          } else if (resultValue && typeof resultValue === 'object' && 'price' in resultValue) {
+          
+          // Handle Option<PriceData> - check if it's Some(value) or None
+          if ('price' in resultValue) {
+            // Direct PriceData object
             price = parseFloat(String(resultValue.price));
+          } else if (Array.isArray(resultValue) && resultValue.length > 0) {
+            // Handle array format [Some, PriceData]
+            const priceData = resultValue[0];
+            if (priceData && typeof priceData === 'object' && 'price' in priceData) {
+              price = parseFloat(String(priceData.price));
+            }
           }
           
           // Apply decimals scaling if we have a valid price
@@ -165,10 +181,9 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
             return scaledPrice;
           }
         }
-      } catch (methodError) {
-        console.warn(`Method ${method}(${assetCode}) failed on ${oracle.contract}:`, methodError);
-        continue;
       }
+    } catch (methodError) {
+      console.warn(`Method lastprice(${assetCode}) failed on ${oracle.contract}:`, methodError);
     }
     
     return 0;
