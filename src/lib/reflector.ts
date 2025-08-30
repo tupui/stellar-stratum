@@ -60,7 +60,7 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
 
 // Cache for oracle data to avoid multiple calls per contract
 const oracleDataCache: Record<string, { data: any; timestamp: number }> = {};
-const ORACLE_CACHE_DURATION = 30 * 1000; // 30 seconds
+const ORACLE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
   // Try all oracle contracts in order of preference
@@ -282,7 +282,16 @@ const setCachedPrice = (assetKey: string, price: number): void => {
   }
 };
 
-export const getAssetSymbol = (assetCode?: string): string => {
-  if (!assetCode) return 'XLM';
-  return assetCode;
+export const getLastPriceUpdate = (): Date | null => {
+  try {
+    const cache = loadPriceCache();
+    const timestamps = Object.values(cache).map(entry => entry.timestamp);
+    if (timestamps.length === 0) return null;
+    
+    const latestTimestamp = Math.max(...timestamps);
+    return new Date(latestTimestamp);
+  } catch (error) {
+    console.warn('Failed to get last price update:', error);
+    return null;
+  }
 };

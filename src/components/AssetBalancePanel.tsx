@@ -6,9 +6,10 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff } from 'lucide-react';
+import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock } from 'lucide-react';
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
+import { getLastPriceUpdate } from '@/lib/reflector';
 
 interface AssetBalance {
   asset_type: string;
@@ -26,6 +27,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
   const { assetsWithPrices, totalValueUSD, loading, error, refetch } = useAssetPrices(balances);
   const [quoteCurrency, setQuoteCurrency] = useState('USD');
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(getLastPriceUpdate());
 
   const handleRefresh = async () => {
     try {
@@ -36,7 +38,23 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
       console.error('Failed to refresh balances:', e);
     } finally {
       await refetch();
+      setLastUpdateTime(getLastPriceUpdate());
     }
+  };
+
+  const formatLastUpdate = (date: Date | null): string => {
+    if (!date) return '';
+    
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    
+    return date.toLocaleDateString();
   };
 
   // Filter assets based on hide small balances toggle
@@ -96,6 +114,15 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
             </Button>
           </div>
         </div>
+        
+        {/* Price Update Info */}
+        {lastUpdateTime && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
+            <Clock className="w-3 h-3" />
+            <span>Prices updated {formatLastUpdate(lastUpdateTime)}</span>
+            <span className="text-muted-foreground/60">• via Reflector</span>
+          </div>
+        )}
 
         {/* Total Value Display */}
         <div className="mt-4 p-4 bg-gradient-primary/10 rounded-lg border border-primary/20">
