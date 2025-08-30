@@ -52,13 +52,27 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
       console.log('Running in iframe:', isInIframe);
       
       if (isInIframe) {
-        throw new Error('Freighter may not work in iframe environments. Please open this app in a new tab or window.');
+        console.warn('Freighter in iframe detected; attempting StellarWalletsKit fallback');
+        try {
+          const kit = stellarKit;
+          kit.setWallet(FREIGHTER_ID);
+          // @ts-ignore
+          if (typeof (kit as any).connect === 'function') {
+            await (kit as any).connect();
+          }
+          const { address } = await kit.getAddress();
+          console.log('Freighter fallback via StellarWalletsKit succeeded:', address);
+          return { publicKey: address, walletName: 'Freighter' };
+        } catch (fallbackErr) {
+          console.error('Freighter fallback via StellarWalletsKit failed:', fallbackErr);
+          console.warn('Will try direct window.freighterApi access next');
+        }
       }
       
       const w = (window as any).freighterApi || (window as any).freighter;
       if (!w) {
-        console.log('Freighter extension not found in window object');
-        throw new Error('Freighter extension not installed or not accessible. Please install Freighter extension and refresh the page.');
+        console.log('Freighter extension not found on window object (likely due to iframe or missing extension)');
+        throw new Error('Freighter extension not accessible. Please open this app in a new tab or install Freighter.');
       }
       
       console.log('Freighter object found:', w);

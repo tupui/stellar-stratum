@@ -188,7 +188,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
         vaultsContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
         defaultFee: '100',
         defaultTimeout: 300,
-        simulationAccount: 'GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN'
+        simulationAccount: 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV'
       });
       
       console.log('SDK created, searching for domain:', sorobanDomain.trim().toLowerCase());
