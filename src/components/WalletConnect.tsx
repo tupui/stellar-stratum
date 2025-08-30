@@ -171,55 +171,45 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
     setResolvingDomain(true);
     
     try {
-      // Import required modules  
-      const StellarSDK = await import('@stellar/stellar-sdk');
+      // Import Soroban Domains SDK
       const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
 
-      console.log('Setting up Soroban Domains SDK...');
-      
-      // Use proper SDK structure from working example
-      const networkPassphrase = StellarSDK.Networks.PUBLIC;
-      const rpcServer = new StellarSDK.rpc.Server('https://mainnet.sorobanrpc.com');
-      
+      // Proper Soroban RPC server (mainnet)
+      const rpcServer = new (StellarSDK as any).SorobanRpc.Server('https://mainnet.sorobanrpc.com');
+
       const sdk = new SorobanDomainsSDK({
-        stellarSDK: StellarSDK,
+        stellarSDK: StellarSDK as any,
         rpc: rpcServer,
-        network: networkPassphrase,
+        network: StellarSDK.Networks.PUBLIC,
         vaultsContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
-        defaultFee: '100',
+        valuesDatabaseContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
+        defaultFee: '10000000',
         defaultTimeout: 300,
-        simulationAccount: 'GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN'
+        simulationAccount: 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV'
       });
+
+      // Search for the domain
+      const domainRecord = await sdk.searchDomain({ domain: sorobanDomain.trim().toLowerCase() });
       
-      console.log('SDK created, searching for domain:', sorobanDomain.trim().toLowerCase());
-      
-      // Search for the domain using working pattern
-      const res = await sdk.searchDomain({ domain: sorobanDomain.trim().toLowerCase() });
-      console.log('Domain search result:', res);
-      
-      // Extract values using working pattern
-      const v = (res && (res.value ?? res)) as any;
-      console.log('Processed result:', v);
-      
-      if (v && typeof v.owner === 'string') {
-        const resolvedAddress = v.address || v.owner;
-        console.log('Domain resolved to:', resolvedAddress);
-        
-        toast({
-          title: "Domain Resolved",
-          description: `${sorobanDomain} → ${resolvedAddress.slice(0, 8)}...${resolvedAddress.slice(-8)}`,
-        });
-        
-        setSorobanDomain('');
-        onConnect("Soroban Domain", resolvedAddress);
-      } else {
-        console.log('Domain not found or invalid format');
-        toast({
-          title: "Domain Not Found",
-          description: `The domain "${sorobanDomain}" could not be resolved.`,
-          variant: "destructive",
-        });
+      if (!domainRecord || !domainRecord.value) {
+        throw new Error('No Stellar address found for this domain');
       }
+
+      // Get the stellar address from the domain record
+      let stellarAddress = '';
+      if (domainRecord.type === 'Domain' && domainRecord.value.owner) {
+        stellarAddress = domainRecord.value.owner;
+      } else {
+        throw new Error('Domain does not have a Stellar address assigned');
+      }
+
+      toast({
+        title: "Domain resolved",
+        description: `Successfully resolved ${sorobanDomain} to Stellar address`,
+        duration: 2000,
+      });
+
+      onConnect("Soroban Domain", stellarAddress);
     } catch (error: any) {
       console.error('Failed to resolve Soroban domain:', error);
       
