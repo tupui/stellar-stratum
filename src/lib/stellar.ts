@@ -112,13 +112,59 @@ export const signTransaction = async (xdr: string): Promise<string> => {
   }
 };
 
-export const submitTransaction = async (signedXdr: string): Promise<any> => {
+export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<any> => {
   try {
-    const transaction = TransactionBuilder.fromXDR(signedXdr, 'https://horizon.stellar.org'); // Change for testnet
-    const result = await horizonServer.submitTransaction(transaction);
+    const networkPassphrase = network === 'testnet' ? 'Test SDF Network ; September 2015' : 'Public Global Stellar Network ; September 2015';
+    const serverUrl = network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org';
+    
+    const transaction = TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
+    const server = new Horizon.Server(serverUrl);
+    const result = await server.submitTransaction(transaction);
     return result;
   } catch (error) {
     console.error('Failed to submit transaction:', error);
     throw new Error('Failed to submit transaction');
+  }
+};
+
+// Refractor integration functions
+export const submitToRefractor = async (xdr: string): Promise<string> => {
+  try {
+    const response = await fetch('https://refractor.space/api/v1/transactions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        xdr: xdr,
+        network: 'public' // or 'testnet'
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to submit to Refractor');
+    }
+
+    const result = await response.json();
+    return result.id;
+  } catch (error) {
+    console.error('Failed to submit to Refractor:', error);
+    throw new Error('Failed to submit to Refractor');
+  }
+};
+
+export const pullFromRefractor = async (refractorId: string): Promise<string> => {
+  try {
+    const response = await fetch(`https://refractor.space/api/v1/transactions/${refractorId}`);
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch from Refractor');
+    }
+
+    const result = await response.json();
+    return result.xdr;
+  } catch (error) {
+    console.error('Failed to pull from Refractor:', error);
+    throw new Error('Failed to fetch transaction from Refractor');
   }
 };

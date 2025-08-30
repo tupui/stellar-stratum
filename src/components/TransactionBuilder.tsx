@@ -17,14 +17,28 @@ import {
   Asset,
   Memo
 } from '@stellar/stellar-sdk';
-import { signTransaction, horizonServer } from '@/lib/stellar';
+import { signTransaction, horizonServer, submitTransaction, submitToRefractor, pullFromRefractor } from '@/lib/stellar';
+import { XdrDetails } from './XdrDetails';
+import { SignerSelector } from './SignerSelector';
+import { NetworkSelector } from './NetworkSelector';
+import { RefractorIntegration } from './RefractorIntegration';
 
 interface TransactionBuilderProps {
   onBack: () => void;
   accountPublicKey: string;
+  accountData: {
+    signers: Array<{
+      key: string;
+      weight: number;
+      type: string;
+    }>;
+    thresholds: {
+      med_threshold: number;
+    };
+  };
 }
 
-export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuilderProps) => {
+export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: TransactionBuilderProps) => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('payment');
   const [paymentData, setPaymentData] = useState({
@@ -39,7 +53,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
   });
   const [isBuilding, setIsBuilding] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [currentNetwork, setCurrentNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
+  const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
+  const [refractorId, setRefractorId] = useState<string>('');
 
   const handlePaymentBuild = async () => {
     if (!paymentData.destination || !paymentData.amount) {
@@ -87,6 +105,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
       toast({
         title: "Transaction built successfully",
         description: "XDR is ready for signing",
+        duration: 5000,
       });
     } catch (error) {
       console.error('Build error:', error);
@@ -123,6 +142,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
       toast({
         title: "XDR processed",
         description: "Transaction is ready for signing",
+        duration: 5000,
       });
     } catch (error) {
       console.error('XDR processing error:', error);
@@ -157,6 +177,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
       toast({
         title: "Transaction signed",
         description: "Transaction has been signed successfully",
+        duration: 5000,
       });
     } catch (error) {
       console.error('Signing error:', error);
@@ -170,6 +191,120 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
     }
   };
 
+  const handleSignWithSigner = async (signerKey: string) => {
+    const xdrToSign = xdrData.output || xdrData.input;
+    if (!xdrToSign) return;
+    
+    setIsSigning(true);
+    try {
+      const signedXdr = await signTransaction(xdrToSign);
+      setXdrData(prev => ({ ...prev, output: signedXdr }));
+      
+      // Add to signed by list
+      setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
+      
+      toast({
+        title: "Transaction signed",
+        description: `Signed with ${signerKey.slice(0, 8)}...${signerKey.slice(-8)}`,
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error('Signing error:', error);
+      toast({
+        title: "Signing failed",
+        description: error instanceof Error ? error.message : "Failed to sign transaction",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSigning(false);
+    }
+  };
+
+  const handleSubmitToNetwork = async () => {
+    const xdrToSubmit = xdrData.output;
+    if (!xdrToSubmit) return;
+    
+    setIsSubmitting(true);
+    try {
+      const result = await submitTransaction(xdrToSubmit, currentNetwork);
+      toast({
+        title: "Transaction submitted successfully",
+        description: `Transaction hash: ${result.hash}`,
+        duration: 5000,
+      });
+      
+      // Reset form
+      setXdrData({ input: '', output: '' });
+      setSignedBy([]);
+    } catch (error) {
+      console.error('Submission error:', error);
+      toast({
+        title: "Submission failed",
+        description: error instanceof Error ? error.message : "Failed to submit transaction",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmitToRefractor = async () => {
+    const xdrToSubmit = xdrData.output || xdrData.input;
+    if (!xdrToSubmit) return;
+    
+    setIsSubmitting(true);
+    try {
+      const id = await submitToRefractor(xdrToSubmit);
+      setRefractorId(id);
+      
+      toast({
+        title: "Submitted to Refractor",
+        description: `Transaction ID: ${id}`,
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error('Refractor submission error:', error);
+      toast({
+        title: "Refractor submission failed",
+        description: error instanceof Error ? error.message : "Failed to submit to Refractor",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePullFromRefractor = async (id: string) => {
+    try {
+      const xdr = await pullFromRefractor(id);
+      setXdrData(prev => ({ ...prev, input: xdr, output: '' }));
+      setSignedBy([]);
+      
+      toast({
+        title: "Transaction pulled from Refractor",
+        description: "XDR loaded successfully",
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error('Refractor pull error:', error);
+      toast({
+        title: "Failed to pull from Refractor",
+        description: error instanceof Error ? error.message : "Invalid Refractor ID or network error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getCurrentWeight = () => {
+    return signedBy.reduce((total, signed) => {
+      const signer = accountData.signers.find(s => s.key === signed.signerKey);
+      return total + (signer?.weight || 0);
+    }, 0);
+  };
+
+  const canSubmitToNetwork = getCurrentWeight() >= accountData.thresholds.med_threshold;
+  const canSubmitToRefractor = Boolean(xdrData.output || xdrData.input);
+
   const copyXDR = async () => {
     const textToCopy = xdrData.output || xdrData.input;
     if (textToCopy) {
@@ -179,6 +314,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
       toast({
         title: "Copied to clipboard",
         description: "XDR has been copied",
+        duration: 3000,
       });
     }
   };
@@ -315,7 +451,46 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
           </CardContent>
         </Card>
 
-        {/* XDR Output */}
+        {/* XDR Details */}
+        {(xdrData.output || xdrData.input) && (
+          <XdrDetails 
+            xdr={xdrData.output || xdrData.input} 
+            network={currentNetwork}
+          />
+        )}
+
+        {/* Signer Selector */}
+        {(xdrData.output || xdrData.input) && (
+          <SignerSelector
+            signers={accountData.signers}
+            currentAccountKey={accountPublicKey}
+            signedBy={signedBy}
+            requiredWeight={accountData.thresholds.med_threshold}
+            onSignWithSigner={handleSignWithSigner}
+            isSigning={isSigning}
+          />
+        )}
+
+        {/* Network Selector & Submission */}
+        {(xdrData.output || xdrData.input) && (
+          <NetworkSelector
+            currentNetwork={currentNetwork}
+            onNetworkChange={setCurrentNetwork}
+            onSubmitToNetwork={handleSubmitToNetwork}
+            onSubmitToRefractor={handleSubmitToRefractor}
+            canSubmitToNetwork={canSubmitToNetwork}
+            canSubmitToRefractor={canSubmitToRefractor}
+            isSubmitting={isSubmitting}
+          />
+        )}
+
+        {/* Refractor Integration */}
+        <RefractorIntegration
+          onPullTransaction={handlePullFromRefractor}
+          lastRefractorId={refractorId}
+        />
+
+        {/* Legacy XDR Output - keeping for backward compatibility */}
         {xdrData.output && (
           <Card className="shadow-card">
             <CardHeader>
@@ -336,31 +511,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
                 <pre className="font-mono text-sm whitespace-pre-wrap break-all">
                   {xdrData.output}
                 </pre>
-              </div>
-              <Separator className="my-4" />
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-muted-foreground">
-                  Next: Share this XDR with other signers or proceed to sign
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={handleSignTransaction}
-                    disabled={isSigning}
-                  >
-                    {isSigning ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Signing...
-                      </div>
-                    ) : (
-                      'Sign Transaction'
-                    )}
-                  </Button>
-                  <Button className="bg-gradient-success hover:opacity-90">
-                    Submit to Network
-                  </Button>
-                </div>
               </div>
             </CardContent>
           </Card>

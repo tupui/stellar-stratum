@@ -97,6 +97,7 @@ const Index = () => {
       <TransactionBuilder 
         onBack={handleBackToDashboard} 
         accountPublicKey={accountData.publicKey}
+        accountData={accountData}
       />
     );
   }

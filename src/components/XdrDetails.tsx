@@ -1,0 +1,171 @@
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, Hash, FileText, Copy, Check } from 'lucide-react';
+import { Transaction, Networks } from '@stellar/stellar-sdk';
+import { useToast } from '@/hooks/use-toast';
+
+interface XdrDetailsProps {
+  xdr: string;
+  network?: 'mainnet' | 'testnet';
+}
+
+export const XdrDetails = ({ xdr, network = 'mainnet' }: XdrDetailsProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const getTransactionDetails = () => {
+    try {
+      const networkPassphrase = network === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+      const transaction = new Transaction(xdr, networkPassphrase);
+      
+      return {
+        hash: transaction.hash().toString('hex'),
+        source: transaction.source,
+        fee: transaction.fee,
+        operations: transaction.operations.map((op, index) => ({
+          index,
+          type: op.type,
+          // @ts-ignore - Stellar SDK typing issue
+          details: op
+        })),
+        memo: transaction.memo,
+        sequence: transaction.sequence,
+        timeBounds: transaction.timeBounds,
+        signatures: transaction.signatures.length
+      };
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const details = getTransactionDetails();
+
+  const copyToClipboard = async (text: string, label: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 2000);
+    toast({
+      title: "Copied to clipboard",
+      description: `${label} has been copied`,
+      duration: 3000,
+    });
+  };
+
+  if (!details) {
+    return null;
+  }
+
+  return (
+    <Card className="shadow-card">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-secondary/50 transition-colors">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Advanced Transaction Details
+                </CardTitle>
+                <CardDescription>
+                  View transaction hash, operations, and decoded information
+                </CardDescription>
+              </div>
+              <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="space-y-4">
+            {/* Transaction Hash */}
+            <div className="p-3 bg-secondary/50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Hash className="w-4 h-4" />
+                  <span className="text-sm font-medium">Transaction Hash</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(details.hash, 'Transaction hash')}
+                >
+                  {copied === 'Transaction hash' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+              <p className="font-mono text-xs break-all text-muted-foreground">
+                {details.hash}
+              </p>
+            </div>
+
+            {/* Basic Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <h4 className="font-medium">Source Account</h4>
+                <p className="font-mono text-sm text-muted-foreground break-all">
+                  {details.source}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-medium">Network</h4>
+                <Badge variant={network === 'mainnet' ? 'default' : 'secondary'}>
+                  {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-medium">Fee</h4>
+                <p className="text-sm">{parseInt(details.fee) / 10000000} XLM</p>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-medium">Signatures</h4>
+                <Badge variant="outline">{details.signatures} signature(s)</Badge>
+              </div>
+            </div>
+
+            {/* Operations */}
+            <div className="space-y-2">
+              <h4 className="font-medium">Operations ({details.operations.length})</h4>
+              <div className="space-y-2">
+                {details.operations.map((op) => (
+                  <div key={op.index} className="p-3 bg-secondary/30 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Badge variant="outline" className="mb-2">
+                          {op.type}
+                        </Badge>
+                        {op.type === 'payment' && (
+                          <div className="text-sm space-y-1">
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p><span className="text-muted-foreground">To:</span> {(op.details as any).destination}</p>
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p><span className="text-muted-foreground">Amount:</span> {(op.details as any).amount} {(op.details as any).asset?.code || 'XLM'}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Memo */}
+            {details.memo && details.memo.type !== 'none' && (
+              <div className="space-y-2">
+                <h4 className="font-medium">Memo</h4>
+                <div className="p-3 bg-secondary/30 rounded-lg">
+                  <Badge variant="outline" className="mb-2">
+                    {details.memo.type}
+                  </Badge>
+                  <p className="text-sm">{details.memo.value?.toString()}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+};
