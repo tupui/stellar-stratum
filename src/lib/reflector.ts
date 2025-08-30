@@ -144,13 +144,38 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
     // Debug XRF specifically
     if (assetCode === 'XRF') {
       console.log('XRF Debug: Searching in oracle', oracle.contract);
-      console.log('XRF Debug: HTML contains XRF?', html.includes('XRF'));
-      console.log('XRF Debug: HTML contains reflector.network?', html.includes('reflector.network'));
+      console.log('XRF Debug: HTML length', html.length);
       
-      // Look for all instances of XRF in the HTML
-      const xrfMatches = html.match(/XRF[^]*?(\d+\.?\d*)\s*(USDC|USD)/gi);
-      if (xrfMatches) {
-        console.log('XRF Debug: Found matches:', xrfMatches);
+      // Look for any mention of reflector or XRF (case insensitive)
+      const hasReflector = /reflector/i.test(html);
+      const hasXrf = /xrf/i.test(html);
+      console.log('XRF Debug: HTML contains reflector?', hasReflector);
+      console.log('XRF Debug: HTML contains XRF?', hasXrf);
+      
+      // Check for the specific issuer address
+      const xrfIssuer = 'GCHI6I3X62ND5XUMWINNNKXS2HPYZWKFQBZZYBSMHJ4MIP2XJXSZTXRF';
+      const hasXrfIssuer = html.includes(xrfIssuer);
+      console.log('XRF Debug: HTML contains XRF issuer?', hasXrfIssuer);
+      
+      if (hasXrfIssuer) {
+        // Find the context around the XRF issuer
+        const issuerIndex = html.indexOf(xrfIssuer);
+        const contextStart = Math.max(0, issuerIndex - 200);
+        const contextEnd = Math.min(html.length, issuerIndex + 200);
+        const context = html.substring(contextStart, contextEnd);
+        console.log('XRF Debug: Context around issuer:', context);
+        
+        // Look for price pattern in context
+        const priceInContext = context.match(/(\d+\.?\d*)\s*(USDC|USD)/);
+        if (priceInContext) {
+          console.log('XRF Debug: Found price in context:', priceInContext[1], priceInContext[2]);
+          return parseFloat(priceInContext[1]);
+        }
+      }
+      
+      // If we still can't find it, log a sample of the HTML
+      if (oracle.contract === 'CALI2BYU2JE6WVRUFYTS6MSBNEHGJ35P4AVCZYF3B6QOE3QKOB2PLE6M') {
+        console.log('XRF Debug: Sample HTML from Stellar oracle (first 1000 chars):', html.substring(0, 1000));
       }
     }
     
@@ -174,26 +199,6 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
     if (match && match[1]) {
       console.log(`Found ${assetCode} price: ${match[1]} ${oracle.base} from oracle ${oracle.contract}`);
       return parseFloat(match[1]);
-    }
-    
-    // Additional debug: try to find any mention of the asset
-    if (assetCode === 'XRF') {
-      console.log('Debugging XRF price extraction...');
-      // Look for XRF with reflector.network domain
-      const xrfRegex = new RegExp(`XRF[^0-9]*reflector\\.network[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
-      const xrfMatch = html.match(xrfRegex);
-      if (xrfMatch && xrfMatch[1]) {
-        console.log(`Found XRF with domain pattern: ${xrfMatch[1]} ${oracle.base}`);
-        return parseFloat(xrfMatch[1]);
-      }
-      
-      // Even more flexible XRF matching - look for the exact pattern from the website
-      const flexibleXrfRegex = /XRFreflector\.network.*?([0-9]+\.?[0-9]*) USDC/i;
-      const flexibleMatch = html.match(flexibleXrfRegex);
-      if (flexibleMatch && flexibleMatch[1]) {
-        console.log(`Found XRF with flexible pattern: ${flexibleMatch[1]} USDC`);
-        return parseFloat(flexibleMatch[1]);
-      }
     }
     
     return 0;

@@ -87,7 +87,9 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
 
         const assetsWithPricesPromises = balances.map(async (balance) => {
           try {
+            console.log(`Fetching price for ${balance.asset_code || 'XLM'}`);
             const priceUSD = await getAssetPrice(balance.asset_code, balance.asset_issuer);
+            console.log(`Got price for ${balance.asset_code || 'XLM'}: $${priceUSD}`);
             const balanceNum = parseFloat(balance.balance);
             const valueUSD = balanceNum * priceUSD;
             
@@ -98,7 +100,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
               symbol: balance.asset_code || 'XLM'
             };
           } catch (err) {
-            console.warn(`Failed to get price for ${balance.asset_code}:`, err);
+            console.warn(`Failed to get price for ${balance.asset_code || 'XLM'}:`, err);
             return {
               ...balance,
               priceUSD: 0,
@@ -108,10 +110,20 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
           }
         });
 
-        const results = await Promise.all(assetsWithPricesPromises);
-        results.sort((a, b) => b.valueUSD - a.valueUSD);
-        setAssetsWithPrices(results);
+        console.log('Waiting for all price fetches to complete...');
+        const results = await Promise.allSettled(assetsWithPricesPromises);
+        console.log('All price fetch results:', results);
+        
+        const successfulResults = results
+          .filter(result => result.status === 'fulfilled')
+          .map(result => (result as PromiseFulfilledResult<any>).value);
+          
+        successfulResults.sort((a, b) => b.valueUSD - a.valueUSD);
+        setAssetsWithPrices(successfulResults);
+        
+        console.log('Updated asset prices:', successfulResults.map(a => `${a.symbol}: $${a.priceUSD}`));
       } catch (err) {
+        console.error('Price refetch failed:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch asset prices');
       } finally {
         setLoading(false);
