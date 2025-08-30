@@ -113,7 +113,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       toast({
         title: "Transaction built successfully",
         description: "XDR is ready for signing",
-        duration: 5000,
+        duration: 2000,
       });
     } catch (error) {
       console.error('Build error:', error);
@@ -151,7 +151,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       toast({
         title: "XDR processed",
         description: "Transaction is ready for signing",
-        duration: 5000,
+        duration: 2000,
       });
     } catch (error) {
       console.error('XDR processing error:', error);
@@ -186,7 +186,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       toast({
         title: "Transaction signed",
         description: "Transaction has been signed successfully",
-        duration: 5000,
+        duration: 2000,
       });
     } catch (error) {
       console.error('Signing error:', error);
@@ -215,7 +215,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       toast({
         title: "Transaction signed",
         description: `Signed with ${signerKey.slice(0, 8)}...${signerKey.slice(-8)}`,
-        duration: 5000,
+        duration: 2000,
       });
     } catch (error) {
       console.error('Signing error:', error);
@@ -243,7 +243,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       toast({
         title: "Transaction submitted successfully",
         description: `Transaction hash: ${result.hash}`,
-        duration: 5000,
+        duration: 2000,
       });
       
       // Reset form
@@ -273,7 +273,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       toast({
         title: "Submitted to Refractor",
         description: `Transaction ID: ${id}`,
-        duration: 5000,
+        duration: 2000,
       });
     } catch (error) {
       console.error('Refractor submission error:', error);
@@ -296,7 +296,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       toast({
         title: "Transaction pulled from Refractor",
         description: "XDR loaded successfully",
-        duration: 5000,
+        duration: 2000,
       });
     } catch (error) {
       console.error('Refractor pull error:', error);
@@ -370,7 +370,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid grid-cols-2 w-full">
+              <TabsList className="grid grid-cols-3 w-full">
                 <TabsTrigger value="payment" className="flex items-center gap-2">
                   <Send className="w-4 h-4" />
                   Payment
@@ -378,6 +378,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
                 <TabsTrigger value="xdr" className="flex items-center gap-2">
                   <FileCode className="w-4 h-4" />
                   Generic XDR
+                </TabsTrigger>
+                <TabsTrigger value="refractor" className="flex items-center gap-2">
+                  <ExternalLink className="w-4 h-4" />
+                  Pull from Refractor
                 </TabsTrigger>
               </TabsList>
 
@@ -460,6 +464,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
                   )}
                 </Button>
               </TabsContent>
+
+              <TabsContent value="refractor" className="space-y-4 mt-6">
+                <RefractorIntegration
+                  onPullTransaction={handlePullFromRefractor}
+                  lastRefractorId={refractorId}
+                />
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
@@ -475,6 +486,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
         {/* Signer Selector */}
         {(xdrData.output || xdrData.input) && (
           <SignerSelector
+            xdr={xdrData.output || xdrData.input}
+            network={currentNetwork}
             signers={accountData.signers}
             currentAccountKey={accountPublicKey}
             signedBy={signedBy}
@@ -497,11 +510,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
           />
         )}
 
-        {/* Refractor Integration */}
-        <RefractorIntegration
-          onPullTransaction={handlePullFromRefractor}
-          lastRefractorId={refractorId}
-        />
 
         {/* Transaction Success */}
         {successData && (

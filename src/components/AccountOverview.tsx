@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Copy, Eye, EyeOff, Shield, Users, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
+import { AssetIcon } from './AssetIcon';
 
 interface AccountData {
   publicKey: string;
@@ -58,7 +59,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             <p className="text-muted-foreground">Manage your Stellar multisig operations</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="destructive" onClick={onDisconnect} size="sm">
+            <Button variant="destructive" onClick={onDisconnect}>
               Disconnect
             </Button>
             <Button onClick={onInitiateTransaction} className="bg-gradient-primary hover:opacity-90">
@@ -113,11 +114,11 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
               {accountData.balances.map((balance, index) => (
                 <div key={index} className="flex justify-between items-center p-3 bg-secondary/50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center">
-                      <span className="text-xs font-bold text-primary-foreground">
-                        {balance.asset_code || 'XLM'}
-                      </span>
-                    </div>
+                    <AssetIcon 
+                      assetCode={balance.asset_code}
+                      assetIssuer={balance.asset_type !== 'native' ? (balance as any).asset_issuer : undefined}
+                      size={32}
+                    />
                     <div>
                       <p className="font-medium">{balance.asset_code || 'Stellar Lumens'}</p>
                       <p className="text-sm text-muted-foreground">{balance.asset_type}</p>

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Users, CheckCircle, Circle, Plus } from 'lucide-react';
+import { Transaction, Networks } from '@stellar/stellar-sdk';
 
 interface Signer {
   key: string;
@@ -18,6 +19,8 @@ interface SignedBySigner {
 }
 
 interface SignerSelectorProps {
+  xdr: string;
+  network: 'mainnet' | 'testnet';
   signers: Signer[];
   currentAccountKey: string;
   signedBy: SignedBySigner[];
@@ -27,6 +30,8 @@ interface SignerSelectorProps {
 }
 
 export const SignerSelector = ({ 
+  xdr,
+  network,
   signers, 
   currentAccountKey, 
   signedBy, 
@@ -35,22 +40,77 @@ export const SignerSelector = ({
   isSigning 
 }: SignerSelectorProps) => {
   const [selectedSigner, setSelectedSigner] = useState<string>('');
+  const [existingSignatures, setExistingSignatures] = useState<string[]>([]);
+
+  // Extract existing signatures from XDR
+  useEffect(() => {
+    try {
+      const networkPassphrase = network === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+      const transaction = new Transaction(xdr, networkPassphrase);
+      
+      // Get public keys of existing signatures by checking which signers match the signature hints
+      const existingSigs: string[] = [];
+      transaction.signatures.forEach((sig) => {
+        const hint = sig.hint();
+        // Check if any of our known signers match this signature hint
+        signers.forEach((signer) => {
+          const signerHint = Buffer.from(signer.key.slice(-8), 'hex');
+          if (hint.equals(signerHint)) {
+            existingSigs.push(signer.key);
+          }
+        });
+      });
+      
+      setExistingSignatures(existingSigs);
+    } catch (error) {
+      console.error('Error parsing XDR for signatures:', error);
+      setExistingSignatures([]);
+    }
+  }, [xdr, network, signers]);
 
   const getCurrentWeight = () => {
-    return signedBy.reduce((total, signed) => {
-      const signer = signers.find(s => s.key === signed.signerKey);
+    // Combine UI signatures with existing XDR signatures
+    const allSignedKeys = [...new Set([
+      ...signedBy.map(s => s.signerKey),
+      ...existingSignatures
+    ])];
+    
+    return allSignedKeys.reduce((total, signerKey) => {
+      const signer = signers.find(s => s.key === signerKey);
       return total + (signer?.weight || 0);
     }, 0);
   };
 
   const getAvailableSigners = () => {
+    const allSignedKeys = [...new Set([
+      ...signedBy.map(s => s.signerKey),
+      ...existingSignatures
+    ])];
+    
     return signers.filter(signer => 
-      !signedBy.some(signed => signed.signerKey === signer.key)
+      !allSignedKeys.includes(signer.key)
     );
   };
 
   const isSignerSigned = (signerKey: string) => {
-    return signedBy.some(signed => signed.signerKey === signerKey);
+    return signedBy.some(signed => signed.signerKey === signerKey) || 
+           existingSignatures.includes(signerKey);
+  };
+
+  const getAllSignedSigners = () => {
+    const allSignedKeys = [...new Set([
+      ...signedBy.map(s => s.signerKey),
+      ...existingSignatures
+    ])];
+    
+    return allSignedKeys.map(signerKey => {
+      const fromUI = signedBy.find(s => s.signerKey === signerKey);
+      return {
+        signerKey,
+        signedAt: fromUI?.signedAt || new Date(), // Use current time for existing signatures
+        isExisting: !fromUI
+      };
+    });
   };
 
   const truncateKey = (key: string) => {
@@ -88,10 +148,10 @@ export const SignerSelector = ({
         {/* Current Signatures */}
         <div className="space-y-3">
           <h4 className="text-sm font-medium">Current Signatures</h4>
-          {signedBy.length === 0 ? (
+          {getAllSignedSigners().length === 0 ? (
             <p className="text-sm text-muted-foreground">No signatures yet</p>
           ) : (
-            signedBy.map((signed, index) => {
+            getAllSignedSigners().map((signed, index) => {
               const signer = signers.find(s => s.key === signed.signerKey);
               return (
                 <div key={index} className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
@@ -99,9 +159,14 @@ export const SignerSelector = ({
                     <CheckCircle className="w-4 h-4 text-green-500" />
                     <div>
                       <p className="font-mono text-sm">{truncateKey(signed.signerKey)}</p>
-                      {signed.signerKey === currentAccountKey && (
-                        <Badge variant="outline" className="text-xs mt-1">Current Account</Badge>
-                      )}
+                      <div className="flex gap-2 mt-1">
+                        {signed.signerKey === currentAccountKey && (
+                          <Badge variant="outline" className="text-xs">Current Account</Badge>
+                        )}
+                        {signed.isExisting && (
+                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 dark:text-blue-300">Pre-signed</Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <Badge variant="outline">
