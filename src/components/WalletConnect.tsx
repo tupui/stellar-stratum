@@ -7,6 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info, KeyRound, Plus, Globe } from 'lucide-react';
+// @ts-ignore - some exports may not be in types depending on SDK version
+import { Networks, SorobanRpc } from '@stellar/stellar-sdk';
+// Use the full SDK object for SorobanDomainsSDK
+import * as StellarSDK from '@stellar/stellar-sdk';
 import { getSupportedWallets, connectWallet } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
@@ -172,31 +176,14 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
     try {
       // Import Soroban Domains SDK
       const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
-      const SDK: any = await import('@stellar/stellar-sdk');
-      
-      // Initialize SDK - handle different SDK versions
-      let rpcServer;
-      
-      try {
-        // @ts-ignore - Handle different SDK versions
-        rpcServer = new SDK.SorobanRpc.Server('https://mainnet.sorobanrpc.com');
-      } catch {
-        try {
-          // @ts-ignore - Alternative RPC server constructor
-          rpcServer = new SDK.Soroban.Server('https://mainnet.sorobanrpc.com');
-        } catch {
-          // @ts-ignore - Fallback to minimal mock object
-          rpcServer = { 
-            getHealth: async () => ({ status: 'healthy' }),
-            simulateTransaction: async () => ({ result: null })
-          };
-        }
-      }
-      
+
+      // Proper Soroban RPC server (mainnet)
+      const rpcServer = new SorobanRpc.Server('https://mainnet.sorobanrpc.com');
+
       const sdk = new SorobanDomainsSDK({
-        stellarSDK: SDK,
+        stellarSDK: StellarSDK as any,
         rpc: rpcServer,
-        network: SDK.Networks.PUBLIC,
+        network: Networks.PUBLIC,
         vaultsContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
         valuesDatabaseContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
         defaultFee: '10000000',
@@ -368,9 +355,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
                   onClick={() => setShowSorobanInput(!showSorobanInput)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center">
-                      <Globe className="w-4 h-4 text-primary-foreground" />
-                    </div>
+                    <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-8 h-8 rounded" />
                     <div className="text-left">
                       <div className="font-medium">Soroban Domains</div>
                       <div className="text-sm text-muted-foreground">Resolve domain to address</div>

@@ -124,6 +124,16 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
 
     // Set the selected wallet
     kit.setWallet(walletId);
+
+    // Explicitly connect for Freighter and similar extension wallets
+    try {
+      // @ts-ignore
+      if (typeof (kit as any).connect === 'function') {
+        await (kit as any).connect();
+      }
+    } catch (e) {
+      // ignore and continue to getAddress
+    }
     
     // Request address (triggers permission prompt and account selection for hardware wallets)
     const { address } = await kit.getAddress();
