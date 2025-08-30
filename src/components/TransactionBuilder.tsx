@@ -9,6 +9,15 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Send, FileCode, ArrowLeft, Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { 
+  Transaction, 
+  TransactionBuilder as StellarTransactionBuilder,
+  Networks,
+  Operation,
+  Asset,
+  Memo
+} from '@stellar/stellar-sdk';
+import { signTransaction, horizonServer } from '@/lib/stellar';
 
 interface TransactionBuilderProps {
   onBack: () => void;
@@ -29,6 +38,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
     output: '',
   });
   const [isBuilding, setIsBuilding] = useState(false);
+  const [isSigning, setIsSigning] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const handlePaymentBuild = async () => {
@@ -44,21 +54,45 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
     setIsBuilding(true);
     
     try {
-      // Simulate XDR building
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Load source account
+      const sourceAccount = await horizonServer.loadAccount(accountPublicKey);
       
-      // Mock XDR output
-      const mockXDR = `AAAAAgAAAABexSIg06FtXzmFBQQtHZsrnyWxTD+bZE1Kpp71T${Math.random().toString(36).substring(2, 15)}==`;
-      setXdrData(prev => ({ ...prev, output: mockXDR }));
+      // Create transaction builder
+      const transaction = new StellarTransactionBuilder(sourceAccount, {
+        fee: '100000', // 0.01 XLM
+        networkPassphrase: Networks.PUBLIC, // Change to Networks.TESTNET for testing
+      });
+
+      // Add payment operation
+      transaction.addOperation(Operation.payment({
+        destination: paymentData.destination,
+        asset: Asset.native(), // XLM
+        amount: paymentData.amount,
+      }));
+
+      // Add memo if provided
+      if (paymentData.memo) {
+        transaction.addMemo(Memo.text(paymentData.memo));
+      }
+
+      // Set timeout
+      transaction.setTimeout(300);
+
+      // Build the transaction
+      const builtTransaction = transaction.build();
+      const xdr = builtTransaction.toXDR();
+      
+      setXdrData(prev => ({ ...prev, output: xdr }));
       
       toast({
         title: "Transaction built successfully",
         description: "XDR is ready for signing",
       });
     } catch (error) {
+      console.error('Build error:', error);
       toast({
         title: "Build failed",
-        description: "Failed to build transaction",
+        description: error instanceof Error ? error.message : "Failed to build transaction",
         variant: "destructive",
       });
     } finally {
@@ -79,14 +113,19 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
     setIsBuilding(true);
     
     try {
-      // Simulate XDR processing
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Validate XDR format by parsing it
+      try {
+        new Transaction(xdrData.input, Networks.PUBLIC);
+      } catch (parseError) {
+        throw new Error('Invalid XDR format');
+      }
       
       toast({
         title: "XDR processed",
         description: "Transaction is ready for signing",
       });
     } catch (error) {
+      console.error('XDR processing error:', error);
       toast({
         title: "Processing failed",
         description: "Invalid XDR format",
@@ -94,6 +133,40 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
       });
     } finally {
       setIsBuilding(false);
+    }
+  };
+
+  const handleSignTransaction = async () => {
+    const xdrToSign = xdrData.output || xdrData.input;
+    if (!xdrToSign) {
+      toast({
+        title: "No transaction to sign",
+        description: "Please build or input a transaction first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSigning(true);
+    
+    try {
+      const signedXdr = await signTransaction(xdrToSign);
+      
+      setXdrData(prev => ({ ...prev, output: signedXdr }));
+      
+      toast({
+        title: "Transaction signed",
+        description: "Transaction has been signed successfully",
+      });
+    } catch (error) {
+      console.error('Signing error:', error);
+      toast({
+        title: "Signing failed",
+        description: error instanceof Error ? error.message : "Failed to sign transaction",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSigning(false);
     }
   };
 
@@ -269,9 +342,25 @@ export const TransactionBuilder = ({ onBack, accountPublicKey }: TransactionBuil
                 <div className="text-sm text-muted-foreground">
                   Next: Share this XDR with other signers or proceed to sign
                 </div>
-                <Button className="bg-gradient-success hover:opacity-90">
-                  Proceed to Signing
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleSignTransaction}
+                    disabled={isSigning}
+                  >
+                    {isSigning ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        Signing...
+                      </div>
+                    ) : (
+                      'Sign Transaction'
+                    )}
+                  </Button>
+                  <Button className="bg-gradient-success hover:opacity-90">
+                    Submit to Network
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -1,42 +1,58 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Wallet, Shield, ArrowRight } from 'lucide-react';
-
-interface WalletOption {
-  name: string;
-  description: string;
-  icon: string;
-}
-
-const SUPPORTED_WALLETS: WalletOption[] = [
-  { name: 'Freighter', description: 'Browser extension wallet', icon: '🚀' },
-  { name: 'Ledger', description: 'Hardware wallet support', icon: '🔒' },
-  { name: 'Lobstr', description: 'Mobile & web wallet', icon: '🦞' },
-  { name: 'Albedo', description: 'Universal Stellar signer', icon: '⭐' },
-  { name: 'WalletConnect', description: 'Connect multiple wallets', icon: '🔗' },
-];
+import { getSupportedWallets, connectWallet } from '@/lib/stellar';
+import { useToast } from '@/hooks/use-toast';
+import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string) => void;
 }
 
 export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
+  const { toast } = useToast();
   const [connecting, setConnecting] = useState<string | null>(null);
+  const [supportedWallets, setSupportedWallets] = useState<ISupportedWallet[]>([]);
 
-  const handleConnect = async (walletName: string) => {
-    setConnecting(walletName);
+  useEffect(() => {
+    const loadWallets = async () => {
+      try {
+        const wallets = await getSupportedWallets();
+        setSupportedWallets(wallets);
+      } catch (error) {
+        console.error('Failed to load wallets:', error);
+        toast({
+          title: "Failed to load wallets",
+          description: "Could not load supported wallets",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    loadWallets();
+  }, [toast]);
+
+  const handleConnect = async (walletId: string, walletName: string) => {
+    setConnecting(walletId);
     
     try {
-      // Mock connection for now - will be replaced with actual wallet integration
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const { publicKey } = await connectWallet(walletId);
       
-      // Generate mock public key for demo
-      const mockPublicKey = `G${'ABCDEFGHIJK1234567890'.slice(0, 16)}${'EXAMPLE'.slice(0, 16)}`;
-      onConnect(walletName, mockPublicKey);
+      toast({
+        title: "Wallet connected",
+        description: `Successfully connected to ${walletName}`,
+      });
+      
+      onConnect(walletName, publicKey);
     } catch (error) {
       console.error('Failed to connect wallet:', error);
+      toast({
+        title: "Connection failed",
+        description: error instanceof Error ? error.message : "Failed to connect wallet",
+        variant: "destructive",
+      });
     } finally {
       setConnecting(null);
     }
@@ -55,22 +71,40 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {SUPPORTED_WALLETS.map((wallet) => (
+          {supportedWallets.map((wallet) => (
             <Button
-              key={wallet.name}
+              key={wallet.id}
               variant="outline"
               className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-              onClick={() => handleConnect(wallet.name)}
+              onClick={() => handleConnect(wallet.id, wallet.name)}
               disabled={connecting !== null}
             >
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{wallet.icon}</span>
+                <img 
+                  src={wallet.icon} 
+                  alt={wallet.name} 
+                  className="w-8 h-8 rounded"
+                  onError={(e) => {
+                    // Fallback to text icon if image fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const fallback = target.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'flex';
+                  }}
+                />
+                <div 
+                  className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden"
+                >
+                  {wallet.name.charAt(0)}
+                </div>
                 <div className="text-left">
                   <div className="font-medium">{wallet.name}</div>
-                  <div className="text-sm text-muted-foreground">{wallet.description}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {wallet.isAvailable ? 'Available' : 'Install required'}
+                  </div>
                 </div>
               </div>
-              {connecting === wallet.name ? (
+              {connecting === wallet.id ? (
                 <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               ) : (
                 <ArrowRight className="w-4 h-4" />

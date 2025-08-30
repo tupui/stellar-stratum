@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { WalletConnect } from '@/components/WalletConnect';
 import { AccountOverview } from '@/components/AccountOverview';
 import { TransactionBuilder } from '@/components/TransactionBuilder';
+import { fetchAccountData } from '@/lib/stellar';
+import { useToast } from '@/hooks/use-toast';
 
 interface AccountData {
   publicKey: string;
   balances: Array<{
     asset_type: string;
     asset_code?: string;
+    asset_issuer?: string;
     balance: string;
   }>;
   thresholds: {
@@ -25,34 +28,39 @@ interface AccountData {
 type AppState = 'connecting' | 'dashboard' | 'transaction';
 
 const Index = () => {
+  const { toast } = useToast();
   const [appState, setAppState] = useState<AppState>('connecting');
   const [connectedWallet, setConnectedWallet] = useState<string>('');
   const [accountData, setAccountData] = useState<AccountData | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleWalletConnect = async (walletType: string, publicKey: string) => {
     setConnectedWallet(walletType);
+    setLoading(true);
     
-    // Mock account data - in real app, fetch from Horizon API
-    const mockAccountData: AccountData = {
-      publicKey,
-      balances: [
-        { asset_type: 'native', balance: '1234.5678900' },
-        { asset_type: 'credit_alphanum4', asset_code: 'USDC', balance: '500.00' },
-      ],
-      thresholds: {
-        low_threshold: 1,
-        med_threshold: 2,
-        high_threshold: 3,
-      },
-      signers: [
-        { key: publicKey, weight: 1, type: 'ed25519_public_key' },
-        { key: 'GBEXAMPLEKEY2ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789', weight: 1, type: 'ed25519_public_key' },
-        { key: 'GBEXAMPLEKEY3ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789', weight: 2, type: 'ed25519_public_key' },
-      ],
-    };
-    
-    setAccountData(mockAccountData);
-    setAppState('dashboard');
+    try {
+      // Fetch real account data from Horizon
+      const realAccountData = await fetchAccountData(publicKey);
+      setAccountData(realAccountData);
+      setAppState('dashboard');
+      
+      toast({
+        title: "Account loaded",
+        description: "Successfully loaded account data from Stellar network",
+      });
+    } catch (error) {
+      console.error('Failed to load account:', error);
+      toast({
+        title: "Failed to load account",
+        description: error instanceof Error ? error.message : "Could not load account data",
+        variant: "destructive",
+      });
+      
+      // Fall back to connection screen
+      setAppState('connecting');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInitiateTransaction = () => {
@@ -67,6 +75,18 @@ const Index = () => {
   const handleBackToDashboard = () => {
     setAppState('dashboard');
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-lg font-medium">Loading account data...</p>
+          <p className="text-sm text-muted-foreground">Fetching data from Stellar network</p>
+        </div>
+      </div>
+    );
+  }
 
   if (appState === 'connecting') {
     return <WalletConnect onConnect={handleWalletConnect} />;
