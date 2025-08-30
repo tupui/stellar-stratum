@@ -2,67 +2,17 @@ import {
   StellarWalletsKit, 
   WalletNetwork, 
   ISupportedWallet,
-  xBullModule,
-  FreighterModule,
-  AlbedoModule,
-  RabetModule
+  allowAllModules,
+  FREIGHTER_ID
 } from '@creit.tech/stellar-wallets-kit';
+import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
-// Initialize base modules that work reliably
-const getBaseModules = () => {
-  return [
-    new xBullModule(),
-    new FreighterModule(),
-    new AlbedoModule(), 
-    new RabetModule(),
-  ];
-};
-
-// Safely add hardware wallet modules with error handling
-const getHardwareModules = async () => {
-  const modules: any[] = [];
-
-  // Try to load Ledger module
-  try {
-    const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
-    modules.push(new LedgerModule());
-  } catch (ledgerError) {
-    console.warn('Ledger module not available');
-  }
-
-  // Try to load Trezor module
-  try {
-    const { TrezorModule } = await import('@creit.tech/stellar-wallets-kit/modules/trezor.module');
-    modules.push(new TrezorModule({
-      appUrl: typeof window !== 'undefined' ? window.location.origin : 'https://localhost:5173',
-      appName: "Stellar Multisig Wallet",
-      email: "support@yourdomain.com",
-    }));
-  } catch (error) {
-    console.warn('Trezor module not available');
-  }
-
-  return modules;
-};
-
-// Initialize Stellar Wallets Kit instance with safe module loading
-export const createStellarKit = async () => {
-  const baseModules = getBaseModules();
-  const hardwareModules = await getHardwareModules();
-  
-  return new StellarWalletsKit({
-    network: WalletNetwork.PUBLIC,
-    selectedWalletId: undefined,
-    modules: [...baseModules, ...hardwareModules],
-  });
-};
-
-// Initialize with base modules immediately, hardware modules loaded later
+// Initialize Stellar Wallets Kit using the working pattern
 export const stellarKit = new StellarWalletsKit({
+  modules: [...allowAllModules(), new LedgerModule()],
   network: WalletNetwork.PUBLIC,
-  selectedWalletId: undefined,
-  modules: getBaseModules(),
+  selectedWalletId: FREIGHTER_ID,
 });
 
 // Horizon server for account data
@@ -94,15 +44,21 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
 
     // Direct Freighter path for reliability
     if (walletId.toLowerCase().includes('freighter')) {
-      console.log('Checking for Freighter...');
+      console.log('Checking for Freighter in iframe environment...');
       console.log('window.freighterApi:', (window as any).freighterApi);
       console.log('window.freighter:', (window as any).freighter);
-      console.log('window keys containing freighter:', Object.keys(window).filter(k => k.toLowerCase().includes('freighter')));
+      
+      const isInIframe = window !== window.top;
+      console.log('Running in iframe:', isInIframe);
+      
+      if (isInIframe) {
+        throw new Error('Freighter may not work in iframe environments. Please open this app in a new tab or window.');
+      }
       
       const w = (window as any).freighterApi || (window as any).freighter;
       if (!w) {
         console.log('Freighter extension not found in window object');
-        throw new Error('Freighter extension not detected');
+        throw new Error('Freighter extension not installed or not accessible. Please install Freighter extension and refresh the page.');
       }
       
       console.log('Freighter object found:', w);
@@ -128,13 +84,8 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
       return { publicKey: address, walletName: 'Freighter' };
     }
     
-    // Use the enhanced kit that has hardware wallets loaded for others
-    let kit = stellarKit;
-    try {
-      kit = await createStellarKit();
-    } catch (error) {
-      console.warn('Using base kit for connection');
-    }
+    // Use the stellarKit directly - it already has all modules
+    const kit = stellarKit;
 
     // Set the selected wallet
     kit.setWallet(walletId);
@@ -224,17 +175,8 @@ export const fetchAccountData = async (publicKey: string): Promise<AccountData> 
 
 export const getSupportedWallets = async (): Promise<ISupportedWallet[]> => {
   try {
-    // Try to create enhanced kit with hardware wallets first
-    let kit = stellarKit;
-    
-    try {
-      kit = await createStellarKit();
-    } catch (error) {
-      console.warn('Failed to load hardware wallet modules, using base modules:', error);
-      // Fallback to base stellarKit if hardware modules fail
-    }
-    
-    const wallets = await kit.getSupportedWallets();
+    // Use stellarKit directly - it already has all modules loaded
+    const wallets = await stellarKit.getSupportedWallets();
     console.log('Available wallets:', wallets.map(w => ({ id: w.id, name: w.name, available: w.isAvailable })));
     
     // Filter and prioritize wallets
