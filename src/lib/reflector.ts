@@ -150,16 +150,37 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
       regex = new RegExp(`${assetCode}[^0-9]*${shortIssuer}[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
     } else if (assetCode === 'XLM') {
       // For XLM, look for "XLMstellar.org" pattern
-      regex = new RegExp(`${assetCode}stellar\\.org[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
+      regex = new RegExp(`XLM[^0-9]*stellar\\.org[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
     } else {
-      // For other assets, look for just asset code + price
-      regex = new RegExp(`${assetCode}[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
+      // For other assets, look for just asset code + price with more flexible matching
+      regex = new RegExp(`${assetCode}[^0-9A-Za-z]*[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
     }
     
     const match = html.match(regex);
     
     if (match && match[1]) {
+      console.log(`Found ${assetCode} price: ${match[1]} ${oracle.base} from oracle ${oracle.contract}`);
       return parseFloat(match[1]);
+    }
+    
+    // Additional debug: try to find any mention of the asset
+    if (assetCode === 'XRF') {
+      console.log('Debugging XRF price extraction...');
+      // Look for XRF with reflector.network domain
+      const xrfRegex = new RegExp(`XRF[^0-9]*reflector\\.network[^0-9]*([0-9]+\\.?[0-9]*) ${oracle.base}`, 'i');
+      const xrfMatch = html.match(xrfRegex);
+      if (xrfMatch && xrfMatch[1]) {
+        console.log(`Found XRF with domain pattern: ${xrfMatch[1]} ${oracle.base}`);
+        return parseFloat(xrfMatch[1]);
+      }
+      
+      // Even more flexible XRF matching
+      const flexibleXrfRegex = /XRF.*?(\d+\.?\d*)\s*USDC/gi;
+      const flexibleMatch = flexibleXrfRegex.exec(html);
+      if (flexibleMatch && flexibleMatch[1]) {
+        console.log(`Found XRF with flexible pattern: ${flexibleMatch[1]} USDC`);
+        return parseFloat(flexibleMatch[1]);
+      }
     }
     
     return 0;
