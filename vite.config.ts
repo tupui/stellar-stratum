@@ -16,17 +16,10 @@ export default defineConfig(({ mode }) => ({
   ].filter(Boolean),
   define: {
     global: 'globalThis',
-    // Make Buffer available globally for Ledger support
-    'globalThis.Buffer': 'Buffer',
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Polyfill Node.js modules for browser
-      buffer: 'buffer',
     },
   },
-  optimizeDeps: {
-    include: ['buffer']
-  }
 }));

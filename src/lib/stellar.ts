@@ -7,26 +7,70 @@ import {
   AlbedoModule,
   RabetModule
 } from '@creit.tech/stellar-wallets-kit';
-import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
-import { TrezorModule } from '@creit.tech/stellar-wallets-kit/modules/trezor.module';
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
-// Initialize Stellar Wallets Kit instance with hardware wallet support
-export const stellarKit = new StellarWalletsKit({
-  network: WalletNetwork.PUBLIC, // Change to TESTNET for testing
-  selectedWalletId: undefined,
-  modules: [
+// Initialize base modules that work reliably
+const getBaseModules = () => {
+  return [
     new xBullModule(),
     new FreighterModule(),
-    new AlbedoModule(),
+    new AlbedoModule(), 
     new RabetModule(),
-    new LedgerModule(),
-    new TrezorModule({
+  ];
+};
+
+// Safely add hardware wallet modules with error handling
+const getHardwareModules = async () => {
+  const modules: any[] = [];
+  
+  try {
+    // Try to load Ledger module with Buffer polyfill
+    const { LedgerModule } = await import('@creit.tech/stellar-wallets-kit/modules/ledger.module');
+    const { Buffer } = await import('buffer');
+    
+    // Make Buffer available for this module only
+    if (typeof window !== 'undefined') {
+      (window as any).Buffer = Buffer;
+    }
+    
+    modules.push(new LedgerModule());
+  } catch (error) {
+    console.warn('Ledger module not available:', error);
+  }
+  
+  try {
+    // Try to load Trezor module
+    const { TrezorModule } = await import('@creit.tech/stellar-wallets-kit/modules/trezor.module');
+    
+    modules.push(new TrezorModule({
       appUrl: typeof window !== 'undefined' ? window.location.origin : 'https://localhost:5173',
       appName: "Stellar Multisig Wallet",
-      email: "support@yourdomain.com", // Replace with your support email
-    }),
-  ],
+      email: "support@yourdomain.com",
+    }));
+  } catch (error) {
+    console.warn('Trezor module not available:', error);
+  }
+  
+  return modules;
+};
+
+// Initialize Stellar Wallets Kit instance with safe module loading
+export const createStellarKit = async () => {
+  const baseModules = getBaseModules();
+  const hardwareModules = await getHardwareModules();
+  
+  return new StellarWalletsKit({
+    network: WalletNetwork.PUBLIC,
+    selectedWalletId: undefined,
+    modules: [...baseModules, ...hardwareModules],
+  });
+};
+
+// Initialize with base modules immediately, hardware modules loaded later
+export const stellarKit = new StellarWalletsKit({
+  network: WalletNetwork.PUBLIC,
+  selectedWalletId: undefined,
+  modules: getBaseModules(),
 });
 
 // Horizon server for account data
@@ -116,10 +160,20 @@ export const fetchAccountData = async (publicKey: string): Promise<AccountData> 
 
 export const getSupportedWallets = async (): Promise<ISupportedWallet[]> => {
   try {
-    const wallets = await stellarKit.getSupportedWallets();
+    // Try to create enhanced kit with hardware wallets first
+    let kit = stellarKit;
+    
+    try {
+      kit = await createStellarKit();
+    } catch (error) {
+      console.warn('Failed to load hardware wallet modules, using base modules:', error);
+      // Fallback to base stellarKit if hardware modules fail
+    }
+    
+    const wallets = await kit.getSupportedWallets();
     
     // Filter and prioritize wallets
-    const priorityOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'albedo', 'rabet', 'walletconnect'];
+    const priorityOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'albedo', 'rabet'];
     
     return wallets
       .filter(wallet => wallet.name) // Only include wallets with names
