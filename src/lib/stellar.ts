@@ -94,23 +94,25 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
 
     // Direct Freighter path for reliability
     if (walletId.toLowerCase().includes('freighter')) {
-      const w = (window as any).freighter;
+      const w = (window as any).freighterApi || (window as any).freighter;
       if (!w) {
         throw new Error('Freighter extension not detected');
       }
       
       try {
-        // Check if already connected
-        const isConnected = await w.isConnected();
+        const isConnected = typeof w.isConnected === 'function' ? await w.isConnected() : false;
         if (!isConnected) {
-          // Request access if not connected
-          await w.requestAccess();
+          if (typeof w.requestAccess === 'function') {
+            await w.requestAccess();
+          } else if (typeof w.connect === 'function') {
+            await w.connect();
+          }
         }
       } catch (error) {
         console.warn('Freighter access check failed:', error);
       }
 
-      const address = await w.getPublicKey();
+      const address = (await (w.getPublicKey?.() || w.requestPublicKey?.())) as string;
       if (!address || !/^G[A-Z2-7]{55}$/.test(address)) {
         throw new Error('Freighter did not return a valid public key');
       }

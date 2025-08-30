@@ -174,34 +174,8 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
       // Import Soroban Domains SDK
       const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
 
-      // Try to resolve domain with Soroban Domains SDK
-      // Create minimal RPC object for SDK compatibility
-      const rpcServer = {
-        serverURL: 'https://mainnet.sorobanrpc.com',
-        getAccount: async () => null,
-        getHealth: async () => ({ status: 'healthy' }),
-        getContractData: async () => null,
-        getContractWasmByContractId: async () => null,
-        getEvents: async () => null,
-        getLatestLedger: async () => null,
-        getLedgerEntries: async () => null,
-        getNetwork: async () => null,
-        getTransaction: async () => null,
-        getTransactions: async () => null,
-        simulateTransaction: async () => null,
-        prepareTransaction: async () => null,
-        sendTransaction: async () => null,
-        requestAirdrop: async () => null,
-        _getValueFromContractData: () => null,
-        _simulateTransaction: async () => null,
-        _prepareTransaction: async () => null,
-        _sendTransaction: async () => null,
-        _getAccount: async () => null,
-        _getContractData: async () => null,
-        _getContractWasmByContractId: async () => null,
-        _getLedgerEntries: async () => null,
-        _isRetryableSubmissionError: () => false,
-      } as any;
+      // Proper Soroban RPC server (mainnet)
+      const rpcServer = new (StellarSDK as any).SorobanRpc.Server('https://mainnet.sorobanrpc.com');
 
       const sdk = new SorobanDomainsSDK({
         stellarSDK: StellarSDK as any,
@@ -211,7 +185,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
         valuesDatabaseContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
         defaultFee: '10000000',
         defaultTimeout: 300,
-        simulationAccount: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+        simulationAccount: 'GCILP4HWE2QGEO4KUMOZ6S6J3A46W47EVCGZW2YPYCPH5CQF6EACNBCN'
       });
 
       // Search for the domain
