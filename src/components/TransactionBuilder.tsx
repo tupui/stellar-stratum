@@ -15,7 +15,8 @@ import {
   Networks,
   Operation,
   Asset,
-  Memo
+  Memo,
+  Horizon
 } from '@stellar/stellar-sdk';
 import { signTransaction, horizonServer, submitTransaction, submitToRefractor, pullFromRefractor } from '@/lib/stellar';
 import { XdrDetails } from './XdrDetails';
@@ -72,13 +73,19 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
     setIsBuilding(true);
     
     try {
+      // Determine network and Horizon server
+      const networkPassphrase = currentNetwork === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+      const server = currentNetwork === 'testnet'
+        ? new Horizon.Server('https://horizon-testnet.stellar.org')
+        : new Horizon.Server('https://horizon.stellar.org');
+
       // Load source account
-      const sourceAccount = await horizonServer.loadAccount(accountPublicKey);
+      const sourceAccount = await server.loadAccount(accountPublicKey);
       
       // Create transaction builder
       const transaction = new StellarTransactionBuilder(sourceAccount, {
         fee: '100000', // 0.01 XLM
-        networkPassphrase: Networks.PUBLIC, // Change to Networks.TESTNET for testing
+        networkPassphrase,
       });
 
       // Add payment operation
@@ -94,7 +101,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
       }
 
       // Set timeout
-      transaction.setTimeout(300);
+      transaction.setTimeout(86400);
 
       // Build the transaction
       const builtTransaction = transaction.build();
@@ -134,7 +141,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
     try {
       // Validate XDR format by parsing it
       try {
-        new Transaction(xdrData.input, Networks.PUBLIC);
+        const networkPassphrase = currentNetwork === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+        new Transaction(xdrData.input, networkPassphrase);
       } catch (parseError) {
         throw new Error('Invalid XDR format');
       }
@@ -254,7 +262,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
     
     setIsSubmitting(true);
     try {
-      const id = await submitToRefractor(xdrToSubmit);
+      const id = await submitToRefractor(xdrToSubmit, currentNetwork);
       setRefractorId(id);
       
       toast({
@@ -490,31 +498,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
           lastRefractorId={refractorId}
         />
 
-        {/* Legacy XDR Output - keeping for backward compatibility */}
-        {xdrData.output && (
-          <Card className="shadow-card">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Transaction XDR</CardTitle>
-                  <CardDescription>
-                    Ready for multisig signing process
-                  </CardDescription>
-                </div>
-                <Button variant="outline" size="sm" onClick={copyXDR}>
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="p-4 bg-secondary/50 rounded-lg">
-                <pre className="font-mono text-sm whitespace-pre-wrap break-all">
-                  {xdrData.output}
-                </pre>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   );

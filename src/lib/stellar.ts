@@ -128,16 +128,17 @@ export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 
 };
 
 // Refractor integration functions
-export const submitToRefractor = async (xdr: string): Promise<string> => {
+export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testnet'): Promise<string> => {
   try {
-    const response = await fetch('https://refractor.space/api/v1/transactions', {
+    const apiNetwork = network === 'testnet' ? 'testnet' : 'public';
+    const response = await fetch('https://api.refractor.space/tx', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        xdr: xdr,
-        network: 'public' // or 'testnet'
+        network: apiNetwork,
+        xdr,
       }),
     });
 
@@ -145,8 +146,10 @@ export const submitToRefractor = async (xdr: string): Promise<string> => {
       throw new Error('Failed to submit to Refractor');
     }
 
-    const result = await response.json();
-    return result.id;
+    // Compute hash (ID) to share based on network
+    const networkPassphrase = apiNetwork === 'testnet' ? 'Test SDF Network ; September 2015' : 'Public Global Stellar Network ; September 2015';
+    const tx = TransactionBuilder.fromXDR(xdr, networkPassphrase);
+    return tx.hash().toString('hex');
   } catch (error) {
     console.error('Failed to submit to Refractor:', error);
     throw new Error('Failed to submit to Refractor');
@@ -155,7 +158,7 @@ export const submitToRefractor = async (xdr: string): Promise<string> => {
 
 export const pullFromRefractor = async (refractorId: string): Promise<string> => {
   try {
-    const response = await fetch(`https://refractor.space/api/v1/transactions/${refractorId}`);
+    const response = await fetch(`https://api.refractor.space/tx/${refractorId}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch from Refractor');

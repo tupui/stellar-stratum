@@ -101,6 +101,26 @@ export const XdrDetails = ({ xdr, network = 'mainnet' }: XdrDetailsProps) => {
               </p>
             </div>
 
+            {/* Raw XDR */}
+            <div className="p-3 bg-secondary/50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  <span className="text-sm font-medium">Raw XDR</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(xdr, 'XDR')}
+                >
+                  {copied === 'XDR' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+              <p className="font-mono text-xs break-all text-muted-foreground">
+                {xdr}
+              </p>
+            </div>
+
             {/* Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
