@@ -324,20 +324,20 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
     const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
     const account = await rpcServer.getAccount(simulationAccount);
     
-    // Create asset parameter based on Reflector documentation
+    // Create asset parameter matching the Asset enum format: ["Stellar", address] or ["Other", symbol]
     let assetParam;
     if (!assetCode || assetCode === 'XLM') {
-      // For native XLM - use simple symbol
-      assetParam = nativeToScVal('XLM', { type: 'symbol' });
+      // For native XLM - use Other variant
+      assetParam = nativeToScVal(['Other', 'XLM']);
     } else if (assetIssuer) {
-      // For issued assets - use Stellar format with issuer
-      assetParam = nativeToScVal({
-        Stellar: assetIssuer
-      }, { type: 'instance' });
+      // For issued assets - use Stellar variant with issuer address
+      assetParam = nativeToScVal(['Stellar', assetIssuer]);
     } else {
-      // For other symbols - use simple symbol
-      assetParam = nativeToScVal(assetCode, { type: 'symbol' });
+      // For other symbols - use Other variant
+      assetParam = nativeToScVal(['Other', assetCode]);
     }
+    
+    console.log(`Asset parameter for ${assetCode}:`, assetParam);
     
     const transaction = new TransactionBuilder(account, {
       fee: '100000',
