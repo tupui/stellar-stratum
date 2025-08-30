@@ -212,16 +212,14 @@ const getOracleAssets = async (oracle: OracleConfig): Promise<string[]> => {
       const assetSymbols: string[] = [];
       if (Array.isArray(resultValue)) {
         for (const asset of resultValue) {
-          if (asset && typeof asset === 'object') {
-            // Handle Asset enum: { Stellar: Address } or { Other: Symbol }
-            if ('Other' in asset && Array.isArray(asset.Other) && asset.Other[0]) {
-              assetSymbols.push(String(asset.Other[0]));
-            } else if ('Stellar' in asset) {
+          if (Array.isArray(asset) && asset.length === 2) {
+            // Handle Asset enum as array: ["Stellar", address] or ["Other", symbol]
+            const [type, value] = asset;
+            if (type === "Other" && value) {
+              assetSymbols.push(String(value));
+            } else if (type === "Stellar" && value) {
               // For Stellar assets, use the issuer address as identifier
-              assetSymbols.push(`stellar_${asset.Stellar}`);
-            } else if (typeof asset === 'string') {
-              // Handle direct string assets
-              assetSymbols.push(asset);
+              assetSymbols.push(`stellar_${value}`);
             }
           }
         }
