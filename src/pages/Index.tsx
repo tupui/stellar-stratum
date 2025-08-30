@@ -76,6 +76,12 @@ const Index = () => {
     setAppState('dashboard');
   };
 
+  const handleDisconnect = () => {
+    setConnectedWallet('');
+    setAccountData(null);
+    setAppState('connecting');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -108,6 +114,7 @@ const Index = () => {
         accountData={accountData}
         onInitiateTransaction={handleInitiateTransaction}
         onSignTransaction={handleSignTransaction}
+        onDisconnect={handleDisconnect}
       />
     );
   }

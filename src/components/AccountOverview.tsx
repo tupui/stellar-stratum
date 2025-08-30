@@ -28,9 +28,10 @@ interface AccountOverviewProps {
   accountData: AccountData;
   onInitiateTransaction: () => void;
   onSignTransaction: () => void;
+  onDisconnect: () => void;
 }
 
-export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction }: AccountOverviewProps) => {
+export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect }: AccountOverviewProps) => {
   const [showFullKey, setShowFullKey] = useState(false);
 
   const truncateKey = (key: string) => {
@@ -57,6 +58,9 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             <p className="text-muted-foreground">Manage your Stellar multisig operations</p>
           </div>
           <div className="flex gap-3">
+            <Button variant="destructive" onClick={onDisconnect} size="sm">
+              Disconnect
+            </Button>
             <Button onClick={onInitiateTransaction} className="bg-gradient-primary hover:opacity-90">
               Initiate Transaction
             </Button>
