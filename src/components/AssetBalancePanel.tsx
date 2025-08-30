@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock } from 'lucide-react';
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
-import { getLastFetchTimestamp } from '@/lib/reflector';
+import { getLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
 
 interface AssetBalance {
   asset_type: string;
@@ -31,6 +31,8 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
 
   const handleRefresh = async () => {
     try {
+      // Clear price cache but keep asset lists
+      clearPriceCache();
       if (onRefreshBalances) {
         await onRefreshBalances();
       }
