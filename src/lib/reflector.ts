@@ -171,18 +171,38 @@ const findSupportingOracle = (assetCode: string, assetIssuer?: string): OracleCo
     const cached = oracleAssetsCache[cacheKey];
     
     if (cached && cached.assets) {
+      console.log(`Checking oracle ${oracle.contract} with ${cached.assets.length} assets for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}`);
+      console.log(`First 10 assets in ${oracle.contract}:`, cached.assets.slice(0, 10));
+      
       // Check for exact symbol match
       if (cached.assets.includes(assetCode)) {
+        console.log(`Found ${assetCode} in ${oracle.contract}`);
         return oracle;
       }
       
-      // For issued assets, check for stellar asset format
-      if (assetIssuer && cached.assets.includes(`stellar_${assetIssuer}`)) {
-        return oracle;
+      // For issued assets (Stellar assets), the format might be different
+      if (assetIssuer) {
+        // Try different formats that might be used
+        const formats = [
+          `stellar_${assetIssuer}`,
+          assetIssuer,
+          `${assetCode}_${assetIssuer}`,
+          `${assetCode}:${assetIssuer}`
+        ];
+        
+        for (const format of formats) {
+          if (cached.assets.includes(format)) {
+            console.log(`Found ${assetCode} with issuer in ${oracle.contract} as ${format}`);
+            return oracle;
+          }
+        }
       }
+    } else {
+      console.log(`No cached assets for oracle ${oracle.contract}`);
     }
   }
   
+  console.log(`Asset ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} not found in any oracle`);
   return null;
 };
 
