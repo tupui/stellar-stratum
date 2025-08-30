@@ -41,7 +41,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
 
   // Filter assets based on hide small balances toggle
   const filteredAssets = hideSmallBalances 
-    ? assetsWithPrices.filter(asset => asset.valueUSD >= 10)
+    ? assetsWithPrices.filter(asset => asset.valueUSD >= 1)
     : assetsWithPrices;
 
   const formatPrice = (price: number): string => {
@@ -139,7 +139,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
               checked={hideSmallBalances}
               onCheckedChange={setHideSmallBalances}
             />
-            <Label htmlFor="hide-small" className="text-sm">Hide &lt; $10</Label>
+            <Label htmlFor="hide-small" className="text-sm">Hide &lt; $1</Label>
           </div>
         </div>
 
@@ -163,7 +163,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Filter className="w-8 h-8 text-muted-foreground mb-2" />
               <p className="text-sm text-muted-foreground">
-                {hideSmallBalances ? 'No assets above $10' : 'No assets found'}
+                {hideSmallBalances ? 'No assets above $1' : 'No assets found'}
               </p>
             </div>
           ) : (
@@ -217,7 +217,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
               <span className="text-muted-foreground">
                 Showing {filteredAssets.length} of {assetsWithPrices.length} assets
                 {hideSmallBalances && (
-                  <span className="ml-1">(&gt;= $10)</span>
+                  <span className="ml-1">(&gt;= $1)</span>
                 )}
               </span>
             </div>

@@ -141,6 +141,19 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
 
     const html = await response.text();
     
+    // Debug XRF specifically
+    if (assetCode === 'XRF') {
+      console.log('XRF Debug: Searching in oracle', oracle.contract);
+      console.log('XRF Debug: HTML contains XRF?', html.includes('XRF'));
+      console.log('XRF Debug: HTML contains reflector.network?', html.includes('reflector.network'));
+      
+      // Look for all instances of XRF in the HTML
+      const xrfMatches = html.match(/XRF[^]*?(\d+\.?\d*)\s*(USDC|USD)/gi);
+      if (xrfMatches) {
+        console.log('XRF Debug: Found matches:', xrfMatches);
+      }
+    }
+    
     // Parse HTML to find the asset price
     let regex: RegExp;
     
@@ -174,9 +187,9 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
         return parseFloat(xrfMatch[1]);
       }
       
-      // Even more flexible XRF matching
-      const flexibleXrfRegex = /XRF.*?(\d+\.?\d*)\s*USDC/gi;
-      const flexibleMatch = flexibleXrfRegex.exec(html);
+      // Even more flexible XRF matching - look for the exact pattern from the website
+      const flexibleXrfRegex = /XRFreflector\.network.*?([0-9]+\.?[0-9]*) USDC/i;
+      const flexibleMatch = html.match(flexibleXrfRegex);
       if (flexibleMatch && flexibleMatch[1]) {
         console.log(`Found XRF with flexible pattern: ${flexibleMatch[1]} USDC`);
         return parseFloat(flexibleMatch[1]);
