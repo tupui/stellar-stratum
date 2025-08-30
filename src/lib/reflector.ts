@@ -62,25 +62,26 @@ const ASSETS_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
 let assetsListsLoaded = false;
 
 const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
-  // Ensure asset lists are loaded (for warm cache/diagnostics), but don't rely on them for gating
+  // Step 1: Ensure asset lists are loaded first
   await ensureAssetListsLoaded();
-
-  // Build Asset object and try all oracles in priority order, in parallel
-  const asset = createAssetObject(assetCode, assetIssuer);
-  const oracles = [REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.FX];
-
-  const results = await Promise.allSettled(oracles.map((o) => getOracleAssetPriceWithRetry(o, asset)));
-
-  for (let i = 0; i < oracles.length; i++) {
-    const r = results[i];
-    if (r.status === 'fulfilled' && r.value > 0) {
-      return r.value;
-    }
+  
+  // Step 2: Check which oracle supports this asset
+  const supportingOracle = findSupportingOracle(assetCode, assetIssuer);
+  if (!supportingOracle) {
+    console.log(`Asset ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} not available in any oracle - assigning N/A`);
+    return 0; // N/A - not supported
   }
-
-  // No oracle returned a positive price
-  console.log(`No price found for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} on any oracle`);
-  return 0;
+  
+  // Step 3: Create proper Asset object and get price from the supporting oracle
+  const asset = createAssetObject(assetCode, assetIssuer);
+  try {
+    const price = await getOracleAssetPriceWithRetry(supportingOracle, asset);
+    console.log(`Got price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${supportingOracle.contract}: ${price}`);
+    return price;
+  } catch (error) {
+    console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${supportingOracle.contract}:`, error);
+    return 0; // N/A - failed to fetch
+  }
 };
 
 // Sleep utility for retry delays
