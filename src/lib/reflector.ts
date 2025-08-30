@@ -74,7 +74,14 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   
   for (const oracle of oracles) {
     try {
-      const price = await getOracleAssetPrice(oracle, assetCode, assetIssuer);
+      // First check if asset exists in this oracle
+      const assetExists = await assetExistsInOracle(oracle, assetCode, assetIssuer);
+      if (!assetExists) {
+        console.log(`Asset ${assetCode} not available in oracle ${oracle.contract}`);
+        continue;
+      }
+      
+      const price = await getOracleAssetPriceWithRetry(oracle, assetCode, assetIssuer);
       if (price > 0) {
         return price;
       }
@@ -176,8 +183,11 @@ const assetExistsInOracle = async (oracle: OracleConfig, assetCode: string, asse
   return false;
 };
 
-// Get individual asset price from oracle
-const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
+// Sleep utility for retry delays
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+// Get individual asset price from oracle with retry logic
+const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string, maxRetries: number = 2): Promise<number> => {
   const cacheKey = `${oracle.contract}:${assetCode}:${assetIssuer || ''}`;
   const cached = oracleDataCache[cacheKey];
   
@@ -187,8 +197,47 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
     return cached.data;
   }
   
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const price = await getOracleAssetPrice(oracle, assetCode, assetIssuer);
+      if (price > 0) {
+        return price;
+      }
+      
+      // If no price and not the last attempt, wait before retry
+      if (attempt < maxRetries - 1) {
+        // Exponential backoff with jitter: 1-3s for first retry, 2-6s for second
+        const baseDelay = Math.pow(2, attempt) * 1000;
+        const jitter = Math.random() * baseDelay;
+        const delay = baseDelay + jitter;
+        
+        console.log(`No price returned for ${assetCode} from ${oracle.contract}, retrying in ${Math.round(delay)}ms...`);
+        await sleep(delay);
+      }
+    } catch (error) {
+      console.warn(`Attempt ${attempt + 1} failed for ${assetCode} from ${oracle.contract}:`, error);
+      
+      // If not the last attempt, wait before retry
+      if (attempt < maxRetries - 1) {
+        const baseDelay = Math.pow(2, attempt) * 1000;
+        const jitter = Math.random() * baseDelay;
+        const delay = baseDelay + jitter;
+        
+        console.log(`Retrying ${assetCode} from ${oracle.contract} in ${Math.round(delay)}ms...`);
+        await sleep(delay);
+      }
+    }
+  }
+  
+  return 0;
+};
+
+// Get individual asset price from oracle
+const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
+  const cacheKey = `${oracle.contract}:${assetCode}:${assetIssuer || ''}`;
+  
   try {
-    const { Contract, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder, Address } = await import('@stellar/stellar-sdk');
+    const { Contract, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
     
     // Use the RPC endpoint
     const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
@@ -200,85 +249,74 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
     const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
     const account = await rpcServer.getAccount(simulationAccount);
     
-    // Create asset parameter according to Reflector API
+    // Create asset parameter - simplified format based on Reflector documentation
     let assetParam;
     if (!assetCode || assetCode === 'XLM') {
-      // For native XLM - use Other(Symbol) format as per docs
-      assetParam = nativeToScVal({
-        tag: 'Other',
-        values: [nativeToScVal('XLM', { type: 'symbol' })]
-      }, { type: 'instance' });
+      // For native XLM - use simple symbol format
+      assetParam = nativeToScVal('XLM', { type: 'symbol' });
     } else if (assetIssuer) {
-      // For issued assets - use Stellar(Address) format
+      // For issued assets - create Stellar asset with issuer address
       assetParam = nativeToScVal({
-        tag: 'Stellar',
-        values: [nativeToScVal(assetIssuer, { type: 'address' })]
+        Stellar: assetIssuer
       }, { type: 'instance' });
     } else {
-      // For other symbols - use Other(Symbol) format
-      assetParam = nativeToScVal({
-        tag: 'Other',
-        values: [nativeToScVal(assetCode, { type: 'symbol' })]
-      }, { type: 'instance' });
+      // For other symbols - use simple symbol format
+      assetParam = nativeToScVal(assetCode, { type: 'symbol' });
     }
     
-    try {
-      // Use the correct method name from documentation: lastprice
-      const transaction = new TransactionBuilder(account, {
-        fee: '100000',
-        networkPassphrase: Networks.PUBLIC,
-      })
-      .addOperation(contract.call('lastprice', assetParam))
-      .setTimeout(30)
-      .build();
-        
-      const simResult = await rpcServer.simulateTransaction(transaction);
+    // Use the correct method name from documentation: lastprice
+    const transaction = new TransactionBuilder(account, {
+      fee: '100000',
+      networkPassphrase: Networks.PUBLIC,
+    })
+    .addOperation(contract.call('lastprice', assetParam))
+    .setTimeout(30)
+    .build();
       
-      // Check if simulation was successful
-      if ('error' in simResult) {
-        console.warn(`Simulation error for lastprice(${assetCode}) on ${oracle.contract}:`, simResult.error);
-        return 0;
-      }
+    const simResult = await rpcServer.simulateTransaction(transaction);
+    
+    // Check if simulation was successful
+    if ('error' in simResult) {
+      console.warn(`Simulation error for lastprice(${assetCode}) on ${oracle.contract}:`, simResult.error);
+      return 0;
+    }
+    
+    // Check for successful result
+    if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
+      // Extract the price from the result
+      const resultValue = scValToNative(simResult.result.retval);
+      console.log(`Oracle ${oracle.contract} returned for ${assetCode}:`, resultValue);
       
-      // Check for successful result
-      if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
-        // Extract the price from the result
-        const resultValue = scValToNative(simResult.result.retval);
-        console.log(`Oracle ${oracle.contract} returned for ${assetCode}:`, resultValue);
+      // Handle Option<PriceData> result
+      if (resultValue && typeof resultValue === 'object') {
+        let price = 0;
         
-        // The result should be Option<PriceData> where PriceData has { price, timestamp }
-        if (resultValue && typeof resultValue === 'object') {
-          let price = 0;
-          
-          // Handle Option<PriceData> - check if it's Some(value) or None
-          if ('price' in resultValue) {
-            // Direct PriceData object
-            price = parseFloat(String(resultValue.price));
-          } else if (Array.isArray(resultValue) && resultValue.length > 0) {
-            // Handle array format [Some, PriceData]
-            const priceData = resultValue[0];
-            if (priceData && typeof priceData === 'object' && 'price' in priceData) {
-              price = parseFloat(String(priceData.price));
-            }
-          }
-          
-          // Apply decimals scaling if we have a valid price
-          if (price > 0) {
-            const scaledPrice = price / Math.pow(10, oracle.decimals);
-            console.log(`Scaled price for ${assetCode}: ${scaledPrice}`);
-            
-            // Cache the successful result
-            oracleDataCache[cacheKey] = {
-              data: scaledPrice,
-              timestamp: Date.now()
-            };
-            
-            return scaledPrice;
+        // Handle Some(PriceData) case
+        if ('Some' in resultValue && resultValue.Some) {
+          const priceData = resultValue.Some;
+          if (priceData && typeof priceData === 'object' && 'price' in priceData) {
+            price = parseFloat(String(priceData.price));
           }
         }
+        // Handle direct PriceData case (no Option wrapper)
+        else if ('price' in resultValue) {
+          price = parseFloat(String(resultValue.price));
+        }
+        
+        // Apply decimals scaling if we have a valid price
+        if (price > 0) {
+          const scaledPrice = price / Math.pow(10, oracle.decimals);
+          console.log(`Scaled price for ${assetCode}: ${scaledPrice}`);
+          
+          // Cache the successful result
+          oracleDataCache[cacheKey] = {
+            data: scaledPrice,
+            timestamp: Date.now()
+          };
+          
+          return scaledPrice;
+        }
       }
-    } catch (methodError) {
-      console.warn(`Method lastprice(${assetCode}) failed on ${oracle.contract}:`, methodError);
     }
     
     return 0;
