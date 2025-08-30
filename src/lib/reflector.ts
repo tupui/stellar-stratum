@@ -58,15 +58,22 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
 };
 
 
+// Cache for oracle data to avoid multiple calls per contract
+const oracleDataCache: Record<string, { data: any; timestamp: number }> = {};
+const ORACLE_CACHE_DURATION = 30 * 1000; // 30 seconds
+
 const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
   // Try all oracle contracts in order of preference
   const oracles = [REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.FX];
   
   for (const oracle of oracles) {
     try {
-      const price = await fetchPriceFromOracle(oracle, assetCode, assetIssuer);
-      if (price > 0) {
-        return price;
+      const oracleData = await getOracleData(oracle);
+      if (oracleData) {
+        const price = extractAssetPrice(oracleData, assetCode, oracle, assetIssuer);
+        if (price > 0) {
+          return price;
+        }
       }
     } catch (error) {
       console.warn(`Failed to fetch from ${oracle.contract}:`, error);
@@ -77,35 +84,32 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   return 0;
 };
 
-const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
+// Get all oracle data with a single contract call per oracle
+const getOracleData = async (oracle: OracleConfig): Promise<any> => {
+  const cacheKey = oracle.contract;
+  const cached = oracleDataCache[cacheKey];
+  
+  // Return cached data if still valid
+  if (cached && (Date.now() - cached.timestamp) < ORACLE_CACHE_DURATION) {
+    console.log(`Using cached oracle data for ${oracle.contract}`);
+    return cached.data;
+  }
+  
   try {
-    const { Contract, Address, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder, Account } = await import('@stellar/stellar-sdk');
+    const { Contract, nativeToScVal, scValToNative, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
     
-    const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
+    // Use a CORS-friendly RPC endpoint
+    const rpcServer = new rpc.Server('https://soroban-rpc.mainnet.stellar.gateway.fm');
     const contract = new Contract(oracle.contract);
     
-    // Create asset parameter - for XLM use native, for others create asset struct
-    let assetParam;
-    if (!assetCode || assetCode === 'XLM') {
-      assetParam = nativeToScVal('Native', { type: 'symbol' });
-    } else {
-      // For issued assets, create an asset object
-      assetParam = nativeToScVal({
-        Other: {
-          code: assetCode,
-          issuer: assetIssuer || ''
-        }
-      }, { type: 'instance' });
-    }
-    
-    console.log(`Calling Reflector oracle ${oracle.contract} for ${assetCode}`);
+    console.log(`Fetching all asset prices from oracle ${oracle.contract}`);
     
     // Build the contract call transaction for simulation
     const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
     const account = await rpcServer.getAccount(simulationAccount);
     
-    // Try different method names that Reflector might use
-    const methodNames = ['price', 'get_price', 'lastprice', 'asset_price'];
+    // Try different method names for getting all assets/prices
+    const methodNames = ['assets', 'prices', 'get_assets', 'get_prices', 'all_prices'];
     
     for (const method of methodNames) {
       try {
@@ -114,7 +118,7 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
           fee: '100000',
           networkPassphrase: Networks.PUBLIC,
         })
-        .addOperation(contract.call(method, assetParam))
+        .addOperation(contract.call(method))
         .setTimeout(30)
         .build();
           
@@ -122,32 +126,23 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
         
         // Check if simulation was successful
         if ('error' in simResult) {
-          console.warn(`Simulation error for ${method}:`, simResult.error);
+          console.warn(`Simulation error for ${method} on ${oracle.contract}:`, simResult.error);
           continue;
         }
         
         // Check for successful result
         if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
-          // Extract the price from the result
+          // Extract the data from the result
           const resultValue = scValToNative(simResult.result.retval);
-          console.log(`Oracle ${oracle.contract} returned:`, resultValue);
+          console.log(`Oracle ${oracle.contract} returned data:`, resultValue);
           
-          // Handle different return formats
-          let price = 0;
-          if (typeof resultValue === 'number') {
-            price = resultValue;
-          } else if (typeof resultValue === 'string') {
-            price = parseFloat(resultValue);
-          } else if (resultValue && typeof resultValue === 'object' && 'price' in resultValue) {
-            price = parseFloat(resultValue.price);
-          }
+          // Cache the successful result
+          oracleDataCache[cacheKey] = {
+            data: resultValue,
+            timestamp: Date.now()
+          };
           
-          // Apply decimals scaling
-          if (price > 0) {
-            const scaledPrice = price / Math.pow(10, oracle.decimals);
-            console.log(`Scaled price for ${assetCode}: ${scaledPrice}`);
-            return scaledPrice;
-          }
+          return resultValue;
         }
       } catch (methodError) {
         console.warn(`Method ${method} failed on ${oracle.contract}:`, methodError);
@@ -155,10 +150,69 @@ const fetchPriceFromOracle = async (oracle: OracleConfig, assetCode: string, ass
       }
     }
     
+    return null;
+
+  } catch (error) {
+    console.warn(`Oracle ${oracle.contract} data fetch failed:`, error);
+    return null;
+  }
+};
+
+// Extract specific asset price from oracle data
+const extractAssetPrice = (oracleData: any, assetCode: string, oracle: OracleConfig, assetIssuer?: string): number => {
+  try {
+    if (!oracleData) return 0;
+    
+    // Handle different oracle data formats
+    let price = 0;
+    
+    // If it's an array of assets/prices
+    if (Array.isArray(oracleData)) {
+      const assetData = oracleData.find(item => {
+        if (typeof item === 'object' && item.asset) {
+          if (!assetCode || assetCode === 'XLM') {
+            return item.asset === 'XLM' || item.asset === 'Native';
+          }
+          return item.asset === assetCode || (item.code === assetCode && item.issuer === assetIssuer);
+        }
+        return false;
+      });
+      
+      if (assetData && assetData.price) {
+        price = parseFloat(assetData.price);
+      }
+    }
+    
+    // If it's an object with asset keys
+    else if (typeof oracleData === 'object') {
+      const assetKey = !assetCode || assetCode === 'XLM' ? 'XLM' : assetCode;
+      
+      // Try different key formats
+      const possibleKeys = [assetKey, `${assetKey}:${assetIssuer}`, 'Native'];
+      
+      for (const key of possibleKeys) {
+        if (oracleData[key] && typeof oracleData[key] === 'number') {
+          price = oracleData[key];
+          break;
+        }
+        if (oracleData[key] && oracleData[key].price) {
+          price = parseFloat(oracleData[key].price);
+          break;
+        }
+      }
+    }
+    
+    // Apply decimals scaling if we have a valid price
+    if (price > 0) {
+      const scaledPrice = price / Math.pow(10, oracle.decimals);
+      console.log(`Extracted price for ${assetCode}: ${scaledPrice}`);
+      return scaledPrice;
+    }
+    
     return 0;
 
   } catch (error) {
-    console.warn(`Oracle ${oracle.contract} contract call failed for ${assetCode}:`, error);
+    console.warn(`Failed to extract price for ${assetCode}:`, error);
     return 0;
   }
 };
