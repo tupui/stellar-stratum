@@ -11,12 +11,6 @@ import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.mod
 import { TrezorModule } from '@creit.tech/stellar-wallets-kit/modules/trezor.module';
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
-// Make Buffer globally available for Ledger support
-if (typeof window !== 'undefined' && !window.Buffer) {
-  const { Buffer } = require('buffer');
-  window.Buffer = Buffer;
-}
-
 // Initialize Stellar Wallets Kit instance with hardware wallet support
 export const stellarKit = new StellarWalletsKit({
   network: WalletNetwork.PUBLIC, // Change to TESTNET for testing
