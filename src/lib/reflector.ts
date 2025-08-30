@@ -62,6 +62,10 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
 const oracleDataCache: Record<string, { data: any; timestamp: number }> = {};
 const ORACLE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Cache for available assets per oracle
+const oracleAssetsCache: Record<string, { assets: string[]; timestamp: number }> = {};
+const ASSETS_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
+
 const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
   // Try all oracle contracts in order of preference
   const oracles = [REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.FX];
@@ -81,8 +85,104 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   return 0;
 };
 
+// Fetch available assets from oracle
+const getOracleAssets = async (oracle: OracleConfig): Promise<string[]> => {
+  const cacheKey = `assets_${oracle.contract}`;
+  const cached = oracleAssetsCache[cacheKey];
+  
+  // Return cached assets if still valid
+  if (cached && (Date.now() - cached.timestamp) < ASSETS_CACHE_DURATION) {
+    return cached.assets;
+  }
+  
+  try {
+    const { Contract, rpc, Networks, TransactionBuilder } = await import('@stellar/stellar-sdk');
+    
+    const rpcServer = new rpc.Server('https://mainnet.sorobanrpc.com');
+    const contract = new Contract(oracle.contract);
+    
+    const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
+    const account = await rpcServer.getAccount(simulationAccount);
+    
+    const transaction = new TransactionBuilder(account, {
+      fee: '100000',
+      networkPassphrase: Networks.PUBLIC,
+    })
+    .addOperation(contract.call('assets'))
+    .setTimeout(30)
+    .build();
+      
+    const simResult = await rpcServer.simulateTransaction(transaction);
+    
+    if ('error' in simResult) {
+      console.warn(`Failed to fetch assets from ${oracle.contract}:`, simResult.error);
+      return [];
+    }
+    
+    if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
+      const { scValToNative } = await import('@stellar/stellar-sdk');
+      const resultValue = scValToNative(simResult.result.retval);
+      
+      // Extract asset symbols from the Vec<Asset> result
+      const assetSymbols: string[] = [];
+      if (Array.isArray(resultValue)) {
+        for (const asset of resultValue) {
+          if (asset && typeof asset === 'object') {
+            // Handle Asset enum: { Stellar: Address } or { Other: Symbol }
+            if ('Other' in asset && Array.isArray(asset.Other) && asset.Other[0]) {
+              assetSymbols.push(String(asset.Other[0]));
+            } else if ('Stellar' in asset) {
+              // For Stellar assets, we might not have the symbol directly
+              // but we can use the issuer address as identifier
+              assetSymbols.push(`stellar_${asset.Stellar}`);
+            }
+          }
+        }
+      }
+      
+      // Cache the result
+      oracleAssetsCache[cacheKey] = {
+        assets: assetSymbols,
+        timestamp: Date.now()
+      };
+      
+      console.log(`Oracle ${oracle.contract} supports assets:`, assetSymbols);
+      return assetSymbols;
+    }
+    
+    return [];
+  } catch (error) {
+    console.warn(`Failed to fetch assets from oracle ${oracle.contract}:`, error);
+    return [];
+  }
+};
+
+// Check if asset exists in oracle
+const assetExistsInOracle = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<boolean> => {
+  const availableAssets = await getOracleAssets(oracle);
+  
+  // Check for exact symbol match
+  if (availableAssets.includes(assetCode)) {
+    return true;
+  }
+  
+  // For issued assets, check for stellar asset format
+  if (assetIssuer && availableAssets.includes(`stellar_${assetIssuer}`)) {
+    return true;
+  }
+  
+  return false;
+};
+
 // Get individual asset price from oracle
 const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
+  // First check if asset exists in this oracle
+  const assetExists = await assetExistsInOracle(oracle, assetCode, assetIssuer);
+  if (!assetExists) {
+    console.log(`Asset ${assetCode} not available in oracle ${oracle.contract}`);
+    return 0;
+  }
+
   const cacheKey = `${oracle.contract}:${assetCode}:${assetIssuer || ''}`;
   const cached = oracleDataCache[cacheKey];
   
