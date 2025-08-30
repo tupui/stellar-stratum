@@ -90,6 +90,8 @@ export interface AccountData {
 
 export const connectWallet = async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
   try {
+    console.log('Connecting to wallet:', walletId);
+    
     // Use the enhanced kit that has hardware wallets loaded
     let kit = stellarKit;
     try {
@@ -104,6 +106,8 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     // Request address (triggers permission prompt and account selection for hardware wallets)
     const { address } = await kit.getAddress();
     
+    console.log('Successfully connected to:', address);
+    
     // Get wallet info
     const supportedWallets = await kit.getSupportedWallets();
     const walletInfo = supportedWallets.find(w => w.id === walletId);
@@ -113,7 +117,7 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
       walletName: walletInfo?.name || walletId
     };
   } catch (error) {
-    console.error('Failed to connect wallet:', error);
+    console.error('Wallet connection failed:', error);
     
     // Provide user-friendly error messages
     const errorMsg = String(error || '').toLowerCase();
@@ -127,7 +131,8 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
       }
     }
     
-    throw error;
+    // For Freighter and other wallets, provide generic error with original message
+    throw new Error(`Failed to connect to ${walletId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
