@@ -5,7 +5,6 @@ type OracleConfig = {
   contract: string;
   base: string;
   decimals: number;
-  url: string;
 };
 
 // Reflector Oracle Contracts
@@ -13,20 +12,17 @@ const REFLECTOR_ORACLES = {
   CEX_DEX: {
     contract: 'CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN',
     base: 'USD',
-    decimals: 14,
-    url: 'https://reflector.network/oracles/public/CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN'
+    decimals: 14
   },
   STELLAR: {
     contract: 'CALI2BYU2JE6WVRUFYTS6MSBNEHGJ35P4AVCZYF3B6QOE3QKOB2PLE6M',
     base: 'USDC',
-    decimals: 14,
-    url: 'https://reflector.network/oracles/public/CALI2BYU2JE6WVRUFYTS6MSBNEHGJ35P4AVCZYF3B6QOE3QKOB2PLE6M'
+    decimals: 14
   },
   FX: {
     contract: 'CBKGPWGKSKZF52CFHMTRR23TBWTPMRDIYZ4O2P5VS65BMHYH4DXMCJZC',
     base: 'USD',
-    decimals: 14,
-    url: 'https://reflector.network/oracles/public/CBKGPWGKSKZF52CFHMTRR23TBWTPMRDIYZ4O2P5VS65BMHYH4DXMCJZC'
+    decimals: 14
   }
 } as const satisfies Record<string, OracleConfig>;
 
