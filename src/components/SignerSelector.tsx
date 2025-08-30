@@ -251,10 +251,10 @@ export const SignerSelector = ({
                       Signing...
                     </div>
                   ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
+                    <div className="flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
                       Sign
-                    </>
+                    </div>
                   )}
                 </Button>
               </div>
