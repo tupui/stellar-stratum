@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock } from 'lucide-react';
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
-import { getLastPriceUpdate } from '@/lib/reflector';
+import { getLastFetchTimestamp } from '@/lib/reflector';
 
 interface AssetBalance {
   asset_type: string;
@@ -27,7 +27,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
   const { assetsWithPrices, totalValueUSD, loading, error, refetch } = useAssetPrices(balances);
   const [quoteCurrency, setQuoteCurrency] = useState('USD');
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
-  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(getLastPriceUpdate());
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(getLastFetchTimestamp());
 
   const handleRefresh = async () => {
     try {
@@ -38,7 +38,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
       console.error('Failed to refresh balances:', e);
     } finally {
       await refetch();
-      setLastUpdateTime(getLastPriceUpdate());
+      setLastUpdateTime(getLastFetchTimestamp());
     }
   };
 

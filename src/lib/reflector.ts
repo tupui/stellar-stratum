@@ -45,6 +45,8 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
     const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
     if (reflectorPrice > 0) {
       setCachedPrice(assetKey, reflectorPrice);
+      // Update the last fetch timestamp
+      setLastFetchTimestamp();
       return reflectorPrice;
     }
 
@@ -176,13 +178,6 @@ const assetExistsInOracle = async (oracle: OracleConfig, assetCode: string, asse
 
 // Get individual asset price from oracle
 const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, assetIssuer?: string): Promise<number> => {
-  // First check if asset exists in this oracle
-  const assetExists = await assetExistsInOracle(oracle, assetCode, assetIssuer);
-  if (!assetExists) {
-    console.log(`Asset ${assetCode} not available in oracle ${oracle.contract}`);
-    return 0;
-  }
-
   const cacheKey = `${oracle.contract}:${assetCode}:${assetIssuer || ''}`;
   const cached = oracleDataCache[cacheKey];
   
@@ -301,6 +296,29 @@ const getOracleAssetPrice = async (oracle: OracleConfig, assetCode: string, asse
 // Price cache for fallback to previous values with localStorage persistence
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const CACHE_KEY = 'stellar_asset_prices';
+const FETCH_TIMESTAMP_KEY = 'stellar_price_fetch_timestamp';
+
+// Set last fetch timestamp
+const setLastFetchTimestamp = (): void => {
+  try {
+    localStorage.setItem(FETCH_TIMESTAMP_KEY, Date.now().toString());
+  } catch (error) {
+    console.warn('Failed to save fetch timestamp:', error);
+  }
+};
+
+// Get last fetch timestamp
+export const getLastFetchTimestamp = (): Date | null => {
+  try {
+    const timestamp = localStorage.getItem(FETCH_TIMESTAMP_KEY);
+    if (timestamp) {
+      return new Date(parseInt(timestamp));
+    }
+  } catch (error) {
+    console.warn('Failed to get fetch timestamp:', error);
+  }
+  return null;
+};
 
 interface PriceCacheEntry {
   price: number;
