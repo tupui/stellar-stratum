@@ -61,7 +61,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           </div>
           <div className="flex gap-3">
             <Button onClick={onInitiateTransaction} className="bg-gradient-primary hover:opacity-90">
-              Initiate Transaction
+              Initiate Multisig Transaction
             </Button>
             <Button variant="destructive" onClick={onDisconnect}>
               Disconnect

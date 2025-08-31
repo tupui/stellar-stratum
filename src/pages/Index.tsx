@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { WalletConnect } from '@/components/WalletConnect';
 import { AccountOverview } from '@/components/AccountOverview';
 import { TransactionBuilder } from '@/components/TransactionBuilder';
+import { Footer } from '@/components/Footer';
 import { fetchAccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 
@@ -89,65 +90,54 @@ const Index = () => {
     setAppState('connecting');
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-lg font-medium">Loading account data...</p>
-          <p className="text-sm text-muted-foreground">Fetching data from Stellar network</p>
-        </div>
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1">
+        {/* Loading state */}
+        {loading && (
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-center space-y-4">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-muted-foreground">Loading account data...</p>
+            </div>
+          </div>
+        )}
+
+        {/* Wallet Connection */}
+        {!loading && appState === 'connecting' && (
+          <WalletConnect onConnect={handleWalletConnect} />
+        )}
+
+        {/* Transaction Builder */}
+        {!loading && (appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
+          <TransactionBuilder
+            onBack={handleBackToDashboard}
+            accountPublicKey={publicKey}
+            accountData={accountData}
+            initialTab={appState === 'multisig-config' ? 'multisig' : 'payment'}
+          />
+        )}
+
+        {/* Account Dashboard */}
+        {!loading && appState === 'dashboard' && publicKey && accountData && (
+          <AccountOverview
+            accountData={accountData}
+            onInitiateTransaction={handleInitiateTransaction}
+            onSignTransaction={() => {}}
+            onRefreshBalances={async () => {
+              if (!publicKey) return;
+              const realAccountData = await fetchAccountData(publicKey);
+              setAccountData(realAccountData);
+            }}
+            onDisconnect={handleDisconnect}
+          />
+        )}
       </div>
-    );
-  }
-
-  if (appState === 'connecting') {
-    return <WalletConnect onConnect={handleWalletConnect} />;
-  }
-
-  if (appState === 'transaction' && accountData) {
-    return (
-      <TransactionBuilder 
-        onBack={handleBackToDashboard} 
-        accountPublicKey={accountData.publicKey}
-        accountData={accountData}
-      />
-    );
-  }
-
-  if (appState === 'multisig-config' && accountData) {
-    return (
-      <div className="min-h-screen bg-background">
-        <TransactionBuilder 
-          onBack={handleBackToDashboard} 
-          accountPublicKey={accountData.publicKey}
-          accountData={accountData}
-          initialTab="multisig"
-        />
-      </div>
-    );
-  }
-
-  if (appState === 'dashboard' && accountData) {
-    const onRefreshBalances = async () => {
-      if (!publicKey) return;
-      const realAccountData = await fetchAccountData(publicKey);
-      setAccountData(realAccountData);
-    };
-
-    return (
-      <AccountOverview 
-        accountData={accountData}
-        onInitiateTransaction={handleInitiateTransaction}
-        onSignTransaction={handleSignTransaction}
-        onDisconnect={handleDisconnect}
-        onRefreshBalances={onRefreshBalances}
-        
-      />
-    );
-  }
-
-  return null;
+      
+      {/* Only show footer when not on connecting page */}
+      {appState !== 'connecting' && <Footer />}
+    </div>
+  );
 };
 
 export default Index;

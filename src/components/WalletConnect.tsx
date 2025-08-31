@@ -292,7 +292,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
           </div>
           <CardTitle className="text-2xl font-bold">Stellar Multisig Wallet</CardTitle>
           <CardDescription>
-            Connect your wallet to manage multisig operations
+            A powerful tool for managing Stellar multisig accounts. Build transactions, configure signers, and coordinate signatures across multiple parties with ease.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Download, Upload, Copy, Check } from 'lucide-react';
-import refractorLogo from '@/assets/refractor-logo.png';
+import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useToast } from '@/hooks/use-toast';
 
 interface RefractorIntegrationProps {

@@ -498,8 +498,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   Generic XDR
                 </TabsTrigger>
                 <TabsTrigger value="refractor" className="flex items-center gap-2">
-                  <ExternalLink className="w-4 h-4" />
-                  Pull from Refractor
+                  <img src="/assets/refractor-favicon.ico" alt="Refractor" className="w-4 h-4" />
+                  Refractor
                 </TabsTrigger>
               </TabsList>
 
