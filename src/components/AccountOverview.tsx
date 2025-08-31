@@ -51,19 +51,27 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-3 sm:p-6">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Multisig Wallet</h1>
-            <p className="text-muted-foreground">Manage your Stellar multisig operations</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">Multisig Wallet</h1>
+            <p className="text-muted-foreground text-sm">Manage your Stellar multisig operations</p>
           </div>
-          <div className="flex gap-3">
-            <Button onClick={onInitiateTransaction} className="bg-gradient-primary hover:opacity-90">
-              Initiate Multisig Transaction
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <Button 
+              onClick={onInitiateTransaction} 
+              className="bg-gradient-primary hover:opacity-90 w-full sm:w-auto text-sm sm:text-base"
+            >
+              <span className="sm:hidden">Create Transaction</span>
+              <span className="hidden sm:inline">Initiate Multisig Transaction</span>
             </Button>
-            <Button variant="destructive" onClick={onDisconnect}>
+            <Button 
+              variant="destructive" 
+              onClick={onDisconnect}
+              className="w-full sm:w-auto text-sm sm:text-base"
+            >
               Disconnect
             </Button>
           </div>
@@ -79,12 +87,12 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                <div>
+              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg flex-wrap gap-2">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm text-muted-foreground">Public Key</p>
-                  <p className="font-mono text-sm break-all">{accountData.publicKey}</p>
+                  <p className="font-mono text-xs sm:text-sm break-all">{accountData.publicKey}</p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
                   <Button
                     variant="ghost"
                     size="sm"

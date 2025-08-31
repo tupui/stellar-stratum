@@ -623,139 +623,148 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
               <TabsContent value="payment" className="space-y-4 mt-6">
 
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="flex gap-4 items-end">
-                    <div className="flex-[2] space-y-2">
-                      <Label htmlFor="destination">Destination Address</Label>
-                      <Input
-                        id="destination"
-                        placeholder="GABC..."
-                        maxLength={56}
-                        value={paymentData.destination}
-                        onChange={(e) => setPaymentData(prev => ({ ...prev, destination: e.target.value }))}
-                      />
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="amount">Amount</Label>
-                        {fiatValue && (
-                          <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-4 items-end">
+                      <div className="space-y-2">
+                        <Label htmlFor="destination">Destination Address</Label>
                         <Input
-                          id="amount"
-                          type="text"
-                          placeholder="0.00"
-                          value={paymentData.amount ? parseFloat(paymentData.amount).toLocaleString('en-US', {
+                          id="destination"
+                          placeholder="GABC..."
+                          maxLength={56}
+                          value={paymentData.destination}
+                          onChange={(e) => setPaymentData(prev => ({ ...prev, destination: e.target.value }))}
+                          className="text-xs sm:text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="amount">Amount</Label>
+                          {fiatValue && (
+                            <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            id="amount"
+                            type="text"
+                            placeholder="0.00"
+                            value={paymentData.amount ? parseFloat(paymentData.amount).toLocaleString('en-US', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 7,
+                              useGrouping: true
+                            }) : ''}
+                            onChange={(e) => {
+                              // Remove commas and convert to number
+                              const numericValue = e.target.value.replace(/,/g, '');
+                              const maxAmount = getSelectedAssetInfo()?.code === 'XLM' 
+                                ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
+                                : parseFloat(getSelectedAssetInfo()?.balance || '0');
+                              const inputValue = parseFloat(numericValue) || 0;
+                              const cappedValue = Math.min(inputValue, maxAmount);
+                              // Ensure Stellar precision (max 7 decimal places)
+                              const stellarPreciseValue = parseFloat(cappedValue.toFixed(7));
+                              setPaymentData(prev => ({ ...prev, amount: stellarPreciseValue.toString() }));
+                            }}
+                            className="flex-1 text-xs sm:text-sm"
+                          />
+                          <Select
+                            value={paymentData.asset}
+                            onValueChange={(value) => {
+                              const selectedAsset = availableAssets.find(asset => asset.code === value);
+                              setPaymentData(prev => ({ 
+                                ...prev, 
+                                asset: value,
+                                assetIssuer: selectedAsset?.issuer || '',
+                                amount: '' // Reset amount when changing asset
+                              }));
+                              setTrustlineError(''); // Clear error when changing asset
+                            }}
+                          >
+                            <SelectTrigger className="w-20 sm:w-24">
+                              <SelectValue>
+                                <span className="font-medium text-xs sm:text-sm">{paymentData.asset}</span>
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
+                              {/* Header */}
+                              <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
+                                <span className="uppercase tracking-wider font-medium">Asset</span>
+                                <span className="text-right uppercase tracking-wider font-medium">Balance</span>
+                              </div>
+                              {/* Items */}
+                              {availableAssets.map((asset) => {
+                                const balance = parseFloat(asset.balance);
+                                const formattedBalance = balance.toLocaleString('en-US', {
+                                  minimumFractionDigits: 7,
+                                  maximumFractionDigits: 7,
+                                  useGrouping: true,
+                                });
+                                return (
+                                  <SelectPrimitive.Item
+                                    key={`${asset.code}-${asset.issuer}`}
+                                    value={asset.code}
+                                    className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer"
+                                  >
+                                    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                      <SelectPrimitive.ItemIndicator>
+                                        <Check className="h-4 w-4" />
+                                      </SelectPrimitive.ItemIndicator>
+                                    </span>
+                                    <SelectPrimitive.ItemText>
+                                      <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                                        <span className="font-medium">{asset.code}</span>
+                                        <span className="font-mono tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
+                                      </div>
+                                    </SelectPrimitive.ItemText>
+                                  </SelectPrimitive.Item>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Enhanced Slider */}
+                    {getSelectedAssetInfo() && (
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <input
+                            type="range"
+                            min="0"
+                            max={getSelectedAssetInfo()!.code === 'XLM' 
+                              ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
+                              : parseFloat(getSelectedAssetInfo()!.balance)
+                            }
+                            step="0.0000001"
+                            value={paymentData.amount || '0'}
+                            onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
+                            className="stellar-slider w-full"
+                            style={{
+                              '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / parseFloat(getSelectedAssetInfo()!.code === 'XLM' 
+                                ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5).toString()
+                                : getSelectedAssetInfo()!.balance)) * 100}%`
+                            } as React.CSSProperties}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toLocaleString('en-US', {
                             minimumFractionDigits: 0,
                             maximumFractionDigits: 7,
                             useGrouping: true
-                          }) : ''}
-                          onChange={(e) => {
-                            // Remove commas and convert to number
-                            const numericValue = e.target.value.replace(/,/g, '');
-                            const maxAmount = getSelectedAssetInfo()?.code === 'XLM' 
-                              ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
-                              : parseFloat(getSelectedAssetInfo()?.balance || '0');
-                            const inputValue = parseFloat(numericValue) || 0;
-                            const cappedValue = Math.min(inputValue, maxAmount);
-                            // Ensure Stellar precision (max 7 decimal places)
-                            const stellarPreciseValue = parseFloat(cappedValue.toFixed(7));
-                            setPaymentData(prev => ({ ...prev, amount: stellarPreciseValue.toString() }));
-                          }}
-                          className="flex-1 text-sm"
-                        />
-                        <Select
-                          value={paymentData.asset}
-                          onValueChange={(value) => {
-                            const selectedAsset = availableAssets.find(asset => asset.code === value);
-                            setPaymentData(prev => ({ 
-                              ...prev, 
-                              asset: value,
-                              assetIssuer: selectedAsset?.issuer || '',
-                              amount: '' // Reset amount when changing asset
-                            }));
-                            setTrustlineError(''); // Clear error when changing asset
-                          }}
-                        >
-                          <SelectTrigger className="w-24">
-                            <SelectValue>
-                              <span className="font-medium text-sm">{paymentData.asset}</span>
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
-                            {/* Header */}
-                            <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
-                              <span className="uppercase tracking-wider font-medium">Asset</span>
-                              <span className="text-right uppercase tracking-wider font-medium">Balance</span>
-                            </div>
-                            {/* Items */}
-                            {availableAssets.map((asset) => {
-                              const balance = parseFloat(asset.balance);
-                              const formattedBalance = balance.toLocaleString('en-US', {
-                                minimumFractionDigits: 7,
-                                maximumFractionDigits: 7,
-                                useGrouping: true,
-                              });
-                              return (
-                                <SelectPrimitive.Item
-                                  key={`${asset.code}-${asset.issuer}`}
-                                  value={asset.code}
-                                  className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer"
-                                >
-                                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                                    <SelectPrimitive.ItemIndicator>
-                                      <Check className="h-4 w-4" />
-                                    </SelectPrimitive.ItemIndicator>
-                                  </span>
-                                  <SelectPrimitive.ItemText>
-                                    <div className="grid grid-cols-[80px_1fr] items-center gap-3">
-                                      <span className="font-medium">{asset.code}</span>
-                                      <span className="font-mono tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
-                                    </div>
-                                  </SelectPrimitive.ItemText>
-                                </SelectPrimitive.Item>
-                              );
-                            })}
-                          </SelectContent>
-                       </Select>
+                          })} {paymentData.asset}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleMaxAmount}
+                            className="h-auto p-1 text-xs text-primary hover:text-primary/80"
+                          >
+                            Max
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                  
-                  {/* Enhanced Slider */}
-                  {getSelectedAssetInfo() && (
-                    <div className="space-y-3">
-                      <div className="relative">
-                        <input
-                          type="range"
-                          min="0"
-                          max={getSelectedAssetInfo()!.code === 'XLM' 
-                            ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
-                            : parseFloat(getSelectedAssetInfo()!.balance)
-                          }
-                          step="0.0000001"
-                          value={paymentData.amount || '0'}
-                          onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
-                          className="stellar-slider w-full"
-                          style={{
-                            '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / parseFloat(getSelectedAssetInfo()!.code === 'XLM' 
-                              ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5).toString()
-                              : getSelectedAssetInfo()!.balance)) * 100}%`
-                          } as React.CSSProperties}
-                        />
-                      </div>
-                      <div className="flex justify-end text-xs text-muted-foreground">
-                        <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toLocaleString('en-US', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 7,
-                          useGrouping: true
-                        })} {paymentData.asset}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="memo">Memo (Optional)</Label>
                   <Input

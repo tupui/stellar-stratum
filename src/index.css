@@ -196,13 +196,13 @@ All colors MUST be HSL.
   .stellar-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: hsl(var(--primary));
     cursor: pointer;
-    border: 3px solid hsl(var(--background));
-    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3);
+    border: 2px solid hsl(var(--background));
+    box-shadow: 0 1px 4px hsl(var(--primary) / 0.3);
     transition: all 0.2s ease;
     position: relative;
     z-index: 2;
@@ -210,18 +210,18 @@ All colors MUST be HSL.
 
   .stellar-slider::-webkit-slider-thumb:hover {
     background: hsl(var(--primary-glow));
-    transform: scale(1.15);
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+    transform: scale(1.1);
+    box-shadow: 0 0 12px hsl(var(--primary) / 0.5);
   }
 
   .stellar-slider::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: hsl(var(--primary));
     cursor: pointer;
-    border: 3px solid hsl(var(--background));
-    box-shadow: 0 2px 8px hsl(var(--primary) / 0.3);
+    border: 2px solid hsl(var(--background));
+    box-shadow: 0 1px 4px hsl(var(--primary) / 0.3);
     transition: all 0.2s ease;
     position: relative;
     z-index: 2;
@@ -229,8 +229,8 @@ All colors MUST be HSL.
 
   .stellar-slider::-moz-range-thumb:hover {
     background: hsl(var(--primary-glow));
-    transform: scale(1.15);
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+    transform: scale(1.1);
+    box-shadow: 0 0 12px hsl(var(--primary) / 0.5);
   }
 
   .stellar-slider::-moz-range-track {

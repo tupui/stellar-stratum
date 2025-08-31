@@ -144,8 +144,8 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
         </div>
 
         {/* Info */}
-        <div className="p-3 bg-info/10 border border-info/20 rounded-lg">
-          <p className="text-sm text-info">
+        <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+          <p className="text-sm text-primary">
             <strong>How it works:</strong> Submit your transaction to Refractor to collect signatures from multiple parties. 
             Share the Refractor ID with other signers who can sign and resubmit the transaction.
           </p>
