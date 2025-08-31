@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { useToast } from '@/hooks/use-toast';
+import { isValidPublicKey, sanitizeError } from '@/lib/validation';
 import { 
   Transaction, 
   TransactionBuilder as StellarTransactionBuilder,
@@ -159,7 +160,7 @@ export const MultisigConfigBuilder = ({
     }
 
     // Basic validation for Stellar public key format
-    if (!newSignerKey.startsWith('G') || newSignerKey.length !== 56) {
+    if (!isValidPublicKey(newSignerKey)) {
       toast({
         title: "Invalid public key format",
         description: "Public key must start with 'G' and be 56 characters long",
@@ -281,10 +282,11 @@ export const MultisigConfigBuilder = ({
         duration: 2000,
       });
     } catch (error) {
-      console.error('Build error:', error);
+      const { userMessage, fullError } = sanitizeError(error);
+      console.error('Build error:', fullError);
       toast({
         title: "Build failed",
-        description: error instanceof Error ? error.message : "Failed to build transaction",
+        description: userMessage,
         variant: "destructive",
       });
     } finally {

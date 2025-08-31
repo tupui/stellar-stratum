@@ -11,6 +11,7 @@ import * as StellarSDK from '@stellar/stellar-sdk';
 import { getSupportedWallets, connectWallet } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
+import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
 
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string) => void;
@@ -169,7 +170,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
     }
 
     // Basic validation for Stellar address format
-    if (!manualAddress.match(/^G[A-Z2-7]{55}$/)) {
+    if (!isValidPublicKey(manualAddress)) {
       toast({
         title: "Invalid address",
         description: "Please enter a valid Stellar public key (starts with G, 56 characters)",
@@ -193,6 +194,16 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       toast({
         title: "Domain required",
         description: "Please enter a Soroban domain name",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (!isValidDomain(sorobanDomain.trim())) {
+      toast({
+        title: "Invalid domain",
+        description: "Please enter a valid domain name",
         variant: "destructive",
         duration: 3000,
       });
@@ -252,14 +263,13 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
         });
       }
     } catch (error: any) {
-      console.error('Failed to resolve Soroban domain:', error);
+      const { userMessage, fullError } = sanitizeError(error);
+      console.error('Failed to resolve Soroban domain:', fullError);
       
-      let errorMessage = "Failed to resolve domain";
+      let errorMessage = userMessage;
       
       if (error.name === 'Domain404Error') {
         errorMessage = `Domain "${sorobanDomain}" not found`;
-      } else if (error.message) {
-        errorMessage = error.message;
       }
       
       toast({
@@ -286,14 +296,14 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       
       onConnect(walletName, publicKey);
     } catch (error) {
-      console.error('Failed to connect wallet:', error);
+      const { userMessage, fullError } = sanitizeError(error);
+      console.error('Failed to connect wallet:', fullError);
       
-      const errorMessage = error instanceof Error ? error.message : "Failed to connect wallet";
       const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
       
       toast({
         title: "Connection failed",
-        description: errorMessage,
+        description: userMessage,
         variant: "destructive",
         duration: isHardware ? 6000 : 3000, // Longer duration for hardware wallet errors
       });

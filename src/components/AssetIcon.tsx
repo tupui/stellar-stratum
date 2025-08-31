@@ -73,6 +73,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
         alt=""
         className="w-full h-full object-contain p-2"
         onError={handleImageError}
+        referrerPolicy="no-referrer"
         aria-hidden="true"
       />
     </div>
