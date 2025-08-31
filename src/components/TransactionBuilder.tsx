@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
+import * as SelectPrimitive from '@radix-ui/react-select';
 import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink, Shield, TrendingUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -657,27 +658,42 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                               <span className="font-medium text-sm">{paymentData.asset}</span>
                             </SelectValue>
                           </SelectTrigger>
-                          <SelectContent className="min-w-[400px] max-h-64 overflow-y-auto">
-                             {availableAssets.map(asset => {
-                                const balance = parseFloat(asset.balance);
-                                // Format with proper thousand separators and decimal alignment
-                                const formattedBalance = balance.toLocaleString('en-US', {
-                                  minimumFractionDigits: 7,
-                                  maximumFractionDigits: 7,
-                                  useGrouping: true
-                                });
-                                
-                                return (
-                                  <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
-                                    <div className="flex items-center justify-between w-full">
-                                      <span className="font-medium text-left pr-6 min-w-[80px]">{asset.code}</span>
-                                      <span className="font-mono text-xs text-muted-foreground text-right min-w-[120px] tabular-nums">
-                                        {formattedBalance}
-                                      </span>
-                                    </div>
-                                  </SelectItem>
-                                );
-                              })}
+                          <SelectContent className="min-w-[420px] max-h-64 overflow-y-auto">
+                            {/* Header */}
+                            <div className="sticky top-0 z-10 grid grid-cols-[120px_1fr] items-center gap-4 px-8 py-2 text-[11px] text-muted-foreground bg-popover/95 backdrop-blur">
+                              <span className="uppercase tracking-wider">Asset</span>
+                              <span className="text-right uppercase tracking-wider">Balance</span>
+                            </div>
+                            {/* Items */}
+                            {availableAssets.map((asset) => {
+                              const balance = parseFloat(asset.balance);
+                              const formattedBalance = balance.toLocaleString('en-US', {
+                                minimumFractionDigits: 7,
+                                maximumFractionDigits: 7,
+                                useGrouping: true,
+                              });
+                              return (
+                                <SelectPrimitive.Item
+                                  key={`${asset.code}-${asset.issuer}`}
+                                  value={asset.code}
+                                  className="relative grid grid-cols-[120px_1fr] items-center gap-4 rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                >
+                                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                    <SelectPrimitive.ItemIndicator>
+                                      <Check className="h-4 w-4" />
+                                    </SelectPrimitive.ItemIndicator>
+                                  </span>
+                                  <span className="font-medium" aria-hidden>
+                                    {asset.code}
+                                  </span>
+                                  <span className="font-mono tabular-nums text-right text-xs text-muted-foreground" aria-hidden>
+                                    {formattedBalance}
+                                  </span>
+                                  {/* Hidden text for a11y/value label */}
+                                  <SelectPrimitive.ItemText className="sr-only">{asset.code}</SelectPrimitive.ItemText>
+                                </SelectPrimitive.Item>
+                              );
+                            })}
                           </SelectContent>
                        </Select>
                       </div>
