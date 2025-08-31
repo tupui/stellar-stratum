@@ -7,21 +7,25 @@ interface LoadingPillProps {
 
 export const LoadingPill = ({ className, size = "md" }: LoadingPillProps) => {
   const sizeClasses = {
-    sm: "h-5 px-2 text-xs",
-    md: "h-6 px-3 text-sm", 
-    lg: "h-8 px-4 text-base"
+    sm: "h-3 w-8",
+    md: "h-4 w-12", 
+    lg: "h-5 w-16"
   };
 
   return (
     <div 
       className={cn(
-        "inline-flex items-center rounded-full bg-gradient-to-r from-primary/20 via-primary/40 to-primary/20 animate-[shimmer_2s_ease-in-out_infinite] backdrop-blur-sm border border-primary/20",
+        "rounded-full bg-gradient-to-r from-success/20 via-success-glow/60 to-success/20 animate-[glow-sweep_1.5s_ease-in-out_infinite] shadow-sm",
+        "bg-[length:200%_100%]",
         sizeClasses[size],
         className
       )}
-    >
-      <div className="w-2 h-2 rounded-full bg-primary/60 animate-pulse mr-2" />
-      <span className="text-muted-foreground font-medium">Loading...</span>
-    </div>
+      style={{
+        backgroundImage: `linear-gradient(90deg, 
+          hsl(var(--success) / 0.2) 0%, 
+          hsl(var(--success-glow) / 0.8) 50%, 
+          hsl(var(--success) / 0.2) 100%)`
+      }}
+    />
   );
 };
