@@ -26,7 +26,7 @@ import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
-import { convertFromUSD, FIAT_CURRENCIES } from '@/lib/fiat-currencies';
+import { convertFromUSD, getAvailableFiatCurrencies, type FiatCurrency } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import refractorFavicon from '@/assets/refractor-favicon.ico';
 
@@ -80,6 +80,22 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [quoteCurrency, setQuoteCurrency] = useState('USD');
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
   const [fiatValue, setFiatValue] = useState<string>('');
+  const [availableCurrencies, setAvailableCurrencies] = useState<FiatCurrency[]>([
+    { code: 'USD', symbol: '$', name: 'US Dollar' }
+  ]);
+
+  useEffect(() => {
+    // Load available currencies
+    const loadCurrencies = async () => {
+      try {
+        const currencies = await getAvailableFiatCurrencies();
+        setAvailableCurrencies(currencies);
+      } catch (error) {
+        console.warn('Failed to load available currencies:', error);
+      }
+    };
+    loadCurrencies();
+  }, []);
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
@@ -131,16 +147,17 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       } else {
         try {
           const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
-          const currency = FIAT_CURRENCIES.find(c => c.code === quoteCurrency);
+          const currency = availableCurrencies.find(c => c.code === quoteCurrency);
           setFiatValue(`${currency?.symbol || ''}${convertedValue.toFixed(2)}`);
         } catch (error) {
-          setFiatValue('N/A');
+          console.warn('FX conversion failed, showing USD:', error);
+          setFiatValue(`$${usdValue.toFixed(2)}`);
         }
       }
     };
 
     updateFiatValue();
-  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices]);
+  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, availableCurrencies]);
   // Check trustline for non-XLM assets
   const checkTrustline = async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
@@ -608,7 +625,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                           </p>
                           {getSelectedAssetInfo()!.price > 0 && (
                             <p className="text-sm text-muted-foreground">
-                              ≈ {FIAT_CURRENCIES.find(c => c.code === quoteCurrency)?.symbol}
+                              ≈ {availableCurrencies.find(c => c.code === quoteCurrency)?.symbol}
                               {(parseFloat(getSelectedAssetInfo()!.balance) * getSelectedAssetInfo()!.price).toLocaleString(undefined, { 
                                 minimumFractionDigits: 2, 
                                 maximumFractionDigits: 2 
@@ -621,7 +638,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {FIAT_CURRENCIES.slice(0, 5).map(currency => (
+                            {availableCurrencies.slice(0, 8).map(currency => (
                               <SelectItem key={currency.code} value={currency.code}>
                                 {currency.code}
                               </SelectItem>

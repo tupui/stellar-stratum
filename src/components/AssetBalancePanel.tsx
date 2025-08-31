@@ -11,7 +11,7 @@ import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, External
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { getLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
-import { FIAT_CURRENCIES, convertFromUSD, type FiatCurrency } from '@/lib/fiat-currencies';
+import { getAvailableFiatCurrencies, convertFromUSD, type FiatCurrency } from '@/lib/fiat-currencies';
 
 interface AssetBalance {
   asset_type: string;
@@ -31,6 +31,9 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(getLastFetchTimestamp());
   const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
+  const [availableCurrencies, setAvailableCurrencies] = useState<FiatCurrency[]>([
+    { code: 'USD', symbol: '$', name: 'US Dollar' }
+  ]);
 
   const handleRefresh = async () => {
     try {
@@ -67,11 +70,28 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
     ? assetsWithPrices.filter(asset => asset.valueUSD >= 1)
     : assetsWithPrices;
 
+  // Load available currencies on component mount
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      try {
+        const currencies = await getAvailableFiatCurrencies();
+        setAvailableCurrencies(currencies);
+      } catch (error) {
+        console.warn('Failed to load available currencies:', error);
+        // Keep default USD only
+      }
+    };
+    loadCurrencies();
+  }, []);
+
   // Update converted total value when currency or totalValueUSD changes
   useEffect(() => {
     if (totalValueUSD && quoteCurrency !== 'USD') {
       convertFromUSD(totalValueUSD, quoteCurrency).then(converted => {
         setConvertedTotalValue(converted);
+      }).catch(error => {
+        console.warn('Failed to convert total value:', error);
+        setConvertedTotalValue(totalValueUSD); // Fallback to USD value
       });
     } else {
       setConvertedTotalValue(totalValueUSD);
@@ -79,36 +99,34 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
   }, [totalValueUSD, quoteCurrency]);
 
   const getCurrentCurrency = (): FiatCurrency => {
-    return FIAT_CURRENCIES.find(c => c.code === quoteCurrency) || FIAT_CURRENCIES[0];
+    return availableCurrencies.find(c => c.code === quoteCurrency) || availableCurrencies[0];
   };
 
   const formatPriceSync = (price: number): string => {
     const currency = getCurrentCurrency();
-    // Use simple fallback conversion for sync formatting
-    const fallbackRates: Record<string, number> = {
-      EUR: 0.85, GBP: 0.75, JPY: 110, CAD: 1.25, AUD: 1.35,
-      CHF: 0.92, CNY: 6.5, SEK: 8.5, NZD: 1.45,
-    };
-    const convertedPrice = quoteCurrency === 'USD' ? price : price * (fallbackRates[quoteCurrency] || 1);
+    // For individual prices, show in USD if conversion fails
+    if (quoteCurrency !== 'USD') {
+      return `$${price.toFixed(2)}`;
+    }
     
-    if (convertedPrice === 0) return 'N/A';
-    if (convertedPrice < 0.01) return `${currency.symbol}${convertedPrice.toFixed(6)}`;
-    if (convertedPrice < 1) return `${currency.symbol}${convertedPrice.toFixed(4)}`;
-    return `${currency.symbol}${convertedPrice.toFixed(2)}`;
+    if (price === 0) return 'N/A';
+    if (price < 0.01) return `${currency.symbol}${price.toFixed(6)}`;
+    if (price < 1) return `${currency.symbol}${price.toFixed(4)}`;
+    return `${currency.symbol}${price.toFixed(2)}`;
   };
 
   const formatValueForAsset = (value: number): string => {
     const currency = getCurrentCurrency();
-    // Use simple fallback conversion for individual assets
-    const fallbackRates: Record<string, number> = {
-      EUR: 0.85, GBP: 0.75, JPY: 110, CAD: 1.25, AUD: 1.35,
-      CHF: 0.92, CNY: 6.5, SEK: 8.5, NZD: 1.45,
-    };
-    const convertedValue = quoteCurrency === 'USD' ? value : value * (fallbackRates[quoteCurrency] || 1);
+    // For individual asset values, show in USD if conversion fails
+    if (quoteCurrency !== 'USD') {
+      if (value === 0) return 'N/A';
+      if (value < 0.01) return '<$0.01';
+      return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
     
-    if (convertedValue === 0) return 'N/A';
-    if (convertedValue < 0.01) return `<${currency.symbol}0.01`;
-    return `${currency.symbol}${convertedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (value === 0) return 'N/A';
+    if (value < 0.01) return `<${currency.symbol}0.01`;
+    return `${currency.symbol}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatValueSync = (value: number): string => {
@@ -192,7 +210,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {FIAT_CURRENCIES.map(currency => (
+                  {availableCurrencies.map(currency => (
                     <SelectItem key={currency.code} value={currency.code}>
                       {currency.code}
                     </SelectItem>

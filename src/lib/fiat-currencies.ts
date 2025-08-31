@@ -1,26 +1,53 @@
-// Supported fiat currencies with their symbols and conversion functions
+// Supported fiat currencies fetched dynamically from Reflector FX Oracle
 export interface FiatCurrency {
   code: string;
   symbol: string;
   name: string;
 }
 
-export const FIAT_CURRENCIES: FiatCurrency[] = [
-  { code: 'USD', symbol: '$', name: 'US Dollar' },
-  { code: 'EUR', symbol: '€', name: 'Euro' },
-  { code: 'GBP', symbol: '£', name: 'British Pound' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar' },
-  { code: 'CHF', symbol: 'CHF', name: 'Swiss Franc' },
-  { code: 'CNY', symbol: '¥', name: 'Chinese Yuan' },
-  { code: 'SEK', symbol: 'kr', name: 'Swedish Krona' },
-  { code: 'NZD', symbol: 'NZ$', name: 'New Zealand Dollar' },
-];
+// Static currency symbols and names for known currencies
+const CURRENCY_INFO: Record<string, { symbol: string; name: string }> = {
+  USD: { symbol: '$', name: 'US Dollar' },
+  EUR: { symbol: '€', name: 'Euro' },
+  GBP: { symbol: '£', name: 'British Pound' },
+  JPY: { symbol: '¥', name: 'Japanese Yen' },
+  CAD: { symbol: 'C$', name: 'Canadian Dollar' },
+  AUD: { symbol: 'A$', name: 'Australian Dollar' },
+  CHF: { symbol: 'CHF', name: 'Swiss Franc' },
+  CNY: { symbol: '¥', name: 'Chinese Yuan' },
+  SEK: { symbol: 'kr', name: 'Swedish Krona' },
+  NZD: { symbol: 'NZ$', name: 'New Zealand Dollar' },
+  NOK: { symbol: 'kr', name: 'Norwegian Krone' },
+  DKK: { symbol: 'kr', name: 'Danish Krone' },
+  PLN: { symbol: 'zł', name: 'Polish Zloty' },
+  CZK: { symbol: 'Kč', name: 'Czech Koruna' },
+  HUF: { symbol: 'Ft', name: 'Hungarian Forint' },
+  RUB: { symbol: '₽', name: 'Russian Ruble' },
+  BRL: { symbol: 'R$', name: 'Brazilian Real' },
+  MXN: { symbol: '$', name: 'Mexican Peso' },
+  INR: { symbol: '₹', name: 'Indian Rupee' },
+  KRW: { symbol: '₩', name: 'South Korean Won' },
+  SGD: { symbol: 'S$', name: 'Singapore Dollar' },
+  HKD: { symbol: 'HK$', name: 'Hong Kong Dollar' },
+  TWD: { symbol: 'NT$', name: 'Taiwan Dollar' },
+  THB: { symbol: '฿', name: 'Thai Baht' },
+  MYR: { symbol: 'RM', name: 'Malaysian Ringgit' },
+  IDR: { symbol: 'Rp', name: 'Indonesian Rupiah' },
+  PHP: { symbol: '₱', name: 'Philippine Peso' },
+  VND: { symbol: '₫', name: 'Vietnamese Dong' },
+  ZAR: { symbol: 'R', name: 'South African Rand' },
+  TRY: { symbol: '₺', name: 'Turkish Lira' },
+  ILS: { symbol: '₪', name: 'Israeli Shekel' },
+  AED: { symbol: 'د.إ', name: 'UAE Dirham' },
+  SAR: { symbol: '﷼', name: 'Saudi Riyal' },
+  EGP: { symbol: '£', name: 'Egyptian Pound' },
+};
 
-// Cache for FX rates
+// Cache for available currencies and FX rates
+let availableCurrenciesCache: FiatCurrency[] | null = null;
 const fxRatesCache: Record<string, { rate: number; timestamp: number }> = {};
 const FX_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CURRENCIES_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
 
 // FX Oracle contract configuration
 const FX_ORACLE = {
@@ -29,7 +56,46 @@ const FX_ORACLE = {
   decimals: 14
 } as const;
 
-// Get exchange rate from USD to target currency
+// Get available fiat currencies from the FX oracle
+export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
+  // Return cached currencies if still valid
+  if (availableCurrenciesCache) {
+    return availableCurrenciesCache;
+  }
+  
+  try {
+    const { OracleClient, AssetType } = await import('./reflector-client');
+    const client = new (OracleClient as any)(FX_ORACLE.contract);
+    
+    // Fetch available assets (currencies) from FX oracle
+    const availableAssets = await client.getAssets();
+    
+    // Always include USD as base currency
+    const currencies: FiatCurrency[] = [
+      { code: 'USD', symbol: '$', name: 'US Dollar' }
+    ];
+    
+    // Add other currencies that are available from the oracle
+    availableAssets.forEach(asset => {
+      if (asset !== 'USD' && CURRENCY_INFO[asset]) {
+        currencies.push({
+          code: asset,
+          symbol: CURRENCY_INFO[asset].symbol,
+          name: CURRENCY_INFO[asset].name
+        });
+      }
+    });
+    
+    availableCurrenciesCache = currencies;
+    return currencies;
+  } catch (error) {
+    console.warn('Failed to fetch available currencies from FX oracle:', error);
+    // Return only USD if oracle fails
+    return [{ code: 'USD', symbol: '$', name: 'US Dollar' }];
+  }
+};
+
+// Get exchange rate from USD to target currency using oracle data only
 export const getFxRate = async (targetCurrency: string): Promise<number> => {
   if (targetCurrency === 'USD') return 1;
   
@@ -41,11 +107,10 @@ export const getFxRate = async (targetCurrency: string): Promise<number> => {
   }
   
   try {
-    // Import the FX oracle client
     const { OracleClient, AssetType } = await import('./reflector-client');
     const client = new (OracleClient as any)(FX_ORACLE.contract);
     
-    // Fetch rate for target currency
+    // Fetch rate for target currency from oracle
     const rawRate = await client.getLastPrice({
       type: AssetType.Other,
       code: targetCurrency
@@ -55,25 +120,13 @@ export const getFxRate = async (targetCurrency: string): Promise<number> => {
       const rate = rawRate / Math.pow(10, FX_ORACLE.decimals);
       fxRatesCache[cacheKey] = { rate, timestamp: Date.now() };
       return rate;
+    } else {
+      throw new Error(`No rate available for ${targetCurrency}`);
     }
   } catch (error) {
     console.warn(`Failed to fetch FX rate for ${targetCurrency}:`, error);
+    throw error; // Don't fallback to hardcoded rates
   }
-  
-  // Fallback rates (approximate)
-  const fallbackRates: Record<string, number> = {
-    EUR: 0.85,
-    GBP: 0.75,
-    JPY: 110,
-    CAD: 1.25,
-    AUD: 1.35,
-    CHF: 0.92,
-    CNY: 6.5,
-    SEK: 8.5,
-    NZD: 1.45,
-  };
-  
-  return fallbackRates[targetCurrency] || 1;
 };
 
 export const convertFromUSD = async (usdAmount: number, targetCurrency: string): Promise<number> => {
