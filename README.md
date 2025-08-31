@@ -2,6 +2,8 @@
 
 A dApp for managing Stellar accounts with multi-signature transaction capabilities.
 
+https://stellar-stratum.xyz
+
 ## Features
 
 - **Multi-Signature Support**: Configure and manage multi-signature accounts with custom thresholds
