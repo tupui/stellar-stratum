@@ -405,103 +405,83 @@ export const MultisigConfigBuilder = ({
                 const isModified = !signer.isNew && signer.originalWeight !== undefined && signer.weight !== signer.originalWeight;
                 return (
                   <div 
-                    key={index} 
-                    className={`flex items-center gap-3 p-3 rounded-lg border transition-smooth ${
-                      signer.isNew 
-                        ? 'bg-green-500/10 border-green-500/30' 
+                    key={index}
+                    className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 p-3 rounded-lg border transition-smooth ${
+                      signer.isNew
+                        ? 'bg-green-500/10 border-green-500/30'
                         : isModified
                         ? 'bg-orange-500/10 border-orange-500/30'
-                        : 'bg-secondary/30 border-secondary'
+                        : 'bg-secondary/30 border-border'
                     }`}
                   >
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0">
                       <p className="font-mono text-sm break-all">{signer.key}</p>
-                      <div className="flex gap-2 mt-1 flex-wrap">
+                      <div className="flex gap-2 mt-1 flex-wrap text-xs">
                         {signer.key === accountPublicKey && (
-                          <Badge variant="outline" className="text-xs">Current Account</Badge>
+                          <Badge variant="outline">Current Account</Badge>
                         )}
                         {signer.isNew && (
-                          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">New</Badge>
+                          <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">New</Badge>
                         )}
                         {isModified && (
-                          <Badge variant="outline" className="text-xs bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30">Modified</Badge>
+                          <Badge variant="outline" className="bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30">Modified</Badge>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="w-20 flex flex-col">
-                        <Label htmlFor={`weight-${index}`} className="text-xs text-center mb-1 font-medium">Weight</Label>
-                        <Input
-                          id={`weight-${index}`}
-                          type="number"
-                          min="0"
-                          max="255"
-                          value={signer.weight}
-                          onChange={(e) => updateSignerWeight(index, parseInt(e.target.value) || 0)}
-                          className="text-center text-sm h-8"
-                        />
-                      </div>
-                      <div className="flex flex-col items-center justify-end h-full">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => removeSigner(index)}
-                          className="h-8"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
+                    <Input
+                      aria-label={`Weight for signer ${index + 1}`}
+                      type="number"
+                      min="0"
+                      max="255"
+                      value={signer.weight}
+                      onChange={(e) => updateSignerWeight(index, parseInt(e.target.value) || 0)}
+                      className="w-20 h-8 text-center text-sm"
+                    />
+                    <Button
+                      aria-label="Remove signer"
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => removeSigner(index)}
+                      className="h-8 w-8"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* Add New Signer */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
+          {/* Add New Signer (aligned with rows) */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 p-3 rounded-lg border border-border bg-secondary/20">
+            <Input
+              id="new-signer-key"
+              placeholder="GABC...XYZ (56 characters)"
+              value={newSignerKey}
+              onChange={(e) => setNewSignerKey(e.target.value)}
+              className="font-mono text-sm"
+              maxLength={56}
+            />
+            <Input
+              aria-label="New signer weight"
+              id="new-signer-weight"
+              type="number"
+              min="1"
+              max="255"
+              value={newSignerWeight}
+              onChange={(e) => setNewSignerWeight(parseInt(e.target.value) || 1)}
+              className="w-20 h-8 text-center text-sm"
+            />
+            <Button 
+              aria-label="Add signer"
+              onClick={addNewSigner}
+              disabled={!newSignerKey.trim()}
+              size="icon"
+              className="h-8 w-8"
+              variant="secondary"
+            >
               <Plus className="w-4 h-4" />
-              <h4 className="font-medium">Add New Signer</h4>
-            </div>
-            
-            <div className="p-3 border border-secondary rounded-lg bg-secondary/20 space-y-3">
-              <div>
-                <Label htmlFor="new-signer-key" className="text-sm font-medium">Public Key</Label>
-                <Input
-                  id="new-signer-key"
-                  placeholder="GABC...XYZ (56 characters)"
-                  value={newSignerKey}
-                  onChange={(e) => setNewSignerKey(e.target.value)}
-                  className="font-mono text-sm"
-                  maxLength={56}
-                />
-              </div>
-              
-              <div className="flex gap-3 items-end">
-                <div className="w-20 flex flex-col">
-                  <Label htmlFor="new-signer-weight" className="text-xs text-center mb-1 font-medium">Weight</Label>
-                  <Input
-                    id="new-signer-weight"
-                    type="number"
-                    min="1"
-                    max="255"
-                    value={newSignerWeight}
-                    onChange={(e) => setNewSignerWeight(parseInt(e.target.value) || 1)}
-                    className="text-center text-sm h-8"
-                  />
-                </div>
-                <Button 
-                  onClick={addNewSigner}
-                  disabled={!newSignerKey.trim()}
-                  className="flex items-center gap-2 h-8"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Signer
-                </Button>
-              </div>
-            </div>
+            </Button>
           </div>
         </CardContent>
       </Card>

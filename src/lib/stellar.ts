@@ -1,6 +1,5 @@
 import { 
   StellarWalletsKit, 
-  WalletNetwork, 
   ISupportedWallet,
   allowAllModules,
   FREIGHTER_ID
@@ -8,10 +7,11 @@ import {
 import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
-// Initialize Stellar Wallets Kit using the working pattern
+// Initialize Stellar Wallets Kit using the working pattern (use passphrase for maximum compatibility)
 export const stellarKit = new StellarWalletsKit({
   modules: [...allowAllModules(), new LedgerModule()],
-  network: WalletNetwork.PUBLIC,
+  // @ts-ignore - library accepts both enum and passphrase string
+  network: 'Public Global Stellar Network ; September 2015',
   selectedWalletId: FREIGHTER_ID,
 });
 

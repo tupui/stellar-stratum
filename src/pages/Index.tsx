@@ -111,6 +111,7 @@ const Index = () => {
         {/* Transaction Builder */}
         {!loading && (appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
           <TransactionBuilder
+            key={`${appState}-${publicKey}`}
             onBack={handleBackToDashboard}
             accountPublicKey={publicKey}
             accountData={accountData}

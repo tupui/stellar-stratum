@@ -63,7 +63,7 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
     <Card className="shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <img src={refractorLogo} alt="Refractor" className="w-5 h-5" />
+          <img src={refractorLogo} alt="Refractor" className="w-5 h-5 shrink-0" />
           Refractor Integration
         </CardTitle>
         <CardDescription>
@@ -125,6 +125,7 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
                 onClick={handlePullTransaction}
                 disabled={isPulling || !refractorId.trim()}
                 size="sm"
+                className="inline-flex items-center gap-2"
               >
                 {isPulling ? (
                   <div className="flex items-center gap-2">
@@ -133,7 +134,7 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
                   </div>
                 ) : (
                   <>
-                    <Download className="w-4 h-4 mr-2" />
+                    <Download className="w-4 h-4" />
                     Pull
                   </>
                 )}
