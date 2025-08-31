@@ -56,7 +56,7 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
   };
 
   const openRefractor = () => {
-    const newWindow = window.open('https://refractor.space', '_blank', 'noopener,noreferrer');
+    const newWindow = window.open('https://refractor.space/', '_blank', 'noopener,noreferrer');
     if (newWindow) newWindow.opener = null;
   };
 
