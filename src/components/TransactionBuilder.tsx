@@ -655,25 +655,29 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                               <span className="font-medium text-sm">{paymentData.asset}</span>
                             </SelectValue>
                           </SelectTrigger>
-                          <SelectContent className="min-w-96">
+                          <SelectContent className="min-w-96 max-h-64 overflow-y-auto">
                              {availableAssets.map(asset => {
-                               const balance = parseFloat(asset.balance);
-                               // Format with 7 decimal places max (Stellar precision)
-                               const formattedBalance = balance === 0 ? '0.0000000' :
-                                 balance.toFixed(7).replace(/\.?0+$/, '');
-                               
-                               return (
-                                 <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
-                                   <div className="flex items-center justify-between w-full min-w-0">
-                                     <span className="font-medium text-left min-w-0 truncate">{asset.code}</span>
-                                     <div className="font-mono text-xs text-muted-foreground ml-8 min-w-fit">
-                                       {formattedBalance}
-                                     </div>
-                                   </div>
-                                 </SelectItem>
-                               );
-                             })}
-                         </SelectContent>
+                                const balance = parseFloat(asset.balance);
+                                // Format with 7 decimal places max (Stellar precision)
+                                const formattedBalance = balance === 0 ? '0.0000000' :
+                                  balance.toFixed(7).replace(/\.?0+$/, '');
+                                
+                                // Split at decimal for alignment
+                                const [integerPart, decimalPart] = formattedBalance.split('.');
+                                
+                                return (
+                                  <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                                    <div className="flex items-center justify-between w-full">
+                                      <span className="font-medium text-left min-w-0 truncate pr-4">{asset.code}</span>
+                                      <div className="font-mono text-xs text-muted-foreground text-right min-w-fit">
+                                        <span className="inline-block text-right min-w-[60px]">{integerPart}</span>
+                                        {decimalPart && <span className="text-muted-foreground/70">.{decimalPart}</span>}
+                                      </div>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                          </SelectContent>
                        </Select>
                       </div>
                     </div>
