@@ -60,11 +60,11 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             <p className="text-muted-foreground">Manage your Stellar multisig operations</p>
           </div>
           <div className="flex gap-3">
-            <Button variant="destructive" onClick={onDisconnect}>
-              Disconnect
-            </Button>
             <Button onClick={onInitiateTransaction} className="bg-gradient-primary hover:opacity-90">
               Initiate Transaction
+            </Button>
+            <Button variant="destructive" onClick={onDisconnect}>
+              Disconnect
             </Button>
           </div>
         </div>

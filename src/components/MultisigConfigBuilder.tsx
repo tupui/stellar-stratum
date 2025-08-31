@@ -414,9 +414,9 @@ export const MultisigConfigBuilder = ({
                         : 'bg-secondary/30 border-border'
                     }`}
                   >
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className="font-mono text-sm break-all">{signer.key}</p>
-                      <div className="flex gap-2 mt-1">
+                      <div className="flex gap-2 mt-1 flex-wrap">
                         {signer.key === accountPublicKey && (
                           <Badge variant="outline" className="text-xs">Current Account</Badge>
                         )}
@@ -428,25 +428,30 @@ export const MultisigConfigBuilder = ({
                         )}
                       </div>
                     </div>
-                    <div className="w-24">
-                      <Label htmlFor={`weight-${index}`} className="text-xs">Weight</Label>
-                      <Input
-                        id={`weight-${index}`}
-                        type="number"
-                        min="0"
-                        max="255"
-                        value={signer.weight}
-                        onChange={(e) => updateSignerWeight(index, parseInt(e.target.value) || 0)}
-                        className="text-center"
-                      />
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="w-24 flex flex-col">
+                        <Label htmlFor={`weight-${index}`} className="text-xs text-center mb-1">Weight</Label>
+                        <Input
+                          id={`weight-${index}`}
+                          type="number"
+                          min="0"
+                          max="255"
+                          value={signer.weight}
+                          onChange={(e) => updateSignerWeight(index, parseInt(e.target.value) || 0)}
+                          className="text-center"
+                        />
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className="text-xs text-transparent mb-1 select-none">Remove</div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => removeSigner(index)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => removeSigner(index)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
                 );
               })}
