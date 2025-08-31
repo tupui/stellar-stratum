@@ -9,6 +9,81 @@
     <meta name="keywords" content="Stellar, multisig, wallet, cryptocurrency, blockchain, XDR, signatures" />
     <link rel="icon" href="/favicon.png" type="image/png">
     <link rel="apple-touch-icon" href="/favicon.png">
+    
+    <!-- Resource hints for faster loading -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="/src/main.tsx" as="script">
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+    
+    <!-- Critical CSS for immediate rendering -->
+    <style>
+      /* Critical loading styles - matches design system */
+      :root {
+        --background: 220 13% 9%;
+        --foreground: 210 40% 98%;
+        --primary: 48 96% 53%;
+        --muted: 220 13% 15%;
+      }
+      
+      body {
+        margin: 0;
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      }
+      
+      #app-loader {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: hsl(var(--background));
+      }
+      
+      .loader-content {
+        text-align: center;
+        max-width: 600px;
+        padding: 2rem;
+      }
+      
+      .loader-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .loader-subtitle {
+        font-size: 1.125rem;
+        color: hsl(var(--foreground) / 0.7);
+        margin-bottom: 2rem;
+      }
+      
+      .loader-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid hsl(var(--muted));
+        border-top: 3px solid hsl(var(--primary));
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      /* Hide loader once React loads */
+      .app-loaded #app-loader {
+        display: none;
+      }
+    </style>
+    
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; media-src 'self';" />
 
     <meta property="og:title" content="Stellar Multisig Wallet - Secure Multi-Signature Management" />
@@ -19,7 +94,30 @@
   </head>
 
   <body>
+    <!-- Immediate loading skeleton for FCP optimization -->
+    <div id="app-loader">
+      <div class="loader-content">
+        <h1 class="loader-title">Stellar Multisig</h1>
+        <p class="loader-subtitle">Secure Multi-Signature Wallet</p>
+        <div class="loader-spinner"></div>
+      </div>
+    </div>
+    
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Hide loader once React content loads -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const observer = new MutationObserver(function(mutations) {
+          const root = document.getElementById('root');
+          if (root && root.children.length > 0) {
+            document.body.classList.add('app-loaded');
+            observer.disconnect();
+          }
+        });
+        observer.observe(document.getElementById('root'), { childList: true });
+      });
+    </script>
   </body>
 </html>
