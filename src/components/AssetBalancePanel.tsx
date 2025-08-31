@@ -186,21 +186,15 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
             </div>
             <div className="flex items-center gap-2">
               <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
-                <SelectTrigger className="w-32 h-8 border-0 bg-transparent px-2">
-                  <SelectValue />
+                <SelectTrigger className="w-16 h-8 border-0 bg-transparent px-2">
+                  <SelectValue>
+                    <span className="text-sm">{quoteCurrency}</span>
+                  </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="min-w-48">
+                <SelectContent className="min-w-24">
                   {availableCurrencies.map(currency => (
                     <SelectItem key={currency.code} value={currency.code}>
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-2">
-                          <span className="currency-symbol text-base">{currency.symbol}</span>
-                          <span>{currency.code}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground ml-2 font-mono">
-                          {formatValueSync(totalValueUSD).replace(/[^0-9.,]/g, '')}
-                        </span>
-                      </div>
+                      <span>{currency.code}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>

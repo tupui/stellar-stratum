@@ -607,7 +607,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount</Label>
                     <div className="flex gap-2">
                       <div className="flex-1 space-y-2">
                         <Input
@@ -615,7 +614,18 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                           type="number"
                           placeholder="0.00"
                           value={paymentData.amount}
-                          onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
+                          max={getSelectedAssetInfo()?.code === 'XLM' 
+                            ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
+                            : getSelectedAssetInfo()?.balance
+                          }
+                          onChange={(e) => {
+                            const maxAmount = getSelectedAssetInfo()?.code === 'XLM' 
+                              ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
+                              : parseFloat(getSelectedAssetInfo()?.balance || '0');
+                            const inputValue = parseFloat(e.target.value) || 0;
+                            const cappedValue = Math.min(inputValue, maxAmount);
+                            setPaymentData(prev => ({ ...prev, amount: cappedValue.toString() }));
+                          }}
                         />
                         {fiatValue && (
                           <p className="text-xs text-muted-foreground">≈ {fiatValue}</p>
@@ -624,7 +634,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                         {getSelectedAssetInfo() && (
                           <div className="space-y-2">
                             <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Amount</span>
                               <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toFixed(2)} {paymentData.asset}</span>
                             </div>
                             <div className="relative">
@@ -651,23 +660,26 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                           setPaymentData(prev => ({ 
                             ...prev, 
                             asset: value,
-                            assetIssuer: selectedAsset?.issuer || ''
+                            assetIssuer: selectedAsset?.issuer || '',
+                            amount: '' // Reset amount when changing asset
                           }));
                           setTrustlineError(''); // Clear error when changing asset
                         }}
                       >
                         <SelectTrigger className="w-32">
-                          <SelectValue />
+                          <SelectValue>
+                            <span className="font-medium">{paymentData.asset}</span>
+                          </SelectValue>
                         </SelectTrigger>
-                        <SelectContent className="min-w-48">
+                        <SelectContent className="min-w-64">
                           {availableAssets.map(asset => (
                             <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
                               <div className="flex items-center justify-between w-full">
                                 <span className="font-medium">{asset.code}</span>
-                                <span className="text-xs text-muted-foreground ml-4 font-mono">
+                                <span className="text-xs text-muted-foreground font-mono tabular-nums">
                                   {parseFloat(asset.balance).toLocaleString(undefined, { 
                                     minimumFractionDigits: 2, 
-                                    maximumFractionDigits: 2 
+                                    maximumFractionDigits: 6 
                                   })}
                                 </span>
                               </div>
