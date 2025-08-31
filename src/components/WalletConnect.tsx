@@ -401,55 +401,125 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
                   </div>
                 )}
 
-                {supportedWallets.map((wallet) => {
-                  const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
-                  
-                  return (
-                    <TooltipProvider key={wallet.id}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-                            onClick={() => handleConnect(wallet.id, wallet.name)}
-                            disabled={connecting !== null}
-                          >
-                            <div className="flex items-center gap-3">
-                              {getWalletIcon(wallet)}
-                              <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground hidden">
-                                {wallet.name.charAt(0)}
-                              </div>
-                              <div className="text-left">
-                                <div className="font-medium flex items-center gap-2">
-                                  {wallet.name}
-                                  {isHardware && (
-                                    <Info className="w-3 h-3 text-muted-foreground" />
-                                  )}
-                                </div>
-                                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                  {getWalletDescription(wallet)}
-                                  {isHardware && (
-                                    <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
-                                      Hardware
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            {connecting === wallet.id ? (
-                              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <ArrowRight className="w-4 h-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs">
-                          <p>{getWalletTooltip(wallet)}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                {(() => {
+                  const primaryWallets = ['freighter', 'xbull', 'ledger', 'lobstr'];
+                  const primary = supportedWallets.filter(w => 
+                    primaryWallets.some(p => w.id.toLowerCase().includes(p))
                   );
-                })}
+                  const secondary = supportedWallets.filter(w => 
+                    !primaryWallets.some(p => w.id.toLowerCase().includes(p))
+                  );
+
+                  return (
+                    <>
+                      {primary.map((wallet) => {
+                        const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+                        
+                        return (
+                          <TooltipProvider key={wallet.id}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                                  onClick={() => handleConnect(wallet.id, wallet.name)}
+                                  disabled={connecting !== null}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    {getWalletIcon(wallet)}
+                                    <div className="text-left">
+                                      <div className="font-medium flex items-center gap-2">
+                                        {wallet.name}
+                                        {isHardware && (
+                                          <Info className="w-3 h-3 text-muted-foreground" />
+                                        )}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                        {getWalletDescription(wallet)}
+                                        {isHardware && (
+                                          <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
+                                            Hardware
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {connecting === wallet.id ? (
+                                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <ArrowRight className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <p>{getWalletTooltip(wallet)}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })}
+                      
+                      {secondary.length > 0 && (
+                        <div className="space-y-2">
+                          <Button
+                            variant="ghost"
+                            className="w-full text-sm text-muted-foreground"
+                            onClick={() => setShowSorobanInput(!showSorobanInput)}
+                          >
+                            {showSorobanInput ? 'Show fewer wallets' : `Show ${secondary.length} more wallets`}
+                          </Button>
+                          
+                          {showSorobanInput && secondary.map((wallet) => {
+                            const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+                            
+                            return (
+                              <TooltipProvider key={wallet.id}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                                      onClick={() => handleConnect(wallet.id, wallet.name)}
+                                      disabled={connecting !== null}
+                                    >
+                                      <div className="flex items-center gap-3">
+                                        {getWalletIcon(wallet)}
+                                        <div className="text-left">
+                                          <div className="font-medium flex items-center gap-2">
+                                            {wallet.name}
+                                            {isHardware && (
+                                              <Info className="w-3 h-3 text-muted-foreground" />
+                                            )}
+                                          </div>
+                                          <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                            {getWalletDescription(wallet)}
+                                            {isHardware && (
+                                              <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
+                                                Hardware
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {connecting === wallet.id ? (
+                                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                      ) : (
+                                        <ArrowRight className="w-4 h-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs">
+                                    <p>{getWalletTooltip(wallet)}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </>
           )}

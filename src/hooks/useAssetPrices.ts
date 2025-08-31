@@ -40,55 +40,56 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
         }));
         setAssetsWithPrices(initialAssets);
 
-        // Fetch prices with adaptive batching: burst up to 50, then batch sequentially
-        const MAX_BURST = 50;
-
-        const runForIndex = async (index: number) => {
-          const balance = balances[index];
+        // Fetch all prices in parallel without delays - should be instant for small numbers
+        const pricePromises = balances.map(async (balance, index) => {
           try {
             const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
             const priceUSD = price > 0 ? price : 0;
             const valueUSD = priceUSD * parseFloat(balance.balance);
             
-            // Update this specific asset when its price is ready
-            setAssetsWithPrices(prev => {
-              const updated = [...prev];
-              updated[index] = {
+            return {
+              index,
+              asset: {
                 ...balance,
                 priceUSD,
                 valueUSD,
                 symbol: balance.asset_code || 'XLM'
-              };
-              return updated;
-            });
+              }
+            };
           } catch (error) {
             console.warn(`Failed to fetch price for ${balance.asset_code}:`, error);
-            // Update with zero price on error
-            setAssetsWithPrices(prev => {
-              const updated = [...prev];
-              updated[index] = {
+            return {
+              index,
+              asset: {
                 ...balance,
                 priceUSD: 0,
                 valueUSD: 0,
                 symbol: balance.asset_code || 'XLM'
-              };
-              return updated;
-            });
+              }
+            };
           }
-        };
+        });
 
-        const indices = balances.map((_, i) => i);
-
-        if (balances.length <= MAX_BURST) {
-          // Run all without sleeps when under threshold
-          await Promise.allSettled(indices.map(runForIndex));
-        } else {
-          console.debug(`[useAssetPrices] ${balances.length} assets -> processing in batches of ${MAX_BURST}`);
-          for (let start = 0; start < indices.length; start += MAX_BURST) {
-            const batch = indices.slice(start, start + MAX_BURST);
-            await Promise.allSettled(batch.map(runForIndex));
+        // Wait for all prices to resolve
+        const results = await Promise.allSettled(pricePromises);
+        
+        // Update all assets at once
+        const finalAssets = new Array(balances.length);
+        results.forEach((result, i) => {
+          if (result.status === 'fulfilled') {
+            finalAssets[result.value.index] = result.value.asset;
+          } else {
+            // Fallback for rejected promises
+            finalAssets[i] = {
+              ...balances[i],
+              priceUSD: 0,
+              valueUSD: 0,
+              symbol: balances[i].asset_code || 'XLM'
+            };
           }
-        }
+        });
+        
+        setAssetsWithPrices(finalAssets)
         
         // Final sort by value
         setAssetsWithPrices(prev => 
