@@ -323,10 +323,10 @@ export const MultisigConfigBuilder = ({
       </div>
 
       {/* Safety Alert */}
-      <Alert>
-        <AlertTriangle className="h-4 w-4" />
+      <Alert className="border-destructive/50 bg-destructive/10">
+        <AlertTriangle className="h-4 w-4 text-destructive" />
         <AlertDescription>
-          <strong>Important:</strong> Changing multisig configuration can lock you out of your account. 
+          <strong className="text-destructive">Important:</strong> Changing multisig configuration can lock you out of your account. 
           Ensure thresholds don't exceed available signer weights and that you maintain access to sufficient signers.
         </AlertDescription>
       </Alert>
@@ -534,7 +534,7 @@ export const MultisigConfigBuilder = ({
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="lowThreshold">Low Threshold</Label>
+              <Label htmlFor="lowThreshold">Low</Label>
               <Input
                 id="lowThreshold"
                 type="number"
@@ -554,7 +554,7 @@ export const MultisigConfigBuilder = ({
               />
             </div>
             <div>
-              <Label htmlFor="medThreshold">Medium Threshold</Label>
+              <Label htmlFor="medThreshold">Medium</Label>
               <Input
                 id="medThreshold"
                 type="number"
@@ -574,7 +574,7 @@ export const MultisigConfigBuilder = ({
               />
             </div>
             <div>
-              <Label htmlFor="highThreshold">High Threshold</Label>
+              <Label htmlFor="highThreshold">High</Label>
               <Input
                 id="highThreshold"
                 type="number"
@@ -600,18 +600,18 @@ export const MultisigConfigBuilder = ({
       {/* Validation Results */}
       {(validation.errors.length > 0 || validation.warnings.length > 0) && (
         <div className="space-y-2">
-          {validation.errors.map((error, index) => (
-            <Alert key={index} variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ))}
-          {validation.warnings.map((warning, index) => (
-            <Alert key={index}>
-              <Info className="h-4 w-4" />
-              <AlertDescription>{warning}</AlertDescription>
-            </Alert>
-          ))}
+        {validation.errors.map((error, index) => (
+          <Alert key={index} variant="destructive" className="border-destructive/50 bg-destructive/10">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="text-destructive">{error}</AlertDescription>
+          </Alert>
+        ))}
+        {validation.warnings.map((warning, index) => (
+          <Alert key={index} className="border-destructive/30 bg-destructive/5">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="text-destructive">{warning}</AlertDescription>
+          </Alert>
+        ))}
         </div>
       )}
 

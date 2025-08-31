@@ -406,7 +406,12 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
           )}
 
           {(() => {
-            const primaryWallets = ['freighter', 'xbull', 'ledger', 'lobstr'];
+            const isMobile = window.innerWidth < 768;
+            const primaryWallets = ['freighter', 'xbull', 'ledger'];
+            // Only show Lobstr on mobile
+            if (isMobile) {
+              primaryWallets.push('lobstr');
+            }
             const primary = supportedWallets.filter(w => 
               primaryWallets.some(p => w.id.toLowerCase().includes(p))
             );
@@ -438,14 +443,14 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                                     <Info className="w-3 h-3 text-muted-foreground" />
                                   )}
                                 </div>
-                                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                  {getWalletDescription(wallet)}
-                                  {isHardware && (
-                                    <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
-                                      Hardware
-                                    </span>
-                                  )}
-                                </div>
+                                 <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                   {getWalletDescription(wallet)}
+                                   {isHardware && (
+                                     <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                                       Hardware
+                                     </span>
+                                   )}
+                                 </div>
                               </div>
                             </div>
                             {connecting === wallet.id ? (

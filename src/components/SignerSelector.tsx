@@ -180,7 +180,7 @@ export const SignerSelector = ({
                           <Badge variant="outline" className="text-xs">Current Account</Badge>
                         )}
                         {signed.isExisting && (
-                          <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 dark:text-blue-300">Pre-signed</Badge>
+                          <Badge variant="outline" className="text-xs bg-info/10 text-info border-info/30">Pre-signed</Badge>
                         )}
                       </div>
                     </div>
