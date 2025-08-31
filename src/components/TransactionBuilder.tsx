@@ -676,11 +676,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                               <span className="font-medium text-sm">{paymentData.asset}</span>
                             </SelectValue>
                           </SelectTrigger>
-                          <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto">
+                          <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
                             {/* Header */}
-                            <div className="sticky top-0 z-10 grid grid-cols-[80px_1fr] items-center gap-3 px-6 py-2 text-[11px] text-muted-foreground bg-popover/95 backdrop-blur">
-                              <span className="uppercase tracking-wider">Asset</span>
-                              <span className="text-right uppercase tracking-wider">Balance</span>
+                            <div className="sticky top-0 z-20 grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-2 text-[11px] text-muted-foreground bg-popover border-b border-border/50">
+                              <span className="uppercase tracking-wider font-medium">Asset</span>
+                              <span className="text-right uppercase tracking-wider font-medium">Balance</span>
                             </div>
                             {/* Items */}
                             {availableAssets.map((asset) => {
@@ -694,7 +694,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                                 <SelectPrimitive.Item
                                   key={`${asset.code}-${asset.issuer}`}
                                   value={asset.code}
-                                  className="relative rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                  className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer"
                                 >
                                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                                     <SelectPrimitive.ItemIndicator>
