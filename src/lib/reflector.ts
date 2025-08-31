@@ -77,48 +77,46 @@ const PRICE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const oracleAssetsCache: Record<string, { assets: string[]; timestamp: number }> = {};
 const ASSETS_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
 
-// In-memory cache for asset lists to avoid localStorage issues
-let assetsListsLoaded = false;
+// In-memory cache to track which oracle asset lists are loaded
+const loadedOracles = new Set<string>();
 
+const ensureAssetListsLoaded = async (oraclesToLoad: OracleConfig[]): Promise<void> => {
+  const toLoad = oraclesToLoad.filter((o) => !loadedOracles.has(o.contract));
+  if (toLoad.length === 0) return;
+  await Promise.all(toLoad.map(oracle => getOracleAssetsWithRetry(oracle)));
+  toLoad.forEach(o => loadedOracles.add(o.contract));
+};
+
+// Sleep utility for retry delays
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+// Fetch price with minimal oracle loading
 const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
   console.log(`=== Starting fetchReflectorPrice for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} ===`);
-  
-  // Step 1: Ensure asset lists are loaded first
-  await ensureAssetListsLoaded();
-  
-  // Step 2: Resolve oracle and correctly shaped asset for that oracle
-  const resolved = resolveOracleAndAsset(assetCode, assetIssuer);
+
+  const likelyOracles = assetIssuer
+    ? [REFLECTOR_ORACLES.STELLAR]
+    : [REFLECTOR_ORACLES.CEX_DEX];
+
+  await ensureAssetListsLoaded(likelyOracles);
+
+  const resolved = resolveOracleAndAsset(assetCode, assetIssuer, likelyOracles);
   if (!resolved) {
-    console.log(`Asset ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} not available in any oracle - assigning N/A`);
-    return 0; // N/A - not supported
+    console.log(`Asset ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} not available in selected oracles - assigning N/A`);
+    return 0;
   }
-  
+
   const { oracle, asset } = resolved;
   console.log(`=== Using oracle ${oracle.contract} with asset:`, asset);
-  
+
   try {
     const price = await getOracleAssetPriceWithRetry(oracle, asset);
     console.log(`=== Got price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}: ${price} ===`);
     return price;
   } catch (error) {
     console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}:`, error);
-    return 0; // N/A - failed to fetch
+    return 0;
   }
-};
-
-// Sleep utility for retry delays
-const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
-// Ensure asset lists are loaded for all oracles
-const ensureAssetListsLoaded = async (): Promise<void> => {
-  if (assetsListsLoaded) return;
-  
-  const oracles = [REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.FX];
-  
-  // Load asset lists for all oracles
-  await Promise.all(oracles.map(oracle => getOracleAssetsWithRetry(oracle)));
-  
-  assetsListsLoaded = true;
 };
 
 // Create Asset object for oracle calls
@@ -185,9 +183,23 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
 };
 
 // Resolve which oracle supports the given asset AND the correct Asset shape for that oracle
-const resolveOracleAndAsset = (assetCode: string, assetIssuer?: string): { oracle: OracleConfig; asset: Asset } | null => {
-  const oracles = [REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.FX];
-  
+const resolveOracleAndAsset = (
+  assetCode: string,
+  assetIssuer?: string,
+  oracles: OracleConfig[] = [REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.FX]
+): { oracle: OracleConfig; asset: Asset } | null => {
+  // Optimized fast-paths
+  if (!assetIssuer && (assetCode === 'XLM' || assetCode === 'USDC')) {
+    const cex = REFLECTOR_ORACLES.CEX_DEX;
+    const cacheKey = `assets_${cex.contract}`;
+    const cached = oracleAssetsCache[cacheKey];
+    if (cached) {
+      if (cached.assets.includes(assetCode)) {
+        return { oracle: cex, asset: { type: AssetType.Other, code: assetCode } };
+      }
+    }
+  }
+
   for (const oracle of oracles) {
     const cacheKey = `assets_${oracle.contract}`;
     const cached = oracleAssetsCache[cacheKey];
@@ -212,19 +224,18 @@ const resolveOracleAndAsset = (assetCode: string, assetIssuer?: string): { oracl
         
         // Try different formats in order of preference
         const formats = [
-          `stellar_${assetIssuer}`,           // stellar_{issuer}
-          `stellar_${contractId}`,            // stellar_{contractId} 
-          contractId,                         // contractId direct
-          assetIssuer,                       // issuer direct
-          `${assetCode}_${assetIssuer}`,     // code_issuer
-          `${assetCode}:${assetIssuer}`      // code:issuer
+          `stellar_${assetIssuer}`,
+          `stellar_${contractId}`,
+          contractId,
+          assetIssuer,
+          `${assetCode}_${assetIssuer}`,
+          `${assetCode}:${assetIssuer}`
         ];
         
         for (const format of formats) {
           console.log(`Checking format: ${format}`);
           if (cached.assets.includes(format)) {
             console.log(`✓ Found match: ${format} in ${oracle.contract}`);
-            // Use Stellar type with the appropriate code
             if (format.startsWith('stellar_') || format === contractId) {
               const code = format.startsWith('stellar_') ? format.substring(8) : format;
               return { oracle, asset: { type: AssetType.Stellar, code } };
@@ -234,7 +245,6 @@ const resolveOracleAndAsset = (assetCode: string, assetIssuer?: string): { oracl
           }
         }
         
-        // Check if any asset contains the issuer or contractId
         const matchingAssets = cached.assets.filter(a => 
           a.includes(assetIssuer) || (contractId && a.includes(contractId))
         );

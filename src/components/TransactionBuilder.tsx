@@ -26,6 +26,7 @@ import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
+import refractorFavicon from '@/assets/refractor-favicon.ico';
 
 interface TransactionBuilderProps {
   onBack: () => void;
@@ -74,7 +75,15 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet' } | null>(null);
-
+  useEffect(() => {
+    // Reset tab-specific state when switching tabs to avoid stale data
+    setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
+    setTrustlineError('');
+    setXdrData({ input: '', output: '' });
+    setSignedBy([]);
+    setRefractorId('');
+    setSuccessData(null);
+  }, [activeTab]);
   // Check trustline for non-XLM assets
   const checkTrustline = async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
@@ -498,7 +507,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   Generic XDR
                 </TabsTrigger>
                 <TabsTrigger value="refractor" className="flex items-center gap-2">
-                  <img src="/assets/refractor-favicon.ico" alt="Refractor" className="w-4 h-4" />
+                  <img src={refractorFavicon} alt="Refractor" className="w-4 h-4" />
                   Refractor
                 </TabsTrigger>
               </TabsList>

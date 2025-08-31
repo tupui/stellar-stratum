@@ -31,70 +31,56 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
       setError(null);
 
       try {
-        // Initialize assets with loading state (priceUSD = -1 indicates loading)
+        // Initialize assets skeleton
         const initialAssets: AssetWithPrice[] = balances.map(balance => ({
           ...balance,
-          priceUSD: -1, // Special value to indicate loading
+          priceUSD: -1,
           valueUSD: 0,
           symbol: balance.asset_code || 'XLM'
         }));
         setAssetsWithPrices(initialAssets);
 
-        // Fetch all prices in parallel without delays - should be instant for small numbers
-        const pricePromises = balances.map(async (balance, index) => {
+        // Deduplicate price requests by unique asset key to avoid redundant oracle calls
+        const uniqueMap = new Map<string, number[]>(); // key -> indices
+        balances.forEach((b, i) => {
+          const key = b.asset_issuer ? `${b.asset_code}:${b.asset_issuer}` : (b.asset_code || 'XLM');
+          const arr = uniqueMap.get(key) || [];
+          arr.push(i);
+          uniqueMap.set(key, arr);
+        });
+
+        const uniquePromises = Array.from(uniqueMap.keys()).map(async (key) => {
+          const [code, issuer] = key.includes(':') ? key.split(':') : [key, undefined];
           try {
-            const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
-            const priceUSD = price > 0 ? price : 0;
-            const valueUSD = priceUSD * parseFloat(balance.balance);
-            
-            return {
-              index,
-              asset: {
-                ...balance,
-                priceUSD,
-                valueUSD,
-                symbol: balance.asset_code || 'XLM'
-              }
-            };
-          } catch (error) {
-            console.warn(`Failed to fetch price for ${balance.asset_code}:`, error);
-            return {
-              index,
-              asset: {
-                ...balance,
-                priceUSD: 0,
-                valueUSD: 0,
-                symbol: balance.asset_code || 'XLM'
-              }
-            };
+            const price = await getAssetPrice(code, issuer);
+            return { key, price: price > 0 ? price : 0 };
+          } catch {
+            return { key, price: 0 };
           }
         });
 
-        // Wait for all prices to resolve
-        const results = await Promise.allSettled(pricePromises);
-        
-        // Update all assets at once
-        const finalAssets = new Array(balances.length);
-        results.forEach((result, i) => {
-          if (result.status === 'fulfilled') {
-            finalAssets[result.value.index] = result.value.asset;
-          } else {
-            // Fallback for rejected promises
-            finalAssets[i] = {
-              ...balances[i],
-              priceUSD: 0,
-              valueUSD: 0,
-              symbol: balances[i].asset_code || 'XLM'
-            };
-          }
+        const uniqueResults = await Promise.allSettled(uniquePromises);
+        const priceMap = new Map<string, number>();
+        uniqueResults.forEach((res, idx) => {
+          const key = Array.from(uniqueMap.keys())[idx];
+          priceMap.set(key, res.status === 'fulfilled' ? res.value.price : 0);
         });
-        
-        setAssetsWithPrices(finalAssets)
-        
-        // Final sort by value
-        setAssetsWithPrices(prev => 
-          [...prev].sort((a, b) => (b.valueUSD || 0) - (a.valueUSD || 0))
-        );
+
+        const finalAssets = balances.map((balance) => {
+          const key = balance.asset_issuer ? `${balance.asset_code}:${balance.asset_issuer}` : (balance.asset_code || 'XLM');
+          const priceUSD = priceMap.get(key) || 0;
+          const valueUSD = priceUSD * parseFloat(balance.balance);
+          return {
+            ...balance,
+            priceUSD,
+            valueUSD,
+            symbol: balance.asset_code || 'XLM'
+          };
+        });
+
+        // Sort by value and update
+        finalAssets.sort((a, b) => (b.valueUSD || 0) - (a.valueUSD || 0));
+        setAssetsWithPrices(finalAssets);
         
       } catch (error) {
         console.error('Error fetching prices:', error);

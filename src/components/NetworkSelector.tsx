@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Globe, Send, Upload } from 'lucide-react';
-import refractorLogo from '@/assets/refractor-logo.svg';
+import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useState } from 'react';
 
 interface NetworkSelectorProps {
@@ -91,10 +91,10 @@ export const NetworkSelector = ({
             onClick={onSubmitToRefractor}
             disabled={!canSubmitToRefractor || isSubmitting}
             variant="outline"
-            className="w-full"
+            className="w-full inline-flex items-center gap-2"
           >
-            <img src={refractorLogo} alt="Refractor" className="w-4 h-4 mr-2" />
-            Send to Refractor
+            <img src={refractorLogo} alt="Refractor" className="w-4 h-4" />
+            <span>Send to Refractor</span>
           </Button>
 
           {!canSubmitToNetwork && canSubmitToRefractor && (

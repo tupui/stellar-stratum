@@ -94,11 +94,11 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="mt-2"
+                className="mt-2 inline-flex items-center gap-2"
                 onClick={openRefractor}
               >
-                <img src={refractorLogo} alt="Refractor" className="w-4 h-4 mr-2" />
-                View on Refractor
+                <img src={refractorLogo} alt="Refractor" className="w-4 h-4" />
+                <span>View on Refractor</span>
               </Button>
             </div>
             <Separator />
