@@ -42,11 +42,12 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
       if (onRefreshBalances) {
         await onRefreshBalances();
       }
+      await refetch();
     } catch (e) {
       console.error('Failed to refresh balances:', e);
     } finally {
-      await refetch();
-      setLastUpdateTime(getLastFetchTimestamp());
+      // Always update timestamp after any operation
+      setLastUpdateTime(new Date());
     }
   };
 
@@ -331,7 +332,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                       {formatBalance(asset.balance)}
                     </p>
                     <p className="text-sm text-muted-foreground/70">{asset.symbol}</p>
-                      <div className="text-sm font-medium text-primary">
+                      <div className="text-sm font-medium text-primary flex justify-end">
                         {asset.priceUSD === -1 ? (
                           <LoadingPill size="sm" />
                         ) : (

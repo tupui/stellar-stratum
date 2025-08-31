@@ -45,12 +45,15 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
   if (!assetInfo?.image || imageError) {
     return (
       <div 
-        className={`bg-gradient-primary rounded-full flex items-center justify-center ring-1 ring-primary/20 ${className}`}
+        className={`bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 rounded-full flex items-center justify-center ring-2 ring-primary/30 shadow-lg ${className}`}
         style={{ width: size, height: size }}
+        role="img"
+        aria-label={`${assetCode || 'XLM'} asset icon`}
       >
         <span 
-          className="font-bold text-primary-foreground"
-          style={{ fontSize: size * 0.3 }}
+          className="font-bold text-primary select-none"
+          style={{ fontSize: size * 0.25 }}
+          aria-hidden="true"
         >
           {(assetCode || 'XLM').slice(0, 3)}
         </span>
@@ -60,14 +63,17 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
 
   return (
     <div
-      className={`rounded-full bg-card ring-1 ring-border overflow-hidden shadow-sm ${className}`}
+      className={`rounded-full bg-background ring-2 ring-border/60 overflow-hidden shadow-lg ${className}`}
       style={{ width: size, height: size }}
+      role="img"
+      aria-label={`${assetInfo.name || assetCode || 'Asset'} logo`}
     >
       <img
         src={assetInfo.image}
-        alt={assetInfo.name || assetCode || 'Asset'}
-        className="w-full h-full object-contain p-1.5"
+        alt=""
+        className="w-full h-full object-contain p-2"
         onError={handleImageError}
+        aria-hidden="true"
       />
     </div>
   );

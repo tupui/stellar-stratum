@@ -596,19 +596,20 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
               <TabsContent value="payment" className="space-y-4 mt-6">
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="destination">Destination Address</Label>
-                    <Input
-                      id="destination"
-                      placeholder="GABC..."
-                      value={paymentData.destination}
-                      onChange={(e) => setPaymentData(prev => ({ ...prev, destination: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <div className="flex-1 space-y-2">
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="flex gap-4 items-end">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="destination">Destination Address</Label>
+                      <Input
+                        id="destination"
+                        placeholder="GABC..."
+                        value={paymentData.destination}
+                        onChange={(e) => setPaymentData(prev => ({ ...prev, destination: e.target.value }))}
+                      />
+                    </div>
+                    <div className="w-48 space-y-2">
+                      <Label htmlFor="amount">Amount</Label>
+                      <div className="flex gap-2">
                         <Input
                           id="amount"
                           type="number"
@@ -628,80 +629,76 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                             const stellarPreciseValue = parseFloat(cappedValue.toFixed(7));
                             setPaymentData(prev => ({ ...prev, amount: stellarPreciseValue.toString() }));
                           }}
+                          className="flex-1"
                         />
-                        {fiatValue && (
-                          <p className="text-xs text-muted-foreground">≈ {fiatValue}</p>
-                        )}
-                        {/* MAX Slider */}
-                        {getSelectedAssetInfo() && (
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toFixed(2)} {paymentData.asset}</span>
-                            </div>
-                            <div className="relative">
-                              <input
-                                type="range"
-                                min="0"
-                                max={getSelectedAssetInfo()!.code === 'XLM' 
-                                  ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
-                                  : parseFloat(getSelectedAssetInfo()!.balance)
-                                }
-                                 step="0.0000001"
-                                value={paymentData.amount || '0'}
-                                onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
-                                className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer slider-glow"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <Select
-                        value={paymentData.asset}
-                        onValueChange={(value) => {
-                          const selectedAsset = availableAssets.find(asset => asset.code === value);
-                          setPaymentData(prev => ({ 
-                            ...prev, 
-                            asset: value,
-                            assetIssuer: selectedAsset?.issuer || '',
-                            amount: '' // Reset amount when changing asset
-                          }));
-                          setTrustlineError(''); // Clear error when changing asset
-                        }}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue>
-                            <span className="font-medium">{paymentData.asset}</span>
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="min-w-80">
-                           {availableAssets.map(asset => {
-                             const balance = parseFloat(asset.balance);
-                             // Format with 7 decimal places max (Stellar precision)
-                             const formattedBalance = balance === 0 ? '0.0000000' :
-                               balance.toFixed(7).replace(/\.?0+$/, '');
-                             
-                             // Split into integer and decimal parts for alignment
-                             const [integerPart, decimalPart] = formattedBalance.includes('.') 
-                               ? formattedBalance.split('.') 
-                               : [formattedBalance, ''];
-                             
-                             return (
-                               <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
-                                 <div className="flex items-center justify-between w-full min-w-0">
-                                   <span className="font-medium text-left">{asset.code}</span>
-                                   <div className="flex items-baseline font-mono tabular-nums text-xs text-muted-foreground ml-4">
-                                     <span className="text-right">{integerPart}</span>
-                                     <span className="w-[1ch] text-center">.</span>
-                                     <span className="w-[7ch] text-left">{decimalPart.padEnd(7, '0')}</span>
+                        <Select
+                          value={paymentData.asset}
+                          onValueChange={(value) => {
+                            const selectedAsset = availableAssets.find(asset => asset.code === value);
+                            setPaymentData(prev => ({ 
+                              ...prev, 
+                              asset: value,
+                              assetIssuer: selectedAsset?.issuer || '',
+                              amount: '' // Reset amount when changing asset
+                            }));
+                            setTrustlineError(''); // Clear error when changing asset
+                          }}
+                        >
+                          <SelectTrigger className="w-20">
+                            <SelectValue>
+                              <span className="font-medium">{paymentData.asset}</span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="min-w-96">
+                             {availableAssets.map(asset => {
+                               const balance = parseFloat(asset.balance);
+                               // Format with 7 decimal places max (Stellar precision)
+                               const formattedBalance = balance === 0 ? '0.0000000' :
+                                 balance.toFixed(7).replace(/\.?0+$/, '');
+                               
+                               return (
+                                 <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                                   <div className="flex items-center justify-between w-full min-w-0">
+                                     <span className="font-medium text-left min-w-0 truncate">{asset.code}</span>
+                                     <div className="font-mono text-xs text-muted-foreground ml-8 min-w-fit">
+                                       {formattedBalance}
+                                     </div>
                                    </div>
-                                 </div>
-                               </SelectItem>
-                             );
-                           })}
-                        </SelectContent>
-                      </Select>
+                                 </SelectItem>
+                               );
+                             })}
+                         </SelectContent>
+                       </Select>
+                      </div>
                     </div>
                   </div>
+                  
+                  {fiatValue && (
+                    <p className="text-xs text-muted-foreground">≈ {fiatValue}</p>
+                  )}
+                  
+                  {/* MAX Slider */}
+                  {getSelectedAssetInfo() && (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <input
+                          type="range"
+                          min="0"
+                          max={getSelectedAssetInfo()!.code === 'XLM' 
+                            ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
+                            : parseFloat(getSelectedAssetInfo()!.balance)
+                          }
+                           step="0.0000001"
+                          value={paymentData.amount || '0'}
+                          onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
+                          className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer slider-glow"
+                        />
+                      </div>
+                      <div className="flex justify-end text-xs text-muted-foreground">
+                        <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toFixed(2)} {paymentData.asset}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="memo">Memo (Optional)</Label>
