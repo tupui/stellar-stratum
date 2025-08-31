@@ -678,7 +678,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                           </SelectTrigger>
                           <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
                             {/* Header */}
-                            <div className="sticky top-0 z-20 grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-2 text-[11px] text-muted-foreground bg-popover border-b border-border/50">
+                            <div className="sticky top-0 z-50 grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-2 text-[11px] text-muted-foreground bg-popover border-b border-border/50">
                               <span className="uppercase tracking-wider font-medium">Asset</span>
                               <span className="text-right uppercase tracking-wider font-medium">Balance</span>
                             </div>
