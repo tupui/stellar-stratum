@@ -491,27 +491,35 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   // Get available assets from account balances with prices and balances
   const getAvailableAssets = () => {
-    const assets = [{ 
+    const assetsMap = new Map();
+    
+    // Add XLM first
+    const xlmBalance = accountData.balances.find(b => b.asset_type === 'native')?.balance || '0';
+    assetsMap.set('XLM-', {
       code: 'XLM', 
       issuer: '', 
       name: 'Stellar Lumens',
-      balance: accountData.balances.find(b => b.asset_type === 'native')?.balance || '0',
+      balance: xlmBalance,
       price: assetPrices['XLM'] || 0
-    }];
+    });
     
+    // Add other assets with unique key (code + issuer)
     accountData.balances.forEach(balance => {
       if (balance.asset_type !== 'native' && balance.asset_code && balance.asset_issuer) {
-        assets.push({
-          code: balance.asset_code,
-          issuer: balance.asset_issuer,
-          name: balance.asset_code,
-          balance: balance.balance,
-          price: assetPrices[balance.asset_code] || 0
-        });
+        const key = `${balance.asset_code}-${balance.asset_issuer}`;
+        if (!assetsMap.has(key)) {
+          assetsMap.set(key, {
+            code: balance.asset_code,
+            issuer: balance.asset_issuer,
+            name: balance.asset_code,
+            balance: balance.balance,
+            price: assetPrices[balance.asset_code] || 0
+          });
+        }
       }
     });
     
-    return assets;
+    return Array.from(assetsMap.values());
   };
 
   const availableAssets = getAvailableAssets();
