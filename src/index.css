@@ -124,10 +124,10 @@ All colors MUST be HSL.
 
 @keyframes glow-sweep {
   0% {
-    background-position: -100% 0;
+    background-position: 100% 0;
   }
   100% {
-    background-position: 100% 0;
+    background-position: -100% 0;
   }
 }
 

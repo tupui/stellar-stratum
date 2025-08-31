@@ -184,9 +184,9 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
         <div className="space-y-3">
           {loading && filteredAssets.length === 0 ? (
             <div className="flex items-center justify-center py-8">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Loading prices...</span>
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-success" />
+                <span className="text-success bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent font-medium">Loading prices...</span>
               </div>
             </div>
           ) : filteredAssets.length === 0 ? (
