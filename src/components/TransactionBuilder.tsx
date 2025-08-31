@@ -618,18 +618,20 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                       <div className="flex gap-2">
                         <Input
                           id="amount"
-                          type="number"
+                          type="text"
                           placeholder="0.00"
-                          value={paymentData.amount}
-                          max={getSelectedAssetInfo()?.code === 'XLM' 
-                            ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
-                            : getSelectedAssetInfo()?.balance
-                          }
+                          value={paymentData.amount ? parseFloat(paymentData.amount).toLocaleString('en-US', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 7,
+                            useGrouping: true
+                          }) : ''}
                           onChange={(e) => {
+                            // Remove commas and convert to number
+                            const numericValue = e.target.value.replace(/,/g, '');
                             const maxAmount = getSelectedAssetInfo()?.code === 'XLM' 
                               ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
                               : parseFloat(getSelectedAssetInfo()?.balance || '0');
-                            const inputValue = parseFloat(e.target.value) || 0;
+                            const inputValue = parseFloat(numericValue) || 0;
                             const cappedValue = Math.min(inputValue, maxAmount);
                             // Ensure Stellar precision (max 7 decimal places)
                             const stellarPreciseValue = parseFloat(cappedValue.toFixed(7));
@@ -655,24 +657,23 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                               <span className="font-medium text-sm">{paymentData.asset}</span>
                             </SelectValue>
                           </SelectTrigger>
-                          <SelectContent className="min-w-96 max-h-64 overflow-y-auto">
+                          <SelectContent className="min-w-[400px] max-h-64 overflow-y-auto">
                              {availableAssets.map(asset => {
                                 const balance = parseFloat(asset.balance);
-                                // Format with 7 decimal places max (Stellar precision)
-                                const formattedBalance = balance === 0 ? '0.0000000' :
-                                  balance.toFixed(7).replace(/\.?0+$/, '');
-                                
-                                // Split at decimal for alignment
-                                const [integerPart, decimalPart] = formattedBalance.split('.');
+                                // Format with proper thousand separators and decimal alignment
+                                const formattedBalance = balance.toLocaleString('en-US', {
+                                  minimumFractionDigits: 7,
+                                  maximumFractionDigits: 7,
+                                  useGrouping: true
+                                });
                                 
                                 return (
                                   <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
                                     <div className="flex items-center justify-between w-full">
-                                      <span className="font-medium text-left min-w-0 truncate pr-4">{asset.code}</span>
-                                      <div className="font-mono text-xs text-muted-foreground text-right min-w-fit">
-                                        <span className="inline-block text-right min-w-[60px]">{integerPart}</span>
-                                        {decimalPart && <span className="text-muted-foreground/70">.{decimalPart}</span>}
-                                      </div>
+                                      <span className="font-medium text-left pr-6 min-w-[80px]">{asset.code}</span>
+                                      <span className="font-mono text-xs text-muted-foreground text-right min-w-[120px] tabular-nums">
+                                        {formattedBalance}
+                                      </span>
                                     </div>
                                   </SelectItem>
                                 );
@@ -706,7 +707,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                         />
                       </div>
                       <div className="flex justify-end text-xs text-muted-foreground">
-                        <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toFixed(7).replace(/\.?0+$/, '')} {paymentData.asset}</span>
+                        <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 7,
+                          useGrouping: true
+                        })} {paymentData.asset}</span>
                       </div>
                     </div>
                   )}
