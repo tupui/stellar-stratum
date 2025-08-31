@@ -2,8 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle, Settings, Info } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
@@ -118,22 +119,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
                   <AlertTriangle className="w-6 h-6 text-red-500" />
                   Operation Thresholds
                 </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="sm" className="shrink-0">
-                        <Info className="w-4 h-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-sm">
-                      <div className="space-y-2 text-sm">
-                        <p><strong>Low threshold:</strong> Trust lines, bump sequence</p>
-                        <p><strong>Medium threshold:</strong> Payments, offers, manage data</p>
-                        <p><strong>High threshold:</strong> Account changes, merge account</p>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <ThresholdInfoTooltip />
               </CardTitle>
               <CardDescription>
                 Required signature weights for different operations

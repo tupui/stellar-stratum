@@ -12,11 +12,12 @@ import {
   Plus, 
   Trash2, 
   AlertTriangle, 
-  CheckCircle, 
+  CheckCircle,
   Info,
   Eye,
   EyeOff 
 } from 'lucide-react';
+import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -131,17 +132,13 @@ export const MultisigConfigBuilder = ({
       warnings.push('You are removing the current account as a signer');
     }
 
-    // Check if current account will have enough weight for high threshold operations
-    if (currentAccountSigner && currentAccountSigner.weight < newThresholds.high_threshold) {
-      warnings.push('Current account alone cannot meet high threshold requirement');
-    }
-
-    // Check for potential lockout
-    const canMeetHighThreshold = finalSigners.some(s => s.weight >= newThresholds.high_threshold) ||
-      finalSigners.reduce((max, s) => Math.max(max, s.weight), 0) >= newThresholds.high_threshold;
+    // Check for potential lockout scenarios
+    // Note: In multisig, what matters is the sum of weights from signers who sign together,
+    // not individual signer weights. Multiple signers can combine their weights to meet thresholds.
     
-    if (!canMeetHighThreshold && newThresholds.high_threshold > 1) {
-      warnings.push('No single signer can meet the high threshold requirement');
+    // Warn if total available weight is insufficient (this would create a lockout)
+    if (totalWeight < newThresholds.high_threshold && newThresholds.high_threshold > 0) {
+      errors.push(`Total signer weight (${totalWeight}) is less than high threshold (${newThresholds.high_threshold}). This will lock the account.`);
     }
 
     return {
@@ -528,27 +525,8 @@ export const MultisigConfigBuilder = ({
               <Shield className="w-6 h-6" />
               Operation Thresholds
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="shrink-0"
-            >
-              {showAdvanced ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              <span className="hidden sm:inline ml-1">
-                {showAdvanced ? 'Hide' : 'Show'} Details
-              </span>
-            </Button>
+            <ThresholdInfoTooltip />
           </CardTitle>
-          {showAdvanced && (
-            <CardDescription>
-              <div className="space-y-2 text-sm">
-                <p><strong>Low threshold:</strong> Trust lines, bump sequence</p>
-                <p><strong>Medium threshold:</strong> Payments, offers, manage data</p>
-                <p><strong>High threshold:</strong> Account changes (like this operation), merge account</p>
-              </div>
-            </CardDescription>
-          )}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
