@@ -90,14 +90,58 @@ const ensureAssetListsLoaded = async (oraclesToLoad: OracleConfig[]): Promise<vo
 // Sleep utility for retry delays
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-// Fetch price by checking all 3 reflector oracles systematically
-const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
-  // Load all oracle asset lists to ensure we have complete data
-  const allOracles = [REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.FX];
-  await ensureAssetListsLoaded(allOracles);
+// Asset to oracle mapping cache
+const assetOracleMapping: Record<string, { oracle: OracleConfig; asset: Asset }> = {};
+let mappingInitialized = false;
 
-  // Try to resolve the asset across all oracles
-  const resolved = resolveOracleAndAsset(assetCode, assetIssuer, allOracles);
+// Initialize the asset-to-oracle mapping by querying all 3 contracts
+const initializeAssetMapping = async (): Promise<void> => {
+  if (mappingInitialized) return;
+  
+  const allOracles = [REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.FX];
+  
+  // Load asset lists from all oracles in parallel
+  await Promise.all(allOracles.map(oracle => getOracleAssetsWithRetry(oracle)));
+  
+  // Build the mapping
+  for (const oracle of allOracles) {
+    const cacheKey = `assets_${oracle.contract}`;
+    const cached = oracleAssetsCache[cacheKey];
+    
+    if (cached && cached.assets) {
+      for (const assetId of cached.assets) {
+        // Handle different asset formats
+        if (assetId.startsWith('stellar_')) {
+          // This is a Stellar asset with issuer/contract ID
+          const code = assetId.substring(8);
+          assetOracleMapping[assetId] = { 
+            oracle, 
+            asset: { type: AssetType.Stellar, code } 
+          };
+        } else {
+          // This is a direct symbol (XLM, USDC, BTC, etc.)
+          assetOracleMapping[assetId] = { 
+            oracle, 
+            asset: { type: AssetType.Other, code: assetId } 
+          };
+        }
+      }
+    }
+  }
+  
+  mappingInitialized = true;
+  console.log(`Asset mapping initialized with ${Object.keys(assetOracleMapping).length} assets across ${allOracles.length} oracles`);
+};
+
+// Fetch price using the asset-to-oracle mapping
+const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
+  // Initialize mapping if not done yet
+  if (!mappingInitialized) {
+    await initializeAssetMapping();
+  }
+  
+  // Find the oracle for this specific asset
+  const resolved = findAssetInMapping(assetCode, assetIssuer);
   if (!resolved) {
     console.warn(`No oracle found for asset: ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}`);
     return 0;
@@ -113,6 +157,37 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
     console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}:`, error);
     return 0;
   }
+};
+
+// Find asset in the pre-built mapping
+const findAssetInMapping = (assetCode: string, assetIssuer?: string): { oracle: OracleConfig; asset: Asset } | null => {
+  // 1) First try direct symbol lookup (for XLM, USDC, BTC, etc.)
+  if (assetOracleMapping[assetCode]) {
+    return assetOracleMapping[assetCode];
+  }
+  
+  // 2) For issued assets, try different formats
+  if (assetIssuer) {
+    const contractId = computeStellarAssetContractId(assetCode, assetIssuer);
+    
+    // Try different formats that might exist in the mapping
+    const formats = [
+      `stellar_${assetIssuer}`,        
+      `stellar_${contractId}`,         
+      contractId,                      
+      assetIssuer,                     
+      `${assetCode}_${assetIssuer}`,   
+      `${assetCode}:${assetIssuer}`    
+    ];
+    
+    for (const format of formats) {
+      if (assetOracleMapping[format]) {
+        return assetOracleMapping[format];
+      }
+    }
+  }
+  
+  return null;
 };
 
 // Create Asset object for oracle calls
@@ -362,7 +437,7 @@ export const getLastPriceUpdate = (): Date | null => {
   }
 };
 
-// Clear price cache but keep asset lists (for refresh functionality)
+// Clear price cache and reset mapping (for refresh functionality)
 export const clearPriceCache = (): void => {
   try {
     // Clear in-memory price cache
@@ -371,6 +446,10 @@ export const clearPriceCache = (): void => {
     // Clear localStorage price cache
     localStorage.removeItem(CACHE_KEY);
     
+    // Reset asset mapping to force re-initialization
+    Object.keys(assetOracleMapping).forEach(key => delete assetOracleMapping[key]);
+    mappingInitialized = false;
+    loadedOracles.clear();
     
   } catch (error) {
     console.warn('Failed to clear price cache:', error);
