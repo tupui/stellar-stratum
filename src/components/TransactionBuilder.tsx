@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink, Shield, TrendingUp, Share2 } from 'lucide-react';
+import { Send, FileCode, Shield, Share2, Check, ExternalLink, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -20,7 +19,7 @@ import {
   Memo,
   Horizon
 } from '@stellar/stellar-sdk';
-import { signTransaction, horizonServer, submitTransaction, submitToRefractor, pullFromRefractor } from '@/lib/stellar';
+import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor } from '@/lib/stellar';
 import { signWithWallet } from '@/lib/walletKit';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
@@ -30,6 +29,9 @@ import { MultisigConfigBuilder } from './MultisigConfigBuilder';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { PaymentForm } from './payment/PaymentForm';
+import { XdrProcessor } from './transaction/XdrProcessor';
+import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 
 
 interface TransactionBuilderProps {
@@ -81,7 +83,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet' } | null>(null);
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
-  const [fiatValue, setFiatValue] = useState<string>('');
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
@@ -91,7 +92,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     setSignedBy([]);
     setRefractorId('');
     setSuccessData(null);
-    setFiatValue('');
   }, [activeTab]);
 
   useEffect(() => {
@@ -103,7 +103,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
           return { key, price };
         } catch (error) {
-          console.warn(`Failed to get price for ${key}:`, error);
           return { key, price: 0 };
         }
       });
@@ -121,39 +120,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     };
     loadPrices();
   }, [accountData.balances]);
-
-  // Update fiat value when amount, asset, or currency changes
-  useEffect(() => {
-    const updateFiatValue = async () => {
-      if (!paymentData.amount || !paymentData.asset) {
-        setFiatValue('');
-        return;
-      }
-
-      const price = assetPrices[paymentData.asset] || 0;
-      if (price === 0) {
-        setFiatValue('N/A');
-        return;
-      }
-
-      const usdValue = parseFloat(paymentData.amount) * price;
-      if (quoteCurrency === 'USD') {
-        setFiatValue(`$${usdValue.toFixed(2)}`);
-      } else {
-        try {
-          const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
-          const currency = getCurrentCurrency();
-          setFiatValue(`${currency?.symbol || ''}${convertedValue.toFixed(2)}`);
-        } catch (error) {
-          console.warn('FX conversion failed, showing USD:', error);
-          setFiatValue(`$${usdValue.toFixed(2)}`);
-        }
-      }
-    };
-
-    updateFiatValue();
-  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency]);
-  // Check trustline for non-XLM assets
   const checkTrustline = async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
     
@@ -263,7 +229,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         duration: 2000,
       });
     } catch (error) {
-      console.error('Build error:', error);
       toast({
         title: "Build failed",
         description: error instanceof Error ? error.message : "Failed to build transaction",
@@ -301,7 +266,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         duration: 2000,
       });
     } catch (error) {
-      console.error('XDR processing error:', error);
       toast({
         title: "Processing failed",
         description: "Invalid XDR format",
@@ -336,7 +300,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         duration: 2000,
       });
     } catch (error) {
-      console.error('Signing error:', error);
       toast({
         title: "Signing failed",
         description: error instanceof Error ? error.message : "Failed to sign transaction",
@@ -374,7 +337,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         duration: 2000,
       });
     } catch (error) {
-      console.error('Signing error:', error);
       toast({
         title: 'Signing failed',
         description: error instanceof Error ? error.message : 'Failed to sign transaction',
@@ -406,7 +368,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       setXdrData({ input: '', output: '' });
       setSignedBy([]);
     } catch (error) {
-      console.error('Submission error:', error);
       toast({
         title: "Submission failed",
         description: error instanceof Error ? error.message : "Failed to submit transaction",
@@ -432,7 +393,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         duration: 2000,
       });
     } catch (error) {
-      console.error('Refractor submission error:', error);
       toast({
         title: "Refractor submission failed",
         description: error instanceof Error ? error.message : "Failed to submit to Refractor",
@@ -455,7 +415,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         duration: 2000,
       });
     } catch (error) {
-      console.error('Refractor pull error:', error);
       toast({
         title: "Failed to pull from Refractor",
         description: error instanceof Error ? error.message : "Invalid Refractor ID or network error",
@@ -532,29 +491,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return Array.from(byCode.values());
   };
 
-  const availableAssets = getAvailableAssets();
-
-  const getSelectedAssetInfo = () => {
-    return availableAssets.find(asset => asset.code === paymentData.asset);
-  };
-
-  const handleMaxAmount = () => {
-    const selectedAsset = getSelectedAssetInfo();
-    if (selectedAsset) {
-      // Reserve some XLM for fees
-      const maxAmount = selectedAsset.code === 'XLM' 
-        ? Math.max(0, parseFloat(selectedAsset.balance) - 0.5).toString()
-        : selectedAsset.balance;
-      setPaymentData(prev => ({ ...prev, amount: maxAmount }));
-    }
-  };
-
-  // Check if form is valid for payment build
-  const isPaymentFormValid = paymentData.destination && 
-    paymentData.amount && 
-    paymentData.asset &&
-    (paymentData.asset === 'XLM' || paymentData.assetIssuer) &&
-    !trustlineError;
 
   return (
     <div className="min-h-screen bg-background p-3 sm:p-6">
@@ -630,213 +566,29 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               </div>
 
               <TabsContent value="payment" className="space-y-4 mt-6">
-
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-4 items-end">
-                      <div className="space-y-2">
-                        <Label htmlFor="destination">Destination Address</Label>
-                        <Input
-                          id="destination"
-                          placeholder="GABC..."
-                          maxLength={56}
-                          value={paymentData.destination}
-                          onChange={(e) => setPaymentData(prev => ({ ...prev, destination: e.target.value }))}
-                          className="text-xs sm:text-sm"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="amount">Amount</Label>
-                          {fiatValue && (
-                            <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <Input
-                            id="amount"
-                            type="text"
-                            placeholder="0.00"
-                            value={paymentData.amount ? parseFloat(paymentData.amount).toLocaleString('en-US', {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 7,
-                              useGrouping: true
-                            }) : ''}
-                            onChange={(e) => {
-                              // Remove commas and convert to number
-                              const numericValue = e.target.value.replace(/,/g, '');
-                              const maxAmount = getSelectedAssetInfo()?.code === 'XLM' 
-                                ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
-                                : parseFloat(getSelectedAssetInfo()?.balance || '0');
-                              const inputValue = parseFloat(numericValue) || 0;
-                              const cappedValue = Math.min(inputValue, maxAmount);
-                              // Ensure Stellar precision (max 7 decimal places)
-                              const stellarPreciseValue = parseFloat(cappedValue.toFixed(7));
-                              setPaymentData(prev => ({ ...prev, amount: stellarPreciseValue.toString() }));
-                            }}
-                            className="flex-1 text-xs sm:text-sm"
-                          />
-                          <Select
-                            value={paymentData.asset}
-                            onValueChange={(value) => {
-                              const selectedAsset = availableAssets.find(asset => asset.code === value);
-                              setPaymentData(prev => ({ 
-                                ...prev, 
-                                asset: value,
-                                assetIssuer: selectedAsset?.issuer || '',
-                                amount: '' // Reset amount when changing asset
-                              }));
-                              setTrustlineError(''); // Clear error when changing asset
-                            }}
-                          >
-                            <SelectTrigger className="w-20 sm:w-24">
-                              <SelectValue>
-                                <span className="font-medium text-xs sm:text-sm">{paymentData.asset}</span>
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
-                              {/* Header */}
-                              <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
-                                <span className="uppercase tracking-wider font-medium">Asset</span>
-                                <span className="text-right uppercase tracking-wider font-medium">Balance</span>
-                              </div>
-                              {/* Items */}
-                              {availableAssets.map((asset) => {
-                                const balance = parseFloat(asset.balance);
-                                const formattedBalance = balance.toLocaleString('en-US', {
-                                  minimumFractionDigits: 7,
-                                  maximumFractionDigits: 7,
-                                  useGrouping: true,
-                                });
-                                return (
-                                  <SelectPrimitive.Item
-                                    key={`${asset.code}-${asset.issuer}`}
-                                    value={asset.code}
-                                    className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer"
-                                  >
-                                    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                                      <SelectPrimitive.ItemIndicator>
-                                        <Check className="h-4 w-4" />
-                                      </SelectPrimitive.ItemIndicator>
-                                    </span>
-                                    <SelectPrimitive.ItemText>
-                                      <div className="grid grid-cols-[80px_1fr] items-center gap-3">
-                                        <span className="font-medium">{asset.code}</span>
-                                        <span className="font-mono tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
-                                      </div>
-                                    </SelectPrimitive.ItemText>
-                                  </SelectPrimitive.Item>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Enhanced Slider */}
-                    {getSelectedAssetInfo() && (
-                      <div className="space-y-3">
-                        <div className="relative">
-                          <input
-                            type="range"
-                            min="0"
-                            max={getSelectedAssetInfo()!.code === 'XLM' 
-                              ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
-                              : parseFloat(getSelectedAssetInfo()!.balance)
-                            }
-                            step="0.0000001"
-                            value={paymentData.amount || '0'}
-                            onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
-                            className="stellar-slider w-full"
-                            style={{
-                              '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / parseFloat(getSelectedAssetInfo()!.code === 'XLM' 
-                                ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5).toString()
-                                : getSelectedAssetInfo()!.balance)) * 100}%`
-                            } as React.CSSProperties}
-                          />
-                        </div>
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toLocaleString('en-US', {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 7,
-                            useGrouping: true
-                          })} {paymentData.asset}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleMaxAmount}
-                            className="h-auto p-1 text-xs text-primary hover:text-primary/80"
-                          >
-                            Max
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                <div className="space-y-2">
-                  <Label htmlFor="memo">Memo (Optional)</Label>
-                  <Input
-                    id="memo"
-                    placeholder="Payment description"
-                    value={paymentData.memo}
-                    onChange={(e) => setPaymentData(prev => ({ ...prev, memo: e.target.value }))}
-                  />
-                </div>
-                
-                {/* Trustline Error */}
-                {trustlineError && (
-                  <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm text-foreground">{trustlineError}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <Button 
-                  onClick={handlePaymentBuild} 
-                  disabled={isBuilding || !isPaymentFormValid}
-                  className="w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50"
-                >
-                  {isBuilding ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                      Building Transaction...
-                    </div>
-                  ) : (
-                    'Build Payment Transaction'
-                  )}
-                </Button>
+                <PaymentForm
+                  paymentData={paymentData}
+                  onPaymentDataChange={(data) => {
+                    setPaymentData(data);
+                    if (data.asset !== paymentData.asset) {
+                      setTrustlineError(''); // Clear error when changing asset
+                    }
+                  }}
+                  availableAssets={getAvailableAssets()}
+                  assetPrices={assetPrices}
+                  trustlineError={trustlineError}
+                  onBuild={handlePaymentBuild}
+                  isBuilding={isBuilding}
+                />
               </TabsContent>
 
               <TabsContent value="xdr" className="space-y-4 mt-6">
-                <div className="space-y-2">
-                  <Label htmlFor="xdr-input">Transaction XDR</Label>
-                  <Textarea
-                    id="xdr-input"
-                    placeholder="Paste transaction XDR here..."
-                    className="min-h-32 font-mono text-sm"
-                    value={xdrData.input}
-                    onChange={(e) => setXdrData(prev => ({ ...prev, input: e.target.value }))}
-                  />
-                </div>
-                <Button 
-                  onClick={handleXdrProcess} 
-                  disabled={isBuilding}
-                  className="w-full"
-                  variant="outline"
-                >
-                  {isBuilding ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Processing XDR...
-                    </div>
-                  ) : (
-                    'Process XDR'
-                  )}
-                </Button>
+                <XdrProcessor
+                  xdrInput={xdrData.input}
+                  onXdrInputChange={(xdr) => setXdrData(prev => ({ ...prev, input: xdr }))}
+                  onProcess={handleXdrProcess}
+                  isProcessing={isBuilding}
+                />
               </TabsContent>
 
               <TabsContent value="multisig" className="space-y-4 mt-6">

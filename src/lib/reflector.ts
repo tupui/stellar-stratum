@@ -167,10 +167,8 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   
   try {
     const price = await getOracleAssetPriceWithRetry(oracle, asset);
-    console.log(`Successfully fetched price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}: $${price}`);
     return price;
   } catch (error) {
-    console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}:`, error);
     return 0;
   }
 };
