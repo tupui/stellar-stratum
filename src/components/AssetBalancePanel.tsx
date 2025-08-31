@@ -132,11 +132,11 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
-              <p className="text-2xl font-bold text-primary">
+              <p className="text-2xl font-bold">
                 {loading ? (
-                  <span className="animate-pulse">Loading...</span>
+                  <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span>
                 ) : (
-                  formatValue(totalValueUSD)
+                  <span className="text-primary">{formatValue(totalValueUSD)}</span>
                 )}
               </p>
             </div>
