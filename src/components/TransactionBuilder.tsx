@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink, Shield, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink, Shield, TrendingUp, Share2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -30,7 +30,7 @@ import { MultisigConfigBuilder } from './MultisigConfigBuilder';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
-import refractorFavicon from '@/assets/refractor-favicon.ico';
+
 
 interface TransactionBuilderProps {
   onBack: () => void;
@@ -615,7 +615,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   <span className="sm:hidden">XDR</span>
                 </TabsTrigger>
                 <TabsTrigger value="refractor" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-                  <img src={refractorFavicon} alt="Refractor" className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <Share2 className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="hidden sm:inline">Refractor</span>
                   <span className="sm:hidden">Ref</span>
                 </TabsTrigger>
