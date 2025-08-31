@@ -66,7 +66,7 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
           
           <p className="text-xl md:text-2xl text-muted-foreground max-w-4xl mx-auto mb-16 leading-relaxed">
             Stellar's threshold-based authorization system. Configure signature weights, 
-            manage signer permissions, and execute transactions with institutional-grade security.
+            manage signer permissions, and execute secure multi-signature transactions.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
@@ -82,8 +82,7 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
           </div>
 
           <div className="mt-20 text-sm text-muted-foreground">
-            Built on <span className="text-stellar-yellow font-medium">Stellar Network</span> • 
-            ED25519 Signatures • Threshold Authorization
+            Built on <span className="text-stellar-yellow font-medium">Stellar</span> by Consulting Manao GmbH
           </div>
         </div>
       </div>

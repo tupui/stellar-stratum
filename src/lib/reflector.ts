@@ -161,8 +161,7 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   // Find the oracle for this specific asset
   const resolved = findAssetInMapping(assetCode, assetIssuer);
   if (!resolved) {
-    console.warn(`No oracle found for asset: ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}`);
-    return 0;
+    return 0; // Silently return 0 for assets without oracles
   }
 
   const { oracle, asset } = resolved;
