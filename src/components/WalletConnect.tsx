@@ -86,7 +86,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
     if (isLedger) {
       return (
         <img 
-          src="/ledger-logo.svg" 
+          src="/ledger-logo.png" 
           alt="Ledger logo" 
           className="w-8 h-8 text-primary"
           onError={(e) => {
