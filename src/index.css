@@ -42,8 +42,8 @@ All colors MUST be HSL.
 
     /* Wallet-specific design tokens */
     --primary-glow: 48 96% 63%;
-    --success: 142 71% 45%;
-    --success-glow: 142 71% 55%;
+    --success: 270 95% 60%;
+    --success-glow: 270 95% 70%;
     --warning: 38 92% 50%;
     --info: 199 89% 48%;
     --stellar-yellow: 48 96% 53%;
@@ -51,7 +51,7 @@ All colors MUST be HSL.
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(48 96% 53%), hsl(48 96% 63%));
     --gradient-secondary: linear-gradient(135deg, hsl(220 13% 15%), hsl(220 13% 20%));
-    --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(142 71% 55%));
+    --gradient-success: linear-gradient(135deg, hsl(270 95% 60%), hsl(270 95% 70%));
     --gradient-hero: linear-gradient(135deg, hsl(48 96% 53%) 0%, hsl(48 96% 63%) 100%);
     --gradient-glow: radial-gradient(circle, hsl(48 96% 53% / 0.1) 0%, transparent 70%);
     

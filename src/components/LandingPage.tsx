@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowRight, Wallet } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { WalletConnect } from '@/components/WalletConnect';
 
 interface LandingPageProps {
@@ -47,8 +47,11 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
           <Button 
             variant="outline" 
             className="border-muted-foreground/20 hover:border-stellar-yellow hover:text-stellar-yellow"
+            asChild
           >
-            Contact
+            <a href="https://x.com/PamphileRoy" target="_blank" rel="noopener noreferrer">
+              Contact
+            </a>
           </Button>
         </div>
       </header>
@@ -75,14 +78,20 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
               className="h-16 px-12 text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105"
               onClick={() => setShowWalletModal(true)}
             >
-              <Wallet className="w-6 h-6 mr-3" />
               Launch App
-              <ArrowRight className="w-6 h-6 ml-3" />
             </Button>
           </div>
 
           <div className="mt-20 text-sm text-muted-foreground">
-            Built on <span className="text-stellar-yellow font-medium">Stellar</span> by Consulting Manao GmbH
+            Built on <span className="text-stellar-yellow font-medium">Stellar</span> by{' '}
+            <a 
+              href="https://consulting-manao.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-stellar-yellow font-medium hover:underline"
+            >
+              Consulting Manao GmbH
+            </a>
           </div>
         </div>
       </div>
