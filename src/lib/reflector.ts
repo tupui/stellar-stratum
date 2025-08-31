@@ -140,7 +140,6 @@ const initializeAssetMapping = async (): Promise<void> => {
       }
       
       mappingInitialized = true;
-      console.log(`Asset mapping initialized with ${totalAssets} assets across ${allOracles.length} oracles`);
     } catch (error) {
       console.error('Failed to initialize asset mapping:', error);
       mappingPromise = null; // Reset to allow retry

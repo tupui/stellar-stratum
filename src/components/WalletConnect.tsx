@@ -216,8 +216,6 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       // Import required modules  
       const StellarSDK = await import('@stellar/stellar-sdk');
       const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
-
-      console.log('Setting up Soroban Domains SDK...');
       
       // Use proper SDK structure from working example
       const networkPassphrase = StellarSDK.Networks.PUBLIC;
@@ -233,19 +231,14 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
         simulationAccount: 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV'
       });
       
-      console.log('SDK created, searching for domain:', sorobanDomain.trim().toLowerCase());
-      
       // Search for the domain using working pattern
       const res = await sdk.searchDomain({ domain: sorobanDomain.trim().toLowerCase() });
-      console.log('Domain search result:', res);
       
       // Extract values using working pattern
       const v = (res && (res.value ?? res)) as any;
-      console.log('Processed result:', v);
       
       if (v && typeof v.owner === 'string') {
         const resolvedAddress = v.address || v.owner;
-        console.log('Domain resolved to:', resolvedAddress);
         
         toast({
           title: "Domain Resolved",
@@ -255,7 +248,6 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
         setSorobanDomain('');
         onConnect("Soroban Domain", resolvedAddress);
       } else {
-        console.log('Domain not found or invalid format');
         toast({
           title: "Domain Not Found",
           description: `The domain "${sorobanDomain}" could not be resolved.`,
@@ -264,7 +256,6 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       }
     } catch (error: any) {
       const { userMessage, fullError } = sanitizeError(error);
-      console.error('Failed to resolve Soroban domain:', fullError);
       
       let errorMessage = userMessage;
       

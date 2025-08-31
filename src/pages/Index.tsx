@@ -72,7 +72,6 @@ const Index = () => {
 
   const handleSignTransaction = () => {
     // Handle signing flow
-    console.log('Sign transaction flow');
   };
 
   const handleBackToDashboard = () => {
