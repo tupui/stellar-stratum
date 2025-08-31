@@ -598,7 +598,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
                 <div className="grid grid-cols-1 gap-4">
                   <div className="flex gap-4 items-end">
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-[2] space-y-2">
                       <Label htmlFor="destination">Destination Address</Label>
                       <Input
                         id="destination"
@@ -608,7 +608,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                         onChange={(e) => setPaymentData(prev => ({ ...prev, destination: e.target.value }))}
                       />
                     </div>
-                    <div className="w-40 space-y-2">
+                    <div className="flex-1 space-y-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="amount">Amount</Label>
                         {fiatValue && (
@@ -701,8 +701,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                           } as React.CSSProperties}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>0</span>
+                      <div className="flex justify-end text-xs text-muted-foreground">
                         <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toFixed(7).replace(/\.?0+$/, '')} {paymentData.asset}</span>
                       </div>
                     </div>
