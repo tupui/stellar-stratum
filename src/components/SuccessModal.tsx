@@ -34,8 +34,8 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
         ? 'https://stellar.expert/explorer/testnet' 
         : 'https://stellar.expert/explorer/public';
       window.open(`${baseUrl}/tx/${hash}`, '_blank');
-    } else if (type === 'refractor') {
-      window.open('https://refractor.space/', '_blank');
+    } else if (type === 'refractor' && refractorId) {
+      window.open(`https://api.refractor.space/tx/${refractorId}`, '_blank');
     }
   };
 
@@ -49,7 +49,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
     : 'Your transaction has been submitted to Refractor for signature collection';
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-lg shadow-xl border-success/50 bg-success/5">
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">

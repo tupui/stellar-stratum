@@ -167,6 +167,8 @@ export const XdrDetails = ({ xdr, network = 'mainnet' }: XdrDetailsProps) => {
                         {op.type === 'setOptions' && (
                           <div className="text-sm space-y-1">
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p><span className="text-muted-foreground">Account:</span> {(op.details as any).source || details.source}</p>
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             {(op.details as any).signer && (
                               <p><span className="text-muted-foreground">Signer:</span> {(op.details as any).signer.key} (Weight: {(op.details as any).signer.weight})</p>
                             )}
