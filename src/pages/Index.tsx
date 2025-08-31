@@ -111,6 +111,11 @@ const Index = () => {
             accountPublicKey={publicKey}
             accountData={accountData}
             initialTab={appState === 'multisig-config' ? 'multisig' : 'payment'}
+            onAccountRefresh={async () => {
+              if (!publicKey) return;
+              const realAccountData = await fetchAccountData(publicKey);
+              setAccountData(realAccountData);
+            }}
           />
         )}
 

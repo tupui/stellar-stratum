@@ -46,6 +46,7 @@ interface MultisigConfigBuilderProps {
   currentThresholds: Thresholds;
   currentNetwork: 'mainnet' | 'testnet';
   onXdrGenerated: (xdr: string) => void;
+  onAccountRefresh?: () => Promise<void>;
 }
 
 interface EditableSigner {

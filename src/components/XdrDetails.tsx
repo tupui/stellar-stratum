@@ -164,6 +164,30 @@ export const XdrDetails = ({ xdr, network = 'mainnet' }: XdrDetailsProps) => {
                             <p><span className="text-muted-foreground">Amount:</span> {(op.details as any).amount} {(op.details as any).asset?.code || 'XLM'}</p>
                           </div>
                         )}
+                        {op.type === 'setOptions' && (
+                          <div className="text-sm space-y-1">
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            {(op.details as any).signer && (
+                              <p><span className="text-muted-foreground">Signer:</span> {(op.details as any).signer.key} (Weight: {(op.details as any).signer.weight})</p>
+                            )}
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            {((op.details as any).lowThreshold !== undefined || (op.details as any).medThreshold !== undefined || (op.details as any).highThreshold !== undefined) && (
+                              <div>
+                                <p className="text-muted-foreground">Thresholds:</p>
+                                {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                                {(op.details as any).lowThreshold !== undefined && <p className="ml-2">Low: {(op.details as any).lowThreshold}</p>}
+                                {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                                {(op.details as any).medThreshold !== undefined && <p className="ml-2">Medium: {(op.details as any).medThreshold}</p>}
+                                {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                                {(op.details as any).highThreshold !== undefined && <p className="ml-2">High: {(op.details as any).highThreshold}</p>}
+                              </div>
+                            )}
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            {(op.details as any).masterWeight !== undefined && (
+                              <p><span className="text-muted-foreground">Master Weight:</span> {(op.details as any).masterWeight}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

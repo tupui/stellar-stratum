@@ -1,0 +1,118 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Check, Copy, ExternalLink, X } from 'lucide-react';
+import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+
+interface SuccessModalProps {
+  type: 'network' | 'refractor';
+  hash?: string;
+  refractorId?: string;
+  network?: 'mainnet' | 'testnet';
+  onClose: () => void;
+}
+
+export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onClose }: SuccessModalProps) => {
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const copyToClipboard = async (text: string, label: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast({
+      title: "Copied to clipboard",
+      description: `${label} has been copied`,
+      duration: 3000,
+    });
+  };
+
+  const openExplorer = () => {
+    if (type === 'network' && hash) {
+      const baseUrl = network === 'testnet' 
+        ? 'https://stellar.expert/explorer/testnet' 
+        : 'https://stellar.expert/explorer/public';
+      window.open(`${baseUrl}/tx/${hash}`, '_blank');
+    } else if (type === 'refractor') {
+      window.open('https://refractor.space/', '_blank');
+    }
+  };
+
+  const displayValue = type === 'network' ? hash : refractorId;
+  const label = type === 'network' ? 'Transaction Hash' : 'Refractor ID';
+  const title = type === 'network' 
+    ? 'Transaction Submitted Successfully'
+    : 'Submitted to Refractor Successfully';
+  const description = type === 'network'
+    ? 'Your transaction has been successfully submitted to the Stellar network'
+    : 'Your transaction has been submitted to Refractor for signature collection';
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-lg shadow-xl border-success/50 bg-success/5">
+        <CardHeader className="pb-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                <Check className="w-5 h-5 text-success" />
+              </div>
+              <div>
+                <CardTitle className="text-success">{title}</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">{description}</p>
+              </div>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClose}
+              className="h-8 w-8 p-0"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="space-y-4">
+          {/* Network Badge */}
+          {type === 'network' && (
+            <div className="flex justify-center">
+              <Badge variant={network === 'mainnet' ? 'default' : 'secondary'} className="px-3">
+                {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
+              </Badge>
+            </div>
+          )}
+
+          {/* Hash/ID Display */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-muted-foreground">{label}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => copyToClipboard(displayValue || '', label)}
+                className="h-8 w-8 p-0"
+              >
+                {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+              </Button>
+            </div>
+            <div className="bg-secondary/50 rounded-lg p-3 border">
+              <p className="font-mono text-sm break-all text-foreground">{displayValue}</p>
+            </div>
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2">
+            <Button 
+              onClick={openExplorer}
+              className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              {type === 'network' ? 'View on Stellar Expert' : 'View on Refractor'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};

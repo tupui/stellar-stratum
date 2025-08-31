@@ -26,6 +26,7 @@ import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
+import { SuccessModal } from './SuccessModal';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -56,9 +57,10 @@ interface TransactionBuilderProps {
     };
   };
   initialTab?: string;
+  onAccountRefresh?: () => Promise<void>;
 }
 
-export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment' }: TransactionBuilderProps) => {
+export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment', onAccountRefresh }: TransactionBuilderProps) => {
   const { toast } = useToast();
   const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -81,7 +83,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [currentNetwork, setCurrentNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
-  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet' } | null>(null);
+  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' } | null>(null);
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -356,17 +358,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       const result = await submitTransaction(xdrToSubmit, currentNetwork);
       
       // Store success data for display
-      setSuccessData({ hash: result.hash, network: currentNetwork });
-      
-      toast({
-        title: "Transaction submitted successfully",
-        description: `Transaction hash: ${result.hash}`,
-        duration: 2000,
-      });
+      setSuccessData({ hash: result.hash, network: currentNetwork, type: 'network' });
       
       // Reset form
       setXdrData({ input: '', output: '' });
       setSignedBy([]);
+      
+      // If this was a multisig configuration change, refresh account data
+      if (activeTab === 'multisig' && onAccountRefresh) {
+        await onAccountRefresh();
+      }
     } catch (error) {
       toast({
         title: "Submission failed",
@@ -387,11 +388,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       const id = await submitToRefractor(xdrToSubmit, currentNetwork);
       setRefractorId(id);
       
-      toast({
-        title: "Submitted to Refractor",
-        description: `Transaction ID: ${id}`,
-        duration: 2000,
-      });
+      // Show success modal instead of just toast
+      setSuccessData({ hash: id, network: currentNetwork, type: 'refractor' });
     } catch (error) {
       toast({
         title: "Refractor submission failed",
@@ -598,6 +596,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   currentThresholds={accountData.thresholds}
                   currentNetwork={currentNetwork}
                   onXdrGenerated={(xdr) => setXdrData(prev => ({ ...prev, output: xdr }))}
+                  onAccountRefresh={onAccountRefresh}
                 />
               </TabsContent>
 
@@ -647,50 +646,15 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         )}
 
 
-        {/* Transaction Success */}
+        {/* Transaction Success Modal */}
         {successData && (
-          <Card className="shadow-card border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-            <CardHeader>
-              <CardTitle className="text-green-700 dark:text-green-300 flex items-center gap-2">
-                <Check className="w-5 h-5" />
-                Transaction Submitted Successfully
-              </CardTitle>
-              <CardDescription>
-                Your transaction has been successfully submitted to the Stellar network
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">Transaction Hash</Label>
-                <div className="bg-background p-3 rounded-lg">
-                  <p className="font-mono text-sm break-all">{successData.hash}</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => {
-                    const baseUrl = successData.network === 'testnet' 
-                      ? 'https://stellar.expert/explorer/testnet' 
-                      : 'https://stellar.expert/explorer/public';
-                    window.open(`${baseUrl}/tx/${successData.hash}`, '_blank');
-                  }}
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  View on Stellar Expert
-                </Button>
-                
-                <Button 
-                  variant="secondary"
-                  onClick={() => setSuccessData(null)}
-                >
-                  Create Another Transaction
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <SuccessModal
+            type={successData.type}
+            hash={successData.type === 'network' ? successData.hash : undefined}
+            refractorId={successData.type === 'refractor' ? successData.hash : undefined}
+            network={successData.network}
+            onClose={() => setSuccessData(null)}
+          />
         )}
 
       </div>
