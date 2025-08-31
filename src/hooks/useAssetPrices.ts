@@ -40,8 +40,11 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
         }));
         setAssetsWithPrices(initialAssets);
 
-        // Fetch prices in parallel but update individually as they complete
-        const pricePromises = balances.map(async (balance, index) => {
+        // Fetch prices with adaptive batching: burst up to 50, then batch sequentially
+        const MAX_BURST = 50;
+
+        const runForIndex = async (index: number) => {
+          const balance = balances[index];
           try {
             const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
             const priceUSD = price > 0 ? price : 0;
@@ -58,8 +61,6 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
               };
               return updated;
             });
-            
-            return { index, priceUSD, valueUSD };
           } catch (error) {
             console.warn(`Failed to fetch price for ${balance.asset_code}:`, error);
             // Update with zero price on error
@@ -73,12 +74,21 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
               };
               return updated;
             });
-            return { index, priceUSD: 0, valueUSD: 0 };
           }
-        });
+        };
 
-        // Wait for all to complete, then sort
-        await Promise.allSettled(pricePromises);
+        const indices = balances.map((_, i) => i);
+
+        if (balances.length <= MAX_BURST) {
+          // Run all without sleeps when under threshold
+          await Promise.allSettled(indices.map(runForIndex));
+        } else {
+          console.debug(`[useAssetPrices] ${balances.length} assets -> processing in batches of ${MAX_BURST}`);
+          for (let start = 0; start < indices.length; start += MAX_BURST) {
+            const batch = indices.slice(start, start + MAX_BURST);
+            await Promise.allSettled(batch.map(runForIndex));
+          }
+        }
         
         // Final sort by value
         setAssetsWithPrices(prev => 

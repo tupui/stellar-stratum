@@ -7,18 +7,40 @@ export interface OracleConfig {
   decimals: number;
 }
 
-// Global rate limiter to respect ~60 req/10s (200ms between calls)
-const MIN_RPC_INTERVAL_MS = 200;
-let __rpcLastAt = 0;
+// Adaptive rate limiter: allow up to 50 RPC calls per 10s with burst, only wait when exceeded
+const WINDOW_MS = 10_000;
+const BURST_LIMIT = 50;
+let __rpcTimestamps: number[] = [];
 let __rpcQueue: Promise<any> = Promise.resolve();
 const __sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+function __cleanupTimestamps() {
+  const now = Date.now();
+  __rpcTimestamps = __rpcTimestamps.filter((t) => now - t < WINDOW_MS);
+}
+
+async function __acquireToken() {
+  __cleanupTimestamps();
+  const now = Date.now();
+  if (__rpcTimestamps.length < BURST_LIMIT) {
+    __rpcTimestamps.push(now);
+    return;
+  }
+  const oldest = __rpcTimestamps[0];
+  const wait = Math.max(0, WINDOW_MS - (now - oldest));
+  if (wait > 0) {
+    // Only sleep when we exceed the burst limit
+    console.debug(`[oracle-client] Rate limit reached: sleeping ${wait}ms`);
+    await __sleep(wait);
+  }
+  __cleanupTimestamps();
+  __rpcTimestamps.push(Date.now());
+}
+
 function __runLimited<T>(fn: () => Promise<T>): Promise<T> {
   const task = __rpcQueue.then(async () => {
-    const now = Date.now();
-    const wait = Math.max(0, MIN_RPC_INTERVAL_MS - (now - __rpcLastAt));
-    if (wait) await __sleep(wait);
+    await __acquireToken();
     const result = await fn();
-    __rpcLastAt = Date.now();
     return result;
   });
   // keep the chain, but don't block on previous errors
