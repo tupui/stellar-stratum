@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { LoadingPill } from '@/components/ui/loading-pill';
 import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock } from 'lucide-react';
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
@@ -215,7 +216,9 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                       <p className="text-sm text-muted-foreground">
                         {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_type}
                       </p>
-                      {asset.priceUSD > 0 ? (
+                      {asset.priceUSD === -1 ? (
+                        <LoadingPill size="sm" className="mt-1" />
+                      ) : asset.priceUSD > 0 ? (
                         <p className="text-xs text-muted-foreground">
                           {formatPrice(asset.priceUSD)} per {asset.symbol}
                         </p>
@@ -232,9 +235,13 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                       {formatBalance(asset.balance)}
                     </p>
                     <p className="text-sm text-muted-foreground">{asset.symbol}</p>
-                    <p className="text-sm font-medium text-primary">
-                      {formatValue(asset.valueUSD)}
-                    </p>
+                    <div className="text-sm font-medium text-primary">
+                      {asset.priceUSD === -1 ? (
+                        <LoadingPill size="sm" />
+                      ) : (
+                        formatValue(asset.valueUSD)
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

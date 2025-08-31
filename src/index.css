@@ -112,6 +112,15 @@ All colors MUST be HSL.
   }
 }
 
+@keyframes shimmer {
+  0%, 100% { 
+    background-position: -200% 0; 
+  }
+  50% { 
+    background-position: 200% 0; 
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

@@ -206,27 +206,39 @@ const resolveOracleAndAsset = (assetCode: string, assetIssuer?: string): { oracl
       
       // 2) Issued/Stellar assets
       if (assetIssuer) {
-        // Prefer stellar_{issuer} format
-        const stellarFormat = `stellar_${assetIssuer}`;
-        console.log(`Checking stellar format: ${stellarFormat}`);
-        if (cached.assets.includes(stellarFormat)) {
-          console.log(`✓ Found stellar format: ${stellarFormat} in ${oracle.contract}`);
-          return { oracle, asset: { type: AssetType.Stellar, code: assetIssuer } };
-        }
+        // Compute SAC contract ID for this asset
+        const contractId = computeStellarAssetContractId(assetCode, assetIssuer);
+        console.log(`🔍 Computed SAC contract ID for ${assetCode}:${assetIssuer} = ${contractId}`);
         
-        // Check if any asset contains the issuer
-        const matchingAssets = cached.assets.filter(a => a.includes(assetIssuer));
-        console.log(`Assets containing issuer "${assetIssuer}":`, matchingAssets);
+        // Try different formats in order of preference
+        const formats = [
+          `stellar_${assetIssuer}`,           // stellar_{issuer}
+          `stellar_${contractId}`,            // stellar_{contractId} 
+          contractId,                         // contractId direct
+          assetIssuer,                       // issuer direct
+          `${assetCode}_${assetIssuer}`,     // code_issuer
+          `${assetCode}:${assetIssuer}`      // code:issuer
+        ];
         
-        // Fallback formats
-        const formats = [assetIssuer, `${assetCode}_${assetIssuer}`, `${assetCode}:${assetIssuer}`];
         for (const format of formats) {
           console.log(`Checking format: ${format}`);
           if (cached.assets.includes(format)) {
-            console.log(`✓ Found fallback format: ${format} in ${oracle.contract}`);
-            return { oracle, asset: { type: AssetType.Stellar, code: assetIssuer } };
+            console.log(`✓ Found match: ${format} in ${oracle.contract}`);
+            // Use Stellar type with the appropriate code
+            if (format.startsWith('stellar_') || format === contractId) {
+              const code = format.startsWith('stellar_') ? format.substring(8) : format;
+              return { oracle, asset: { type: AssetType.Stellar, code } };
+            } else {
+              return { oracle, asset: { type: AssetType.Stellar, code: assetIssuer } };
+            }
           }
         }
+        
+        // Check if any asset contains the issuer or contractId
+        const matchingAssets = cached.assets.filter(a => 
+          a.includes(assetIssuer) || (contractId && a.includes(contractId))
+        );
+        console.log(`Assets containing issuer or contractId:`, matchingAssets);
       }
       console.log(`✗ No match found in ${oracle.contract}`);
     } else {

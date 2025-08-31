@@ -27,42 +27,67 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
         return;
       }
 
-      try {
-        setLoading(true);
-        setError(null);
+      setLoading(true);
+      setError(null);
 
-        const assetsWithPricesPromises = balances.map(async (balance) => {
+      try {
+        // Initialize assets with loading state (priceUSD = -1 indicates loading)
+        const initialAssets: AssetWithPrice[] = balances.map(balance => ({
+          ...balance,
+          priceUSD: -1, // Special value to indicate loading
+          valueUSD: 0,
+          symbol: balance.asset_code || 'XLM'
+        }));
+        setAssetsWithPrices(initialAssets);
+
+        // Fetch prices in parallel but update individually as they complete
+        const pricePromises = balances.map(async (balance, index) => {
           try {
-            const priceUSD = await getAssetPrice(balance.asset_code, balance.asset_issuer);
-            const balanceNum = parseFloat(balance.balance);
-            const valueUSD = balanceNum * priceUSD;
+            const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
+            const priceUSD = price > 0 ? price : 0;
+            const valueUSD = priceUSD * parseFloat(balance.balance);
             
-            return {
-              ...balance,
-              priceUSD,
-              valueUSD,
-              symbol: balance.asset_code || 'XLM'
-            };
-          } catch (err) {
-            console.warn(`Failed to get price for ${balance.asset_code}:`, err);
-            return {
-              ...balance,
-              priceUSD: 0,
-              valueUSD: 0,
-              symbol: balance.asset_code || 'XLM'
-            };
+            // Update this specific asset when its price is ready
+            setAssetsWithPrices(prev => {
+              const updated = [...prev];
+              updated[index] = {
+                ...balance,
+                priceUSD,
+                valueUSD,
+                symbol: balance.asset_code || 'XLM'
+              };
+              return updated;
+            });
+            
+            return { index, priceUSD, valueUSD };
+          } catch (error) {
+            console.warn(`Failed to fetch price for ${balance.asset_code}:`, error);
+            // Update with zero price on error
+            setAssetsWithPrices(prev => {
+              const updated = [...prev];
+              updated[index] = {
+                ...balance,
+                priceUSD: 0,
+                valueUSD: 0,
+                symbol: balance.asset_code || 'XLM'
+              };
+              return updated;
+            });
+            return { index, priceUSD: 0, valueUSD: 0 };
           }
         });
 
-        const results = await Promise.all(assetsWithPricesPromises);
+        // Wait for all to complete, then sort
+        await Promise.allSettled(pricePromises);
         
-        // Sort by USD value (highest first)
-        results.sort((a, b) => b.valueUSD - a.valueUSD);
+        // Final sort by value
+        setAssetsWithPrices(prev => 
+          [...prev].sort((a, b) => (b.valueUSD || 0) - (a.valueUSD || 0))
+        );
         
-        setAssetsWithPrices(results);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch asset prices');
-        console.error('Error fetching asset prices:', err);
+      } catch (error) {
+        console.error('Error fetching prices:', error);
+        setError('Failed to fetch asset prices');
       } finally {
         setLoading(false);
       }
@@ -71,7 +96,10 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
     fetchPrices();
   }, [balances]);
 
-  const totalValueUSD = assetsWithPrices.reduce((sum, asset) => sum + asset.valueUSD, 0);
+  const totalValueUSD = assetsWithPrices.reduce((sum, asset) => {
+    // Only count assets that have finished loading (priceUSD >= 0)
+    return asset.priceUSD >= 0 ? sum + (asset.valueUSD || 0) : sum;
+  }, 0);
 
   return {
     assetsWithPrices,
