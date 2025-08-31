@@ -5,6 +5,7 @@ import { TransactionBuilder } from '@/components/TransactionBuilder';
 import { Footer } from '@/components/Footer';
 import { fetchAccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
+import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
 
 interface AccountData {
   publicKey: string;
@@ -105,33 +106,37 @@ const Index = () => {
 
         {/* Transaction Builder */}
         {!loading && (appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
-          <TransactionBuilder
-            key={`${appState}-${publicKey}`}
-            onBack={handleBackToDashboard}
-            accountPublicKey={publicKey}
-            accountData={accountData}
-            initialTab={appState === 'multisig-config' ? 'multisig' : 'payment'}
-            onAccountRefresh={async () => {
-              if (!publicKey) return;
-              const realAccountData = await fetchAccountData(publicKey);
-              setAccountData(realAccountData);
-            }}
-          />
+          <FiatCurrencyProvider>
+            <TransactionBuilder
+              key={`${appState}-${publicKey}`}
+              onBack={handleBackToDashboard}
+              accountPublicKey={publicKey}
+              accountData={accountData}
+              initialTab={appState === 'multisig-config' ? 'multisig' : 'payment'}
+              onAccountRefresh={async () => {
+                if (!publicKey) return;
+                const realAccountData = await fetchAccountData(publicKey);
+                setAccountData(realAccountData);
+              }}
+            />
+          </FiatCurrencyProvider>
         )}
 
         {/* Account Dashboard */}
         {!loading && appState === 'dashboard' && publicKey && accountData && (
-          <AccountOverview
-            accountData={accountData}
-            onInitiateTransaction={handleInitiateTransaction}
-            onSignTransaction={() => {}}
-            onRefreshBalances={async () => {
-              if (!publicKey) return;
-              const realAccountData = await fetchAccountData(publicKey);
-              setAccountData(realAccountData);
-            }}
-            onDisconnect={handleDisconnect}
-          />
+          <FiatCurrencyProvider>
+            <AccountOverview
+              accountData={accountData}
+              onInitiateTransaction={handleInitiateTransaction}
+              onSignTransaction={() => {}}
+              onRefreshBalances={async () => {
+                if (!publicKey) return;
+                const realAccountData = await fetchAccountData(publicKey);
+                setAccountData(realAccountData);
+              }}
+              onDisconnect={handleDisconnect}
+            />
+          </FiatCurrencyProvider>
         )}
       </div>
       

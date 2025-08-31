@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, Suspense, lazy } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Wallet } from 'lucide-react';
-import { WalletConnect } from '@/components/WalletConnect';
+import { Wallet, RefreshCw } from 'lucide-react';
+
+const WalletConnect = lazy(() => import('@/components/WalletConnect').then(module => ({ default: module.WalletConnect })));
 
 interface LandingPageProps {
   onConnect: (walletType: string, publicKey: string) => void;
@@ -108,7 +109,16 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
               Choose your preferred method to connect and get started with Stratum.
             </DialogDescription>
           </DialogHeader>
-          <WalletConnect onConnect={handleConnect} isModal />
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-8">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Loading wallets...</span>
+              </div>
+            </div>
+          }>
+            <WalletConnect onConnect={handleConnect} isModal />
+          </Suspense>
         </DialogContent>
       </Dialog>
     </div>
