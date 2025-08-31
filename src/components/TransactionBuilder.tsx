@@ -671,20 +671,31 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                             <span className="font-medium">{paymentData.asset}</span>
                           </SelectValue>
                         </SelectTrigger>
-                        <SelectContent className="min-w-64">
-                          {availableAssets.map(asset => (
-                            <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
-                              <div className="flex items-center justify-between w-full">
-                                <span className="font-medium">{asset.code}</span>
-                                <span className="text-xs text-muted-foreground font-mono tabular-nums">
-                                  {parseFloat(asset.balance).toLocaleString(undefined, { 
-                                    minimumFractionDigits: 2, 
-                                    maximumFractionDigits: 6 
-                                  })}
-                                </span>
-                              </div>
-                            </SelectItem>
-                          ))}
+                        <SelectContent className="min-w-80">
+                           {availableAssets.map(asset => {
+                             const balance = parseFloat(asset.balance);
+                             const formattedBalance = balance === 0 ? '0' :
+                               balance < 0.01 ? balance.toFixed(6) :
+                               balance < 1 ? balance.toFixed(4) :
+                               balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                             
+                             return (
+                               <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                                 <div className="flex items-center justify-between w-full gap-4">
+                                   <span className="font-medium">{asset.code}</span>
+                                   <div className="flex items-baseline gap-1 font-mono tabular-nums text-xs text-muted-foreground">
+                                     <span className="text-right">{formattedBalance.split('.')[0]}</span>
+                                     {formattedBalance.includes('.') && (
+                                       <>
+                                         <span>.</span>
+                                         <span>{formattedBalance.split('.')[1]}</span>
+                                       </>
+                                     )}
+                                   </div>
+                                 </div>
+                               </SelectItem>
+                             );
+                           })}
                         </SelectContent>
                       </Select>
                     </div>

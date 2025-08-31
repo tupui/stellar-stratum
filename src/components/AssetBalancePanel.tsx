@@ -32,6 +32,8 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(getLastFetchTimestamp());
   const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
+  const [convertedAssetValues, setConvertedAssetValues] = useState<Record<number, number>>({});
+  const [convertedAssetPrices, setConvertedAssetPrices] = useState<Record<number, number>>({});
 
   const handleRefresh = async () => {
     try {
@@ -68,45 +70,95 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
     ? assetsWithPrices.filter(asset => asset.valueUSD >= 1)
     : assetsWithPrices;
 
-  // Update converted total value when currency or totalValueUSD changes
+  // Update converted values when currency changes
   useEffect(() => {
-    if (totalValueUSD && quoteCurrency !== 'USD') {
-      convertFromUSD(totalValueUSD, quoteCurrency).then(converted => {
-        setConvertedTotalValue(converted);
-      }).catch(error => {
-        console.warn('Failed to convert total value:', error);
-        setConvertedTotalValue(totalValueUSD); // Fallback to USD value
-      });
-    } else {
-      setConvertedTotalValue(totalValueUSD);
-    }
-  }, [totalValueUSD, quoteCurrency]);
+    const convertAllValues = async () => {
+      if (quoteCurrency === 'USD') {
+        setConvertedTotalValue(totalValueUSD);
+        setConvertedAssetValues({});
+        setConvertedAssetPrices({});
+        return;
+      }
 
-  const formatPriceSync = (price: number): string => {
+      // Convert total value
+      if (totalValueUSD) {
+        try {
+          const convertedTotal = await convertFromUSD(totalValueUSD, quoteCurrency);
+          setConvertedTotalValue(convertedTotal);
+        } catch (error) {
+          console.warn('Failed to convert total value:', error);
+          setConvertedTotalValue(totalValueUSD);
+        }
+      }
+
+      // Convert individual asset values and prices
+      const newConvertedValues: Record<number, number> = {};
+      const newConvertedPrices: Record<number, number> = {};
+
+      for (let i = 0; i < assetsWithPrices.length; i++) {
+        const asset = assetsWithPrices[i];
+        if (asset.valueUSD > 0) {
+          try {
+            const convertedValue = await convertFromUSD(asset.valueUSD, quoteCurrency);
+            newConvertedValues[i] = convertedValue;
+          } catch (error) {
+            console.warn(`Failed to convert value for asset ${asset.symbol}:`, error);
+          }
+        }
+        if (asset.priceUSD > 0) {
+          try {
+            const convertedPrice = await convertFromUSD(asset.priceUSD, quoteCurrency);
+            newConvertedPrices[i] = convertedPrice;
+          } catch (error) {
+            console.warn(`Failed to convert price for asset ${asset.symbol}:`, error);
+          }
+        }
+      }
+
+      setConvertedAssetValues(newConvertedValues);
+      setConvertedAssetPrices(newConvertedPrices);
+    };
+
+    convertAllValues();
+  }, [totalValueUSD, quoteCurrency, assetsWithPrices]);
+
+  const formatPriceSync = (price: number, assetIndex: number): string => {
     const currency = getCurrentCurrency();
-    // For individual prices, show in USD if conversion fails
-    if (quoteCurrency !== 'USD') {
-      return `$${price.toFixed(2)}`;
-    }
     
     if (price === 0) return 'N/A';
-    if (price < 0.01) return `${currency.symbol}${price.toFixed(6)}`;
-    if (price < 1) return `${currency.symbol}${price.toFixed(4)}`;
-    return `${currency.symbol}${price.toFixed(2)}`;
+    
+    // Use converted price if available, otherwise use USD price
+    const displayPrice = quoteCurrency !== 'USD' && convertedAssetPrices[assetIndex] 
+      ? convertedAssetPrices[assetIndex] 
+      : price;
+    
+    // If we couldn't convert and it's not USD, show USD as fallback
+    const symbol = quoteCurrency !== 'USD' && !convertedAssetPrices[assetIndex] 
+      ? '$' 
+      : currency.symbol;
+    
+    if (displayPrice < 0.01) return `${symbol}${displayPrice.toFixed(6)}`;
+    if (displayPrice < 1) return `${symbol}${displayPrice.toFixed(4)}`;
+    return `${symbol}${displayPrice.toFixed(2)}`;
   };
 
-  const formatValueForAsset = (value: number): string => {
+  const formatValueForAsset = (value: number, assetIndex: number): string => {
     const currency = getCurrentCurrency();
-    // For individual asset values, show in USD if conversion fails
-    if (quoteCurrency !== 'USD') {
-      if (value === 0) return 'N/A';
-      if (value < 0.01) return '<$0.01';
-      return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
     
     if (value === 0) return 'N/A';
-    if (value < 0.01) return `<${currency.symbol}0.01`;
-    return `${currency.symbol}${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    
+    // Use converted value if available, otherwise use USD value
+    const displayValue = quoteCurrency !== 'USD' && convertedAssetValues[assetIndex] 
+      ? convertedAssetValues[assetIndex] 
+      : value;
+    
+    // If we couldn't convert and it's not USD, show USD as fallback
+    const symbol = quoteCurrency !== 'USD' && !convertedAssetValues[assetIndex] 
+      ? '$' 
+      : currency.symbol;
+    
+    if (displayValue < 0.01) return `<${symbol}0.01`;
+    return `${symbol}${displayValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatValueSync = (value: number): string => {
@@ -260,17 +312,17 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                       <p className="text-sm text-muted-foreground/80">
                         {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_code}
                       </p>
-                       {asset.priceUSD === -1 ? (
-                         <LoadingPill size="sm" className="mt-1" />
-                       ) : asset.priceUSD > 0 ? (
-                         <p className="text-xs text-muted-foreground/70">
-                           {formatPriceSync(asset.priceUSD)} per {asset.symbol}
-                         </p>
-                       ) : (
-                         <p className="text-xs text-muted-foreground/70">
-                           Price unavailable
-                         </p>
-                       )}
+                        {asset.priceUSD === -1 ? (
+                          <LoadingPill size="sm" className="mt-1" />
+                        ) : asset.priceUSD > 0 ? (
+                          <p className="text-xs text-muted-foreground/70">
+                            {formatPriceSync(asset.priceUSD, index)} per {asset.symbol}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground/70">
+                            Price unavailable
+                          </p>
+                        )}
                     </div>
                   </div>
 
@@ -279,13 +331,13 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                       {formatBalance(asset.balance)}
                     </p>
                     <p className="text-sm text-muted-foreground/70">{asset.symbol}</p>
-                     <div className="text-sm font-medium text-primary">
-                       {asset.priceUSD === -1 ? (
-                         <LoadingPill size="sm" />
-                       ) : (
-                         formatValueForAsset(asset.valueUSD)
-                       )}
-                     </div>
+                      <div className="text-sm font-medium text-primary">
+                        {asset.priceUSD === -1 ? (
+                          <LoadingPill size="sm" />
+                        ) : (
+                          formatValueForAsset(asset.valueUSD, index)
+                        )}
+                      </div>
                   </div>
                 </div>
               </div>
