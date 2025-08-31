@@ -313,8 +313,8 @@ export const MultisigConfigBuilder = ({
     <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <Shield className="w-6 h-6" />
+        <h2 className="text-lg sm:text-xl md:text-2xl font-bold flex items-center gap-2">
+          <Shield className="w-5 h-5 sm:w-6 sm:h-6" />
           Multisig Configuration
         </h2>
         <p className="text-muted-foreground">
@@ -406,7 +406,7 @@ export const MultisigConfigBuilder = ({
                 return (
                   <div 
                     key={index}
-                    className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 p-3 rounded-lg border transition-smooth ${
+                    className={`p-3 rounded-lg border transition-smooth ${
                       signer.isNew
                         ? 'bg-green-500/10 border-green-500/30'
                         : isModified
@@ -414,92 +414,98 @@ export const MultisigConfigBuilder = ({
                         : 'bg-secondary/30 border-border'
                     }`}
                   >
-                    <div className="min-w-0">
-                      <p className="font-mono text-sm break-all">{signer.key}</p>
-                      <div className="flex gap-2 mt-1 flex-wrap text-xs">
-                        {signer.key === accountPublicKey && (
-                          <Badge variant="outline">Current Account</Badge>
-                        )}
-                        {signer.isNew && (
-                          <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">New</Badge>
-                        )}
-                        {isModified && (
-                          <Badge variant="outline" className="bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30">Modified</Badge>
-                        )}
+                    <div className="space-y-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm break-all">{signer.key}</p>
+                        <div className="flex gap-2 mt-1 flex-wrap text-xs">
+                          {signer.key === accountPublicKey && (
+                            <Badge variant="outline">Current Account</Badge>
+                          )}
+                          {signer.isNew && (
+                            <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">New</Badge>
+                          )}
+                          {isModified && (
+                            <Badge variant="outline" className="bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30">Modified</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          aria-label={`Weight for signer ${index + 1}`}
+                          type="number"
+                          min="0"
+                          max="255"
+                          value={signer.weight}
+                          onChange={(e) => {
+                            const value = parseInt(e.target.value);
+                            if (isNaN(value) || value < 0) {
+                              updateSignerWeight(index, 0);
+                            } else if (value > 255) {
+                              updateSignerWeight(index, 255);
+                            } else {
+                              updateSignerWeight(index, value);
+                            }
+                          }}
+                          className="w-20 h-8 text-center text-sm"
+                        />
+                        <Button
+                          aria-label="Remove signer"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => removeSigner(index)}
+                          className="h-8 w-8"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                    <Input
-                      aria-label={`Weight for signer ${index + 1}`}
-                      type="number"
-                      min="0"
-                      max="255"
-                      value={signer.weight}
-                      onChange={(e) => {
-                        const value = parseInt(e.target.value);
-                        if (isNaN(value) || value < 0) {
-                          updateSignerWeight(index, 0);
-                        } else if (value > 255) {
-                          updateSignerWeight(index, 255);
-                        } else {
-                          updateSignerWeight(index, value);
-                        }
-                      }}
-                      className="w-20 h-8 text-center text-sm"
-                    />
-                    <Button
-                      aria-label="Remove signer"
-                      variant="destructive"
-                      size="icon"
-                      onClick={() => removeSigner(index)}
-                      className="h-8 w-8"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* Add New Signer (aligned with rows) */}
-          <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 sm:gap-3 p-3 rounded-lg border border-border bg-secondary/20">
-            <Input
-              id="new-signer-key"
-              placeholder="GABC...XYZ (56 characters)"
-              value={newSignerKey}
-              onChange={(e) => setNewSignerKey(e.target.value)}
-              className="font-mono text-xs sm:text-sm h-8"
-              maxLength={56}
-            />
-            <Input
-              aria-label="New signer weight"
-              id="new-signer-weight"
-              type="number"
-              min="1"
-              max="255"
-              value={newSignerWeight}
-              onChange={(e) => {
-                const value = parseInt(e.target.value);
-                if (isNaN(value) || value < 1) {
-                  setNewSignerWeight(1);
-                } else if (value > 255) {
-                  setNewSignerWeight(255);
-                } else {
-                  setNewSignerWeight(value);
-                }
-              }}
-              className="w-16 sm:w-20 h-8 text-center text-xs sm:text-sm"
-            />
-            <Button 
-              aria-label="Add signer"
-              onClick={addNewSigner}
-              disabled={!newSignerKey.trim()}
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              variant="secondary"
-            >
-              <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-            </Button>
+          {/* Add New Signer (mobile responsive layout) */}
+          <div className="p-3 rounded-lg border border-border bg-secondary/20">
+            <div className="space-y-2">
+              <Input
+                id="new-signer-key"
+                placeholder="GABC...XYZ (56 characters)"
+                value={newSignerKey}
+                onChange={(e) => setNewSignerKey(e.target.value)}
+                className="font-mono text-xs sm:text-sm h-8"
+                maxLength={56}
+              />
+              <div className="flex items-center gap-2">
+                <Input
+                  aria-label="New signer weight"
+                  id="new-signer-weight"
+                  type="number"
+                  min="1"
+                  max="255"
+                  value={newSignerWeight}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (isNaN(value) || value < 1) {
+                      setNewSignerWeight(1);
+                    } else if (value > 255) {
+                      setNewSignerWeight(255);
+                    } else {
+                      setNewSignerWeight(value);
+                    }
+                  }}
+                  className="w-20 h-8 text-center text-sm"
+                />
+                <Button
+                  onClick={addNewSigner}
+                  disabled={!newSignerKey.trim()}
+                  className="h-8 px-3"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

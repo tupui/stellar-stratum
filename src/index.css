@@ -43,6 +43,7 @@ All colors MUST be HSL.
     /* Wallet-specific design tokens */
     --primary-glow: 48 96% 63%;
     --success: 270 95% 60%;
+    --success-foreground: 0 0% 98%;
     --success-glow: 270 95% 70%;
     --warning: 38 92% 50%;
     --info: 199 89% 48%;
