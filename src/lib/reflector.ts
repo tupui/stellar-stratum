@@ -92,7 +92,7 @@ const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(r
 
 // Fetch price with minimal oracle loading
 const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
-  console.log(`=== Starting fetchReflectorPrice for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} ===`);
+  
 
   const likelyOracles = assetIssuer
     ? [REFLECTOR_ORACLES.STELLAR]
@@ -102,16 +102,16 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
 
   const resolved = resolveOracleAndAsset(assetCode, assetIssuer, likelyOracles);
   if (!resolved) {
-    console.log(`Asset ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} not available in selected oracles - assigning N/A`);
+    
     return 0;
   }
 
   const { oracle, asset } = resolved;
-  console.log(`=== Using oracle ${oracle.contract} with asset:`, asset);
+  
 
   try {
     const price = await getOracleAssetPriceWithRetry(oracle, asset);
-    console.log(`=== Got price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}: ${price} ===`);
+    
     return price;
   } catch (error) {
     console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}:`, error);
@@ -137,7 +137,7 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
   
   // Return cached assets if still valid
   if (cached && (Date.now() - cached.timestamp) < ASSETS_CACHE_DURATION) {
-    console.log(`Using cached asset list for ${oracle.contract}:`, cached.assets.length, 'assets');
+    
     return cached.assets;
   }
   
@@ -151,7 +151,7 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
           assets,
           timestamp: Date.now()
         };
-        console.log(`Oracle ${oracle.contract} supports ${assets.length} assets`);
+        
         return assets;
       }
       
@@ -161,7 +161,7 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
         const jitter = Math.random() * baseDelay;
         const delay = baseDelay + jitter;
         
-        console.log(`No assets returned from ${oracle.contract}, retrying in ${Math.round(delay)}ms...`);
+        
         await sleep(delay);
       }
     } catch (error) {
@@ -173,7 +173,7 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
         const jitter = Math.random() * baseDelay;
         const delay = baseDelay + jitter;
         
-        console.log(`Retrying asset fetch from ${oracle.contract} in ${Math.round(delay)}ms...`);
+        
         await sleep(delay);
       }
     }
@@ -205,14 +205,10 @@ const resolveOracleAndAsset = (
     const cached = oracleAssetsCache[cacheKey];
     
     if (cached && cached.assets) {
-      console.log(`=== Checking oracle ${oracle.contract} ===`);
-      console.log(`Assets in oracle: ${cached.assets.length}`);
-      console.log(`Looking for: ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}`);
-      console.log(`Sample assets:`, cached.assets.slice(0, 5));
       
       // 1) Direct symbol match => use Other type with symbol
       if (cached.assets.includes(assetCode)) {
-        console.log(`✓ Found exact match: ${assetCode} in ${oracle.contract}`);
+        
         return { oracle, asset: { type: AssetType.Other, code: assetCode } };
       }
       
@@ -220,7 +216,7 @@ const resolveOracleAndAsset = (
       if (assetIssuer) {
         // Compute SAC contract ID for this asset
         const contractId = computeStellarAssetContractId(assetCode, assetIssuer);
-        console.log(`🔍 Computed SAC contract ID for ${assetCode}:${assetIssuer} = ${contractId}`);
+        
         
         // Try different formats in order of preference
         const formats = [
@@ -233,9 +229,9 @@ const resolveOracleAndAsset = (
         ];
         
         for (const format of formats) {
-          console.log(`Checking format: ${format}`);
+          
           if (cached.assets.includes(format)) {
-            console.log(`✓ Found match: ${format} in ${oracle.contract}`);
+            
             if (format.startsWith('stellar_') || format === contractId) {
               const code = format.startsWith('stellar_') ? format.substring(8) : format;
               return { oracle, asset: { type: AssetType.Stellar, code } };
@@ -248,15 +244,15 @@ const resolveOracleAndAsset = (
         const matchingAssets = cached.assets.filter(a => 
           a.includes(assetIssuer) || (contractId && a.includes(contractId))
         );
-        console.log(`Assets containing issuer or contractId:`, matchingAssets);
+        
       }
-      console.log(`✗ No match found in ${oracle.contract}`);
+      
     } else {
-      console.log(`No cached assets for oracle ${oracle.contract}`);
+      
     }
   }
   
-  console.log(`Asset ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} not found in any oracle`);
+  
   return null;
 };
 
@@ -267,7 +263,7 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
   
   // Return cached price if still valid
   if (cached && (Date.now() - cached.timestamp) < PRICE_CACHE_DURATION) {
-    console.log(`Using cached price for ${asset.code} from ${oracle.contract}: ${cached.price}`);
+    
     return cached.price;
   }
   
@@ -286,7 +282,7 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
           timestamp: Date.now()
         };
         
-        console.log(`Scaled price for ${asset.code}: ${price} (raw: ${rawPrice}, decimals: ${oracle.decimals})`);
+        
         return price;
       }
       
@@ -296,7 +292,7 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
         const jitter = Math.random() * baseDelay;
         const delay = baseDelay + jitter;
         
-        console.log(`No price returned for ${asset.code} from ${oracle.contract}, retrying in ${Math.round(delay)}ms...`);
+        
         await sleep(delay);
       }
     } catch (error) {
@@ -308,7 +304,7 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
         const jitter = Math.random() * baseDelay;
         const delay = baseDelay + jitter;
         
-        console.log(`Retrying ${asset.code} from ${oracle.contract} in ${Math.round(delay)}ms...`);
+        
         await sleep(delay);
       }
     }
@@ -382,7 +378,7 @@ const getCachedPrice = (assetKey: string): number => {
   const cached = cache[assetKey];
   
   if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-    console.log(`Using cached price for ${assetKey}: ${cached.price}`);
+    
     return cached.price;
   }
   
@@ -429,7 +425,7 @@ export const clearPriceCache = (): void => {
     // Clear localStorage price cache
     localStorage.removeItem(CACHE_KEY);
     
-    console.log('Price cache cleared');
+    
   } catch (error) {
     console.warn('Failed to clear price cache:', error);
   }
