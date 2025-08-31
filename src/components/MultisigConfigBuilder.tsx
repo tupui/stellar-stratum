@@ -334,7 +334,7 @@ export const MultisigConfigBuilder = ({
       {/* Current Configuration */}
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
             <Users className="w-5 h-5" />
             Current Configuration
           </CardTitle>
@@ -389,7 +389,7 @@ export const MultisigConfigBuilder = ({
       {/* Signers Configuration */}
       <Card className="shadow-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
             <Users className="w-5 h-5" />
             Signers ({editableSigners.length}/20)
           </CardTitle>
@@ -429,25 +429,29 @@ export const MultisigConfigBuilder = ({
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          aria-label={`Weight for signer ${index + 1}`}
-                          type="number"
-                          min="0"
-                          max="255"
-                          value={signer.weight}
-                          onChange={(e) => {
-                            const value = parseInt(e.target.value);
-                            if (isNaN(value) || value < 0) {
-                              updateSignerWeight(index, 0);
-                            } else if (value > 255) {
-                              updateSignerWeight(index, 255);
-                            } else {
-                              updateSignerWeight(index, value);
-                            }
-                          }}
-                          className="w-20 h-8 text-center text-sm"
-                        />
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col">
+                          <Label htmlFor={`weight-${index}`} className="text-xs text-muted-foreground">Weight</Label>
+                          <Input
+                            id={`weight-${index}`}
+                            aria-label={`Weight for signer ${index + 1}`}
+                            type="number"
+                            min="0"
+                            max="255"
+                            value={signer.weight}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              if (isNaN(value) || value < 0) {
+                                updateSignerWeight(index, 0);
+                              } else if (value > 255) {
+                                updateSignerWeight(index, 255);
+                              } else {
+                                updateSignerWeight(index, value);
+                              }
+                            }}
+                            className="w-20 h-8 text-center text-sm"
+                          />
+                        </div>
                         <Button
                           aria-label="Remove signer"
                           variant="destructive"
@@ -476,26 +480,29 @@ export const MultisigConfigBuilder = ({
                 className="font-mono text-xs sm:text-sm h-8"
                 maxLength={56}
               />
-              <div className="flex items-center gap-2">
-                <Input
-                  aria-label="New signer weight"
-                  id="new-signer-weight"
-                  type="number"
-                  min="1"
-                  max="255"
-                  value={newSignerWeight}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value);
-                    if (isNaN(value) || value < 1) {
-                      setNewSignerWeight(1);
-                    } else if (value > 255) {
-                      setNewSignerWeight(255);
-                    } else {
-                      setNewSignerWeight(value);
-                    }
-                  }}
-                  className="w-20 h-8 text-center text-sm"
-                />
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col">
+                  <Label htmlFor="new-signer-weight" className="text-xs text-muted-foreground">Weight</Label>
+                  <Input
+                    aria-label="New signer weight"
+                    id="new-signer-weight"
+                    type="number"
+                    min="1"
+                    max="255"
+                    value={newSignerWeight}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value);
+                      if (isNaN(value) || value < 1) {
+                        setNewSignerWeight(1);
+                      } else if (value > 255) {
+                        setNewSignerWeight(255);
+                      } else {
+                        setNewSignerWeight(value);
+                      }
+                    }}
+                    className="w-20 h-8 text-center text-sm"
+                  />
+                </div>
                 <Button
                   onClick={addNewSigner}
                   disabled={!newSignerKey.trim()}
@@ -514,7 +521,7 @@ export const MultisigConfigBuilder = ({
       <Card className="shadow-card">
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
               <Shield className="w-6 h-6" />
               Operation Thresholds
             </div>

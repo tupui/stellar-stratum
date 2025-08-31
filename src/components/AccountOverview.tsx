@@ -56,7 +56,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Multisig Wallet</h1>
+            <h1 className="text-xl sm:text-2xl font-bold whitespace-nowrap">Multisig Wallet</h1>
             <p className="text-muted-foreground text-sm">Manage your Stellar multisig operations</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
@@ -80,7 +80,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
         {/* Account Info */}
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
               <Shield className="w-5 h-5" />
               Account Information
             </CardTitle>
@@ -113,7 +113,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           {/* Thresholds */}
           <Card className="shadow-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
                 <AlertTriangle className="w-6 h-6 text-red-500" />
                 Operation Thresholds
               </CardTitle>
@@ -150,7 +150,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           {/* Signers */}
           <Card className="shadow-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
                 <Users className="w-5 h-5" />
                 Authorized Signers
               </CardTitle>
