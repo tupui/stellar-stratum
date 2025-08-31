@@ -324,9 +324,9 @@ export const MultisigConfigBuilder = ({
 
       {/* Safety Alert */}
       <Alert className="border-destructive/50 bg-destructive/10">
-        <AlertTriangle className="h-4 w-4 text-destructive" />
+        <AlertTriangle className="h-4 w-4 text-red-500" />
         <AlertDescription>
-          <strong className="text-destructive">Important:</strong> Changing multisig configuration can lock you out of your account. 
+          Changing multisig configuration can lock you out of your account. 
           Ensure thresholds don't exceed available signer weights and that you maintain access to sufficient signers.
         </AlertDescription>
       </Alert>
@@ -605,13 +605,13 @@ export const MultisigConfigBuilder = ({
         <div className="space-y-2">
         {validation.errors.map((error, index) => (
           <Alert key={index} variant="destructive" className="border-destructive/50 bg-destructive/10">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <AlertTriangle className="h-4 w-4 text-red-500" />
             <AlertDescription className="text-destructive">{error}</AlertDescription>
           </Alert>
         ))}
         {validation.warnings.map((warning, index) => (
           <Alert key={index} className="border-destructive/30 bg-destructive/5">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <AlertTriangle className="h-4 w-4 text-red-500" />
             <AlertDescription className="text-destructive">{warning}</AlertDescription>
           </Alert>
         ))}

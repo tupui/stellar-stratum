@@ -564,7 +564,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           <Button 
             variant="outline" 
             onClick={onBack}
-            className="flex items-center gap-2 hover:bg-secondary/80 transition-smooth text-success border-success/30 hover:border-success/50 self-start"
+            className="hover:bg-secondary/80 transition-smooth text-success border-success/30 hover:border-success/50 self-start"
           >
             <span className="hidden sm:inline">Back to</span> Dashboard
           </Button>
@@ -597,40 +597,42 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full p-1 bg-muted/50 rounded-lg border border-border/50">
-                <TabsTrigger 
-                  value="payment" 
-                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:border data-[state=active]:border-border data-[state=active]:shadow-sm rounded-md"
-                >
-                  <Send className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden sm:inline">Payment</span>
-                  <span className="sm:hidden">Pay</span>
-                </TabsTrigger>
-                 <TabsTrigger 
-                   value="multisig"
-                   className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:border data-[state=active]:border-border data-[state=active]:shadow-sm rounded-md"
-                 >
-                   <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
-                   <span className="hidden sm:inline">Multisig</span>
-                   <span className="sm:hidden">Config</span>
-                 </TabsTrigger>
-                <TabsTrigger 
-                  value="xdr"
-                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:border data-[state=active]:border-border data-[state=active]:shadow-sm rounded-md"
-                >
-                  <FileCode className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden sm:inline">XDR</span>
-                  <span className="sm:hidden">XDR</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="refractor"
-                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:border data-[state=active]:border-border data-[state=active]:shadow-sm rounded-md"
-                >
-                  <Share2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden sm:inline">Refractor</span>
-                  <span className="sm:hidden">Ref</span>
-                </TabsTrigger>
-              </TabsList>
+              <div className="p-1 bg-muted/50 rounded-lg border border-border/50">
+                <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full p-0 bg-transparent">
+                  <TabsTrigger 
+                    value="payment" 
+                    className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0"
+                  >
+                    <Send className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Payment</span>
+                    <span className="sm:hidden">Pay</span>
+                  </TabsTrigger>
+                   <TabsTrigger 
+                     value="multisig"
+                     className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0"
+                   >
+                     <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
+                     <span className="hidden sm:inline">Multisig</span>
+                     <span className="sm:hidden">Config</span>
+                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="xdr"
+                    className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0"
+                  >
+                    <FileCode className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">XDR</span>
+                    <span className="sm:hidden">XDR</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="refractor"
+                    className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0"
+                  >
+                    <Share2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Refractor</span>
+                    <span className="sm:hidden">Ref</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
               <TabsContent value="payment" className="space-y-4 mt-6">
 
@@ -790,7 +792,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                 {trustlineError && (
                   <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
                     <div className="flex items-center gap-3">
-                      <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0" />
+                      <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
                       <div className="flex-1">
                         <p className="text-sm text-foreground">{trustlineError}</p>
                       </div>
