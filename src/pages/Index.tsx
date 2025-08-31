@@ -142,7 +142,7 @@ const Index = () => {
         onSignTransaction={handleSignTransaction}
         onDisconnect={handleDisconnect}
         onRefreshBalances={onRefreshBalances}
-        onConfigureMultisig={handleConfigureMultisig}
+        
       />
     );
   }

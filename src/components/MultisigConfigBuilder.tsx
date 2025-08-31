@@ -46,9 +46,10 @@ interface MultisigConfigBuilderProps {
   onXdrGenerated: (xdr: string) => void;
 }
 
-interface NewSigner {
+interface EditableSigner {
   key: string;
   weight: number;
+  isNew: boolean;
 }
 
 interface ValidationResult {
@@ -67,8 +68,7 @@ export const MultisigConfigBuilder = ({
   const { toast } = useToast();
   
   // State for new configuration
-  const [newSigners, setNewSigners] = useState<NewSigner[]>([]);
-  const [signersToRemove, setSignersToRemove] = useState<string[]>([]);
+  const [editableSigners, setEditableSigners] = useState<EditableSigner[]>([]);
   const [newThresholds, setNewThresholds] = useState<Thresholds>(currentThresholds);
   const [isBuilding, setIsBuilding] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -79,8 +79,7 @@ export const MultisigConfigBuilder = ({
 
   // Reset form when current data changes
   useEffect(() => {
-    setNewSigners([]);
-    setSignersToRemove([]);
+    setEditableSigners(currentSigners.map(s => ({ ...s, isNew: false })));
     setNewThresholds(currentThresholds);
     setNewSignerKey('');
     setNewSignerWeight(1);
@@ -91,10 +90,7 @@ export const MultisigConfigBuilder = ({
     const warnings: string[] = [];
 
     // Calculate final signer configuration
-    const finalSigners = [
-      ...currentSigners.filter(s => !signersToRemove.includes(s.key)),
-      ...newSigners
-    ];
+    const finalSigners = editableSigners.filter(s => s.weight > 0);
 
     // Check maximum signers limit (20)
     if (finalSigners.length > 20) {
@@ -129,12 +125,12 @@ export const MultisigConfigBuilder = ({
     }
 
     // Warning: removing current account
-    if (signersToRemove.includes(accountPublicKey)) {
+    const currentAccountSigner = finalSigners.find(s => s.key === accountPublicKey);
+    if (!currentAccountSigner || currentAccountSigner.weight === 0) {
       warnings.push('You are removing the current account as a signer');
     }
 
     // Check if current account will have enough weight for high threshold operations
-    const currentAccountSigner = finalSigners.find(s => s.key === accountPublicKey);
     if (currentAccountSigner && currentAccountSigner.weight < newThresholds.high_threshold) {
       warnings.push('Current account alone cannot meet high threshold requirement');
     }
@@ -175,33 +171,30 @@ export const MultisigConfigBuilder = ({
     }
 
     // Check if signer already exists
-    const alreadyExists = currentSigners.some(s => s.key === newSignerKey) ||
-                         newSigners.some(s => s.key === newSignerKey);
+    const alreadyExists = editableSigners.some(s => s.key === newSignerKey);
     
     if (alreadyExists) {
       toast({
         title: "Signer already exists",
-        description: "This signer is already authorized on the account",
+        description: "This signer is already in the list",
         variant: "destructive",
       });
       return;
     }
 
-    setNewSigners(prev => [...prev, { key: newSignerKey, weight: newSignerWeight }]);
+    setEditableSigners(prev => [...prev, { key: newSignerKey, weight: newSignerWeight, isNew: true }]);
     setNewSignerKey('');
     setNewSignerWeight(1);
   };
 
-  const removeNewSigner = (index: number) => {
-    setNewSigners(prev => prev.filter((_, i) => i !== index));
+  const removeSigner = (index: number) => {
+    setEditableSigners(prev => prev.filter((_, i) => i !== index));
   };
 
-  const toggleRemoveSigner = (signerKey: string) => {
-    setSignersToRemove(prev => 
-      prev.includes(signerKey) 
-        ? prev.filter(key => key !== signerKey)
-        : [...prev, signerKey]
-    );
+  const updateSignerWeight = (index: number, weight: number) => {
+    setEditableSigners(prev => prev.map((signer, i) => 
+      i === index ? { ...signer, weight } : signer
+    ));
   };
 
   const buildTransaction = async () => {
@@ -233,24 +226,32 @@ export const MultisigConfigBuilder = ({
         networkPassphrase,
       });
 
-      // Add operations for new signers
-      newSigners.forEach(signer => {
-        transaction.addOperation(Operation.setOptions({
-          signer: {
-            ed25519PublicKey: signer.key,
-            weight: signer.weight
-          }
-        }));
+      // Add operations for signer changes
+      editableSigners.forEach(signer => {
+        const currentSigner = currentSigners.find(s => s.key === signer.key);
+        
+        // If it's a new signer or weight changed
+        if (!currentSigner || currentSigner.weight !== signer.weight) {
+          transaction.addOperation(Operation.setOptions({
+            signer: {
+              ed25519PublicKey: signer.key,
+              weight: signer.weight
+            }
+          }));
+        }
       });
 
-      // Add operations to remove signers
-      signersToRemove.forEach(signerKey => {
-        transaction.addOperation(Operation.setOptions({
-          signer: {
-            ed25519PublicKey: signerKey,
-            weight: 0 // Setting weight to 0 removes the signer
-          }
-        }));
+      // Add operations to remove signers (those not in editableSigners anymore)
+      currentSigners.forEach(currentSigner => {
+        const stillExists = editableSigners.some(s => s.key === currentSigner.key);
+        if (!stillExists) {
+          transaction.addOperation(Operation.setOptions({
+            signer: {
+              ed25519PublicKey: currentSigner.key,
+              weight: 0 // Setting weight to 0 removes the signer
+            }
+          }));
+        }
       });
 
       // Add threshold changes if needed
@@ -294,10 +295,18 @@ export const MultisigConfigBuilder = ({
   };
 
   const validation = validateConfiguration();
-  const hasChanges = newSigners.length > 0 || signersToRemove.length > 0 || 
-    JSON.stringify(newThresholds) !== JSON.stringify(currentThresholds);
+  
+  // Check for changes
+  const signersChanged = editableSigners.length !== currentSigners.length ||
+    editableSigners.some(editable => {
+      const current = currentSigners.find(c => c.key === editable.key);
+      return !current || current.weight !== editable.weight;
+    });
+  
+  const thresholdsChanged = JSON.stringify(newThresholds) !== JSON.stringify(currentThresholds);
+  const hasChanges = signersChanged || thresholdsChanged;
 
-  const truncateKey = (key: string) => `${key.slice(0, 8)}...${key.slice(-8)}`;
+  
 
   return (
     <div className="space-y-6">
@@ -337,15 +346,11 @@ export const MultisigConfigBuilder = ({
               {currentSigners.map((signer, index) => (
                 <div 
                   key={index} 
-                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                    signersToRemove.includes(signer.key) 
-                      ? 'bg-red-500/10 border-red-500/20' 
-                      : 'bg-secondary/30 border-border'
-                  }`}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-secondary/30 border-border"
                 >
                   <div className="flex items-center gap-3">
                     <div>
-                      <p className="font-mono text-sm">{truncateKey(signer.key)}</p>
+                      <p className="font-mono text-sm break-all">{signer.key}</p>
                       <div className="flex gap-2 mt-1">
                         {signer.key === accountPublicKey && (
                           <Badge variant="outline" className="text-xs">Current Account</Badge>
@@ -354,13 +359,6 @@ export const MultisigConfigBuilder = ({
                       </div>
                     </div>
                   </div>
-                  <Button
-                    variant={signersToRemove.includes(signer.key) ? "default" : "destructive"}
-                    size="sm"
-                    onClick={() => toggleRemoveSigner(signer.key)}
-                  >
-                    {signersToRemove.includes(signer.key) ? "Keep" : "Remove"}
-                  </Button>
                 </div>
               ))}
             </div>
@@ -389,18 +387,70 @@ export const MultisigConfigBuilder = ({
         </CardContent>
       </Card>
 
-      {/* Add New Signers */}
+      {/* Signers Configuration */}
       <Card className="shadow-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5" />
-            Add New Signers
+            <Users className="w-5 h-5" />
+            Signers ({editableSigners.length}/20)
           </CardTitle>
+          <CardDescription>
+            Modify signer weights or add new signers. Set weight to 0 to remove a signer.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Existing/Editable Signers */}
+          {editableSigners.length > 0 && (
+            <div className="space-y-2">
+              {editableSigners.map((signer, index) => (
+                <div 
+                  key={index} 
+                  className={`flex items-center gap-3 p-3 rounded-lg border ${
+                    signer.isNew 
+                      ? 'bg-green-500/10 border-green-500/20' 
+                      : 'bg-secondary/30 border-border'
+                  }`}
+                >
+                  <div className="flex-1">
+                    <p className="font-mono text-sm break-all">{signer.key}</p>
+                    <div className="flex gap-2 mt-1">
+                      {signer.key === accountPublicKey && (
+                        <Badge variant="outline" className="text-xs">Current Account</Badge>
+                      )}
+                      {signer.isNew && (
+                        <Badge variant="outline" className="text-xs bg-green-500/20">New</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="w-24">
+                    <Label htmlFor={`weight-${index}`} className="text-xs">Weight</Label>
+                    <Input
+                      id={`weight-${index}`}
+                      type="number"
+                      min="0"
+                      max="255"
+                      value={signer.weight}
+                      onChange={(e) => updateSignerWeight(index, parseInt(e.target.value) || 0)}
+                      className="text-center"
+                    />
+                  </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => removeSigner(index)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add New Signer */}
+          <Separator />
           <div className="flex gap-2">
             <div className="flex-1">
-              <Label htmlFor="newSignerKey">Public Key</Label>
+              <Label htmlFor="newSignerKey">Add New Signer</Label>
               <Input
                 id="newSignerKey"
                 placeholder="GABC..."
@@ -426,27 +476,6 @@ export const MultisigConfigBuilder = ({
               </Button>
             </div>
           </div>
-
-          {newSigners.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="font-medium">Signers to Add</h4>
-              {newSigners.map((signer, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                  <div>
-                    <p className="font-mono text-sm">{truncateKey(signer.key)}</p>
-                    <Badge variant="outline" className="text-xs mt-1">Weight: {signer.weight}</Badge>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => removeNewSigner(index)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 

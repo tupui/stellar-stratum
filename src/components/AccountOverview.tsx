@@ -33,10 +33,10 @@ interface AccountOverviewProps {
   onSignTransaction: () => void;
   onDisconnect: () => void;
   onRefreshBalances: () => Promise<void>;
-  onConfigureMultisig: () => void;
+  
 }
 
-export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances, onConfigureMultisig }: AccountOverviewProps) => {
+export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
   const truncateKey = (key: string) => {
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
   };
@@ -62,10 +62,6 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           <div className="flex gap-3">
             <Button variant="destructive" onClick={onDisconnect}>
               Disconnect
-            </Button>
-            <Button variant="outline" onClick={onConfigureMultisig} className="flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Configure Multisig
             </Button>
             <Button onClick={onInitiateTransaction} className="bg-gradient-primary hover:opacity-90">
               Initiate Transaction
