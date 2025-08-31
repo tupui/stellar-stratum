@@ -14,9 +14,10 @@ import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string) => void;
+  isModal?: boolean;
 }
 
-export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
+export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps) => {
   const { toast } = useToast();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [supportedWallets, setSupportedWallets] = useState<ISupportedWallet[]>([]);
@@ -283,6 +284,182 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
     }
   };
 
+  const walletContent = (
+    <>
+      {loading && supportedWallets.length === 0 ? (
+        <div className="flex items-center justify-center py-8">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>Loading wallets...</span>
+          </div>
+        </div>
+      ) : supportedWallets.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
+          <p className="text-sm text-muted-foreground">No wallets found</p>
+          <Button variant="outline" size="sm" onClick={loadWallets} className="mt-2">
+            Try Again
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Manual Address as a card option */}
+          <Button
+            variant="outline"
+            className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+            onClick={() => setShowManualInput(!showManualInput)}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center">
+                <KeyRound className="w-4 h-4 text-primary-foreground" />
+              </div>
+              <div className="text-left">
+                <div className="font-medium">Enter address manually</div>
+                <div className="text-sm text-muted-foreground">View any account by public key</div>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+
+          {showManualInput && (
+            <div className="p-4 border border-border rounded-lg bg-secondary/20">
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="manual-address" className="text-sm font-medium">Stellar Public Key</Label>
+                  <p className="text-xs text-muted-foreground mt-1">Enter a Stellar address to view account details (no signing required)</p>
+                </div>
+                <div className="flex gap-2">
+                  <Input id="manual-address" placeholder="GABC...XYZ (56 characters)" value={manualAddress} onChange={(e) => setManualAddress(e.target.value)} className="font-mono text-sm" maxLength={56} />
+                  <Button onClick={handleManualConnect} disabled={!manualAddress.trim()} size="sm">
+                    <Plus className="w-4 h-4 mr-1" />
+                    Connect
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Soroban Domains Option */}
+          <Button
+            variant="outline"
+            className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+            onClick={() => setShowSorobanInput(!showSorobanInput)}
+          >
+            <div className="flex items-center gap-3">
+              <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-8 h-8 rounded" />
+              <div className="text-left">
+                <div className="font-medium">Soroban Domains</div>
+                <div className="text-sm text-muted-foreground">Resolve domain to address</div>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+
+          {showSorobanInput && (
+            <div className="p-4 border border-border rounded-lg bg-secondary/20">
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="soroban-domain" className="text-sm font-medium">Soroban Domain</Label>
+                  <p className="text-xs text-muted-foreground mt-1">Enter a domain name to resolve to Stellar address</p>
+                </div>
+                <div className="flex gap-2">
+                  <Input 
+                    id="soroban-domain" 
+                    placeholder="mydomain" 
+                    value={sorobanDomain} 
+                    onChange={(e) => setSorobanDomain(e.target.value)} 
+                    className="text-sm" 
+                  />
+                  <Button 
+                    onClick={handleSorobanConnect} 
+                    disabled={!sorobanDomain.trim() || resolvingDomain} 
+                    size="sm"
+                  >
+                    {resolvingDomain ? (
+                      <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4 mr-1" />
+                    )}
+                    Resolve
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(() => {
+            const primaryWallets = ['freighter', 'xbull', 'ledger', 'lobstr'];
+            const primary = supportedWallets.filter(w => 
+              primaryWallets.some(p => w.id.toLowerCase().includes(p))
+            );
+            const secondary = supportedWallets.filter(w => 
+              !primaryWallets.some(p => w.id.toLowerCase().includes(p))
+            );
+
+            return (
+              <>
+                {primary.map((wallet) => {
+                  const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+                  
+                  return (
+                    <TooltipProvider key={wallet.id}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                            onClick={() => handleConnect(wallet.id, wallet.name)}
+                            disabled={connecting !== null}
+                          >
+                            <div className="flex items-center gap-3">
+                              {getWalletIcon(wallet)}
+                              <div className="text-left">
+                                <div className="font-medium flex items-center gap-2">
+                                  {wallet.name}
+                                  {isHardware && (
+                                    <Info className="w-3 h-3 text-muted-foreground" />
+                                  )}
+                                </div>
+                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                  {getWalletDescription(wallet)}
+                                  {isHardware && (
+                                    <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
+                                      Hardware
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            {connecting === wallet.id ? (
+                              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <ArrowRight className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs">
+                          <p>{getWalletTooltip(wallet)}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                })}
+              </>
+            );
+          })()}
+        </div>
+      )}
+    </>
+  );
+
+  if (isModal) {
+    return (
+      <div className="space-y-4">
+        {walletContent}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-card">
@@ -296,233 +473,7 @@ export const WalletConnect = ({ onConnect }: WalletConnectProps) => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          
-          {loading && supportedWallets.length === 0 ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Loading wallets...</span>
-              </div>
-            </div>
-          ) : supportedWallets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">No wallets found</p>
-              <Button variant="outline" size="sm" onClick={loadWallets} className="mt-2">
-                Try Again
-              </Button>
-            </div>
-          ) : (
-            <>
-
-              {/* Wallet Options */}
-              <div className="space-y-3">
-                {/* Manual Address as a card option */}
-                <Button
-                  variant="outline"
-                  className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-                  onClick={() => setShowManualInput(!showManualInput)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center">
-                      <KeyRound className="w-4 h-4 text-primary-foreground" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Enter address manually</div>
-                      <div className="text-sm text-muted-foreground">View any account by public key</div>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-
-                {showManualInput && (
-                  <div className="p-4 border border-border rounded-lg bg-secondary/20">
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="manual-address" className="text-sm font-medium">Stellar Public Key</Label>
-                        <p className="text-xs text-muted-foreground mt-1">Enter a Stellar address to view account details (no signing required)</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Input id="manual-address" placeholder="GABC...XYZ (56 characters)" value={manualAddress} onChange={(e) => setManualAddress(e.target.value)} className="font-mono text-sm" maxLength={56} />
-                        <Button onClick={handleManualConnect} disabled={!manualAddress.trim()} size="sm">
-                          <Plus className="w-4 h-4 mr-1" />
-                          Connect
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Soroban Domains Option */}
-                <Button
-                  variant="outline"
-                  className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-                  onClick={() => setShowSorobanInput(!showSorobanInput)}
-                >
-                  <div className="flex items-center gap-3">
-                    <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-8 h-8 rounded" />
-                    <div className="text-left">
-                      <div className="font-medium">Soroban Domains</div>
-                      <div className="text-sm text-muted-foreground">Resolve domain to address</div>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-
-                {showSorobanInput && (
-                  <div className="p-4 border border-border rounded-lg bg-secondary/20">
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="soroban-domain" className="text-sm font-medium">Soroban Domain</Label>
-                        <p className="text-xs text-muted-foreground mt-1">Enter a domain name to resolve to Stellar address</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Input 
-                          id="soroban-domain" 
-                          placeholder="mydomain" 
-                          value={sorobanDomain} 
-                          onChange={(e) => setSorobanDomain(e.target.value)} 
-                          className="text-sm" 
-                        />
-                        <Button 
-                          onClick={handleSorobanConnect} 
-                          disabled={!sorobanDomain.trim() || resolvingDomain} 
-                          size="sm"
-                        >
-                          {resolvingDomain ? (
-                            <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                          ) : (
-                            <Plus className="w-4 h-4 mr-1" />
-                          )}
-                          Resolve
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {(() => {
-                  const primaryWallets = ['freighter', 'xbull', 'ledger', 'lobstr'];
-                  const primary = supportedWallets.filter(w => 
-                    primaryWallets.some(p => w.id.toLowerCase().includes(p))
-                  );
-                  const secondary = supportedWallets.filter(w => 
-                    !primaryWallets.some(p => w.id.toLowerCase().includes(p))
-                  );
-
-                  return (
-                    <>
-                      {primary.map((wallet) => {
-                        const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
-                        
-                        return (
-                          <TooltipProvider key={wallet.id}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-                                  onClick={() => handleConnect(wallet.id, wallet.name)}
-                                  disabled={connecting !== null}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    {getWalletIcon(wallet)}
-                                    <div className="text-left">
-                                      <div className="font-medium flex items-center gap-2">
-                                        {wallet.name}
-                                        {isHardware && (
-                                          <Info className="w-3 h-3 text-muted-foreground" />
-                                        )}
-                                      </div>
-                                      <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                        {getWalletDescription(wallet)}
-                                        {isHardware && (
-                                          <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
-                                            Hardware
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {connecting === wallet.id ? (
-                                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <ArrowRight className="w-4 h-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="max-w-xs">
-                                <p>{getWalletTooltip(wallet)}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      })}
-                      
-                      {secondary.length > 0 && (
-                        <div className="space-y-2">
-                          <Button
-                            variant="ghost"
-                            className="w-full text-sm text-muted-foreground"
-                            onClick={() => setShowSorobanInput(!showSorobanInput)}
-                          >
-                            {showSorobanInput ? 'Show fewer wallets' : `Show ${secondary.length} more wallets`}
-                          </Button>
-                          
-                          {showSorobanInput && secondary.map((wallet) => {
-                            const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
-                            
-                            return (
-                              <TooltipProvider key={wallet.id}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="outline"
-                                      className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-                                      onClick={() => handleConnect(wallet.id, wallet.name)}
-                                      disabled={connecting !== null}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        {getWalletIcon(wallet)}
-                                        <div className="text-left">
-                                          <div className="font-medium flex items-center gap-2">
-                                            {wallet.name}
-                                            {isHardware && (
-                                              <Info className="w-3 h-3 text-muted-foreground" />
-                                            )}
-                                          </div>
-                                          <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                            {getWalletDescription(wallet)}
-                                            {isHardware && (
-                                              <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
-                                                Hardware
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      {connecting === wallet.id ? (
-                                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                                      ) : (
-                                        <ArrowRight className="w-4 h-4" />
-                                      )}
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" className="max-w-xs">
-                                    <p>{getWalletTooltip(wallet)}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </>
-          )}
+          {walletContent}
           
           <div className="pt-4 border-t border-border">
             <div className="text-center text-xs text-muted-foreground">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { WalletConnect } from '@/components/WalletConnect';
+import { LandingPage } from '@/components/LandingPage';
 import { AccountOverview } from '@/components/AccountOverview';
 import { TransactionBuilder } from '@/components/TransactionBuilder';
 import { Footer } from '@/components/Footer';
@@ -103,9 +103,9 @@ const Index = () => {
           </div>
         )}
 
-        {/* Wallet Connection */}
+        {/* Landing Page */}
         {!loading && appState === 'connecting' && (
-          <WalletConnect onConnect={handleWalletConnect} />
+          <LandingPage onConnect={handleWalletConnect} />
         )}
 
         {/* Transaction Builder */}
