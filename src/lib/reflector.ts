@@ -1,7 +1,26 @@
 // Price fetching using Reflector Oracles
 import { OracleClient, type OracleConfig, AssetType, type Asset } from './reflector-client';
+import { xdr, Asset as StellarAsset, hash, StrKey, Networks } from '@stellar/stellar-sdk';
 
 // Reflector Oracle Contracts
+// Helper: compute SAC (contract) ID for classic assets on PUBLIC network
+const computeStellarAssetContractId = (assetCode: string, assetIssuer: string): string => {
+  try {
+    if (!assetIssuer || assetCode === 'XLM') return '';
+    const stellarAsset = new StellarAsset(assetCode, assetIssuer);
+    const preimage = new xdr.HashIdPreimageContractId({
+      networkId: hash(Buffer.from(Networks.PUBLIC)),
+      contractIdPreimage: xdr.ContractIdPreimage.contractIdPreimageFromAsset(stellarAsset.toXDRObject()),
+    });
+    const envelope = xdr.HashIdPreimage.envelopeTypeContractId(preimage);
+    const cid = StrKey.encodeContract(hash(envelope.toXDR()));
+    return cid;
+  } catch (e) {
+    console.warn('computeStellarAssetContractId failed', { assetCode, assetIssuer, error: e });
+    return '';
+  }
+};
+
 const REFLECTOR_ORACLES = {
   CEX_DEX: {
     contract: 'CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN',
