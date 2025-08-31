@@ -68,7 +68,16 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
           Refractor Integration
         </CardTitle>
         <CardDescription>
-          Use Refractor.space to collect signatures from multiple parties
+          Use{' '}
+          <a 
+            href="https://refractor.space/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-yellow-500 hover:text-yellow-400 underline"
+          >
+            Refractor.space
+          </a>{' '}
+          to collect signatures from multiple parties
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
