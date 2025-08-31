@@ -11,7 +11,7 @@ export class OracleClient {
   private contract: Contract;
   private rpcServer: rpc.Server;
 
-  constructor(contractId: string, rpcUrl: string = 'https://mainnet.sorobanrpc.com') {
+  constructor(contractId: string, rpcUrl: string = 'https://soroban-mainnet.stellar.org') {
     this.contract = new Contract(contractId);
     this.rpcServer = new rpc.Server(rpcUrl);
   }
