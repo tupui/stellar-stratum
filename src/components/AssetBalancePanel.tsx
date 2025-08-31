@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { LoadingPill } from '@/components/ui/loading-pill';
-import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock } from 'lucide-react';
+import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, ExternalLink } from 'lucide-react';
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { getLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
+import { FIAT_CURRENCIES, convertFromUSD, type FiatCurrency } from '@/lib/fiat-currencies';
 
 interface AssetBalance {
   asset_type: string;
@@ -29,6 +30,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
   const [quoteCurrency, setQuoteCurrency] = useState('USD');
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(getLastFetchTimestamp());
+  const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
 
   const handleRefresh = async () => {
     try {
@@ -65,23 +67,58 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
     ? assetsWithPrices.filter(asset => asset.valueUSD >= 1)
     : assetsWithPrices;
 
-  const formatPrice = (price: number): string => {
-    const convertedPrice = quoteCurrency === 'EUR' ? price * 0.85 : price;
-    const symbol = quoteCurrency === 'EUR' ? '€' : '$';
-    
-    if (convertedPrice === 0) return 'N/A';
-    if (convertedPrice < 0.01) return `${symbol}${convertedPrice.toFixed(6)}`;
-    if (convertedPrice < 1) return `${symbol}${convertedPrice.toFixed(4)}`;
-    return `${symbol}${convertedPrice.toFixed(2)}`;
+  // Update converted total value when currency or totalValueUSD changes
+  useEffect(() => {
+    if (totalValueUSD && quoteCurrency !== 'USD') {
+      convertFromUSD(totalValueUSD, quoteCurrency).then(converted => {
+        setConvertedTotalValue(converted);
+      });
+    } else {
+      setConvertedTotalValue(totalValueUSD);
+    }
+  }, [totalValueUSD, quoteCurrency]);
+
+  const getCurrentCurrency = (): FiatCurrency => {
+    return FIAT_CURRENCIES.find(c => c.code === quoteCurrency) || FIAT_CURRENCIES[0];
   };
 
-  const formatValue = (value: number): string => {
-    const convertedValue = quoteCurrency === 'EUR' ? value * 0.85 : value; // Simple EUR conversion
-    const symbol = quoteCurrency === 'EUR' ? '€' : '$';
+  const formatPriceSync = (price: number): string => {
+    const currency = getCurrentCurrency();
+    // Use simple fallback conversion for sync formatting
+    const fallbackRates: Record<string, number> = {
+      EUR: 0.85, GBP: 0.75, JPY: 110, CAD: 1.25, AUD: 1.35,
+      CHF: 0.92, CNY: 6.5, SEK: 8.5, NZD: 1.45,
+    };
+    const convertedPrice = quoteCurrency === 'USD' ? price : price * (fallbackRates[quoteCurrency] || 1);
+    
+    if (convertedPrice === 0) return 'N/A';
+    if (convertedPrice < 0.01) return `${currency.symbol}${convertedPrice.toFixed(6)}`;
+    if (convertedPrice < 1) return `${currency.symbol}${convertedPrice.toFixed(4)}`;
+    return `${currency.symbol}${convertedPrice.toFixed(2)}`;
+  };
+
+  const formatValueForAsset = (value: number): string => {
+    const currency = getCurrentCurrency();
+    // Use simple fallback conversion for individual assets
+    const fallbackRates: Record<string, number> = {
+      EUR: 0.85, GBP: 0.75, JPY: 110, CAD: 1.25, AUD: 1.35,
+      CHF: 0.92, CNY: 6.5, SEK: 8.5, NZD: 1.45,
+    };
+    const convertedValue = quoteCurrency === 'USD' ? value : value * (fallbackRates[quoteCurrency] || 1);
     
     if (convertedValue === 0) return 'N/A';
-    if (convertedValue < 0.01) return `<${symbol}0.01`;
-    return `${symbol}${convertedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (convertedValue < 0.01) return `<${currency.symbol}0.01`;
+    return `${currency.symbol}${convertedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const formatValueSync = (value: number): string => {
+    const currency = getCurrentCurrency();
+    // Use the cached converted value for total, or fall back to simple conversion
+    const convertedValue = value === totalValueUSD ? convertedTotalValue : value;
+    
+    if (convertedValue === 0) return 'N/A';
+    if (convertedValue < 0.01) return `<${currency.symbol}0.01`;
+    return `${currency.symbol}${convertedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatBalance = (balance: string): string => {
@@ -123,7 +160,16 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
             <Clock className="w-3 h-3" />
             <span>Prices updated {formatLastUpdate(lastUpdateTime)}</span>
-            <span className="text-muted-foreground/60">• via Reflector</span>
+            <span className="text-muted-foreground/60">• </span>
+            <a 
+              href="https://reflector.space" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1"
+            >
+              via Reflector
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
         )}
 
@@ -134,9 +180,9 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
               <p className="text-sm text-muted-foreground/80">Total Portfolio Value</p>
               <p className="text-2xl font-bold">
                 {loading ? (
-                  <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span>
+                 <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span>
                 ) : (
-                  <span className="text-foreground">{formatValue(totalValueUSD)}</span>
+                  <span className="text-foreground">{formatValueSync(totalValueUSD)}</span>
                 )}
               </p>
             </div>
@@ -146,15 +192,16 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="EUR">EUR</SelectItem>
+                  {FIAT_CURRENCIES.map(currency => (
+                    <SelectItem key={currency.code} value={currency.code}>
+                      {currency.code}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              {quoteCurrency === 'EUR' ? (
-                <span className="w-8 h-8 text-primary/50 flex items-center justify-center text-2xl font-bold">€</span>
-              ) : (
-                <DollarSign className="w-8 h-8 text-muted-foreground/60" />
-              )}
+              <span className="w-8 h-8 text-primary flex items-center justify-center text-2xl font-bold">
+                {getCurrentCurrency().symbol}
+              </span>
             </div>
           </div>
         </div>
@@ -216,17 +263,17 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                       <p className="text-sm text-muted-foreground/80">
                         {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_code}
                       </p>
-                      {asset.priceUSD === -1 ? (
-                        <LoadingPill size="sm" className="mt-1" />
-                      ) : asset.priceUSD > 0 ? (
-                        <p className="text-xs text-muted-foreground/70">
-                          {formatPrice(asset.priceUSD)} per {asset.symbol}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground/70">
-                          Price unavailable
-                        </p>
-                      )}
+                       {asset.priceUSD === -1 ? (
+                         <LoadingPill size="sm" className="mt-1" />
+                       ) : asset.priceUSD > 0 ? (
+                         <p className="text-xs text-muted-foreground/70">
+                           {formatPriceSync(asset.priceUSD)} per {asset.symbol}
+                         </p>
+                       ) : (
+                         <p className="text-xs text-muted-foreground/70">
+                           Price unavailable
+                         </p>
+                       )}
                     </div>
                   </div>
 
@@ -235,13 +282,13 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                       {formatBalance(asset.balance)}
                     </p>
                     <p className="text-sm text-muted-foreground/70">{asset.symbol}</p>
-                    <div className="text-sm font-medium text-primary">
-                      {asset.priceUSD === -1 ? (
-                        <LoadingPill size="sm" />
-                      ) : (
-                        formatValue(asset.valueUSD)
-                      )}
-                    </div>
+                     <div className="text-sm font-medium text-primary">
+                       {asset.priceUSD === -1 ? (
+                         <LoadingPill size="sm" />
+                       ) : (
+                         formatValueForAsset(asset.valueUSD)
+                       )}
+                     </div>
                   </div>
                 </div>
               </div>

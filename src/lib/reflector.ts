@@ -131,7 +131,7 @@ const createAssetObject = (assetCode: string, assetIssuer?: string): Asset => {
 };
 
 // Get available assets from oracle with retry logic
-const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number = 1): Promise<string[]> => {
+const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number = 3): Promise<string[]> => {
   const cacheKey = `assets_${oracle.contract}`;
   const cached = oracleAssetsCache[cacheKey];
   
@@ -155,27 +155,14 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
         return assets;
       }
       
-      // If no assets and not the last attempt, wait before retry
+      // If no assets but still have more attempts, continue immediately
       if (attempt < maxRetries - 1) {
-        const baseDelay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-        const jitter = Math.random() * baseDelay;
-        const delay = baseDelay + jitter;
-        
-        
-        await sleep(delay);
+        console.warn(`No assets returned from ${oracle.contract}, attempt ${attempt + 1}/${maxRetries}`);
       }
     } catch (error) {
       console.warn(`Attempt ${attempt + 1} failed to fetch assets from ${oracle.contract}:`, error);
       
-      // If not the last attempt, wait before retry
-      if (attempt < maxRetries - 1) {
-        const baseDelay = Math.pow(2, attempt) * 1000;
-        const jitter = Math.random() * baseDelay;
-        const delay = baseDelay + jitter;
-        
-        
-        await sleep(delay);
-      }
+      // Continue to next attempt immediately without delay
     }
   }
   
@@ -257,7 +244,7 @@ const resolveOracleAndAsset = (
 };
 
 // Get individual asset price from oracle with retry logic
-const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, maxRetries: number = 1): Promise<number> => {
+const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, maxRetries: number = 3): Promise<number> => {
   const cacheKey = `${oracle.contract}:${asset.code}:${asset.type}`;
   const cached = oraclePriceCache[cacheKey];
   
@@ -286,27 +273,14 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
         return price;
       }
       
-      // If no price and not the last attempt, wait before retry
+      // If no price but still have attempts, continue immediately
       if (attempt < maxRetries - 1 && rawPrice === 0) {
-        const baseDelay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-        const jitter = Math.random() * baseDelay;
-        const delay = baseDelay + jitter;
-        
-        
-        await sleep(delay);
+        console.warn(`No price returned for ${asset.code}, attempt ${attempt + 1}/${maxRetries}`);
       }
     } catch (error) {
       console.warn(`Attempt ${attempt + 1} failed for ${asset.code} from ${oracle.contract}:`, error);
       
-      // If not the last attempt, wait before retry
-      if (attempt < maxRetries - 1) {
-        const baseDelay = Math.pow(2, attempt) * 1000;
-        const jitter = Math.random() * baseDelay;
-        const delay = baseDelay + jitter;
-        
-        
-        await sleep(delay);
-      }
+      // Continue to next attempt immediately without delay
     }
   }
   
@@ -323,7 +297,7 @@ const CACHE_KEY = 'stellar_asset_prices';
 const FETCH_TIMESTAMP_KEY = 'stellar_price_fetch_timestamp';
 
 // Set last fetch timestamp
-const setLastFetchTimestamp = (): void => {
+export const setLastFetchTimestamp = (): void => {
   try {
     localStorage.setItem(FETCH_TIMESTAMP_KEY, Date.now().toString());
   } catch (error) {

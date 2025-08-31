@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink, Shield } from 'lucide-react';
+import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink, Shield, TrendingUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -26,6 +26,8 @@ import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
+import { convertFromUSD, FIAT_CURRENCIES } from '@/lib/fiat-currencies';
+import { getAssetPrice } from '@/lib/reflector';
 import refractorFavicon from '@/assets/refractor-favicon.ico';
 
 interface TransactionBuilderProps {
@@ -75,6 +77,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet' } | null>(null);
+  const [quoteCurrency, setQuoteCurrency] = useState('USD');
+  const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
+  const [fiatValue, setFiatValue] = useState<string>('');
+
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
     setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
@@ -83,7 +89,58 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     setSignedBy([]);
     setRefractorId('');
     setSuccessData(null);
+    setFiatValue('');
   }, [activeTab]);
+
+  useEffect(() => {
+    // Load asset prices for fiat conversion
+    const loadPrices = async () => {
+      const prices: Record<string, number> = {};
+      for (const balance of accountData.balances) {
+        const key = balance.asset_code || 'XLM';
+        try {
+          const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
+          prices[key] = price;
+        } catch (error) {
+          console.warn(`Failed to get price for ${key}:`, error);
+          prices[key] = 0;
+        }
+      }
+      setAssetPrices(prices);
+    };
+    loadPrices();
+  }, [accountData.balances]);
+
+  // Update fiat value when amount, asset, or currency changes
+  useEffect(() => {
+    const updateFiatValue = async () => {
+      if (!paymentData.amount || !paymentData.asset) {
+        setFiatValue('');
+        return;
+      }
+
+      const price = assetPrices[paymentData.asset] || 0;
+      if (price === 0) {
+        setFiatValue('N/A');
+        return;
+      }
+
+      const usdValue = parseFloat(paymentData.amount) * price;
+      if (quoteCurrency === 'USD') {
+        setFiatValue(`$${usdValue.toFixed(2)}`);
+      } else {
+        try {
+          const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
+          const currency = FIAT_CURRENCIES.find(c => c.code === quoteCurrency);
+          setFiatValue(`${currency?.symbol || ''}${convertedValue.toFixed(2)}`);
+        } catch (error) {
+          setFiatValue('N/A');
+        }
+      }
+    };
+
+    updateFiatValue();
+  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices]);
   // Check trustline for non-XLM assets
   const checkTrustline = async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
@@ -429,16 +486,24 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
   };
 
-  // Get available assets from account balances
+  // Get available assets from account balances with prices and balances
   const getAvailableAssets = () => {
-    const assets = [{ code: 'XLM', issuer: '', name: 'Stellar Lumens' }];
+    const assets = [{ 
+      code: 'XLM', 
+      issuer: '', 
+      name: 'Stellar Lumens',
+      balance: accountData.balances.find(b => b.asset_type === 'native')?.balance || '0',
+      price: assetPrices['XLM'] || 0
+    }];
     
     accountData.balances.forEach(balance => {
       if (balance.asset_type !== 'native' && balance.asset_code && balance.asset_issuer) {
         assets.push({
           code: balance.asset_code,
           issuer: balance.asset_issuer,
-          name: balance.asset_code
+          name: balance.asset_code,
+          balance: balance.balance,
+          price: assetPrices[balance.asset_code] || 0
         });
       }
     });
@@ -447,6 +512,21 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   };
 
   const availableAssets = getAvailableAssets();
+
+  const getSelectedAssetInfo = () => {
+    return availableAssets.find(asset => asset.code === paymentData.asset);
+  };
+
+  const handleMaxAmount = () => {
+    const selectedAsset = getSelectedAssetInfo();
+    if (selectedAsset) {
+      // Reserve some XLM for fees
+      const maxAmount = selectedAsset.code === 'XLM' 
+        ? Math.max(0, parseFloat(selectedAsset.balance) - 0.5).toString()
+        : selectedAsset.balance;
+      setPaymentData(prev => ({ ...prev, amount: maxAmount }));
+    }
+  };
 
   // Check if form is valid for payment build
   const isPaymentFormValid = paymentData.destination && 
@@ -513,6 +593,46 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               </TabsList>
 
               <TabsContent value="payment" className="space-y-4 mt-6">
+                {/* Asset Selection and Balance Overview */}
+                <Card className="bg-gradient-to-r from-primary/5 to-secondary/5 border-primary/20">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Available Balance</span>
+                    </div>
+                    {paymentData.asset && getSelectedAssetInfo() && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-2xl font-bold">
+                            {parseFloat(getSelectedAssetInfo()!.balance).toLocaleString()} {paymentData.asset}
+                          </p>
+                          {getSelectedAssetInfo()!.price > 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              ≈ {FIAT_CURRENCIES.find(c => c.code === quoteCurrency)?.symbol}
+                              {(parseFloat(getSelectedAssetInfo()!.balance) * getSelectedAssetInfo()!.price).toLocaleString(undefined, { 
+                                minimumFractionDigits: 2, 
+                                maximumFractionDigits: 2 
+                              })} {quoteCurrency}
+                            </p>
+                          )}
+                        </div>
+                        <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
+                          <SelectTrigger className="w-20 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FIAT_CURRENCIES.slice(0, 5).map(currency => (
+                              <SelectItem key={currency.code} value={currency.code}>
+                                {currency.code}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="destination">Destination Address</Label>
@@ -526,13 +646,30 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   <div className="space-y-2">
                     <Label htmlFor="amount">Amount</Label>
                     <div className="flex gap-2">
-                      <Input
-                        id="amount"
-                        type="number"
-                        placeholder="0.00"
-                        value={paymentData.amount}
-                        onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
-                      />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex gap-2">
+                          <Input
+                            id="amount"
+                            type="number"
+                            placeholder="0.00"
+                            value={paymentData.amount}
+                            onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleMaxAmount}
+                            disabled={!getSelectedAssetInfo()}
+                            className="px-3 text-xs"
+                          >
+                            MAX
+                          </Button>
+                        </div>
+                        {fiatValue && (
+                          <p className="text-xs text-muted-foreground">≈ {fiatValue}</p>
+                        )}
+                      </div>
                       <Select
                         value={paymentData.asset}
                         onValueChange={(value) => {
@@ -551,7 +688,12 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                         <SelectContent>
                           {availableAssets.map(asset => (
                             <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
-                              {asset.code}
+                              <div className="flex items-center justify-between w-full">
+                                <span>{asset.code}</span>
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  {parseFloat(asset.balance).toFixed(2)}
+                                </span>
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>

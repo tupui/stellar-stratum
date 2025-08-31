@@ -45,7 +45,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
   if (!assetInfo?.image || imageError) {
     return (
       <div 
-        className={`bg-gradient-primary rounded-full flex items-center justify-center ${className}`}
+        className={`bg-gradient-primary rounded-full flex items-center justify-center ring-1 ring-primary/20 ${className}`}
         style={{ width: size, height: size }}
       >
         <span 
@@ -60,13 +60,13 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
 
   return (
     <div
-      className={`rounded-full bg-foreground/10 ring-1 ring-border overflow-hidden ${className}`}
+      className={`rounded-full bg-card ring-1 ring-border overflow-hidden shadow-sm ${className}`}
       style={{ width: size, height: size }}
     >
       <img
         src={assetInfo.image}
         alt={assetInfo.name || assetCode || 'Asset'}
-        className="w-full h-full object-contain p-1"
+        className="w-full h-full object-contain p-1.5"
         onError={handleImageError}
       />
     </div>

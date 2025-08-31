@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAssetPrice } from '@/lib/reflector';
+import { getAssetPrice, setLastFetchTimestamp } from '@/lib/reflector';
 
 interface AssetBalance {
   asset_type: string;
@@ -81,6 +81,9 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
         // Sort by value and update
         finalAssets.sort((a, b) => (b.valueUSD || 0) - (a.valueUSD || 0));
         setAssetsWithPrices(finalAssets);
+        
+        // Update the fetch timestamp whenever we successfully get prices
+        setLastFetchTimestamp();
         
       } catch (error) {
         setError('Failed to fetch asset prices');
