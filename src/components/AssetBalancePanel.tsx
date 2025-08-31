@@ -232,7 +232,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                 {loading ? (
                  <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span>
                 ) : (
-                  <span className="text-foreground">{formatValueSync(totalValueUSD)}</span>
+                  <span className="text-primary">{formatValueSync(totalValueUSD)}</span>
                 )}
               </p>
             </div>
@@ -240,7 +240,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
               <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
                 <SelectTrigger className="w-16 h-8 border-0 bg-transparent px-2">
                   <SelectValue>
-                    <span className="text-sm">{quoteCurrency}</span>
+                    <span className="text-sm text-primary">{quoteCurrency}</span>
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="min-w-24">

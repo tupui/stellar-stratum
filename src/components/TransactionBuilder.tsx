@@ -624,7 +624,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                               : parseFloat(getSelectedAssetInfo()?.balance || '0');
                             const inputValue = parseFloat(e.target.value) || 0;
                             const cappedValue = Math.min(inputValue, maxAmount);
-                            setPaymentData(prev => ({ ...prev, amount: cappedValue.toString() }));
+                            // Ensure Stellar precision (max 7 decimal places)
+                            const stellarPreciseValue = parseFloat(cappedValue.toFixed(7));
+                            setPaymentData(prev => ({ ...prev, amount: stellarPreciseValue.toString() }));
                           }}
                         />
                         {fiatValue && (
@@ -644,7 +646,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                                   ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
                                   : parseFloat(getSelectedAssetInfo()!.balance)
                                 }
-                                step="0.0000001"
+                                 step="0.0000001"
                                 value={paymentData.amount || '0'}
                                 onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
                                 className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer slider-glow"
@@ -674,23 +676,23 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                         <SelectContent className="min-w-80">
                            {availableAssets.map(asset => {
                              const balance = parseFloat(asset.balance);
-                             const formattedBalance = balance === 0 ? '0' :
-                               balance < 0.01 ? balance.toFixed(6) :
-                               balance < 1 ? balance.toFixed(4) :
-                               balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                             // Format with 7 decimal places max (Stellar precision)
+                             const formattedBalance = balance === 0 ? '0.0000000' :
+                               balance.toFixed(7).replace(/\.?0+$/, '');
+                             
+                             // Split into integer and decimal parts for alignment
+                             const [integerPart, decimalPart] = formattedBalance.includes('.') 
+                               ? formattedBalance.split('.') 
+                               : [formattedBalance, ''];
                              
                              return (
                                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
-                                 <div className="flex items-center justify-between w-full gap-4">
-                                   <span className="font-medium">{asset.code}</span>
-                                   <div className="flex items-baseline gap-1 font-mono tabular-nums text-xs text-muted-foreground">
-                                     <span className="text-right">{formattedBalance.split('.')[0]}</span>
-                                     {formattedBalance.includes('.') && (
-                                       <>
-                                         <span>.</span>
-                                         <span>{formattedBalance.split('.')[1]}</span>
-                                       </>
-                                     )}
+                                 <div className="flex items-center justify-between w-full min-w-0">
+                                   <span className="font-medium text-left">{asset.code}</span>
+                                   <div className="flex items-baseline font-mono tabular-nums text-xs text-muted-foreground ml-4">
+                                     <span className="text-right">{integerPart}</span>
+                                     <span className="w-[1ch] text-center">.</span>
+                                     <span className="w-[7ch] text-left">{decimalPart.padEnd(7, '0')}</span>
                                    </div>
                                  </div>
                                </SelectItem>
