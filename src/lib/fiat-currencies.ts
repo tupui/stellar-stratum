@@ -95,7 +95,7 @@ export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
   }
 };
 
-// Get exchange rate from USD to target currency using oracle data only
+// Get exchange rate quoted in USD per 1 unit of target currency (e.g., EURUSD)
 export const getFxRate = async (targetCurrency: string): Promise<number> => {
   if (targetCurrency === 'USD') return 1;
   
@@ -117,7 +117,7 @@ export const getFxRate = async (targetCurrency: string): Promise<number> => {
     });
     
     if (rawRate > 0) {
-      const rate = rawRate / Math.pow(10, FX_ORACLE.decimals);
+      const rate = rawRate / Math.pow(10, FX_ORACLE.decimals); // USD per 1 target unit
       fxRatesCache[cacheKey] = { rate, timestamp: Date.now() };
       return rate;
     } else {
@@ -129,7 +129,10 @@ export const getFxRate = async (targetCurrency: string): Promise<number> => {
   }
 };
 
+// Convert an amount in USD to the target currency using USD-per-target quote
+// If rate is USD per 1 target unit (e.g., EURUSD), then target = USD / rate
 export const convertFromUSD = async (usdAmount: number, targetCurrency: string): Promise<number> => {
   const rate = await getFxRate(targetCurrency);
-  return usdAmount * rate;
+  if (!rate) return usdAmount; // fallback: return USD amount if no rate
+  return usdAmount / rate;
 };
