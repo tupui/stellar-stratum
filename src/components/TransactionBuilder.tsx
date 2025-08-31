@@ -603,12 +603,18 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                       <Input
                         id="destination"
                         placeholder="GABC..."
+                        maxLength={56}
                         value={paymentData.destination}
                         onChange={(e) => setPaymentData(prev => ({ ...prev, destination: e.target.value }))}
                       />
                     </div>
-                    <div className="w-48 space-y-2">
-                      <Label htmlFor="amount">Amount</Label>
+                    <div className="w-40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="amount">Amount</Label>
+                        {fiatValue && (
+                          <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <Input
                           id="amount"
@@ -629,7 +635,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                             const stellarPreciseValue = parseFloat(cappedValue.toFixed(7));
                             setPaymentData(prev => ({ ...prev, amount: stellarPreciseValue.toString() }));
                           }}
-                          className="flex-1"
+                          className="flex-1 text-sm"
                         />
                         <Select
                           value={paymentData.asset}
@@ -644,9 +650,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                             setTrustlineError(''); // Clear error when changing asset
                           }}
                         >
-                          <SelectTrigger className="w-20">
+                          <SelectTrigger className="w-24">
                             <SelectValue>
-                              <span className="font-medium">{paymentData.asset}</span>
+                              <span className="font-medium text-sm">{paymentData.asset}</span>
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent className="min-w-96">
@@ -673,13 +679,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                     </div>
                   </div>
                   
-                  {fiatValue && (
-                    <p className="text-xs text-muted-foreground">≈ {fiatValue}</p>
-                  )}
-                  
-                  {/* MAX Slider */}
+                  {/* Enhanced Slider */}
                   {getSelectedAssetInfo() && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="relative">
                         <input
                           type="range"
@@ -688,14 +690,20 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                             ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
                             : parseFloat(getSelectedAssetInfo()!.balance)
                           }
-                           step="0.0000001"
+                          step="0.0000001"
                           value={paymentData.amount || '0'}
                           onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
-                          className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer slider-glow"
+                          className="stellar-slider w-full"
+                          style={{
+                            '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / parseFloat(getSelectedAssetInfo()!.code === 'XLM' 
+                              ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5).toString()
+                              : getSelectedAssetInfo()!.balance)) * 100}%`
+                          } as React.CSSProperties}
                         />
                       </div>
-                      <div className="flex justify-end text-xs text-muted-foreground">
-                        <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toFixed(2)} {paymentData.asset}</span>
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>0</span>
+                        <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toFixed(7).replace(/\.?0+$/, '')} {paymentData.asset}</span>
                       </div>
                     </div>
                   )}

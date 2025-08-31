@@ -102,7 +102,7 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
 
   const resolved = resolveOracleAndAsset(assetCode, assetIssuer, likelyOracles);
   if (!resolved) {
-    
+    console.warn(`No oracle found for asset: ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}`);
     return 0;
   }
 
@@ -111,7 +111,7 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
 
   try {
     const price = await getOracleAssetPriceWithRetry(oracle, asset);
-    
+    console.log(`Successfully fetched price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}: $${price}`);
     return price;
   } catch (error) {
     console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}:`, error);
