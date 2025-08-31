@@ -459,7 +459,7 @@ export const MultisigConfigBuilder = ({
               placeholder="GABC...XYZ (56 characters)"
               value={newSignerKey}
               onChange={(e) => setNewSignerKey(e.target.value)}
-              className="font-mono text-sm"
+              className="font-mono text-sm h-8"
               maxLength={56}
             />
             <Input
