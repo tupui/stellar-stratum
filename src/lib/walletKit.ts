@@ -1,7 +1,6 @@
 import { 
   StellarWalletsKit, 
-  allowAllModules,
-  FREIGHTER_ID,
+  allowAllModules
 } from '@creit.tech/stellar-wallets-kit';
 import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
 
@@ -17,7 +16,7 @@ export const createWalletKit = (walletId?: string, network: 'mainnet' | 'testnet
     // Use passphrase string for compatibility with various wallets (e.g., Freighter)
     // @ts-ignore - library accepts both enum and passphrase string
     network: getPassphrase(network),
-    selectedWalletId: walletId || FREIGHTER_ID,
+    
   });
   if (walletId) kit.setWallet(walletId);
   return kit;

@@ -134,7 +134,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
               <p className="text-sm text-muted-foreground/80">Total Portfolio Value</p>
               <p className="text-2xl font-bold">
                 {loading ? (
-                  <span className="bg-gradient-to-r from-primary/60 via-primary to-primary/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span>
+                  <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span>
                 ) : (
                   <span className="text-foreground">{formatValue(totalValueUSD)}</span>
                 )}

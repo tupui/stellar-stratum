@@ -1,8 +1,7 @@
 import { 
   StellarWalletsKit, 
   ISupportedWallet,
-  allowAllModules,
-  FREIGHTER_ID
+  allowAllModules
 } from '@creit.tech/stellar-wallets-kit';
 import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
@@ -12,7 +11,6 @@ export const stellarKit = new StellarWalletsKit({
   modules: [...allowAllModules(), new LedgerModule()],
   // @ts-ignore - library accepts both enum and passphrase string
   network: 'Public Global Stellar Network ; September 2015',
-  selectedWalletId: FREIGHTER_ID,
 });
 
 // Horizon server for account data
@@ -40,85 +38,37 @@ export interface AccountData {
 
 export const connectWallet = async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
   try {
-    // Direct Freighter path for reliability
-    if (walletId.toLowerCase().includes('freighter')) {
-      const isInIframe = window !== window.top;
-      
-      if (isInIframe) {
-        // Try StellarWalletsKit fallback for iframe
-        try {
-          const kit = stellarKit;
-          kit.setWallet(FREIGHTER_ID);
-          // @ts-ignore
-          if (typeof (kit as any).connect === 'function') {
-            await (kit as any).connect();
-          }
-          const { address } = await kit.getAddress();
-          return { publicKey: address, walletName: 'Freighter' };
-        } catch (fallbackErr) {
-          // Continue to direct access attempt
-        }
-      }
-      
-      const w = (window as any).freighterApi || (window as any).freighter;
-      if (!w) {
-        throw new Error('Freighter extension not accessible. Please open this app in a new tab or install Freighter.');
-      }
-      
-      try {
-        const isConnected = typeof w.isConnected === 'function' ? await w.isConnected() : false;
-        if (!isConnected) {
-          if (typeof w.requestAccess === 'function') {
-            await w.requestAccess();
-          } else if (typeof w.connect === 'function') {
-            await w.connect();
-          }
-        }
-      } catch (error) {
-        // Continue if access check fails
-      }
-
-      const address = (await (w.getPublicKey?.() || w.requestPublicKey?.())) as string;
-      if (!address || !/^G[A-Z2-7]{55}$/.test(address)) {
-        throw new Error('Freighter did not return a valid public key');
-      }
-      return { publicKey: address, walletName: 'Freighter' };
-    }
-    
-    // Use the stellarKit directly - it already has all modules
     const kit = stellarKit;
-
-    // Set the selected wallet
+    // Set the selected wallet generically
     kit.setWallet(walletId);
 
-    // Explicitly connect for Freighter and similar extension wallets
+    // Try explicit connect when supported by wallet module
     try {
       // @ts-ignore
       if (typeof (kit as any).connect === 'function') {
         await (kit as any).connect();
       }
-    } catch (e) {
-      // ignore and continue to getAddress
+    } catch {
+      // Some wallets don't require connect, continue
     }
-    
+
     // Request address (triggers permission prompt and account selection for hardware wallets)
     const { address } = await kit.getAddress();
-    
+
     // Get wallet info
     const supportedWallets = await kit.getSupportedWallets();
     const walletInfo = supportedWallets.find(w => w.id === walletId);
-    
+
     return {
       publicKey: address,
-      walletName: walletInfo?.name || walletId
+      walletName: walletInfo?.name || walletId,
     };
   } catch (error) {
     console.error('Wallet connection failed:', error);
-    
-    // Provide user-friendly error messages
+
     const errorMsg = String(error || '').toLowerCase();
     const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
-    
+
     if (isHardware) {
       if (errorMsg.includes('cancelled') || errorMsg.includes('denied')) {
         throw new Error('Connection cancelled. Please try again and approve the connection.');
@@ -126,8 +76,7 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
         throw new Error('Hardware wallet not found. Please connect your device and try again.');
       }
     }
-    
-    // For Freighter and other wallets, provide generic error with original message
+
     throw new Error(`Failed to connect to ${walletId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
