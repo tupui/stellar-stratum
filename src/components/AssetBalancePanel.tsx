@@ -11,7 +11,8 @@ import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, External
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { getLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
-import { getAvailableFiatCurrencies, convertFromUSD, type FiatCurrency } from '@/lib/fiat-currencies';
+import { convertFromUSD } from '@/lib/fiat-currencies';
+import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 
 interface AssetBalance {
   asset_type: string;
@@ -27,13 +28,10 @@ interface AssetBalancePanelProps {
 
 export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalancePanelProps) => {
   const { assetsWithPrices, totalValueUSD, loading, error, refetch } = useAssetPrices(balances);
-  const [quoteCurrency, setQuoteCurrency] = useState('USD');
+  const { quoteCurrency, setQuoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(getLastFetchTimestamp());
   const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
-  const [availableCurrencies, setAvailableCurrencies] = useState<FiatCurrency[]>([
-    { code: 'USD', symbol: '$', name: 'US Dollar' }
-  ]);
 
   const handleRefresh = async () => {
     try {
@@ -70,20 +68,6 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
     ? assetsWithPrices.filter(asset => asset.valueUSD >= 1)
     : assetsWithPrices;
 
-  // Load available currencies on component mount
-  useEffect(() => {
-    const loadCurrencies = async () => {
-      try {
-        const currencies = await getAvailableFiatCurrencies();
-        setAvailableCurrencies(currencies);
-      } catch (error) {
-        console.warn('Failed to load available currencies:', error);
-        // Keep default USD only
-      }
-    };
-    loadCurrencies();
-  }, []);
-
   // Update converted total value when currency or totalValueUSD changes
   useEffect(() => {
     if (totalValueUSD && quoteCurrency !== 'USD') {
@@ -97,10 +81,6 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
       setConvertedTotalValue(totalValueUSD);
     }
   }, [totalValueUSD, quoteCurrency]);
-
-  const getCurrentCurrency = (): FiatCurrency => {
-    return availableCurrencies.find(c => c.code === quoteCurrency) || availableCurrencies[0];
-  };
 
   const formatPriceSync = (price: number): string => {
     const currency = getCurrentCurrency();
@@ -206,20 +186,25 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
             </div>
             <div className="flex items-center gap-2">
               <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
-                <SelectTrigger className="w-20 h-8 border-0 bg-transparent px-2">
+                <SelectTrigger className="w-32 h-8 border-0 bg-transparent px-2">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="min-w-48">
                   {availableCurrencies.map(currency => (
                     <SelectItem key={currency.code} value={currency.code}>
-                      {currency.code}
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2">
+                          <span className="currency-symbol text-base">{currency.symbol}</span>
+                          <span>{currency.code}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground ml-2 font-mono">
+                          {formatValueSync(totalValueUSD).replace(/[^0-9.,]/g, '')}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <span className="w-8 h-8 text-primary flex items-center justify-center text-2xl font-bold">
-                {getCurrentCurrency().symbol}
-              </span>
             </div>
           </div>
         </div>

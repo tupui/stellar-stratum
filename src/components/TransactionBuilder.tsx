@@ -26,8 +26,9 @@ import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
-import { convertFromUSD, getAvailableFiatCurrencies, type FiatCurrency } from '@/lib/fiat-currencies';
+import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
+import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import refractorFavicon from '@/assets/refractor-favicon.ico';
 
 interface TransactionBuilderProps {
@@ -56,6 +57,7 @@ interface TransactionBuilderProps {
 
 export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment' }: TransactionBuilderProps) => {
   const { toast } = useToast();
+  const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [paymentData, setPaymentData] = useState({
     destination: '',
@@ -77,25 +79,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet' } | null>(null);
-  const [quoteCurrency, setQuoteCurrency] = useState('USD');
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
   const [fiatValue, setFiatValue] = useState<string>('');
-  const [availableCurrencies, setAvailableCurrencies] = useState<FiatCurrency[]>([
-    { code: 'USD', symbol: '$', name: 'US Dollar' }
-  ]);
-
-  useEffect(() => {
-    // Load available currencies
-    const loadCurrencies = async () => {
-      try {
-        const currencies = await getAvailableFiatCurrencies();
-        setAvailableCurrencies(currencies);
-      } catch (error) {
-        console.warn('Failed to load available currencies:', error);
-      }
-    };
-    loadCurrencies();
-  }, []);
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
@@ -147,7 +132,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       } else {
         try {
           const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
-          const currency = availableCurrencies.find(c => c.code === quoteCurrency);
+          const currency = getCurrentCurrency();
           setFiatValue(`${currency?.symbol || ''}${convertedValue.toFixed(2)}`);
         } catch (error) {
           console.warn('FX conversion failed, showing USD:', error);
@@ -157,7 +142,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     };
 
     updateFiatValue();
-  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, availableCurrencies]);
+  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency]);
   // Check trustline for non-XLM assets
   const checkTrustline = async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
@@ -610,45 +595,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               </TabsList>
 
               <TabsContent value="payment" className="space-y-4 mt-6">
-                {/* Asset Selection and Balance Overview */}
-                <Card className="bg-gradient-to-r from-primary/5 to-secondary/5 border-primary/20">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Available Balance</span>
-                    </div>
-                    {paymentData.asset && getSelectedAssetInfo() && (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-2xl font-bold">
-                            {parseFloat(getSelectedAssetInfo()!.balance).toLocaleString()} {paymentData.asset}
-                          </p>
-                          {getSelectedAssetInfo()!.price > 0 && (
-                            <p className="text-sm text-muted-foreground">
-                              ≈ {availableCurrencies.find(c => c.code === quoteCurrency)?.symbol}
-                              {(parseFloat(getSelectedAssetInfo()!.balance) * getSelectedAssetInfo()!.price).toLocaleString(undefined, { 
-                                minimumFractionDigits: 2, 
-                                maximumFractionDigits: 2 
-                              })} {quoteCurrency}
-                            </p>
-                          )}
-                        </div>
-                        <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
-                          <SelectTrigger className="w-20 h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableCurrencies.slice(0, 8).map(currency => (
-                              <SelectItem key={currency.code} value={currency.code}>
-                                {currency.code}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -663,28 +609,39 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   <div className="space-y-2">
                     <Label htmlFor="amount">Amount</Label>
                     <div className="flex gap-2">
-                      <div className="flex-1 space-y-1">
-                        <div className="flex gap-2">
-                          <Input
-                            id="amount"
-                            type="number"
-                            placeholder="0.00"
-                            value={paymentData.amount}
-                            onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={handleMaxAmount}
-                            disabled={!getSelectedAssetInfo()}
-                            className="px-3 text-xs"
-                          >
-                            MAX
-                          </Button>
-                        </div>
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          id="amount"
+                          type="number"
+                          placeholder="0.00"
+                          value={paymentData.amount}
+                          onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
+                        />
                         {fiatValue && (
                           <p className="text-xs text-muted-foreground">≈ {fiatValue}</p>
+                        )}
+                        {/* MAX Slider */}
+                        {getSelectedAssetInfo() && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Amount</span>
+                              <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toFixed(2)} {paymentData.asset}</span>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="range"
+                                min="0"
+                                max={getSelectedAssetInfo()!.code === 'XLM' 
+                                  ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
+                                  : parseFloat(getSelectedAssetInfo()!.balance)
+                                }
+                                step="0.0000001"
+                                value={paymentData.amount || '0'}
+                                onChange={(e) => setPaymentData(prev => ({ ...prev, amount: e.target.value }))}
+                                className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer slider-glow"
+                              />
+                            </div>
+                          </div>
                         )}
                       </div>
                       <Select
@@ -702,13 +659,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                         <SelectTrigger className="w-32">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="min-w-48">
                           {availableAssets.map(asset => (
                             <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
                               <div className="flex items-center justify-between w-full">
-                                <span>{asset.code}</span>
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  {parseFloat(asset.balance).toFixed(2)}
+                                <span className="font-medium">{asset.code}</span>
+                                <span className="text-xs text-muted-foreground ml-4 font-mono">
+                                  {parseFloat(asset.balance).toLocaleString(undefined, { 
+                                    minimumFractionDigits: 2, 
+                                    maximumFractionDigits: 2 
+                                  })}
                                 </span>
                               </div>
                             </SelectItem>

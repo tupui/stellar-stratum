@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -138,5 +140,47 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  /* Currency symbol styling with premium fonts */
+  .currency-symbol {
+    @apply text-primary text-2xl font-bold;
+    font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: 'ss01' on, 'cv01' on;
+  }
+  
+  .currency-symbol-large {
+    @apply text-primary text-3xl font-bold;
+    font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: 'ss01' on, 'cv01' on;
+  }
+  
+  /* Custom slider styling */
+  .slider-glow {
+    background: linear-gradient(90deg, hsl(var(--secondary)) 0%, hsl(var(--success)) 100%);
+  }
+  
+  .slider-glow::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, hsl(var(--success)), hsl(var(--success-glow)));
+    cursor: pointer;
+    box-shadow: 0 0 20px hsl(var(--success) / 0.6), 0 0 40px hsl(var(--success) / 0.4);
+    border: 2px solid hsl(var(--success-glow));
+  }
+  
+  .slider-glow::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, hsl(var(--success)), hsl(var(--success-glow)));
+    cursor: pointer;
+    box-shadow: 0 0 20px hsl(var(--success) / 0.6), 0 0 40px hsl(var(--success) / 0.4);
+    border: 2px solid hsl(var(--success-glow));
   }
 }

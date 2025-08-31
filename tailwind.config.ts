@@ -17,8 +17,12 @@ export default {
 				'2xl': '1400px'
 			}
 		},
-		extend: {
-			colors: {
+    extend: {
+      fontFamily: {
+        'sans': ['Inter', 'ui-sans-serif', 'system-ui'],
+        'mono': ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular'],
+      },
+      colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
@@ -53,7 +57,10 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				success: 'hsl(var(--success))',
+				success: {
+					DEFAULT: 'hsl(var(--success))',
+					glow: 'hsl(var(--success-glow))'
+				},
 				warning: 'hsl(var(--warning))',
 				info: 'hsl(var(--info))',
 				sidebar: {
