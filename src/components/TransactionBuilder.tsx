@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Send, FileCode, ArrowLeft, Copy, Check, ExternalLink, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -25,6 +25,7 @@ import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
+import { MultisigConfigBuilder } from './MultisigConfigBuilder';
 
 interface TransactionBuilderProps {
   onBack: () => void;
@@ -42,14 +43,17 @@ interface TransactionBuilderProps {
       type: string;
     }>;
     thresholds: {
+      low_threshold: number;
       med_threshold: number;
+      high_threshold: number;
     };
   };
+  initialTab?: string;
 }
 
-export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: TransactionBuilderProps) => {
+export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment' }: TransactionBuilderProps) => {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('payment');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [paymentData, setPaymentData] = useState({
     destination: '',
     amount: '',
@@ -390,8 +394,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
   };
 
   const getRequiredWeight = () => {
+    // For multisig config changes, we need high threshold
+    const isMultisigTab = activeTab === 'multisig';
+    const threshold = isMultisigTab 
+      ? accountData.thresholds.high_threshold 
+      : accountData.thresholds.med_threshold;
     // If threshold is 0, default to 1 signature required
-    return accountData.thresholds.med_threshold || 1;
+    return threshold || 1;
   };
 
   const canSubmitToNetwork = getCurrentWeight() >= getRequiredWeight();
@@ -475,10 +484,14 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid grid-cols-3 w-full">
+              <TabsList className="grid grid-cols-4 w-full">
                 <TabsTrigger value="payment" className="flex items-center gap-2">
                   <Send className="w-4 h-4" />
                   Payment
+                </TabsTrigger>
+                <TabsTrigger value="multisig" className="flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Multisig
                 </TabsTrigger>
                 <TabsTrigger value="xdr" className="flex items-center gap-2">
                   <FileCode className="w-4 h-4" />
@@ -601,6 +614,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData }: Tr
                     'Process XDR'
                   )}
                 </Button>
+              </TabsContent>
+
+              <TabsContent value="multisig" className="space-y-4 mt-6">
+                <MultisigConfigBuilder
+                  accountPublicKey={accountPublicKey}
+                  currentSigners={accountData.signers}
+                  currentThresholds={accountData.thresholds}
+                  currentNetwork={currentNetwork}
+                  onXdrGenerated={(xdr) => setXdrData(prev => ({ ...prev, output: xdr }))}
+                />
               </TabsContent>
 
               <TabsContent value="refractor" className="space-y-4 mt-6">

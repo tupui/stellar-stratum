@@ -25,7 +25,7 @@ interface AccountData {
   }>;
 }
 
-type AppState = 'connecting' | 'dashboard' | 'transaction';
+type AppState = 'connecting' | 'dashboard' | 'transaction' | 'multisig-config';
 
 const Index = () => {
   const { toast } = useToast();
@@ -67,6 +67,10 @@ const Index = () => {
 
   const handleInitiateTransaction = () => {
     setAppState('transaction');
+  };
+
+  const handleConfigureMultisig = () => {
+    setAppState('multisig-config');
   };
 
   const handleSignTransaction = () => {
@@ -111,6 +115,19 @@ const Index = () => {
     );
   }
 
+  if (appState === 'multisig-config' && accountData) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TransactionBuilder 
+          onBack={handleBackToDashboard} 
+          accountPublicKey={accountData.publicKey}
+          accountData={accountData}
+          initialTab="multisig"
+        />
+      </div>
+    );
+  }
+
   if (appState === 'dashboard' && accountData) {
     const onRefreshBalances = async () => {
       if (!publicKey) return;
@@ -125,6 +142,7 @@ const Index = () => {
         onSignTransaction={handleSignTransaction}
         onDisconnect={handleDisconnect}
         onRefreshBalances={onRefreshBalances}
+        onConfigureMultisig={handleConfigureMultisig}
       />
     );
   }

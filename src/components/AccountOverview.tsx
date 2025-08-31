@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
@@ -33,9 +33,10 @@ interface AccountOverviewProps {
   onSignTransaction: () => void;
   onDisconnect: () => void;
   onRefreshBalances: () => Promise<void>;
+  onConfigureMultisig: () => void;
 }
 
-export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
+export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances, onConfigureMultisig }: AccountOverviewProps) => {
   const truncateKey = (key: string) => {
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
   };
@@ -61,6 +62,10 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           <div className="flex gap-3">
             <Button variant="destructive" onClick={onDisconnect}>
               Disconnect
+            </Button>
+            <Button variant="outline" onClick={onConfigureMultisig} className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Configure Multisig
             </Button>
             <Button onClick={onInitiateTransaction} className="bg-gradient-primary hover:opacity-90">
               Initiate Transaction
