@@ -462,13 +462,13 @@ export const MultisigConfigBuilder = ({
           )}
 
           {/* Add New Signer (aligned with rows) */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 p-3 rounded-lg border border-border bg-secondary/20">
+          <div className="grid grid-cols-[1fr_auto_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 sm:gap-3 p-3 rounded-lg border border-border bg-secondary/20">
             <Input
               id="new-signer-key"
               placeholder="GABC...XYZ (56 characters)"
               value={newSignerKey}
               onChange={(e) => setNewSignerKey(e.target.value)}
-              className="font-mono text-sm h-8"
+              className="font-mono text-xs sm:text-sm h-8"
               maxLength={56}
             />
             <Input
@@ -488,17 +488,17 @@ export const MultisigConfigBuilder = ({
                   setNewSignerWeight(value);
                 }
               }}
-              className="w-20 h-8 text-center text-sm"
+              className="w-16 sm:w-20 h-8 text-center text-xs sm:text-sm"
             />
             <Button 
               aria-label="Add signer"
               onClick={addNewSigner}
               disabled={!newSignerKey.trim()}
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 shrink-0"
               variant="secondary"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
             </Button>
           </div>
         </CardContent>
@@ -516,9 +516,12 @@ export const MultisigConfigBuilder = ({
               variant="ghost"
               size="sm"
               onClick={() => setShowAdvanced(!showAdvanced)}
+              className="shrink-0"
             >
               {showAdvanced ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              {showAdvanced ? 'Hide' : 'Show'} Details
+              <span className="hidden sm:inline ml-1">
+                {showAdvanced ? 'Hide' : 'Show'} Details
+              </span>
             </Button>
           </CardTitle>
           {showAdvanced && (
