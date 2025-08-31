@@ -46,6 +46,7 @@ All colors MUST be HSL.
     --success-glow: 142 71% 55%;
     --warning: 38 92% 50%;
     --info: 199 89% 48%;
+    --stellar-yellow: 48 96% 53%;
     
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(217 91% 70%));

@@ -63,6 +63,7 @@ export default {
 				},
 				warning: 'hsl(var(--warning))',
 				info: 'hsl(var(--info))',
+				'stellar-yellow': 'hsl(var(--stellar-yellow))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
