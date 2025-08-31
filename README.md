@@ -1,73 +1,65 @@
-# Welcome to your Lovable project
+# Stellar Multi-Signature Wallet
 
-## Project info
+A decentralized application (dapp) for managing Stellar accounts with multi-signature transaction capabilities.
 
-**URL**: https://lovable.dev/projects/1c32cf99-52e6-413e-a16b-44def5d5bf22
+## Features
 
-## How can I edit this code?
+- **Multi-Signature Support**: Configure and manage multi-signature accounts with custom thresholds
+- **Wallet Integration**: Connect with popular Stellar wallets (Freighter, Ledger, WalletConnect, etc.)
+- **Transaction Builder**: Create and submit various types of Stellar transactions
+- **Asset Management**: View account balances and manage different assets
+- **Network Support**: Switch between Stellar mainnet and testnet
+- **XDR Processing**: Import and process transaction XDR data
+- **Real-time Pricing**: Display asset values with live market data
 
-There are several ways of editing your application.
+## Technology Stack
 
-**Use Lovable**
+- **Frontend**: React 18 + TypeScript
+- **Blockchain**: Stellar Network
+- **Wallet Kit**: Stellar Wallets Kit
+- **UI Framework**: Tailwind CSS + shadcn/ui
+- **Build Tool**: Vite
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/1c32cf99-52e6-413e-a16b-44def5d5bf22) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ and npm
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-Follow these steps:
+### Usage
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. **Connect Wallet**: Choose your preferred Stellar wallet to connect
+2. **View Account**: Review your account balances, signers, and thresholds
+3. **Configure Multi-sig**: Set up multi-signature requirements for enhanced security
+4. **Build Transactions**: Create payments, asset operations, and other transactions
+5. **Submit & Sign**: Submit transactions for signing by required parties
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Key Components
 
-# Step 3: Install the necessary dependencies.
-npm i
+- **Account Overview**: Displays account details, balances, and signer information
+- **Transaction Builder**: Interface for creating various transaction types
+- **Multi-sig Configuration**: Tools for setting up multi-signature accounts
+- **Payment Forms**: Simplified interfaces for asset transfers
+- **Network Selector**: Switch between different Stellar networks
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## Security
 
-**Edit a file directly in GitHub**
+This dapp prioritizes security by:
+- Supporting hardware wallets (Ledger)
+- Enabling multi-signature configurations
+- Providing transaction preview before signing
+- Using established Stellar SDK libraries
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/1c32cf99-52e6-413e-a16b-44def5d5bf22) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Built for the Stellar ecosystem to provide secure and user-friendly multi-signature account management.
