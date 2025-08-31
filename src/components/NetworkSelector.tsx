@@ -2,7 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Globe, Send, Upload, ExternalLink } from 'lucide-react';
+import { Globe, Send, Upload } from 'lucide-react';
+import refractorLogo from '@/assets/refractor-logo.svg';
 import { useState } from 'react';
 
 interface NetworkSelectorProps {
@@ -72,7 +73,7 @@ export const NetworkSelector = ({
             ) : (
               <>
                 <Send className="w-4 h-4 mr-2" />
-                Submit to {currentNetwork}
+                Initiate Multisig Transaction
               </>
             )}
           </Button>
@@ -92,9 +93,8 @@ export const NetworkSelector = ({
             variant="outline"
             className="w-full"
           >
-            <Upload className="w-4 h-4 mr-2" />
+            <img src={refractorLogo} alt="Refractor" className="w-4 h-4 mr-2" />
             Send to Refractor
-            <ExternalLink className="w-4 h-4 ml-2" />
           </Button>
 
           {!canSubmitToNetwork && canSubmitToRefractor && (

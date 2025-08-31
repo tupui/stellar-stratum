@@ -50,6 +50,7 @@ interface EditableSigner {
   key: string;
   weight: number;
   isNew: boolean;
+  originalWeight?: number;
 }
 
 interface ValidationResult {
@@ -79,7 +80,7 @@ export const MultisigConfigBuilder = ({
 
   // Reset form when current data changes
   useEffect(() => {
-    setEditableSigners(currentSigners.map(s => ({ ...s, isNew: false })));
+    setEditableSigners(currentSigners.map(s => ({ ...s, isNew: false, originalWeight: s.weight })));
     setNewThresholds(currentThresholds);
     setNewSignerKey('');
     setNewSignerWeight(1);
@@ -348,15 +349,13 @@ export const MultisigConfigBuilder = ({
                   key={index} 
                   className="flex items-center justify-between p-3 rounded-lg border bg-secondary/30 border-border"
                 >
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <p className="font-mono text-sm break-all">{signer.key}</p>
-                      <div className="flex gap-2 mt-1">
-                        {signer.key === accountPublicKey && (
-                          <Badge variant="outline" className="text-xs">Current Account</Badge>
-                        )}
-                        <Badge variant="outline" className="text-xs">Weight: {signer.weight}</Badge>
-                      </div>
+                  <div className="flex-1">
+                    <p className="font-mono text-sm break-all">{signer.key}</p>
+                    <div className="flex gap-2 mt-1">
+                      {signer.key === accountPublicKey && (
+                        <Badge variant="outline" className="text-xs">Current Account</Badge>
+                      )}
+                      <Badge variant="outline" className="text-xs">Weight: {signer.weight}</Badge>
                     </div>
                   </div>
                 </div>
@@ -402,47 +401,55 @@ export const MultisigConfigBuilder = ({
           {/* Existing/Editable Signers */}
           {editableSigners.length > 0 && (
             <div className="space-y-2">
-              {editableSigners.map((signer, index) => (
-                <div 
-                  key={index} 
-                  className={`flex items-center gap-3 p-3 rounded-lg border ${
-                    signer.isNew 
-                      ? 'bg-green-500/10 border-green-500/20' 
-                      : 'bg-secondary/30 border-border'
-                  }`}
-                >
-                  <div className="flex-1">
-                    <p className="font-mono text-sm break-all">{signer.key}</p>
-                    <div className="flex gap-2 mt-1">
-                      {signer.key === accountPublicKey && (
-                        <Badge variant="outline" className="text-xs">Current Account</Badge>
-                      )}
-                      {signer.isNew && (
-                        <Badge variant="outline" className="text-xs bg-green-500/20">New</Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="w-24">
-                    <Label htmlFor={`weight-${index}`} className="text-xs">Weight</Label>
-                    <Input
-                      id={`weight-${index}`}
-                      type="number"
-                      min="0"
-                      max="255"
-                      value={signer.weight}
-                      onChange={(e) => updateSignerWeight(index, parseInt(e.target.value) || 0)}
-                      className="text-center"
-                    />
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => removeSigner(index)}
+              {editableSigners.map((signer, index) => {
+                const isModified = !signer.isNew && signer.originalWeight !== undefined && signer.weight !== signer.originalWeight;
+                return (
+                  <div 
+                    key={index} 
+                    className={`flex items-center gap-3 p-3 rounded-lg border ${
+                      signer.isNew 
+                        ? 'bg-green-500/10 border-green-500/20' 
+                        : isModified
+                        ? 'bg-orange-500/10 border-orange-500/20'
+                        : 'bg-secondary/30 border-border'
+                    }`}
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex-1">
+                      <p className="font-mono text-sm break-all">{signer.key}</p>
+                      <div className="flex gap-2 mt-1">
+                        {signer.key === accountPublicKey && (
+                          <Badge variant="outline" className="text-xs">Current Account</Badge>
+                        )}
+                        {signer.isNew && (
+                          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-700 dark:text-green-300">New</Badge>
+                        )}
+                        {isModified && (
+                          <Badge variant="outline" className="text-xs bg-orange-500/20 text-orange-700 dark:text-orange-300">Modified</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="w-24">
+                      <Label htmlFor={`weight-${index}`} className="text-xs">Weight</Label>
+                      <Input
+                        id={`weight-${index}`}
+                        type="number"
+                        min="0"
+                        max="255"
+                        value={signer.weight}
+                        onChange={(e) => updateSignerWeight(index, parseInt(e.target.value) || 0)}
+                        className="text-center"
+                      />
+                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => removeSigner(index)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           )}
 

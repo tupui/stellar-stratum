@@ -489,10 +489,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   <Send className="w-4 h-4" />
                   Payment
                 </TabsTrigger>
-                <TabsTrigger value="multisig" className="flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  Multisig
-                </TabsTrigger>
+                 <TabsTrigger value="multisig" className="flex items-center gap-2">
+                   <Shield className="w-4 h-4" />
+                   Multisig Configuration
+                 </TabsTrigger>
                 <TabsTrigger value="xdr" className="flex items-center gap-2">
                   <FileCode className="w-4 h-4" />
                   Generic XDR

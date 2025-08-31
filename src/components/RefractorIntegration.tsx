@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ExternalLink, Download, Upload, Copy, Check } from 'lucide-react';
+import { Download, Upload, Copy, Check } from 'lucide-react';
+import refractorLogo from '@/assets/refractor-logo.svg';
 import { useToast } from '@/hooks/use-toast';
 
 interface RefractorIntegrationProps {
@@ -62,7 +63,7 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
     <Card className="shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <ExternalLink className="w-5 h-5" />
+          <img src={refractorLogo} alt="Refractor" className="w-5 h-5" />
           Refractor Integration
         </CardTitle>
         <CardDescription>
@@ -96,8 +97,8 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
                 className="mt-2"
                 onClick={openRefractor}
               >
+                <img src={refractorLogo} alt="Refractor" className="w-4 h-4 mr-2" />
                 View on Refractor
-                <ExternalLink className="w-4 h-4 ml-2" />
               </Button>
             </div>
             <Separator />
