@@ -342,7 +342,7 @@ export const MultisigConfigBuilder = ({
         <CardContent className="space-y-4">
           {/* Current Signers */}
           <div>
-            <h4 className="font-medium mb-2">Current Signers ({currentSigners.length}/20)</h4>
+            <h4 className="font-medium mb-2">Current Signers</h4>
             <div className="space-y-2">
               {currentSigners.map((signer, index) => (
                 <div 
@@ -391,7 +391,7 @@ export const MultisigConfigBuilder = ({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
             <Users className="w-5 h-5" />
-            Signers ({editableSigners.length}/20)
+            Signers
           </CardTitle>
           <CardDescription>
             Modify signer weights or add new signers. Set weight to 0 to remove a signer.
@@ -474,7 +474,7 @@ export const MultisigConfigBuilder = ({
             <div className="space-y-2">
               <Input
                 id="new-signer-key"
-                placeholder="GABC...XYZ (56 characters)"
+                placeholder="GABC...XYZ"
                 value={newSignerKey}
                 onChange={(e) => setNewSignerKey(e.target.value)}
                 className="font-mono text-xs sm:text-sm h-8"

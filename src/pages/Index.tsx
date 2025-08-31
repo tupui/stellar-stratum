@@ -47,10 +47,6 @@ const Index = () => {
       setAccountData(realAccountData);
       setAppState('dashboard');
       
-      toast({
-        title: 'Account loaded',
-        description: 'Successfully loaded account data from Stellar network',
-      });
     } catch (error) {
       console.error('Failed to load account:', error);
       toast({
