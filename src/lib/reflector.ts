@@ -62,6 +62,8 @@ const ASSETS_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
 let assetsListsLoaded = false;
 
 const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
+  console.log(`=== Starting fetchReflectorPrice for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} ===`);
+  
   // Step 1: Ensure asset lists are loaded first
   await ensureAssetListsLoaded();
   
@@ -73,9 +75,11 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   }
   
   const { oracle, asset } = resolved;
+  console.log(`=== Using oracle ${oracle.contract} with asset:`, asset);
+  
   try {
     const price = await getOracleAssetPriceWithRetry(oracle, asset);
-    console.log(`Got price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}: ${price}`);
+    console.log(`=== Got price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}: ${price} ===`);
     return price;
   } catch (error) {
     console.warn(`Failed to fetch price for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''} from ${oracle.contract}:`, error);
@@ -170,12 +174,14 @@ const resolveOracleAndAsset = (assetCode: string, assetIssuer?: string): { oracl
     const cached = oracleAssetsCache[cacheKey];
     
     if (cached && cached.assets) {
-      console.log(`Checking oracle ${oracle.contract} with ${cached.assets.length} assets for ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}`);
-      console.log(`First 10 assets in ${oracle.contract}:`, cached.assets.slice(0, 10));
+      console.log(`=== Checking oracle ${oracle.contract} ===`);
+      console.log(`Assets in oracle: ${cached.assets.length}`);
+      console.log(`Looking for: ${assetCode}${assetIssuer ? ':' + assetIssuer : ''}`);
+      console.log(`Sample assets:`, cached.assets.slice(0, 5));
       
       // 1) Direct symbol match => use Other type with symbol
       if (cached.assets.includes(assetCode)) {
-        console.log(`Found ${assetCode} in ${oracle.contract}`);
+        console.log(`✓ Found exact match: ${assetCode} in ${oracle.contract}`);
         return { oracle, asset: { type: AssetType.Other, code: assetCode } };
       }
       
@@ -183,24 +189,27 @@ const resolveOracleAndAsset = (assetCode: string, assetIssuer?: string): { oracl
       if (assetIssuer) {
         // Prefer stellar_{issuer} format
         const stellarFormat = `stellar_${assetIssuer}`;
+        console.log(`Checking stellar format: ${stellarFormat}`);
         if (cached.assets.includes(stellarFormat)) {
-          console.log(`Found ${assetCode} with issuer in ${oracle.contract} as ${stellarFormat}`);
+          console.log(`✓ Found stellar format: ${stellarFormat} in ${oracle.contract}`);
           return { oracle, asset: { type: AssetType.Stellar, code: assetIssuer } };
         }
         
+        // Check if any asset contains the issuer
+        const matchingAssets = cached.assets.filter(a => a.includes(assetIssuer));
+        console.log(`Assets containing issuer "${assetIssuer}":`, matchingAssets);
+        
         // Fallback formats
-        const formats = [
-          assetIssuer,
-          `${assetCode}_${assetIssuer}`,
-          `${assetCode}:${assetIssuer}`
-        ];
+        const formats = [assetIssuer, `${assetCode}_${assetIssuer}`, `${assetCode}:${assetIssuer}`];
         for (const format of formats) {
+          console.log(`Checking format: ${format}`);
           if (cached.assets.includes(format)) {
-            console.log(`Found ${assetCode} with issuer in ${oracle.contract} as ${format}`);
+            console.log(`✓ Found fallback format: ${format} in ${oracle.contract}`);
             return { oracle, asset: { type: AssetType.Stellar, code: assetIssuer } };
           }
         }
       }
+      console.log(`✗ No match found in ${oracle.contract}`);
     } else {
       console.log(`No cached assets for oracle ${oracle.contract}`);
     }
