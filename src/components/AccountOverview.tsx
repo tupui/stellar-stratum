@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle, Settings } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, Settings, Info } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
@@ -113,9 +113,27 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           {/* Thresholds */}
           <Card className="shadow-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
-                <AlertTriangle className="w-6 h-6 text-red-500" />
-                Operation Thresholds
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
+                  <AlertTriangle className="w-6 h-6 text-red-500" />
+                  Operation Thresholds
+                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" className="shrink-0">
+                        <Info className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <div className="space-y-2 text-sm">
+                        <p><strong>Low threshold:</strong> Trust lines, bump sequence</p>
+                        <p><strong>Medium threshold:</strong> Payments, offers, manage data</p>
+                        <p><strong>High threshold:</strong> Account changes, merge account</p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </CardTitle>
               <CardDescription>
                 Required signature weights for different operations
@@ -124,9 +142,9 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             <CardContent>
               <div className="space-y-4">
                 {[
-                  { label: 'Low (Trust lines)', value: accountData.thresholds.low_threshold },
-                  { label: 'Medium (Payments)', value: accountData.thresholds.med_threshold },
-                  { label: 'High (Account changes)', value: accountData.thresholds.high_threshold },
+                  { label: 'Low', value: accountData.thresholds.low_threshold },
+                  { label: 'Medium', value: accountData.thresholds.med_threshold },
+                  { label: 'High', value: accountData.thresholds.high_threshold },
                 ].map((threshold, index) => {
                   const currentWeight = accountData.signers.reduce((sum, signer) => sum + signer.weight, 0);
                   const status = getThresholdStatus(currentWeight, threshold.value);
