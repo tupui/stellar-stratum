@@ -59,12 +59,16 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
   }
 
   return (
-    <img
-      src={assetInfo.image}
-      alt={assetInfo.name || assetCode || 'Asset'}
-      className={`rounded-full ${className}`}
+    <div
+      className={`rounded-full bg-foreground/10 ring-1 ring-border overflow-hidden ${className}`}
       style={{ width: size, height: size }}
-      onError={handleImageError}
-    />
+    >
+      <img
+        src={assetInfo.image}
+        alt={assetInfo.name || assetCode || 'Asset'}
+        className="w-full h-full object-contain p-1"
+        onError={handleImageError}
+      />
+    </div>
   );
 };
