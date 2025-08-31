@@ -434,7 +434,16 @@ export const MultisigConfigBuilder = ({
                       min="0"
                       max="255"
                       value={signer.weight}
-                      onChange={(e) => updateSignerWeight(index, parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value);
+                        if (isNaN(value) || value < 0) {
+                          updateSignerWeight(index, 0);
+                        } else if (value > 255) {
+                          updateSignerWeight(index, 255);
+                        } else {
+                          updateSignerWeight(index, value);
+                        }
+                      }}
                       className="w-20 h-8 text-center text-sm"
                     />
                     <Button
@@ -469,7 +478,16 @@ export const MultisigConfigBuilder = ({
               min="1"
               max="255"
               value={newSignerWeight}
-              onChange={(e) => setNewSignerWeight(parseInt(e.target.value) || 1)}
+              onChange={(e) => {
+                const value = parseInt(e.target.value);
+                if (isNaN(value) || value < 1) {
+                  setNewSignerWeight(1);
+                } else if (value > 255) {
+                  setNewSignerWeight(255);
+                } else {
+                  setNewSignerWeight(value);
+                }
+              }}
               className="w-20 h-8 text-center text-sm"
             />
             <Button 
@@ -523,10 +541,16 @@ export const MultisigConfigBuilder = ({
                 min="0"
                 max="255"
                 value={newThresholds.low_threshold}
-                onChange={(e) => setNewThresholds(prev => ({ 
-                  ...prev, 
-                  low_threshold: parseInt(e.target.value) || 0 
-                }))}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (isNaN(value) || value < 0) {
+                    setNewThresholds(prev => ({ ...prev, low_threshold: 0 }));
+                  } else if (value > 255) {
+                    setNewThresholds(prev => ({ ...prev, low_threshold: 255 }));
+                  } else {
+                    setNewThresholds(prev => ({ ...prev, low_threshold: value }));
+                  }
+                }}
               />
             </div>
             <div>
@@ -537,10 +561,16 @@ export const MultisigConfigBuilder = ({
                 min="0"
                 max="255"
                 value={newThresholds.med_threshold}
-                onChange={(e) => setNewThresholds(prev => ({ 
-                  ...prev, 
-                  med_threshold: parseInt(e.target.value) || 0 
-                }))}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (isNaN(value) || value < 0) {
+                    setNewThresholds(prev => ({ ...prev, med_threshold: 0 }));
+                  } else if (value > 255) {
+                    setNewThresholds(prev => ({ ...prev, med_threshold: 255 }));
+                  } else {
+                    setNewThresholds(prev => ({ ...prev, med_threshold: value }));
+                  }
+                }}
               />
             </div>
             <div>
@@ -551,10 +581,16 @@ export const MultisigConfigBuilder = ({
                 min="0"
                 max="255"
                 value={newThresholds.high_threshold}
-                onChange={(e) => setNewThresholds(prev => ({ 
-                  ...prev, 
-                  high_threshold: parseInt(e.target.value) || 0 
-                }))}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (isNaN(value) || value < 0) {
+                    setNewThresholds(prev => ({ ...prev, high_threshold: 0 }));
+                  } else if (value > 255) {
+                    setNewThresholds(prev => ({ ...prev, high_threshold: 255 }));
+                  } else {
+                    setNewThresholds(prev => ({ ...prev, high_threshold: value }));
+                  }
+                }}
               />
             </div>
           </div>
