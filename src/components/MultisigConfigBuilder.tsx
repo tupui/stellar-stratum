@@ -417,21 +417,10 @@ export const MultisigConfigBuilder = ({
                     <div className="space-y-2">
                       <div className="min-w-0">
                         <p className="font-mono text-sm break-all">{signer.key}</p>
-                        <div className="flex gap-2 mt-1 flex-wrap text-xs">
-                          {signer.key === accountPublicKey && (
-                            <Badge variant="outline">Current Account</Badge>
-                          )}
-                          {signer.isNew && (
-                            <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">New</Badge>
-                          )}
-                          {isModified && (
-                            <Badge variant="outline" className="bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30">Modified</Badge>
-                          )}
-                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col">
-                          <Label htmlFor={`weight-${index}`} className="text-xs text-muted-foreground">Weight</Label>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Weight</span>
                           <Input
                             id={`weight-${index}`}
                             aria-label={`Weight for signer ${index + 1}`}
@@ -449,7 +438,7 @@ export const MultisigConfigBuilder = ({
                                 updateSignerWeight(index, value);
                               }
                             }}
-                            className="w-20 h-8 text-center text-sm"
+                            className="w-20 h-10 text-center text-sm"
                           />
                         </div>
                         <Button
@@ -457,10 +446,21 @@ export const MultisigConfigBuilder = ({
                           variant="destructive"
                           size="icon"
                           onClick={() => removeSigner(index)}
-                          className="h-8 w-8"
+                          className="h-10 w-10"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
+                        <div className="flex gap-2 flex-wrap text-xs mt-1">
+                          {signer.key === accountPublicKey && (
+                            <Badge variant="outline">Current Account</Badge>
+                          )}
+                          {signer.isNew && (
+                            <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">New</Badge>
+                          )}
+                          {isModified && (
+                            <Badge variant="outline" className="bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/30">Modified</Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -481,8 +481,8 @@ export const MultisigConfigBuilder = ({
                 maxLength={56}
               />
               <div className="flex items-center gap-3">
-                <div className="flex flex-col">
-                  <Label htmlFor="new-signer-weight" className="text-xs text-muted-foreground">Weight</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Weight</span>
                   <Input
                     aria-label="New signer weight"
                     id="new-signer-weight"
@@ -500,13 +500,13 @@ export const MultisigConfigBuilder = ({
                         setNewSignerWeight(value);
                       }
                     }}
-                    className="w-20 h-8 text-center text-sm"
+                    className="w-20 h-10 text-center text-sm"
                   />
                 </div>
                 <Button
                   onClick={addNewSigner}
                   disabled={!newSignerKey.trim()}
-                  className="h-8 px-3"
+                  className="h-10 px-3"
                 >
                   <Plus className="w-3 h-3 mr-1" />
                   Add

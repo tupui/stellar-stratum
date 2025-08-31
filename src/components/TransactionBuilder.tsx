@@ -600,28 +600,28 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                 <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full p-0 bg-transparent gap-2">
                   <TabsTrigger 
                     value="payment" 
-                    className="flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3 py-3"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Send className="w-4 h-4" />
                     <span>Payment</span>
                   </TabsTrigger>
-                   <TabsTrigger 
-                     value="multisig"
-                     className="flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3 py-3"
-                   >
-                     <Shield className="w-4 h-4" />
-                     <span>Multisig</span>
-                   </TabsTrigger>
+                  <TabsTrigger 
+                    value="multisig"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>Multisig</span>
+                  </TabsTrigger>
                   <TabsTrigger 
                     value="xdr"
-                    className="flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3 py-3"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <FileCode className="w-4 h-4" />
                     <span>XDR</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="refractor"
-                    className="flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3 py-3"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Share2 className="w-4 h-4" />
                     <span>Refractor</span>
