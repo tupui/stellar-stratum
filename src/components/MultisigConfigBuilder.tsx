@@ -509,7 +509,7 @@ export const MultisigConfigBuilder = ({
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5" />
+              <Shield className="w-6 h-6" />
               Operation Thresholds
             </div>
             <Button
