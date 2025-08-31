@@ -54,8 +54,6 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
     const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
     if (reflectorPrice > 0) {
       setCachedPrice(assetKey, reflectorPrice);
-      // Update the last fetch timestamp
-      setLastFetchTimestamp();
       return reflectorPrice;
     }
 
@@ -93,44 +91,64 @@ const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(r
 // Asset to oracle mapping cache
 const assetOracleMapping: Record<string, { oracle: OracleConfig; asset: Asset }> = {};
 let mappingInitialized = false;
+let mappingPromise: Promise<void> | null = null;
 
-// Initialize the asset-to-oracle mapping by querying all 3 contracts
+// Initialize the asset-to-oracle mapping by querying all 3 contracts (singleton with promise)
 const initializeAssetMapping = async (): Promise<void> => {
   if (mappingInitialized) return;
   
-  const allOracles = [REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.FX];
-  
-  // Load asset lists from all oracles in parallel
-  await Promise.all(allOracles.map(oracle => getOracleAssetsWithRetry(oracle)));
-  
-  // Build the mapping
-  for (const oracle of allOracles) {
-    const cacheKey = `assets_${oracle.contract}`;
-    const cached = oracleAssetsCache[cacheKey];
-    
-    if (cached && cached.assets) {
-      for (const assetId of cached.assets) {
-        // Handle different asset formats
-        if (assetId.startsWith('stellar_')) {
-          // This is a Stellar asset with issuer/contract ID
-          const code = assetId.substring(8);
-          assetOracleMapping[assetId] = { 
-            oracle, 
-            asset: { type: AssetType.Stellar, code } 
-          };
-        } else {
-          // This is a direct symbol (XLM, USDC, BTC, etc.)
-          assetOracleMapping[assetId] = { 
-            oracle, 
-            asset: { type: AssetType.Other, code: assetId } 
-          };
-        }
-      }
-    }
+  // If already in progress, wait for the existing promise
+  if (mappingPromise) {
+    await mappingPromise;
+    return;
   }
   
-  mappingInitialized = true;
-  console.log(`Asset mapping initialized with ${Object.keys(assetOracleMapping).length} assets across ${allOracles.length} oracles`);
+  // Start the initialization process
+  mappingPromise = (async () => {
+    try {
+      const allOracles = [REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.FX];
+      
+      // Load asset lists from all oracles in parallel
+      await Promise.all(allOracles.map(oracle => getOracleAssetsWithRetry(oracle)));
+      
+      // Build the mapping
+      let totalAssets = 0;
+      for (const oracle of allOracles) {
+        const cacheKey = `assets_${oracle.contract}`;
+        const cached = oracleAssetsCache[cacheKey];
+        
+        if (cached && cached.assets) {
+          for (const assetId of cached.assets) {
+            totalAssets++;
+            // Handle different asset formats
+            if (assetId.startsWith('stellar_')) {
+              // This is a Stellar asset with issuer/contract ID
+              const code = assetId.substring(8);
+              assetOracleMapping[assetId] = { 
+                oracle, 
+                asset: { type: AssetType.Stellar, code } 
+              };
+            } else {
+              // This is a direct symbol (XLM, USDC, BTC, etc.)
+              assetOracleMapping[assetId] = { 
+                oracle, 
+                asset: { type: AssetType.Other, code: assetId } 
+              };
+            }
+          }
+        }
+      }
+      
+      mappingInitialized = true;
+      console.log(`Asset mapping initialized with ${totalAssets} assets across ${allOracles.length} oracles`);
+    } catch (error) {
+      console.error('Failed to initialize asset mapping:', error);
+      mappingPromise = null; // Reset to allow retry
+      throw error;
+    }
+  })();
+  
+  await mappingPromise;
 };
 
 // Fetch price using the asset-to-oracle mapping
@@ -420,6 +438,8 @@ const setCachedPrice = (assetKey: string, price: number): void => {
       timestamp: Date.now()
     };
     savePriceCache(cache);
+    // Update last fetch timestamp when we successfully cache a new price
+    setLastFetchTimestamp();
   }
 };
 
@@ -449,6 +469,7 @@ export const clearPriceCache = (): void => {
     // Reset asset mapping to force re-initialization
     Object.keys(assetOracleMapping).forEach(key => delete assetOracleMapping[key]);
     mappingInitialized = false;
+    mappingPromise = null;
     loadedOracles.clear();
     
   } catch (error) {

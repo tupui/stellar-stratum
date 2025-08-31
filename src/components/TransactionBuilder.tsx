@@ -95,19 +95,28 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   }, [activeTab]);
 
   useEffect(() => {
-    // Load asset prices for fiat conversion
+    // Load asset prices for fiat conversion in parallel for better performance
     const loadPrices = async () => {
-      const prices: Record<string, number> = {};
-      for (const balance of accountData.balances) {
+      const pricePromises = accountData.balances.map(async (balance) => {
         const key = balance.asset_code || 'XLM';
         try {
           const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
-          prices[key] = price;
+          return { key, price };
         } catch (error) {
           console.warn(`Failed to get price for ${key}:`, error);
-          prices[key] = 0;
+          return { key, price: 0 };
         }
-      }
+      });
+      
+      const results = await Promise.allSettled(pricePromises);
+      const prices: Record<string, number> = {};
+      
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          prices[result.value.key] = result.value.price;
+        }
+      });
+      
       setAssetPrices(prices);
     };
     loadPrices();
