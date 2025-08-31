@@ -491,35 +491,36 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   // Get available assets from account balances with prices and balances
   const getAvailableAssets = () => {
-    const assetsMap = new Map();
-    
+    // Deduplicate by asset code (choose the trustline with the largest balance for that code)
+    const byCode = new Map<string, { code: string; issuer: string; name: string; balance: string; price: number }>();
+
     // Add XLM first
-    const xlmBalance = accountData.balances.find(b => b.asset_type === 'native')?.balance || '0';
-    assetsMap.set('XLM-', {
-      code: 'XLM', 
-      issuer: '', 
+    const xlmBalance = accountData.balances.find((b) => b.asset_type === 'native')?.balance || '0';
+    byCode.set('XLM', {
+      code: 'XLM',
+      issuer: '',
       name: 'Stellar Lumens',
       balance: xlmBalance,
-      price: assetPrices['XLM'] || 0
+      price: assetPrices['XLM'] || 0,
     });
-    
-    // Add other assets with unique key (code + issuer)
-    accountData.balances.forEach(balance => {
+
+    // Consider other assets; if multiple issuers share the same code, keep the one with the highest balance
+    accountData.balances.forEach((balance) => {
       if (balance.asset_type !== 'native' && balance.asset_code && balance.asset_issuer) {
-        const key = `${balance.asset_code}-${balance.asset_issuer}`;
-        if (!assetsMap.has(key)) {
-          assetsMap.set(key, {
+        const existing = byCode.get(balance.asset_code);
+        if (!existing || parseFloat(balance.balance) > parseFloat(existing.balance)) {
+          byCode.set(balance.asset_code, {
             code: balance.asset_code,
             issuer: balance.asset_issuer,
             name: balance.asset_code,
             balance: balance.balance,
-            price: assetPrices[balance.asset_code] || 0
+            price: assetPrices[balance.asset_code] || 0,
           });
         }
       }
     });
-    
-    return Array.from(assetsMap.values());
+
+    return Array.from(byCode.values());
   };
 
   const availableAssets = getAvailableAssets();
@@ -684,21 +685,19 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                                 <SelectPrimitive.Item
                                   key={`${asset.code}-${asset.issuer}`}
                                   value={asset.code}
-                                  className="relative grid grid-cols-[120px_1fr] items-center gap-4 rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                                  className="relative rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
                                 >
                                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                                     <SelectPrimitive.ItemIndicator>
                                       <Check className="h-4 w-4" />
                                     </SelectPrimitive.ItemIndicator>
                                   </span>
-                                  <span className="font-medium" aria-hidden>
-                                    {asset.code}
-                                  </span>
-                                  <span className="font-mono tabular-nums text-right text-xs text-muted-foreground" aria-hidden>
-                                    {formattedBalance}
-                                  </span>
-                                  {/* Hidden text for a11y/value label */}
-                                  <SelectPrimitive.ItemText className="sr-only">{asset.code}</SelectPrimitive.ItemText>
+                                  <SelectPrimitive.ItemText>
+                                    <div className="grid grid-cols-[120px_1fr] items-center gap-4">
+                                      <span className="font-medium">{asset.code}</span>
+                                      <span className="font-mono tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
+                                    </div>
+                                  </SelectPrimitive.ItemText>
                                 </SelectPrimitive.Item>
                               );
                             })}
