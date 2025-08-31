@@ -79,7 +79,25 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
   }, []);
 
   const getWalletIcon = (wallet: ISupportedWallet) => {
-    const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+    const isLedger = wallet.id.toLowerCase().includes('ledger');
+    const isHardware = isLedger || wallet.id.toLowerCase().includes('trezor');
+    
+    if (isLedger) {
+      return (
+        <img 
+          src="/ledger-logo.svg" 
+          alt="Ledger logo" 
+          className="w-8 h-8 text-primary"
+          onError={(e) => {
+            // Fallback to USB icon if SVG fails to load
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+            const fallback = target.nextElementSibling as HTMLElement;
+            if (fallback) fallback.style.display = 'flex';
+          }}
+        />
+      );
+    }
     
     if (isHardware) {
       return <Usb className="w-8 h-8 text-primary" />;
@@ -477,7 +495,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
           
           <div className="pt-4 border-t border-border">
             <div className="text-center text-xs text-muted-foreground">
-              © 2025 Tansu, Consulting Manao GmbH
+              © 2025 Consulting Manao GmbH
             </div>
           </div>
         </CardContent>
