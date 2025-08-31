@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="8" y="6" width="4" height="20" rx="1" fill="currentColor"/>
-  <rect x="8" y="22" width="16" height="4" rx="1" fill="currentColor"/>
+  <!-- Ledger Official Logo -->
+  <!-- Top left corner -->
+  <path d="M4 4h8v4H8v4H4V4z" fill="currentColor"/>
+  <!-- Top right corner -->
+  <path d="M20 4h8v8h-4V8h-4V4z" fill="currentColor"/>
+  <!-- Bottom left corner -->
+  <path d="M4 20v8h8v-4H8v-4H4z" fill="currentColor"/>
+  <!-- Bottom right corner -->
+  <path d="M24 20v4h-4v4h8v-8h-4z" fill="currentColor"/>
+  <!-- L shape in center -->
+  <path d="M12 10h4v8h8v4h-12V10z" fill="currentColor"/>
 </svg>
