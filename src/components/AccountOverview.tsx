@@ -114,7 +114,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           <Card className="shadow-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
+                <AlertTriangle className="w-6 h-6 text-red-500" />
                 Operation Thresholds
               </CardTitle>
               <CardDescription>

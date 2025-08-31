@@ -564,9 +564,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           <Button 
             variant="outline" 
             onClick={onBack}
-            className="hover:bg-secondary/80 transition-smooth text-success border-success/30 hover:border-success/50 self-start"
+            className="self-start"
           >
-            <span className="hidden sm:inline">Back to</span> Dashboard
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
           </Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">Transaction Builder</h1>
@@ -597,7 +598,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <div className="p-1 bg-muted/50 rounded-lg border border-border/50">
+              <div className="p-1 bg-muted/50 rounded-lg">
                 <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full p-0 bg-transparent">
                   <TabsTrigger 
                     value="payment" 

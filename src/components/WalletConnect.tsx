@@ -460,7 +460,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                             )}
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="max-w-xs">
+                        <TooltipContent side="bottom" collisionPadding={8} className="max-w-xs">
                           <p>{getWalletTooltip(wallet)}</p>
                         </TooltipContent>
                       </Tooltip>
