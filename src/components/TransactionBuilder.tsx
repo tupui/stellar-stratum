@@ -667,9 +667,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                               <span className="font-medium text-sm">{paymentData.asset}</span>
                             </SelectValue>
                           </SelectTrigger>
-                          <SelectContent className="min-w-[420px] max-h-64 overflow-y-auto">
+                          <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto">
                             {/* Header */}
-                            <div className="sticky top-0 z-10 grid grid-cols-[120px_1fr] items-center gap-4 px-8 py-2 text-[11px] text-muted-foreground bg-popover/95 backdrop-blur">
+                            <div className="sticky top-0 z-10 grid grid-cols-[80px_1fr] items-center gap-3 px-6 py-2 text-[11px] text-muted-foreground bg-popover/95 backdrop-blur">
                               <span className="uppercase tracking-wider">Asset</span>
                               <span className="text-right uppercase tracking-wider">Balance</span>
                             </div>
@@ -693,7 +693,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                                     </SelectPrimitive.ItemIndicator>
                                   </span>
                                   <SelectPrimitive.ItemText>
-                                    <div className="grid grid-cols-[120px_1fr] items-center gap-4">
+                                    <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                                       <span className="font-medium">{asset.code}</span>
                                       <span className="font-mono tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
                                     </div>
