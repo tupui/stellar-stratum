@@ -128,15 +128,15 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
         )}
 
         {/* Total Value Display */}
-        <div className="mt-4 p-4 bg-gradient-primary/10 rounded-lg border border-primary/20">
+        <div className="mt-4 p-4 bg-primary/5 rounded-lg border border-primary/10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
+              <p className="text-sm text-muted-foreground/80">Total Portfolio Value</p>
               <p className="text-2xl font-bold">
                 {loading ? (
-                  <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span>
+                  <span className="bg-gradient-to-r from-primary/60 via-primary to-primary/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span>
                 ) : (
-                  <span className="text-primary">{formatValue(totalValueUSD)}</span>
+                  <span className="text-foreground">{formatValue(totalValueUSD)}</span>
                 )}
               </p>
             </div>
@@ -153,7 +153,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
               {quoteCurrency === 'EUR' ? (
                 <span className="w-8 h-8 text-primary/50 flex items-center justify-center text-2xl font-bold">€</span>
               ) : (
-                <DollarSign className="w-8 h-8 text-primary/50" />
+                <DollarSign className="w-8 h-8 text-muted-foreground/60" />
               )}
             </div>
           </div>
@@ -162,14 +162,14 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
 
       <CardContent className="space-y-4">
         {/* Controls */}
-        <div className="flex items-center justify-start gap-4 p-3 bg-secondary/30 rounded-lg">
+        <div className="flex items-center justify-start gap-4 p-3 bg-secondary/20 rounded-lg border border-border/50">
           <div className="flex items-center space-x-3">
             <Switch
               id="hide-small"
               checked={hideSmallBalances}
               onCheckedChange={setHideSmallBalances}
             />
-            <Label htmlFor="hide-small" className="text-sm">Hide &lt; $1</Label>
+            <Label htmlFor="hide-small" className="text-sm font-medium">Hide &lt; $1</Label>
           </div>
         </div>
 
@@ -198,7 +198,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
             </div>
           ) : (
             filteredAssets.map((asset, index) => (
-              <div key={index} className="p-4 border border-border rounded-lg hover:bg-secondary/20 transition-smooth">
+              <div key={index} className="p-4 border border-border/60 rounded-lg hover:bg-secondary/30 hover:border-border transition-smooth">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <AssetIcon 
@@ -208,22 +208,22 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                     />
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold">{asset.symbol}</p>
+                        <p className="font-semibold text-foreground">{asset.symbol}</p>
                         {asset.asset_type === 'native' && (
-                          <Badge variant="outline" className="text-xs">Native</Badge>
+                          <Badge variant="outline" className="text-xs border-primary/30 text-primary">Native</Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_type}
+                      <p className="text-sm text-muted-foreground/80">
+                        {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_code}
                       </p>
                       {asset.priceUSD === -1 ? (
                         <LoadingPill size="sm" className="mt-1" />
                       ) : asset.priceUSD > 0 ? (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground/70">
                           {formatPrice(asset.priceUSD)} per {asset.symbol}
                         </p>
                       ) : (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground/70">
                           Price unavailable
                         </p>
                       )}
@@ -231,10 +231,10 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                   </div>
 
                   <div className="text-right">
-                    <p className="font-mono font-semibold">
+                    <p className="font-mono font-semibold text-foreground">
                       {formatBalance(asset.balance)}
                     </p>
-                    <p className="text-sm text-muted-foreground">{asset.symbol}</p>
+                    <p className="text-sm text-muted-foreground/70">{asset.symbol}</p>
                     <div className="text-sm font-medium text-primary">
                       {asset.priceUSD === -1 ? (
                         <LoadingPill size="sm" />

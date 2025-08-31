@@ -40,19 +40,12 @@ export interface AccountData {
 
 export const connectWallet = async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
   try {
-    console.log('Connecting to wallet:', walletId);
-
     // Direct Freighter path for reliability
     if (walletId.toLowerCase().includes('freighter')) {
-      console.log('Checking for Freighter in iframe environment...');
-      console.log('window.freighterApi:', (window as any).freighterApi);
-      console.log('window.freighter:', (window as any).freighter);
-      
       const isInIframe = window !== window.top;
-      console.log('Running in iframe:', isInIframe);
       
       if (isInIframe) {
-        console.warn('Freighter in iframe detected; attempting StellarWalletsKit fallback');
+        // Try StellarWalletsKit fallback for iframe
         try {
           const kit = stellarKit;
           kit.setWallet(FREIGHTER_ID);
@@ -61,22 +54,16 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
             await (kit as any).connect();
           }
           const { address } = await kit.getAddress();
-          console.log('Freighter fallback via StellarWalletsKit succeeded:', address);
           return { publicKey: address, walletName: 'Freighter' };
         } catch (fallbackErr) {
-          console.error('Freighter fallback via StellarWalletsKit failed:', fallbackErr);
-          console.warn('Will try direct window.freighterApi access next');
+          // Continue to direct access attempt
         }
       }
       
       const w = (window as any).freighterApi || (window as any).freighter;
       if (!w) {
-        console.log('Freighter extension not found on window object (likely due to iframe or missing extension)');
         throw new Error('Freighter extension not accessible. Please open this app in a new tab or install Freighter.');
       }
-      
-      console.log('Freighter object found:', w);
-      console.log('Freighter methods:', Object.keys(w));
       
       try {
         const isConnected = typeof w.isConnected === 'function' ? await w.isConnected() : false;
@@ -88,7 +75,7 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
           }
         }
       } catch (error) {
-        console.warn('Freighter access check failed:', error);
+        // Continue if access check fails
       }
 
       const address = (await (w.getPublicKey?.() || w.requestPublicKey?.())) as string;
@@ -116,8 +103,6 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
     
     // Request address (triggers permission prompt and account selection for hardware wallets)
     const { address } = await kit.getAddress();
-    
-    console.log('Successfully connected to:', address);
     
     // Get wallet info
     const supportedWallets = await kit.getSupportedWallets();
@@ -191,7 +176,6 @@ export const getSupportedWallets = async (): Promise<ISupportedWallet[]> => {
   try {
     // Use stellarKit directly - it already has all modules loaded
     const wallets = await stellarKit.getSupportedWallets();
-    console.log('Available wallets:', wallets.map(w => ({ id: w.id, name: w.name, available: w.isAvailable })));
     
     // Filter and prioritize wallets
     const priorityOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'albedo', 'rabet'];
