@@ -189,7 +189,11 @@
       
       /* Hide loader once React loads */
       .app-loaded #app-loader {
-        display: none;
+        display: none !important;
+        visibility: hidden;
+        opacity: 0;
+        height: 0;
+        overflow: hidden;
       }
       
       /* Responsive design */
@@ -235,16 +239,11 @@
           </div>
         </div>
         <div class="hero-content">
-          <h1 class="hero-title">
-            Multi-Signature<br>
-            Transactions<br>
-            <span class="hero-title-accent">Made Simple</span>
-          </h1>
-          <p class="hero-subtitle">
-            Stellar's threshold-based authorization system. Configure signature weights, 
-            manage signer permissions, and execute secure multi-signature transactions.
-          </p>
-          <button class="hero-button">Launch App</button>
+          <div class="loader-content">
+            <div class="loader-title">Stratum</div>
+            <div class="loader-subtitle">Loading Stellar Multisig Wallet...</div>
+            <div class="loader-spinner"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -256,14 +255,37 @@
     <!-- Hide loader once React content loads -->
     <script>
       document.addEventListener('DOMContentLoaded', function() {
+        // Force hide loader immediately if React content already exists
+        const root = document.getElementById('root');
+        const loader = document.getElementById('app-loader');
+        
+        if (root && root.children.length > 0) {
+          document.body.classList.add('app-loaded');
+          if (loader) loader.style.display = 'none';
+        }
+        
         const observer = new MutationObserver(function(mutations) {
-          const root = document.getElementById('root');
           if (root && root.children.length > 0) {
             document.body.classList.add('app-loaded');
+            if (loader) {
+              loader.style.display = 'none';
+              loader.style.visibility = 'hidden';
+              loader.style.height = '0';
+              loader.style.overflow = 'hidden';
+            }
             observer.disconnect();
           }
         });
-        observer.observe(document.getElementById('root'), { childList: true });
+        
+        if (root) {
+          observer.observe(root, { childList: true, subtree: true });
+        }
+        
+        // Fallback: hide loader after 3 seconds
+        setTimeout(() => {
+          document.body.classList.add('app-loaded');
+          if (loader) loader.style.display = 'none';
+        }, 3000);
       });
     </script>
   </body>
