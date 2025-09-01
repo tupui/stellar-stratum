@@ -374,18 +374,43 @@ export const PaymentForm = ({
     onValueChange: (value: string) => void;
     className?: string;
   }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editValue, setEditValue] = useState(value.toString());
     const percentage = max > 0 ? (value / max) * 100 : 0;
     const availableBalance = getAvailableBalance(assetCode);
     const isOverLimit = value > availableBalance;
     const isMerged = mergePaymentId === (paymentId || 'main');
     
+    const handleEditSubmit = () => {
+      const numValue = parseFloat(editValue) || 0;
+      const clampedValue = Math.min(Math.max(0, numValue), max);
+      onValueChange(clampedValue.toString());
+      setEditValue(clampedValue.toString());
+      setIsEditing(false);
+    };
+
+    const handleEditKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        handleEditSubmit();
+      } else if (e.key === 'Escape') {
+        setEditValue(value.toString());
+        setIsEditing(false);
+      }
+    };
+
+    useEffect(() => {
+      if (!isEditing) {
+        setEditValue(value.toString());
+      }
+    }, [value, isEditing]);
+    
     return (
       <div className={`relative ${className}`}>
-        <div className="relative h-12 bg-muted rounded-lg overflow-hidden">
+        <div className="relative h-12 bg-muted/50 rounded-lg overflow-hidden border border-border/30 hover:border-border/60 transition-colors">
           {/* Background fill */}
           <div 
             className={`absolute inset-y-0 left-0 transition-all duration-300 ${
-              isOverLimit ? 'bg-gradient-to-r from-yellow-500/20 to-red-500/20' : 'bg-primary/20'
+              isOverLimit ? 'bg-gradient-to-r from-warning/30 to-destructive/30' : 'bg-primary/25'
             }`}
             style={{ width: `${Math.min(percentage, 100)}%` }}
           />
@@ -405,18 +430,38 @@ export const PaymentForm = ({
           {/* Text content */}
           <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{assetCode}</span>
+              <span className="text-sm font-semibold text-foreground">{assetCode}</span>
               {isOverLimit && canCloseAccount() && (
-                <Badge variant="destructive" className="text-xs">Close Account</Badge>
+                <Badge variant="destructive" className="text-xs pointer-events-none">Close Account</Badge>
               )}
             </div>
-            <div className="text-right">
-              <div className="text-sm font-mono">
-                {formatDisplayAmount(value.toString())}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                / {formatDisplayAmount(max.toString())}
-              </div>
+            <div className="text-right pointer-events-auto">
+              {isEditing ? (
+                <Input
+                  type="number"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={handleEditSubmit}
+                  onKeyDown={handleEditKeyDown}
+                  className="h-6 w-24 text-xs font-mono text-right p-1 bg-background/90 border border-primary/50"
+                  autoFocus
+                  step="any"
+                  min="0"
+                  max={max}
+                />
+              ) : (
+                <div 
+                  className="cursor-pointer hover:bg-background/20 rounded px-2 py-1 transition-colors group"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <div className="text-sm font-mono font-semibold text-foreground group-hover:text-primary transition-colors">
+                    {formatDisplayAmount(value.toString())}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    / {formatDisplayAmount(max.toString())}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -427,7 +472,7 @@ export const PaymentForm = ({
             variant="outline"
             size="sm"
             onClick={() => handleMergeAccount(paymentId)}
-            className="absolute -right-20 top-1/2 -translate-y-1/2 h-8 px-3 text-xs"
+            className="absolute -right-20 top-1/2 -translate-y-1/2 h-8 px-3 text-xs border-primary/30 hover:border-primary hover:bg-primary/10"
           >
             <Merge className="h-3 w-3 mr-1" />
             Merge
@@ -461,7 +506,7 @@ export const PaymentForm = ({
       <div className="space-y-3">
         {/* Destination */}
         <div className="space-y-2">
-          <Label htmlFor="destination" className="text-sm">
+          <Label htmlFor="destination" className="text-sm font-medium">
             {willCloseAccount ? 'Send All Funds To' : 'Destination Address'}
           </Label>
           <Input
@@ -470,16 +515,16 @@ export const PaymentForm = ({
             maxLength={56}
             value={paymentData.destination}
             onChange={(e) => onPaymentDataChange({ ...paymentData, destination: e.target.value })}
-            className="text-xs font-address"
+            className="text-xs font-address bg-background border-border/60 focus:border-primary"
           />
         </div>
 
         {/* Compact Payment Row */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label className="text-sm">Payment Details</Label>
+            <Label className="text-sm font-medium">Payment Details</Label>
             {fiatValue && (
-              <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
+              <span className="text-sm text-primary font-medium">≈ {fiatValue}</span>
             )}
           </div>
           
@@ -499,9 +544,9 @@ export const PaymentForm = ({
                 setWillCloseAccount(false);
               }}
             >
-              <SelectTrigger className="h-10">
+              <SelectTrigger className="h-10 border-border/60 focus:border-primary">
                 <SelectValue>
-                  <span className="font-medium text-xs">{paymentData.asset}</span>
+                  <span className="font-semibold text-sm">{paymentData.asset}</span>
                 </SelectValue>
               </SelectTrigger>
               <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
@@ -560,9 +605,9 @@ export const PaymentForm = ({
                   });
                 }}
             >
-              <SelectTrigger className="h-10">
+              <SelectTrigger className="h-10 border-border/60 focus:border-primary">
                 <SelectValue placeholder="Same">
-                  <span className="font-medium text-xs">
+                  <span className="font-semibold text-sm">
                     {paymentData.receiveAsset || paymentData.asset}
                   </span>
                 </SelectValue>
@@ -613,101 +658,127 @@ export const PaymentForm = ({
 
         {/* Additional Payments */}
         {additionalPayments.map((payment, index) => (
-          <div key={payment.id} className="space-y-3 pt-6 mt-6 border-t border-border/50">
+          <div key={payment.id} className="space-y-4 pt-8 mt-8 border-t border-border/30 relative">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-sm font-medium">Payment #{index + 2}</span>
+                <span className="text-base font-semibold text-foreground">Payment #{index + 2}</span>
                 {fiatValues[payment.id] && (
-                  <span className="text-xs text-muted-foreground">≈ {fiatValues[payment.id]}</span>
+                  <span className="text-sm text-primary font-medium">≈ {fiatValues[payment.id]}</span>
                 )}
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => removePayment(payment.id)}
-                className="text-destructive hover:text-destructive/80 h-8 w-8 p-0"
+                className="text-destructive hover:text-destructive/80 hover:bg-destructive/10 h-8 w-8 p-0 rounded-full"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
             
             {/* Destination */}
-            <Input
-              placeholder="Destination address..."
-              maxLength={56}
-              value={payment.destination}
-              onChange={(e) => updatePayment(payment.id, { destination: e.target.value })}
-              className="text-xs font-address"
-            />
+            <div className="space-y-2">
+              <Label htmlFor={`destination-${payment.id}`} className="text-sm font-medium">
+                Destination Address
+              </Label>
+              <Input
+                id={`destination-${payment.id}`}
+                placeholder="GABC..."
+                maxLength={56}
+                value={payment.destination}
+                onChange={(e) => updatePayment(payment.id, { destination: e.target.value })}
+                className="text-xs font-address bg-background border-border/60 focus:border-primary"
+              />
+            </div>
             
             {/* Compact Payment Row for Additional Payment */}
-            <div className="grid grid-cols-[120px_1fr_120px] gap-3 items-center">
-              {/* From Asset (locked to main payment asset) */}
-              <div className="h-10 flex items-center justify-center bg-muted/50 rounded-md border border-border/30">
-                <span className="font-medium text-xs">{payment.asset}</span>
-              </div>
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Payment Details</Label>
+              <div className="grid grid-cols-[120px_1fr_120px] gap-3 items-center">
+                {/* From Asset (locked to main payment asset) */}
+                <div className="h-10 flex items-center justify-center bg-muted/50 rounded-md border border-border/30">
+                  <span className="font-semibold text-sm">{payment.asset}</span>
+                </div>
 
-              {/* Amount Slider */}
-              <CustomSlider
-                value={parseFloat(payment.amount) || 0}
-                max={getAvailableBalance(payment.asset)}
-                assetCode={payment.asset}
-                paymentId={payment.id}
-                onValueChange={(value) => handleSliderChange(value, payment.id)}
-                className="min-w-0"
-              />
+                {/* Amount Slider */}
+                <CustomSlider
+                  value={parseFloat(payment.amount) || 0}
+                  max={getAvailableBalance(payment.asset)}
+                  assetCode={payment.asset}
+                  paymentId={payment.id}
+                  onValueChange={(value) => handleSliderChange(value, payment.id)}
+                  className="min-w-0"
+                />
 
-              {/* To Asset */}
-              <Select
-                value={payment.receiveAsset || "same"}
-                onValueChange={(value) => {
-                  const selectedAsset = availableAssets.find(asset => asset.code === value);
-                  updatePayment(payment.id, {
-                    receiveAsset: value === "same" ? undefined : value,
-                    receiveAssetIssuer: selectedAsset?.issuer || undefined
-                  });
-                }}
-              >
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Same">
-                    <span className="font-medium text-xs">
-                      {payment.receiveAsset || payment.asset}
-                    </span>
-                  </SelectValue>
-                </SelectTrigger>
-              <SelectContent className="min-w-[200px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
-                <SelectPrimitive.Item
-                  value="same"
-                  className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                {/* To Asset */}
+                <Select
+                  value={payment.receiveAsset || "same"}
+                  onValueChange={(value) => {
+                    const selectedAsset = availableAssets.find(asset => asset.code === value);
+                    updatePayment(payment.id, {
+                      receiveAsset: value === "same" ? undefined : value,
+                      receiveAssetIssuer: selectedAsset?.issuer || undefined
+                    });
+                  }}
                 >
-                    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                      <SelectPrimitive.ItemIndicator>
-                        <Check className="h-4 w-4" />
-                      </SelectPrimitive.ItemIndicator>
-                    </span>
-                    <SelectPrimitive.ItemText>
-                      <span className="text-muted-foreground">Same ({payment.asset})</span>
-                    </SelectPrimitive.ItemText>
-                  </SelectPrimitive.Item>
-                  {availableAssets.filter(asset => asset.code !== payment.asset && asset.code && asset.code.trim() !== '').map((asset) => (
-                    <SelectPrimitive.Item
-                      key={`${asset.code}-${asset.issuer}`}
-                      value={asset.code}
-                      className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
-                    >
+                  <SelectTrigger className="h-10 border-border/60 focus:border-primary">
+                    <SelectValue placeholder="Same">
+                      <span className="font-semibold text-sm">
+                        {payment.receiveAsset || payment.asset}
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
+                <SelectContent className="min-w-[200px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
+                  <SelectPrimitive.Item
+                    value="same"
+                    className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                  >
                       <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                         <SelectPrimitive.ItemIndicator>
                           <Check className="h-4 w-4" />
                         </SelectPrimitive.ItemIndicator>
                       </span>
                       <SelectPrimitive.ItemText>
-                        <span className="font-medium">{asset.code}</span>
+                        <span className="text-muted-foreground">Same ({payment.asset})</span>
                       </SelectPrimitive.ItemText>
                     </SelectPrimitive.Item>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {availableAssets.filter(asset => asset.code !== payment.asset && asset.code && asset.code.trim() !== '').map((asset) => (
+                      <SelectPrimitive.Item
+                        key={`${asset.code}-${asset.issuer}`}
+                        value={asset.code}
+                        className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                      >
+                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                          <SelectPrimitive.ItemIndicator>
+                            <Check className="h-4 w-4" />
+                          </SelectPrimitive.ItemIndicator>
+                        </span>
+                        <SelectPrimitive.ItemText>
+                          <span className="font-medium">{asset.code}</span>
+                        </SelectPrimitive.ItemText>
+                      </SelectPrimitive.Item>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {/* Memo for Additional Payment */}
+            <div className="space-y-2">
+              <Label htmlFor={`memo-${payment.id}`} className="text-sm font-medium">Memo (Optional)</Label>
+              <Input
+                id={`memo-${payment.id}`}
+                placeholder="Payment description"
+                className="font-mono text-xs bg-background border-border/60 focus:border-primary"
+                value={payment.memo}
+                onChange={(e) => updatePayment(payment.id, { memo: e.target.value })}
+              />
+            </div>
+            
+            {/* Destination Account Info for Additional Payment */}
+            {payment.destination && (
+              <DestinationAccountInfo destination={payment.destination} />
+            )}
           </div>
         ))}
         
@@ -715,7 +786,7 @@ export const PaymentForm = ({
         <Button
           onClick={addPayment}
           variant="outline"
-          className="w-full border-dashed"
+          className="w-full border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Another Payment
@@ -723,11 +794,11 @@ export const PaymentForm = ({
 
         {/* Memo */}
         <div className="space-y-2">
-          <Label htmlFor="memo" className="text-sm">Memo (Optional)</Label>
+          <Label htmlFor="memo" className="text-sm font-medium">Memo (Optional)</Label>
           <Input
             id="memo"
             placeholder="Payment description"
-            className="font-mono text-xs"
+            className="font-mono text-xs bg-background border-border/60 focus:border-primary"
             value={paymentData.memo}
             onChange={(e) => onPaymentDataChange({ ...paymentData, memo: e.target.value })}
           />
