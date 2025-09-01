@@ -46,7 +46,7 @@
         font-display: swap;
       }
       
-      /* Critical hero styles for immediate LCP */
+      /* Critical hero styles optimized for LCP */
       .hero-container {
         min-height: 100vh;
         display: flex;
@@ -56,21 +56,27 @@
         padding: 1.5rem;
         position: relative;
         overflow: hidden;
+        contain: layout style paint;
       }
       
       .hero-content {
         text-align: center;
         max-width: 1152px;
         margin: 0 auto;
+        contain: layout style;
       }
       
       .hero-title {
         font-size: clamp(3rem, 8vw, 7rem);
         font-weight: 900;
         line-height: 0.9;
-        margin-bottom: 2rem;
+        margin: 0 0 2rem 0;
         letter-spacing: -0.025em;
         color: hsl(var(--foreground));
+        will-change: transform;
+        transform: translateZ(0);
+        display: block;
+        font-display: swap;
       }
       
       .hero-title-accent {
