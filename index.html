@@ -526,15 +526,15 @@
         };
         requestAnimationFrame(updateConnections);
 
-        // Sequentially connect and freeze nodes - much faster timing
+        // Much faster sequential connection
         let idx = 0;
         const connectNext = () => {
           if (idx >= nodes.length) {
             animationComplete = true;
-            // Trigger neon effect after all connections are made
+            // Immediate neon effect
             setTimeout(() => {
               container.classList.add('neon-yellow');
-            }, 300);
+            }, 50);
             return;
           }
           const node = nodes[idx];
@@ -548,11 +548,11 @@
           node.classList.add('connected');
           conn.classList.add('active');
           idx += 1;
-          setTimeout(connectNext, 150); // Reduced from 300ms
+          setTimeout(connectNext, 60); // Much faster - was 150ms
         };
 
-        // Start after a brief delay
-        setTimeout(connectNext, 800); // Reduced from 1000ms
+        // Start immediately - was 800ms
+        setTimeout(connectNext, 200);
       }
 
       // Start network animation immediately
@@ -563,18 +563,20 @@
         const root = document.getElementById('root');
         const loader = document.getElementById('app-loader');
 
+        // Allow React to load without waiting for animation
         const tryHide = () => {
-          if (root && root.children.length > 0 && animationComplete) {
+          if (root && root.children.length > 0) {
+            // Start fade immediately when React loads
             document.body.classList.add('app-loaded');
             if (loader) {
-              loader.style.transition = 'opacity 0.8s ease-out';
+              loader.style.transition = 'opacity 0.4s ease-out';
               loader.style.opacity = '0';
               setTimeout(() => {
                 loader.style.display = 'none';
                 loader.style.visibility = 'hidden';
                 loader.style.height = '0';
                 loader.style.overflow = 'hidden';
-              }, 800);
+              }, 400);
             }
             return true;
           }
@@ -588,11 +590,11 @@
           if (root) observer.observe(root, { childList: true, subtree: true });
         }
 
-        // Hard fallback to avoid being stuck - much shorter
+        // Much shorter fallback - don't block the app
         setTimeout(() => {
           if (!animationComplete) animationComplete = true;
           tryHide();
-        }, 5000); // Reduced from 12000ms
+        }, 2000); // Reduced from 5000ms
       });
     </script>
   </body>
