@@ -27,7 +27,7 @@
       })();
     </script>
     
-    <!-- Critical CSS for immediate rendering -->
+    <!-- Critical CSS optimized for LCP -->
     <style>
       /* Critical loading styles - matches design system */
       :root {
@@ -35,6 +35,7 @@
         --foreground: 210 40% 98%;
         --primary: 48 96% 53%;
         --muted: 220 13% 15%;
+        --muted-foreground: 217 12% 72%;
       }
       
       body {
@@ -45,6 +46,99 @@
         font-display: swap;
       }
       
+      /* Critical hero styles for immediate LCP */
+      .hero-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: hsl(var(--background));
+        padding: 1.5rem;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .hero-content {
+        text-align: center;
+        max-width: 1152px;
+        margin: 0 auto;
+      }
+      
+      .hero-title {
+        font-size: clamp(3rem, 8vw, 7rem);
+        font-weight: 900;
+        line-height: 0.9;
+        margin-bottom: 2rem;
+        letter-spacing: -0.025em;
+        color: hsl(var(--foreground));
+      }
+      
+      .hero-title-accent {
+        color: hsl(var(--primary));
+      }
+      
+      .hero-subtitle {
+        font-size: clamp(1.125rem, 2vw, 1.5rem);
+        color: hsl(var(--muted-foreground));
+        max-width: 64rem;
+        margin: 0 auto 4rem;
+        line-height: 1.6;
+      }
+      
+      .hero-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 4rem;
+        padding: 0 3rem;
+        font-size: 1.125rem;
+        font-weight: 600;
+        background: hsl(var(--primary));
+        color: hsl(220 13% 9%);
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+      }
+      
+      .hero-button:hover {
+        background: hsl(48 96% 48%);
+        transform: scale(1.05);
+      }
+      
+      /* Background decoration */
+      .hero-bg {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+      }
+      
+      .hero-decoration {
+        position: absolute;
+        opacity: 0.05;
+      }
+      
+      .hero-decoration-right {
+        right: 2.5rem;
+        top: 33.333333%;
+        transform: rotate(12deg);
+      }
+      
+      .hero-decoration-left {
+        left: 2.5rem;
+        bottom: 33.333333%;
+        transform: rotate(-12deg);
+      }
+      
+      .hero-decoration-line {
+        height: 0.25rem;
+        background: hsl(var(--primary));
+        border-radius: 9999px;
+        margin: 1rem 0;
+      }
+      
+      /* Loading states */
       #app-loader {
         min-height: 100vh;
         display: flex;
@@ -63,10 +157,7 @@
         font-size: 2.5rem;
         font-weight: 700;
         margin-bottom: 1rem;
-        background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary)));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        color: hsl(var(--primary));
       }
       
       .loader-subtitle {
@@ -94,6 +185,19 @@
       .app-loaded #app-loader {
         display: none;
       }
+      
+      /* Responsive design */
+      @media (max-width: 768px) {
+        .hero-container {
+          padding: 1rem;
+        }
+        .hero-content {
+          max-width: 100%;
+        }
+        .hero-decoration {
+          display: none;
+        }
+      }
     </style>
     
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https:; media-src 'self';" />
@@ -106,16 +210,41 @@
   </head>
 
   <body>
-    <!-- Immediate loading skeleton for FCP optimization -->
+    <!-- Critical hero content for immediate LCP -->
     <div id="app-loader">
-      <div class="loader-content">
-        <h1 class="loader-title">Stellar Multisig</h1>
-        <p class="loader-subtitle">Secure Multi-Signature Wallet</p>
-        <div class="loader-spinner"></div>
+      <div class="hero-container">
+        <div class="hero-bg">
+          <div class="hero-decoration hero-decoration-right">
+            <div class="hero-decoration-line" style="width: 200px;"></div>
+            <div class="hero-decoration-line" style="width: 180px;"></div>
+            <div class="hero-decoration-line" style="width: 160px;"></div>
+            <div class="hero-decoration-line" style="width: 140px;"></div>
+            <div class="hero-decoration-line" style="width: 120px;"></div>
+          </div>
+          <div class="hero-decoration hero-decoration-left">
+            <div class="hero-decoration-line" style="width: 180px;"></div>
+            <div class="hero-decoration-line" style="width: 150px;"></div>
+            <div class="hero-decoration-line" style="width: 120px;"></div>
+            <div class="hero-decoration-line" style="width: 90px;"></div>
+          </div>
+        </div>
+        <div class="hero-content">
+          <h1 class="hero-title">
+            Multi-Signature<br>
+            Transactions<br>
+            <span class="hero-title-accent">Made Simple</span>
+          </h1>
+          <p class="hero-subtitle">
+            Stellar's threshold-based authorization system. Configure signature weights, 
+            manage signer permissions, and execute secure multi-signature transactions.
+          </p>
+          <button class="hero-button">Launch App</button>
+        </div>
       </div>
     </div>
     
     <div id="root"></div>
+    <link rel="modulepreload" href="/src/main.tsx">
     <script type="module" src="/src/main.tsx"></script>
     
     <!-- Hide loader once React content loads -->
