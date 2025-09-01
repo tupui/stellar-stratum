@@ -101,7 +101,9 @@ export const connectWallet = async (walletId: string, network: 'mainnet' | 'test
 
 export const fetchAccountData = async (publicKey: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AccountData> => {
   try {
+    console.log(`Fetching account data for ${publicKey} on ${network}`);
     const server = createHorizonServer(network);
+    console.log(`Using Horizon server: ${server.serverURL}`);
     const account = await server.loadAccount(publicKey);
     
     return {
