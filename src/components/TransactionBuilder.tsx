@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { Send, FileCode, Shield, Share2, Check, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Send, FileCode, Shield, Share2, Check, ExternalLink, AlertTriangle, Users, Merge, TrendingUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -32,6 +32,9 @@ import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { PaymentForm } from './payment/PaymentForm';
+import { BatchPaymentForm } from './payment/BatchPaymentForm';
+import { AccountMergeForm } from './payment/AccountMergeForm';
+import { PathPaymentForm } from './payment/PathPaymentForm';
 import { XdrProcessor } from './transaction/XdrProcessor';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 
@@ -73,6 +76,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     assetIssuer: '',
     memo: '',
   });
+  const [pathPaymentData, setPathPaymentData] = useState({
+    destination: '',
+    sendAmount: '',
+    sendAsset: 'XLM',
+    sendAssetIssuer: '',
+    receiveAsset: '',
+    receiveAssetIssuer: '',
+    memo: '',
+    slippageTolerance: 0.5,
+  });
   const [trustlineError, setTrustlineError] = useState<string>('');
   const [xdrData, setXdrData] = useState({
     input: '',
@@ -91,6 +104,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
     setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
+    setPathPaymentData({ destination: '', sendAmount: '', sendAsset: 'XLM', sendAssetIssuer: '', receiveAsset: '', receiveAssetIssuer: '', memo: '', slippageTolerance: 0.5 });
     setTrustlineError('');
     setXdrData({ input: '', output: '' });
     setSignedBy([]);
@@ -283,6 +297,175 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       toast({
         title: "Build failed",
         description: error instanceof Error ? error.message : "Failed to build transaction",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBuilding(false);
+    }
+  };
+
+  const handleBatchPaymentBuild = async (payments: any[]) => {
+    if (!payments.length || payments.some(p => !p.destination || !p.amount || !p.asset)) {
+      toast({
+        title: "Invalid batch payment",
+        description: "All payments must have destination, amount, and asset",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBuilding(true);
+    
+    try {
+      const networkPassphrase = getNetworkPassphrase(currentNetwork);
+      const server = createHorizonServer(currentNetwork);
+      const sourceAccount = await server.loadAccount(accountPublicKey);
+      
+      const transaction = new StellarTransactionBuilder(sourceAccount, {
+        fee: (100000 * payments.length).toString(), // Fee per operation
+        networkPassphrase,
+      });
+
+      // Add payment operations
+      for (const payment of payments) {
+        const asset = payment.asset === 'XLM' 
+          ? Asset.native() 
+          : new Asset(payment.asset, payment.assetIssuer);
+        
+        transaction.addOperation(Operation.payment({
+          destination: payment.destination,
+          asset,
+          amount: payment.amount,
+        }));
+      }
+
+      if (payments[0].memo) {
+        transaction.addMemo(Memo.text(payments[0].memo));
+      }
+
+      transaction.setTimeout(86400);
+      const builtTransaction = transaction.build();
+      
+      setXdrData(prev => ({ ...prev, output: builtTransaction.toXDR() }));
+      
+      toast({
+        title: "Batch transaction built",
+        description: `${payments.length} payments ready for signing`,
+        duration: 2000,
+      });
+    } catch (error) {
+      toast({
+        title: "Build failed",
+        description: error instanceof Error ? error.message : "Failed to build batch transaction",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBuilding(false);
+    }
+  };
+
+  const handleAccountMergeBuild = async (destination: string) => {
+    if (!destination) return;
+
+    setIsBuilding(true);
+    
+    try {
+      const networkPassphrase = getNetworkPassphrase(currentNetwork);
+      const server = createHorizonServer(currentNetwork);
+      const sourceAccount = await server.loadAccount(accountPublicKey);
+      
+      const transaction = new StellarTransactionBuilder(sourceAccount, {
+        fee: '100000',
+        networkPassphrase,
+      });
+
+      transaction.addOperation(Operation.accountMerge({
+        destination,
+      }));
+
+      transaction.setTimeout(86400);
+      const builtTransaction = transaction.build();
+      
+      setXdrData(prev => ({ ...prev, output: builtTransaction.toXDR() }));
+      
+      toast({
+        title: "Account merge built",
+        description: "Transaction ready for signing",
+        duration: 2000,
+      });
+    } catch (error) {
+      toast({
+        title: "Build failed", 
+        description: error instanceof Error ? error.message : "Failed to build account merge",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBuilding(false);
+    }
+  };
+
+  const handlePathPaymentBuild = async () => {
+    if (!pathPaymentData.destination || !pathPaymentData.sendAmount || !pathPaymentData.sendAsset || !pathPaymentData.receiveAsset) {
+      toast({
+        title: "Missing fields",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBuilding(true);
+    
+    try {
+      const networkPassphrase = getNetworkPassphrase(currentNetwork);
+      const server = createHorizonServer(currentNetwork);
+      const sourceAccount = await server.loadAccount(accountPublicKey);
+      
+      const transaction = new StellarTransactionBuilder(sourceAccount, {
+        fee: '200000', // Higher fee for path payments
+        networkPassphrase,
+      });
+
+      const sendAsset = pathPaymentData.sendAsset === 'XLM' 
+        ? Asset.native() 
+        : new Asset(pathPaymentData.sendAsset, pathPaymentData.sendAssetIssuer);
+        
+      const destAsset = pathPaymentData.receiveAsset === 'XLM' 
+        ? Asset.native() 
+        : new Asset(pathPaymentData.receiveAsset, pathPaymentData.receiveAssetIssuer);
+
+      // Calculate destination amount with slippage
+      const sendAmount = parseFloat(pathPaymentData.sendAmount);
+      const estimatedRate = 1; // In real implementation, get this from Stellar path finding
+      const destMin = (sendAmount * estimatedRate * (1 - pathPaymentData.slippageTolerance / 100)).toFixed(7);
+
+      transaction.addOperation(Operation.pathPaymentStrictSend({
+        sendAsset,
+        sendAmount: pathPaymentData.sendAmount,
+        destination: pathPaymentData.destination,
+        destAsset,
+        destMin,
+        path: [], // In real implementation, find optimal path
+      }));
+
+      if (pathPaymentData.memo) {
+        transaction.addMemo(Memo.text(pathPaymentData.memo));
+      }
+
+      transaction.setTimeout(86400);
+      const builtTransaction = transaction.build();
+      
+      setXdrData(prev => ({ ...prev, output: builtTransaction.toXDR() }));
+      
+      toast({
+        title: "Path payment built",
+        description: "Transaction ready for signing",
+        duration: 2000,
+      });
+    } catch (error) {
+      toast({
+        title: "Build failed",
+        description: error instanceof Error ? error.message : "Failed to build path payment",
         variant: "destructive",
       });
     } finally {
@@ -558,34 +741,55 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <div className="p-2 bg-muted/50 rounded-lg">
-                <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full p-0 bg-transparent gap-2">
+                <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 w-full p-0 bg-transparent gap-2">
                   <TabsTrigger 
                     value="payment" 
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
                   >
                     <Send className="w-4 h-4" />
-                    <span>Payment</span>
+                    <span className="hidden sm:inline">Payment</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="batch"
+                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
+                  >
+                    <Users className="w-4 h-4" />
+                    <span className="hidden sm:inline">Batch</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="merge"
+                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
+                  >
+                    <Merge className="w-4 h-4" />
+                    <span className="hidden sm:inline">Merge</span>
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="path"
+                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    <span className="hidden sm:inline">Path</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="multisig"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
                   >
                     <Shield className="w-4 h-4" />
-                    <span>Multisig</span>
+                    <span className="hidden sm:inline">Multisig</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="xdr"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
                   >
                     <FileCode className="w-4 h-4" />
-                    <span>XDR</span>
+                    <span className="hidden sm:inline">XDR</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="refractor"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
                   >
                     <Share2 className="w-4 h-4" />
-                    <span>Refractor</span>
+                    <span className="hidden sm:inline">Refractor</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -603,6 +807,38 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   assetPrices={assetPrices}
                   trustlineError={trustlineError}
                   onBuild={handlePaymentBuild}
+                  isBuilding={isBuilding}
+                />
+              </TabsContent>
+
+              <TabsContent value="batch" className="space-y-4 mt-6">
+                <BatchPaymentForm
+                  availableAssets={getAvailableAssets()}
+                  assetPrices={assetPrices}
+                  accountData={accountData}
+                  onBuild={handleBatchPaymentBuild}
+                  isBuilding={isBuilding}
+                />
+              </TabsContent>
+
+              <TabsContent value="merge" className="space-y-4 mt-6">
+                <AccountMergeForm
+                  availableAssets={getAvailableAssets()}
+                  assetPrices={assetPrices}
+                  accountData={{ ...accountData, publicKey: accountPublicKey }}
+                  onBuild={handleAccountMergeBuild}
+                  isBuilding={isBuilding}
+                />
+              </TabsContent>
+
+              <TabsContent value="path" className="space-y-4 mt-6">
+                <PathPaymentForm
+                  pathPaymentData={pathPaymentData}
+                  onPathPaymentDataChange={setPathPaymentData}
+                  availableAssets={getAvailableAssets()}
+                  assetPrices={assetPrices}
+                  destinationAssets={getAvailableAssets()} // In real implementation, fetch destination assets
+                  onBuild={handlePathPaymentBuild}
                   isBuilding={isBuilding}
                 />
               </TabsContent>
