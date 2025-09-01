@@ -98,12 +98,12 @@ export const PaymentForm = ({
   
   // State for current payment
   const [fiatValue, setFiatValue] = useState<string>('');
-  const [recipientAssets, setRecipientAssets] = useState<string[]>([]);
-  const [recipientBalances, setRecipientBalances] = useState<Record<string, string>>({});
+  type RecipientAsset = { code: string; issuer?: string; balance: string };
+  const [recipientAssetOptions, setRecipientAssetOptions] = useState<RecipientAsset[]>([]);
+  const [recipientExists, setRecipientExists] = useState<boolean | null>(null);
   const [willCloseAccount, setWillCloseAccount] = useState(false);
   const [showAutoAdjustWarning, setShowAutoAdjustWarning] = useState(false);
   const [showBundleActions, setShowBundleActions] = useState(false);
-
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
     const baseReserve = 0.5;
@@ -155,41 +155,43 @@ export const PaymentForm = ({
   // Destination trustline helpers
   const isValidPublicKey = (s?: string) => !!s && s.length === 56 && s.startsWith('G');
 
-  const fetchRecipientAssets = async (accountId: string): Promise<{ assets: string[], balances: Record<string, string> }> => {
+  const fetchRecipientAssets = async (
+    accountId: string
+  ): Promise<{ exists: boolean; assets: RecipientAsset[] }> => {
     const server = new StellarSDK.Horizon.Server(
       network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org'
     );
     try {
       const account = await server.loadAccount(accountId);
-      const codes = new Set<string>(['XLM']);
-      const balances: Record<string, string> = {};
+      const assets: RecipientAsset[] = [];
       account.balances.forEach((b: any) => {
         if (b.asset_type === 'native') {
-          codes.add('XLM');
-          balances['XLM'] = b.balance;
+          assets.push({ code: 'XLM', balance: b.balance });
         } else if (b.asset_code) {
-          codes.add(b.asset_code);
-          balances[b.asset_code] = b.balance;
+          assets.push({ code: b.asset_code, issuer: b.asset_issuer, balance: b.balance });
         }
       });
-      return { assets: Array.from(codes), balances };
+      // Ensure XLM appears even if missing (shouldn't happen for existing accounts)
+      if (!assets.some(a => a.code === 'XLM')) assets.unshift({ code: 'XLM', balance: '0' });
+      return { exists: true, assets };
     } catch {
-      return { assets: ['XLM'], balances: {} };
+      // New account: only XLM allowed
+      return { exists: false, assets: [{ code: 'XLM', balance: '0' }] };
     }
   };
 
   // Fetch recipient assets when destination changes
   useEffect(() => {
     if (!isValidPublicKey(paymentData.destination)) {
-      setRecipientAssets([]);
-      setRecipientBalances({});
+      setRecipientAssetOptions([]);
+      setRecipientExists(null);
       return;
     }
     let cancelled = false;
-    fetchRecipientAssets(paymentData.destination).then(({ assets, balances }) => {
+    fetchRecipientAssets(paymentData.destination).then(({ exists, assets }) => {
       if (!cancelled) {
-        setRecipientAssets(assets);
-        setRecipientBalances(balances);
+        setRecipientExists(exists);
+        setRecipientAssetOptions(assets);
       }
     });
     return () => {
@@ -199,18 +201,18 @@ export const PaymentForm = ({
 
   // Auto-select valid receive asset if "same" isn't accepted by destination
   useEffect(() => {
-    if (recipientAssets.length === 0) return;
-    const sameAllowed = paymentData.asset === 'XLM' || recipientAssets.includes(paymentData.asset);
-    if (!sameAllowed && (!paymentData.receiveAsset || !recipientAssets.includes(paymentData.receiveAsset))) {
-      const fallback = recipientAssets.includes('XLM') ? 'XLM' : recipientAssets[0];
-      const selectedAsset = availableAssets.find((a) => a.code === fallback);
-      onPaymentDataChange({ 
-        ...paymentData, 
-        receiveAsset: fallback, 
-        receiveAssetIssuer: selectedAsset?.issuer 
+    if (!recipientAssetOptions.length) return;
+    const recipientHasSame = paymentData.asset === 'XLM' || recipientAssetOptions.some(a => a.code === paymentData.asset);
+    if (!recipientHasSame && (!paymentData.receiveAsset || !recipientAssetOptions.some(a => a.code === paymentData.receiveAsset!))) {
+      const fallback = recipientAssetOptions.find(a => a.code === 'XLM')?.code || recipientAssetOptions[0].code;
+      const selected = recipientAssetOptions.find(a => a.code === fallback);
+      onPaymentDataChange({
+        ...paymentData,
+        receiveAsset: fallback,
+        receiveAssetIssuer: selected?.issuer
       });
     }
-  }, [recipientAssets, paymentData.asset]);
+  }, [recipientAssetOptions, paymentData.asset]);
 
   // Helper to calculate fiat value
   const calculateFiatValue = async (amount: string, asset: string) => {
@@ -309,12 +311,21 @@ export const PaymentForm = ({
   };
 
   const getReceiveOptions = () => {
-    const allowed = new Set<string>(recipientAssets.length ? recipientAssets : ['XLM']);
-    allowed.add('XLM');
-    return availableAssets.filter((a) => allowed.has(a.code));
+    // If account doesn't exist, only XLM allowed
+    if (recipientExists === false) return [{ code: 'XLM', issuer: undefined, balance: '0' }];
+    // Otherwise, use recipient's actual balances
+    const unique = new Map<string, RecipientAsset>();
+    recipientAssetOptions.forEach(a => unique.set(a.code, a));
+    // Always ensure XLM is present
+    if (!unique.has('XLM')) unique.set('XLM', { code: 'XLM', balance: '0' });
+    return Array.from(unique.values());
   };
 
+  const recipientHas = (code: string) => recipientAssetOptions.some(a => a.code === code);
+  const recipientBalance = (code: string) => recipientAssetOptions.find(a => a.code === code)?.balance;
+
   const handleBundlePayment = async () => {
+    await addPayment();
     setShowBundleActions(true);
   };
 
@@ -390,6 +401,21 @@ export const PaymentForm = ({
 
   const removeCompactPayment = (id: string) => {
     setCompactPayments(compactPayments.filter(p => p.id !== id));
+  };
+
+  const cancelCurrentPayment = () => {
+    onPaymentDataChange({
+      destination: '',
+      amount: '',
+      asset: paymentData.asset,
+      assetIssuer: paymentData.assetIssuer,
+      memo: '',
+      receiveAsset: undefined,
+      receiveAssetIssuer: undefined,
+      slippageTolerance: 0.5,
+    });
+    setWillCloseAccount(false);
+    setShowBundleActions(true);
   };
 
   const isFormValid = () => {
@@ -659,17 +685,6 @@ export const PaymentForm = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">Amount & Assets</Label>
-            {willCloseAccount && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleRevertMerge}
-                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3 mr-1" />
-                Cancel Merge
-              </Button>
-            )}
           </div>
           
           <div className="grid grid-cols-[140px_1fr_140px] gap-4 items-center">
@@ -744,21 +759,13 @@ export const PaymentForm = ({
                   </Button>
                 </div>
               )}
-              {willCloseAccount && (
-                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-                  <Badge variant="destructive" className="text-xs whitespace-nowrap">
-                    <Merge className="h-3 w-3 mr-1" />
-                    Closing
-                  </Badge>
-                </div>
-              )}
             </div>
 
             {/* To Asset with recipient balances */}
             <Select
               value={paymentData.receiveAsset || "same"}
               onValueChange={(value) => {
-                const selectedAsset = availableAssets.find(asset => asset.code === value);
+                const selectedAsset = recipientAssetOptions.find(asset => asset.code === value);
                 onPaymentDataChange({
                   ...paymentData,
                   receiveAsset: value === "same" ? undefined : value,
@@ -791,10 +798,9 @@ export const PaymentForm = ({
                     <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                       <span className="text-muted-foreground">Same ({paymentData.asset})</span>
                       <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
-                        {recipientBalances[paymentData.asset] 
-                          ? parseFloat(recipientBalances[paymentData.asset]).toLocaleString('en-US', { maximumFractionDigits: 7 })
-                          : recipientAssets.includes(paymentData.asset) ? '0.0000000' : '—'
-                        }
+                        {recipientHas(paymentData.asset)
+                          ? parseFloat(recipientBalance(paymentData.asset) || '0').toLocaleString('en-US', { maximumFractionDigits: 7 })
+                          : '—'}
                       </span>
                     </div>
                   </SelectPrimitive.ItemText>
@@ -814,10 +820,9 @@ export const PaymentForm = ({
                       <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                         <span className="font-medium">{asset.code}</span>
                         <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
-                          {recipientBalances[asset.code] 
-                            ? parseFloat(recipientBalances[asset.code]).toLocaleString('en-US', { maximumFractionDigits: 7 })
-                            : recipientAssets.includes(asset.code) ? '0.0000000' : '—'
-                          }
+                          {recipientHas(asset.code)
+                            ? parseFloat(recipientBalance(asset.code) || '0').toLocaleString('en-US', { maximumFractionDigits: 7 })
+                            : '—'}
                         </span>
                       </div>
                     </SelectPrimitive.ItemText>
@@ -860,15 +865,6 @@ export const PaymentForm = ({
           />
         </div>
 
-        {/* Account closure warning */}
-        {willCloseAccount && (
-          <Alert variant="destructive" className="animate-fade-in">
-            <Merge className="h-4 w-4" />
-            <AlertDescription>
-              This will close your account and send all remaining XLM to the destination address.
-            </AlertDescription>
-          </Alert>
-        )}
 
         {/* Destination Account Info */}
         {paymentData.destination && (
@@ -949,26 +945,32 @@ export const PaymentForm = ({
             </>
           )}
 
-          {/* Add Another Payment Button - only shows when there are already bundled payments */}
-          {!willCloseAccount && isFormValid() && compactPayments.length > 0 && !showBundleActions && (
-            <Button
-              onClick={addPayment}
-              variant="outline"
-              className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Another Payment
-            </Button>
+          {compactPayments.length > 0 && !showBundleActions && (
+            <>
+              <Button
+                onClick={handleBundlePayment}
+                variant="outline"
+                className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Bundle Payment
+              </Button>
+              <Button
+                onClick={cancelCurrentPayment}
+                variant="ghost"
+                className="flex-1"
+              >
+                Cancel Current Transaction
+              </Button>
+            </>
           )}
 
           {/* Single Build Transaction Button */}
-          {!showBundleActions && (
+          {!showBundleActions && compactPayments.length === 0 && (
             <Button 
               onClick={handleBuild} 
               disabled={isBuilding || !isFormValid()}
-              className={`${!willCloseAccount && isFormValid() && compactPayments.length > 0 ? 'flex-1' : 'w-full'} ${
-                willCloseAccount ? 'bg-destructive hover:bg-destructive/90' : 'bg-gradient-primary hover:opacity-90'
-              } disabled:opacity-50`}
+              className={`w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50`}
               size="lg"
             >
               {isBuilding ? (
@@ -977,17 +979,8 @@ export const PaymentForm = ({
                   Building Transaction...
                 </div>
               ) : (
-                <>
-                  {willCloseAccount && <AlertTriangle className="w-4 h-4 mr-2" />}
-                  {willCloseAccount && 'Send All Funds & Close Account'}
-                  {compactPayments.length > 0 && !willCloseAccount && 
-                    `Build Batch Transaction (${compactPayments.length + 1} payments)`}
-                  {compactPayments.length === 0 && !willCloseAccount && 
-                    (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
-                      'Build Cross-Asset Payment' : 
-                      (trustlineError?.includes('will create a new') ? 'Create New Account' : 'Build Payment Transaction')
-                    )}
-                </>
+                paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
+                  'Build Cross-Asset Payment' : 'Build Payment Transaction'
               )}
             </Button>
           )}
