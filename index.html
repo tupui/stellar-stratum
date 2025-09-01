@@ -465,7 +465,7 @@
         };
         requestAnimationFrame(updateConnections);
 
-        // Sequentially connect and freeze nodes
+        // Sequentially connect and freeze nodes - much faster timing
         let idx = 0;
         const connectNext = () => {
           if (idx >= nodes.length) {
@@ -483,11 +483,11 @@
           node.classList.add('connected');
           conn.classList.add('active');
           idx += 1;
-          setTimeout(connectNext, 300);
+          setTimeout(connectNext, 150); // Reduced from 300ms
         };
 
         // Start after a brief delay
-        setTimeout(connectNext, 1000);
+        setTimeout(connectNext, 800); // Reduced from 1000ms
       }
 
       // Start network animation immediately
@@ -523,11 +523,11 @@
           if (root) observer.observe(root, { childList: true, subtree: true });
         }
 
-        // Hard fallback to avoid being stuck
+        // Hard fallback to avoid being stuck - much shorter
         setTimeout(() => {
           if (!animationComplete) animationComplete = true;
           tryHide();
-        }, 12000);
+        }, 5000); // Reduced from 12000ms
       });
     </script>
   </body>
