@@ -143,7 +143,7 @@ export const PaymentForm = ({
                 <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               <Input
                 id="amount"
                 type="text"

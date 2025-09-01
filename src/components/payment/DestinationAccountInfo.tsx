@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { User, Wallet, AlertCircle, CheckCircle } from 'lucide-react';
+import { User, Wallet, AlertCircle, Info } from 'lucide-react';
 import { useNetwork } from '@/contexts/NetworkContext';
 import * as StellarSDK from '@stellar/stellar-sdk';
 
@@ -131,11 +131,7 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-blue/10">
-            {accountData.exists ? (
-              <CheckCircle className="w-5 h-5 text-blue" />
-            ) : (
-              <User className="w-5 h-5 text-blue" />
-            )}
+            <Info className="w-5 h-5 text-blue" />
           </div>
           
           <div className="flex-1 min-w-0">
