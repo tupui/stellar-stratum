@@ -442,18 +442,23 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
             
             // Define wallet order based on user requirements
             const mobileOrder = ['xbull', 'hot', 'albedo', 'walletconnect'];
-            const desktopPrimaryOrder = ['freighter', 'xbull', 'ledger'];
-            const desktopSecondaryOrder = ['trezor', 'hot', 'albedo', 'walletconnect'];
+            const desktopOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'hot', 'albedo', 'walletconnect'];
             
-            // Function to sort wallets by specified order
+            // Function to sort wallets by specified order, with unmatched wallets at the end
             const sortWalletsByOrder = (wallets: typeof supportedWallets, order: string[]) => {
-              return wallets
-                .filter(w => order.some(p => w.id.toLowerCase().includes(p)))
-                .sort((a, b) => {
-                  const aIndex = order.findIndex(p => a.id.toLowerCase().includes(p));
-                  const bIndex = order.findIndex(p => b.id.toLowerCase().includes(p));
-                  return aIndex - bIndex;
-                });
+              return wallets.sort((a, b) => {
+                const aIndex = order.findIndex(p => a.id.toLowerCase().includes(p));
+                const bIndex = order.findIndex(p => b.id.toLowerCase().includes(p));
+                
+                // If both found in order, sort by order
+                if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                // If only a found, a comes first
+                if (aIndex !== -1) return -1;
+                // If only b found, b comes first
+                if (bIndex !== -1) return 1;
+                // If neither found, maintain original order
+                return 0;
+              });
             };
             
             if (isMobile) {
@@ -500,9 +505,10 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                 </>
               );
             } else {
-              // Desktop: First 5 visible, rest in collapsible
-              const primaryWallets = sortWalletsByOrder(supportedWallets, desktopPrimaryOrder);
-              const secondaryWallets = sortWalletsByOrder(supportedWallets, desktopSecondaryOrder);
+              // Desktop: First 3 visible, rest in collapsible
+              const orderedWallets = sortWalletsByOrder(supportedWallets, desktopOrder);
+              const primaryWallets = orderedWallets.slice(0, 3);
+              const secondaryWallets = orderedWallets.slice(3);
               
               return (
                 <>
