@@ -531,16 +531,22 @@ export const PaymentForm = ({
             <div className="text-right pointer-events-auto">
               {isEditing ? (
                 <Input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/,/g, '.');
+                    const sanitized = raw.replace(/[^0-9.]/g, '');
+                    const parts = sanitized.split('.');
+                    const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
+                    setEditValue(normalized);
+                  }}
                   onBlur={handleEditSubmit}
                   onKeyDown={handleEditKeyDown}
-                  className="h-6 w-24 text-xs font-mono text-right p-1 bg-background/90 border border-primary/50"
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="h-7 w-28 text-xs font-mono text-right px-2 py-1 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md"
+                  placeholder="0.0"
                   autoFocus
-                  step="any"
-                  min="0"
-                  max={max}
                 />
               ) : (
                 <div 
