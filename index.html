@@ -187,18 +187,18 @@
         box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
       }
 
-      /* Node positions with random oscillation */
-      .node:nth-child(1) { left: 20%; top: 20%; animation: oscillate1 3s ease-in-out infinite; }
-      .node:nth-child(2) { left: 80%; top: 20%; animation: oscillate2 3.5s ease-in-out infinite; }
-      .node:nth-child(3) { left: 10%; top: 60%; animation: oscillate3 2.8s ease-in-out infinite; }
-      .node:nth-child(4) { left: 90%; top: 60%; animation: oscillate4 3.2s ease-in-out infinite; }
-      .node:nth-child(5) { left: 30%; top: 85%; animation: oscillate5 2.5s ease-in-out infinite; }
-      .node:nth-child(6) { left: 70%; top: 85%; animation: oscillate6 3.8s ease-in-out infinite; }
-      .node:nth-child(7) { left: 50%; top: 10%; animation: oscillate7 2.9s ease-in-out infinite; }
-      .node:nth-child(8) { left: 15%; top: 40%; animation: oscillate8 3.6s ease-in-out infinite; }
-      .node:nth-child(9) { left: 85%; top: 40%; animation: oscillate9 2.7s ease-in-out infinite; }
+      /* Node positions with enhanced random oscillation */
+      .node:nth-child(1) { left: 15%; top: 15%; animation: oscillate1 4.2s ease-in-out infinite; }
+      .node:nth-child(2) { left: 85%; top: 18%; animation: oscillate2 3.8s ease-in-out infinite; }
+      .node:nth-child(3) { left: 8%; top: 52%; animation: oscillate3 3.3s ease-in-out infinite; }
+      .node:nth-child(4) { left: 92%; top: 58%; animation: oscillate4 4.1s ease-in-out infinite; }
+      .node:nth-child(5) { left: 25%; top: 88%; animation: oscillate5 3.6s ease-in-out infinite; }
+      .node:nth-child(6) { left: 75%; top: 85%; animation: oscillate6 4.4s ease-in-out infinite; }
+      .node:nth-child(7) { left: 48%; top: 8%; animation: oscillate7 3.9s ease-in-out infinite; }
+      .node:nth-child(8) { left: 12%; top: 35%; animation: oscillate8 4.7s ease-in-out infinite; }
+      .node:nth-child(9) { left: 88%; top: 38%; animation: oscillate9 3.4s ease-in-out infinite; }
 
-      /* Connection lines */
+      /* Connection lines - properly connecting center to outer nodes */
       .connection {
         position: absolute;
         height: 2px;
@@ -206,6 +206,7 @@
         transform-origin: left center;
         opacity: 0.6;
         transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 5;
       }
 
       .connection.active {
@@ -214,7 +215,18 @@
         box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
       }
 
-      /* Propagation animation */
+      /* Connection positioning from center (200px, 150px) to each node */
+      .connection:nth-child(11) { /* to node 1 */ left: 200px; top: 150px; width: 140px; transform-origin: 0 50%; transform: rotate(-45deg) translateX(-70px); }
+      .connection:nth-child(12) { /* to node 2 */ left: 200px; top: 150px; width: 180px; transform-origin: 0 50%; transform: rotate(-25deg) translateX(-90px); }
+      .connection:nth-child(13) { /* to node 3 */ left: 200px; top: 150px; width: 170px; transform-origin: 0 50%; transform: rotate(8deg) translateX(-85px); }
+      .connection:nth-child(14) { /* to node 4 */ left: 200px; top: 150px; width: 185px; transform-origin: 0 50%; transform: rotate(12deg) translateX(-92px); }
+      .connection:nth-child(15) { /* to node 5 */ left: 200px; top: 150px; width: 160px; transform-origin: 0 50%; transform: rotate(55deg) translateX(-80px); }
+      .connection:nth-child(16) { /* to node 6 */ left: 200px; top: 150px; width: 155px; transform-origin: 0 50%; transform: rotate(65deg) translateX(-77px); }
+      .connection:nth-child(17) { /* to node 7 */ left: 200px; top: 150px; width: 142px; transform-origin: 0 50%; transform: rotate(-90deg) translateX(-71px); }
+      .connection:nth-child(18) { /* to node 8 */ left: 200px; top: 150px; width: 165px; transform-origin: 0 50%; transform: rotate(-18deg) translateX(-82px); }
+      .connection:nth-child(19) { /* to node 9 */ left: 200px; top: 150px; width: 175px; transform-origin: 0 50%; transform: rotate(-5deg) translateX(-87px); }
+
+      /* Propagation animation - outward from center */
       .connection::after {
         content: '';
         position: absolute;
@@ -223,9 +235,9 @@
         background: hsl(var(--primary));
         border-radius: 50%;
         top: -2px;
-        left: -3px;
+        left: 0;
         opacity: 0;
-        animation: propagate 1.5s linear infinite;
+        animation: propagateOutward 1.2s ease-out;
       }
 
       .connection.active::after {
@@ -239,77 +251,84 @@
           box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
         }
         50% { 
-          transform: translate(-50%, -50%) scale(1.2);
+          transform: translate(-50%, -50%) scale(1.3);
           box-shadow: 0 0 30px hsl(var(--primary) / 0.8);
         }
       }
 
-      @keyframes propagate {
-        0% { left: -3px; opacity: 0; }
-        10% { opacity: 1; }
-        90% { opacity: 1; }
-        100% { left: 100%; opacity: 0; }
+      @keyframes propagateOutward {
+        0% { left: 0; opacity: 0; transform: scale(0.5); }
+        15% { opacity: 1; transform: scale(1); }
+        85% { opacity: 1; transform: scale(1); }
+        100% { left: 100%; opacity: 0; transform: scale(0.5); }
       }
 
-      /* Random oscillation patterns */
+      /* Enhanced random oscillation patterns with more freedom */
       @keyframes oscillate1 {
-        0%, 100% { transform: translate(0, 0); }
-        25% { transform: translate(5px, -3px); }
-        50% { transform: translate(-2px, 4px); }
-        75% { transform: translate(3px, -2px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        20% { transform: translate(8px, -6px) rotate(5deg); }
+        40% { transform: translate(-4px, 7px) rotate(-3deg); }
+        60% { transform: translate(6px, -3px) rotate(4deg); }
+        80% { transform: translate(-5px, 8px) rotate(-2deg); }
       }
 
       @keyframes oscillate2 {
-        0%, 100% { transform: translate(0, 0); }
-        33% { transform: translate(-4px, 3px); }
-        66% { transform: translate(2px, -5px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        25% { transform: translate(-7px, 5px) rotate(-4deg); }
+        50% { transform: translate(3px, -8px) rotate(6deg); }
+        75% { transform: translate(-2px, 4px) rotate(-5deg); }
       }
 
       @keyframes oscillate3 {
-        0%, 100% { transform: translate(0, 0); }
-        20% { transform: translate(3px, 2px); }
-        40% { transform: translate(-1px, -4px); }
-        60% { transform: translate(-3px, 1px); }
-        80% { transform: translate(2px, 3px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        15% { transform: translate(5px, 4px) rotate(3deg); }
+        35% { transform: translate(-6px, -7px) rotate(-6deg); }
+        55% { transform: translate(-3px, 2px) rotate(2deg); }
+        75% { transform: translate(7px, 6px) rotate(4deg); }
       }
 
       @keyframes oscillate4 {
-        0%, 100% { transform: translate(0, 0); }
-        25% { transform: translate(-3px, -2px); }
-        50% { transform: translate(4px, 1px); }
-        75% { transform: translate(-1px, 3px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        30% { transform: translate(-5px, -4px) rotate(-3deg); }
+        60% { transform: translate(8px, 2px) rotate(5deg); }
+        80% { transform: translate(-2px, 6px) rotate(-4deg); }
       }
 
       @keyframes oscillate5 {
-        0%, 100% { transform: translate(0, 0); }
-        30% { transform: translate(2px, -3px); }
-        70% { transform: translate(-4px, 2px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        20% { transform: translate(4px, -5px) rotate(2deg); }
+        45% { transform: translate(-7px, 3px) rotate(-5deg); }
+        70% { transform: translate(2px, 7px) rotate(3deg); }
       }
 
       @keyframes oscillate6 {
-        0%, 100% { transform: translate(0, 0); }
-        40% { transform: translate(-2px, 4px); }
-        80% { transform: translate(3px, -1px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        35% { transform: translate(-3px, 6px) rotate(-2deg); }
+        65% { transform: translate(6px, -4px) rotate(4deg); }
+        85% { transform: translate(-8px, -2px) rotate(-6deg); }
       }
 
       @keyframes oscillate7 {
-        0%, 100% { transform: translate(0, 0); }
-        35% { transform: translate(1px, 3px); }
-        65% { transform: translate(-3px, -2px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        25% { transform: translate(2px, 8px) rotate(1deg); }
+        50% { transform: translate(-5px, -3px) rotate(-4deg); }
+        75% { transform: translate(7px, 1px) rotate(5deg); }
       }
 
       @keyframes oscillate8 {
-        0%, 100% { transform: translate(0, 0); }
-        15% { transform: translate(4px, 1px); }
-        45% { transform: translate(-2px, -3px); }
-        85% { transform: translate(1px, 4px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        18% { transform: translate(9px, 2px) rotate(6deg); }
+        42% { transform: translate(-4px, -6px) rotate(-3deg); }
+        68% { transform: translate(1px, 8px) rotate(2deg); }
+        88% { transform: translate(-7px, -1px) rotate(-5deg); }
       }
 
       @keyframes oscillate9 {
-        0%, 100% { transform: translate(0, 0); }
-        25% { transform: translate(-1px, -4px); }
-        50% { transform: translate(3px, 2px); }
-        75% { transform: translate(-4px, -1px); }
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        22% { transform: translate(-2px, -7px) rotate(-4deg); }
+        44% { transform: translate(6px, 4px) rotate(3deg); }
+        66% { transform: translate(-8px, 1px) rotate(-6deg); }
+        88% { transform: translate(3px, -5px) rotate(4deg); }
       }
       
       /* Hide loader once React loads */
@@ -366,16 +385,16 @@
               <!-- Center node -->
               <div class="node center"></div>
               
-              <!-- Connection lines -->
-              <div class="connection" style="width: 120px; left: 20%; top: 20%; transform: rotate(25deg);"></div>
-              <div class="connection" style="width: 100px; left: 80%; top: 20%; transform: rotate(155deg);"></div>
-              <div class="connection" style="width: 80px; left: 10%; top: 60%; transform: rotate(-15deg);"></div>
-              <div class="connection" style="width: 90px; left: 90%; top: 60%; transform: rotate(-165deg);"></div>
-              <div class="connection" style="width: 70px; left: 30%; top: 85%; transform: rotate(-45deg);"></div>
-              <div class="connection" style="width: 75px; left: 70%; top: 85%; transform: rotate(-135deg);"></div>
-              <div class="connection" style="width: 110px; left: 50%; top: 10%; transform: rotate(90deg);"></div>
-              <div class="connection" style="width: 95px; left: 15%; top: 40%; transform: rotate(20deg);"></div>
-              <div class="connection" style="width: 85px; left: 85%; top: 40%; transform: rotate(160deg);"></div>
+              <!-- Connection lines from center to each outer node -->
+              <div class="connection"></div>
+              <div class="connection"></div>
+              <div class="connection"></div>
+              <div class="connection"></div>
+              <div class="connection"></div>
+              <div class="connection"></div>
+              <div class="connection"></div>
+              <div class="connection"></div>
+              <div class="connection"></div>
             </div>
           </div>
         </div>
