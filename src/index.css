@@ -167,7 +167,7 @@ All colors MUST be HSL.
     font-feature-settings: 'ss01' on, 'cv01' on;
   }
   
-  /* Enhanced stellar slider with progressive fill */
+  /* Enhanced stellar slider with gradient warning colors */
   .stellar-slider {
     -webkit-appearance: none;
     appearance: none;
@@ -192,6 +192,30 @@ All colors MUST be HSL.
       to right,
       hsl(var(--primary-glow)) 0%,
       hsl(var(--primary-glow)) var(--slider-progress, 0%),
+      hsl(var(--muted)) var(--slider-progress, 0%),
+      hsl(var(--muted)) 100%
+    );
+  }
+
+  /* Warning slider for account merge scenario */
+  .stellar-slider.slider-warning {
+    background-image: linear-gradient(
+      to right,
+      hsl(var(--primary)) 0%,
+      hsl(var(--primary)) var(--available-progress, 90%),
+      hsl(38 92% 50%) var(--available-progress, 90%),
+      hsl(0 84% 60%) var(--slider-progress, 95%),
+      hsl(var(--muted)) var(--slider-progress, 95%),
+      hsl(var(--muted)) 100%
+    );
+  }
+
+  /* Account merge warning slider */  
+  .stellar-slider.slider-merge-warning {
+    background-image: linear-gradient(
+      to right,
+      hsl(0 84% 60%) 0%,
+      hsl(0 84% 60%) var(--slider-progress, 0%),
       hsl(var(--muted)) var(--slider-progress, 0%),
       hsl(var(--muted)) 100%
     );
