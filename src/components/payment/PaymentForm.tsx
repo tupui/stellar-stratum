@@ -123,7 +123,7 @@ export const PaymentForm = ({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_auto] gap-4 items-end">
           <div className="space-y-2">
             <Label htmlFor="destination">Destination Address</Label>
             <Input
@@ -135,13 +135,6 @@ export const PaymentForm = ({
               className="text-xs sm:text-sm"
             />
           </div>
-          
-          {/* Destination Account Info */}
-          {paymentData.destination && (
-            <div className="col-span-full">
-              <DestinationAccountInfo destination={paymentData.destination} />
-            </div>
-          )}
           
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -300,6 +293,11 @@ export const PaymentForm = ({
           onChange={(e) => onPaymentDataChange({ ...paymentData, memo: e.target.value })}
         />
       </div>
+      
+      {/* Destination Account Info */}
+      {paymentData.destination && (
+        <DestinationAccountInfo destination={paymentData.destination} />
+      )}
       
       {/* Account Status Info */}
       {trustlineError && (
