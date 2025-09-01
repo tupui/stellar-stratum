@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { Send, FileCode, Shield, Share2, Check, ExternalLink, AlertTriangle, Users, Merge, TrendingUp } from 'lucide-react';
+import { Send, FileCode, Shield, Share2, Check, ExternalLink, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -32,9 +32,6 @@ import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { PaymentForm } from './payment/PaymentForm';
-import { BatchPaymentForm } from './payment/BatchPaymentForm';
-import { AccountMergeForm } from './payment/AccountMergeForm';
-import { PathPaymentForm } from './payment/PathPaymentForm';
 import { XdrProcessor } from './transaction/XdrProcessor';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 
@@ -76,16 +73,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     assetIssuer: '',
     memo: '',
   });
-  const [pathPaymentData, setPathPaymentData] = useState({
-    destination: '',
-    sendAmount: '',
-    sendAsset: 'XLM',
-    sendAssetIssuer: '',
-    receiveAsset: '',
-    receiveAssetIssuer: '',
-    memo: '',
-    slippageTolerance: 0.5,
-  });
   const [trustlineError, setTrustlineError] = useState<string>('');
   const [xdrData, setXdrData] = useState({
     input: '',
@@ -104,7 +91,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
     setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
-    setPathPaymentData({ destination: '', sendAmount: '', sendAsset: 'XLM', sendAssetIssuer: '', receiveAsset: '', receiveAssetIssuer: '', memo: '', slippageTolerance: 0.5 });
     setTrustlineError('');
     setXdrData({ input: '', output: '' });
     setSignedBy([]);
@@ -168,115 +154,176 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
   };
 
-  const handlePaymentBuild = async () => {
-    if (!paymentData.destination || !paymentData.amount || !paymentData.asset) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  const handlePaymentBuild = async (paymentData?: any, isAccountMerge = false, batchPayments?: any[], pathPayment?: any) => {
     setIsBuilding(true);
     setTrustlineError('');
 
-    let accountExists = false;
-    let needsCreateAccount = false;
-
-    // First check if the destination account exists
     try {
-      accountExists = await checkAccountExists(paymentData.destination);
-      
-      if (!accountExists) {
-        // Account doesn't exist - we'll need to create it with XLM
-        if (paymentData.asset !== 'XLM') {
-          setTrustlineError('Cannot send non-XLM assets to accounts that don\'t exist. Please send XLM first to create the account.');
-          setIsBuilding(false);
-          return;
-        }
-        
-        // Check minimum balance for account creation (1 XLM minimum)
-        const amount = parseFloat(paymentData.amount);
-        if (amount < 1) {
-          setTrustlineError('Account creation requires a minimum of 1 XLM to fund the new account.');
-          setIsBuilding(false);
-          return;
-        }
-        
-        needsCreateAccount = true;
-        // Clear any previous trustline errors since this is just account creation
-        setTrustlineError('');
-      } else {
-        // Account exists - check trustline for non-XLM assets
-        if (paymentData.asset !== 'XLM') {
-          if (!paymentData.assetIssuer) {
-            toast({
-              title: "Missing asset issuer",
-              description: "Asset issuer is required for non-XLM assets",
-              variant: "destructive",
-            });
-            setIsBuilding(false);
-            return;
-          }
-
-          try {
-            const hasTrustline = await checkTrustline(paymentData.destination, paymentData.asset, paymentData.assetIssuer);
-            if (!hasTrustline) {
-              setTrustlineError('The destination account does not have a trustline for this asset');
-              setIsBuilding(false);
-              return;
-            }
-          } catch (error) {
-            setTrustlineError(error instanceof Error ? error.message : 'Failed to verify trustline');
-            setIsBuilding(false);
-            return;
-          }
-        }
-      }
-    } catch (error) {
-      setTrustlineError('Failed to verify destination account');
-      setIsBuilding(false);
-      return;
-    }
-    
-    try {
-      // Determine network and Horizon server
       const networkPassphrase = getNetworkPassphrase(currentNetwork);
       const server = createHorizonServer(currentNetwork);
-
-      // Load source account
       const sourceAccount = await server.loadAccount(accountPublicKey);
       
-      // Create transaction builder
+      let fee = '100000'; // Default fee
+      
+      if (batchPayments) {
+        fee = (100000 * batchPayments.length).toString();
+      } else if (pathPayment) {
+        fee = '200000'; // Higher fee for path payments
+      }
+      
       const transaction = new StellarTransactionBuilder(sourceAccount, {
-        fee: '100000', // 0.01 XLM
+        fee,
         networkPassphrase,
       });
 
-      // Add appropriate operation based on account existence
-      if (needsCreateAccount) {
-        // Use createAccount operation for new accounts (XLM only)
-        transaction.addOperation(Operation.createAccount({
-          destination: paymentData.destination,
-          startingBalance: paymentData.amount,
-        }));
-      } else {
-        // Use payment operation for existing accounts
-        const asset = paymentData.asset === 'XLM' 
-          ? Asset.native() 
-          : new Asset(paymentData.asset, paymentData.assetIssuer);
+      if (isAccountMerge) {
+        // Account merge operation
+        if (!paymentData?.destination) {
+          throw new Error('Destination required for account merge');
+        }
         
-        transaction.addOperation(Operation.payment({
+        transaction.addOperation(Operation.accountMerge({
           destination: paymentData.destination,
-          asset,
-          amount: paymentData.amount,
         }));
+        
+      } else if (batchPayments) {
+        // Batch payment operations
+        for (const payment of batchPayments) {
+          if (!payment.destination || !payment.amount || !payment.asset) {
+            throw new Error('All payments must have destination, amount, and asset');
+          }
+          
+          const asset = payment.asset === 'XLM' 
+            ? Asset.native() 
+            : new Asset(payment.asset, payment.assetIssuer);
+          
+          transaction.addOperation(Operation.payment({
+            destination: payment.destination,
+            asset,
+            amount: payment.amount,
+          }));
+        }
+        
+      } else if (pathPayment) {
+        // Path payment operation
+        if (!pathPayment.destination || !pathPayment.amount || !pathPayment.asset || !pathPayment.receiveAsset) {
+          throw new Error('Missing required fields for path payment');
+        }
+        
+        const sendAsset = pathPayment.asset === 'XLM' 
+          ? Asset.native() 
+          : new Asset(pathPayment.asset, pathPayment.assetIssuer);
+          
+        const destAsset = pathPayment.receiveAsset === 'XLM' 
+          ? Asset.native() 
+          : new Asset(pathPayment.receiveAsset, pathPayment.receiveAssetIssuer);
+
+        // Calculate destination amount with slippage
+        const sendAmount = parseFloat(pathPayment.amount);
+        const estimatedRate = 1; // In real implementation, get this from Stellar path finding
+        const destMin = (sendAmount * estimatedRate * (1 - pathPayment.slippageTolerance / 100)).toFixed(7);
+
+        transaction.addOperation(Operation.pathPaymentStrictSend({
+          sendAsset,
+          sendAmount: pathPayment.amount,
+          destination: pathPayment.destination,
+          destAsset,
+          destMin,
+          path: [], // In real implementation, find optimal path
+        }));
+        
+      } else {
+        // Regular payment operation
+        if (!paymentData || !paymentData.destination || !paymentData.amount || !paymentData.asset) {
+          toast({
+            title: "Missing fields",
+            description: "Please fill in all required fields",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        let accountExists = false;
+        let needsCreateAccount = false;
+
+        // First check if the destination account exists
+        try {
+          accountExists = await checkAccountExists(paymentData.destination);
+          
+          if (!accountExists) {
+            // Account doesn't exist - we'll need to create it with XLM
+            if (paymentData.asset !== 'XLM') {
+              setTrustlineError('Cannot send non-XLM assets to accounts that don\'t exist. Please send XLM first to create the account.');
+              setIsBuilding(false);
+              return;
+            }
+            
+            // Check minimum balance for account creation (1 XLM minimum)
+            const amount = parseFloat(paymentData.amount);
+            if (amount < 1) {
+              setTrustlineError('Account creation requires a minimum of 1 XLM to fund the new account.');
+              setIsBuilding(false);
+              return;
+            }
+            
+            needsCreateAccount = true;
+            setTrustlineError('');
+          } else {
+            // Account exists - check trustline for non-XLM assets
+            if (paymentData.asset !== 'XLM') {
+              if (!paymentData.assetIssuer) {
+                toast({
+                  title: "Missing asset issuer",
+                  description: "Asset issuer is required for non-XLM assets",
+                  variant: "destructive",
+                });
+                setIsBuilding(false);
+                return;
+              }
+
+              try {
+                const hasTrustline = await checkTrustline(paymentData.destination, paymentData.asset, paymentData.assetIssuer);
+                if (!hasTrustline) {
+                  setTrustlineError('The destination account does not have a trustline for this asset');
+                  setIsBuilding(false);
+                  return;
+                }
+              } catch (error) {
+                setTrustlineError(error instanceof Error ? error.message : 'Failed to verify trustline');
+                setIsBuilding(false);
+                return;
+              }
+            }
+          }
+        } catch (error) {
+          setTrustlineError('Failed to verify destination account');
+          setIsBuilding(false);
+          return;
+        }
+
+        // Add appropriate operation based on account existence
+        if (needsCreateAccount) {
+          transaction.addOperation(Operation.createAccount({
+            destination: paymentData.destination,
+            startingBalance: paymentData.amount,
+          }));
+        } else {
+          const asset = paymentData.asset === 'XLM' 
+            ? Asset.native() 
+            : new Asset(paymentData.asset, paymentData.assetIssuer);
+          
+          transaction.addOperation(Operation.payment({
+            destination: paymentData.destination,
+            asset,
+            amount: paymentData.amount,
+          }));
+        }
       }
 
       // Add memo if provided
-      if (paymentData.memo) {
-        transaction.addMemo(Memo.text(paymentData.memo));
+      const memoText = pathPayment?.memo || paymentData?.memo || (batchPayments && batchPayments[0]?.memo);
+      if (memoText) {
+        transaction.addMemo(Memo.text(memoText));
       }
 
       // Set timeout
@@ -288,184 +335,24 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       
       setXdrData(prev => ({ ...prev, output: xdr }));
       
+      let description = "XDR is ready for signing";
+      if (isAccountMerge) {
+        description = "Account merge transaction ready for signing";
+      } else if (batchPayments) {
+        description = `${batchPayments.length} payments ready for signing`;
+      } else if (pathPayment) {
+        description = "Cross-asset payment ready for signing";
+      }
+      
       toast({
         title: "Transaction built successfully",
-        description: "XDR is ready for signing",
+        description,
         duration: 2000,
       });
     } catch (error) {
       toast({
         title: "Build failed",
         description: error instanceof Error ? error.message : "Failed to build transaction",
-        variant: "destructive",
-      });
-    } finally {
-      setIsBuilding(false);
-    }
-  };
-
-  const handleBatchPaymentBuild = async (payments: any[]) => {
-    if (!payments.length || payments.some(p => !p.destination || !p.amount || !p.asset)) {
-      toast({
-        title: "Invalid batch payment",
-        description: "All payments must have destination, amount, and asset",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsBuilding(true);
-    
-    try {
-      const networkPassphrase = getNetworkPassphrase(currentNetwork);
-      const server = createHorizonServer(currentNetwork);
-      const sourceAccount = await server.loadAccount(accountPublicKey);
-      
-      const transaction = new StellarTransactionBuilder(sourceAccount, {
-        fee: (100000 * payments.length).toString(), // Fee per operation
-        networkPassphrase,
-      });
-
-      // Add payment operations
-      for (const payment of payments) {
-        const asset = payment.asset === 'XLM' 
-          ? Asset.native() 
-          : new Asset(payment.asset, payment.assetIssuer);
-        
-        transaction.addOperation(Operation.payment({
-          destination: payment.destination,
-          asset,
-          amount: payment.amount,
-        }));
-      }
-
-      if (payments[0].memo) {
-        transaction.addMemo(Memo.text(payments[0].memo));
-      }
-
-      transaction.setTimeout(86400);
-      const builtTransaction = transaction.build();
-      
-      setXdrData(prev => ({ ...prev, output: builtTransaction.toXDR() }));
-      
-      toast({
-        title: "Batch transaction built",
-        description: `${payments.length} payments ready for signing`,
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: "Build failed",
-        description: error instanceof Error ? error.message : "Failed to build batch transaction",
-        variant: "destructive",
-      });
-    } finally {
-      setIsBuilding(false);
-    }
-  };
-
-  const handleAccountMergeBuild = async (destination: string) => {
-    if (!destination) return;
-
-    setIsBuilding(true);
-    
-    try {
-      const networkPassphrase = getNetworkPassphrase(currentNetwork);
-      const server = createHorizonServer(currentNetwork);
-      const sourceAccount = await server.loadAccount(accountPublicKey);
-      
-      const transaction = new StellarTransactionBuilder(sourceAccount, {
-        fee: '100000',
-        networkPassphrase,
-      });
-
-      transaction.addOperation(Operation.accountMerge({
-        destination,
-      }));
-
-      transaction.setTimeout(86400);
-      const builtTransaction = transaction.build();
-      
-      setXdrData(prev => ({ ...prev, output: builtTransaction.toXDR() }));
-      
-      toast({
-        title: "Account merge built",
-        description: "Transaction ready for signing",
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: "Build failed", 
-        description: error instanceof Error ? error.message : "Failed to build account merge",
-        variant: "destructive",
-      });
-    } finally {
-      setIsBuilding(false);
-    }
-  };
-
-  const handlePathPaymentBuild = async () => {
-    if (!pathPaymentData.destination || !pathPaymentData.sendAmount || !pathPaymentData.sendAsset || !pathPaymentData.receiveAsset) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsBuilding(true);
-    
-    try {
-      const networkPassphrase = getNetworkPassphrase(currentNetwork);
-      const server = createHorizonServer(currentNetwork);
-      const sourceAccount = await server.loadAccount(accountPublicKey);
-      
-      const transaction = new StellarTransactionBuilder(sourceAccount, {
-        fee: '200000', // Higher fee for path payments
-        networkPassphrase,
-      });
-
-      const sendAsset = pathPaymentData.sendAsset === 'XLM' 
-        ? Asset.native() 
-        : new Asset(pathPaymentData.sendAsset, pathPaymentData.sendAssetIssuer);
-        
-      const destAsset = pathPaymentData.receiveAsset === 'XLM' 
-        ? Asset.native() 
-        : new Asset(pathPaymentData.receiveAsset, pathPaymentData.receiveAssetIssuer);
-
-      // Calculate destination amount with slippage
-      const sendAmount = parseFloat(pathPaymentData.sendAmount);
-      const estimatedRate = 1; // In real implementation, get this from Stellar path finding
-      const destMin = (sendAmount * estimatedRate * (1 - pathPaymentData.slippageTolerance / 100)).toFixed(7);
-
-      transaction.addOperation(Operation.pathPaymentStrictSend({
-        sendAsset,
-        sendAmount: pathPaymentData.sendAmount,
-        destination: pathPaymentData.destination,
-        destAsset,
-        destMin,
-        path: [], // In real implementation, find optimal path
-      }));
-
-      if (pathPaymentData.memo) {
-        transaction.addMemo(Memo.text(pathPaymentData.memo));
-      }
-
-      transaction.setTimeout(86400);
-      const builtTransaction = transaction.build();
-      
-      setXdrData(prev => ({ ...prev, output: builtTransaction.toXDR() }));
-      
-      toast({
-        title: "Path payment built",
-        description: "Transaction ready for signing",
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: "Build failed",
-        description: error instanceof Error ? error.message : "Failed to build path payment",
         variant: "destructive",
       });
     } finally {
@@ -741,55 +628,34 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <div className="p-2 bg-muted/50 rounded-lg">
-                <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 w-full p-0 bg-transparent gap-2">
+                <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full p-0 bg-transparent gap-2">
                   <TabsTrigger 
                     value="payment" 
-                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Send className="w-4 h-4" />
-                    <span className="hidden sm:inline">Payment</span>
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="batch"
-                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
-                  >
-                    <Users className="w-4 h-4" />
-                    <span className="hidden sm:inline">Batch</span>
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="merge"
-                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
-                  >
-                    <Merge className="w-4 h-4" />
-                    <span className="hidden sm:inline">Merge</span>
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="path"
-                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
-                  >
-                    <TrendingUp className="w-4 h-4" />
-                    <span className="hidden sm:inline">Path</span>
+                    <span>Payment</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="multisig"
-                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Shield className="w-4 h-4" />
-                    <span className="hidden sm:inline">Multisig</span>
+                    <span>Multisig</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="xdr"
-                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <FileCode className="w-4 h-4" />
-                    <span className="hidden sm:inline">XDR</span>
+                    <span>XDR</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="refractor"
-                    className="w-full h-10 flex items-center gap-1 text-xs sm:text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-2"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Share2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Refractor</span>
+                    <span>Refractor</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -806,40 +672,24 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   availableAssets={getAvailableAssets()}
                   assetPrices={assetPrices}
                   trustlineError={trustlineError}
-                  onBuild={handlePaymentBuild}
+                  onBuild={(paymentData, batchPayments, isAccountMerge, pathPayment) => {
+                    if (isAccountMerge) {
+                      // Handle account merge
+                      handlePaymentBuild(paymentData, true);
+                    } else if (batchPayments) {
+                      // Handle batch payments
+                      handlePaymentBuild(undefined, false, batchPayments);
+                    } else if (pathPayment) {
+                      // Handle path payment
+                      handlePaymentBuild(paymentData, false, undefined, pathPayment);
+                    } else {
+                      // Handle regular payment
+                      handlePaymentBuild(paymentData);
+                    }
+                  }}
                   isBuilding={isBuilding}
-                />
-              </TabsContent>
-
-              <TabsContent value="batch" className="space-y-4 mt-6">
-                <BatchPaymentForm
-                  availableAssets={getAvailableAssets()}
-                  assetPrices={assetPrices}
                   accountData={accountData}
-                  onBuild={handleBatchPaymentBuild}
-                  isBuilding={isBuilding}
-                />
-              </TabsContent>
-
-              <TabsContent value="merge" className="space-y-4 mt-6">
-                <AccountMergeForm
-                  availableAssets={getAvailableAssets()}
-                  assetPrices={assetPrices}
-                  accountData={{ ...accountData, publicKey: accountPublicKey }}
-                  onBuild={handleAccountMergeBuild}
-                  isBuilding={isBuilding}
-                />
-              </TabsContent>
-
-              <TabsContent value="path" className="space-y-4 mt-6">
-                <PathPaymentForm
-                  pathPaymentData={pathPaymentData}
-                  onPathPaymentDataChange={setPathPaymentData}
-                  availableAssets={getAvailableAssets()}
-                  assetPrices={assetPrices}
-                  destinationAssets={getAvailableAssets()} // In real implementation, fetch destination assets
-                  onBuild={handlePathPaymentBuild}
-                  isBuilding={isBuilding}
+                  accountPublicKey={accountPublicKey}
                 />
               </TabsContent>
 

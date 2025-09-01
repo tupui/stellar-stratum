@@ -5,7 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { AlertTriangle, Check, Info } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Slider } from '@/components/ui/slider';
+import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, TrendingUp, Merge, Users } from 'lucide-react';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
@@ -26,14 +31,42 @@ interface Asset {
   price: number;
 }
 
+interface BatchPayment {
+  id: string;
+  destination: string;
+  amount: string;
+  asset: string;
+  assetIssuer: string;
+  memo: string;
+}
+
 interface PaymentFormProps {
   paymentData: PaymentData;
   onPaymentDataChange: (data: PaymentData) => void;
   availableAssets: Asset[];
   assetPrices: Record<string, number>;
   trustlineError: string;
-  onBuild: () => void;
+  onBuild: (paymentData?: PaymentData, batchPayments?: BatchPayment[], isAccountMerge?: boolean, pathPayment?: any) => void;
   isBuilding: boolean;
+  accountData: {
+    balances: Array<{
+      asset_type: string;
+      asset_code?: string;
+      asset_issuer?: string;
+      balance: string;
+    }>;
+    signers: Array<{
+      key: string;
+      weight: number;
+      type: string;
+    }>;
+    thresholds: {
+      low_threshold: number;
+      med_threshold: number;
+      high_threshold: number;
+    };
+  };
+  accountPublicKey: string;
 }
 
 export const PaymentForm = ({ 
@@ -43,12 +76,48 @@ export const PaymentForm = ({
   assetPrices,
   trustlineError,
   onBuild,
-  isBuilding 
+  isBuilding,
+  accountData,
+  accountPublicKey
 }: PaymentFormProps) => {
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
   const [fiatValue, setFiatValue] = useState<string>('');
   const [amountInput, setAmountInput] = useState<string>('0.0');
   const [isEditingAmount, setIsEditingAmount] = useState(false);
+  
+  // Advanced features state
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [isAccountMerge, setIsAccountMerge] = useState(false);
+  const [isPathPayment, setIsPathPayment] = useState(false);
+  const [batchPayments, setBatchPayments] = useState<BatchPayment[]>([]);
+  const [pathSettings, setPathSettings] = useState({
+    receiveAsset: '',
+    receiveAssetIssuer: '',
+    slippageTolerance: 0.5
+  });
+
+  // Calculate Stellar reserves for XLM
+  const calculateXLMReserve = () => {
+    const baseReserve = 0.5;
+    const accountEntries = 1; // Base account
+    const signersCount = accountData.signers.length - 1; // Subtract master key
+    const trustlinesCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
+    
+    return (accountEntries + signersCount + trustlinesCount + 1) * baseReserve; // +1 for safety
+  };
+
+  const getAvailableBalance = (assetCode: string) => {
+    const asset = availableAssets.find(a => a.code === assetCode);
+    if (!asset) return 0;
+    
+    const balance = parseFloat(asset.balance);
+    if (assetCode === 'XLM') {
+      const reserve = calculateXLMReserve();
+      return Math.max(0, balance - reserve - 0.1); // Extra 0.1 for transaction fees
+    }
+    return balance;
+  };
+
   // Update fiat value when amount, asset, or currency changes
   useEffect(() => {
     const updateFiatValue = async () => {
@@ -88,7 +157,7 @@ export const PaymentForm = ({
     return `${int}.${dec}`;
   };
 
-  // Sync the display value when not actively editing (e.g., slider or asset changes)
+  // Sync the display value when not actively editing
   useEffect(() => {
     if (isEditingAmount) return;
     const amt = paymentData.amount;
@@ -102,172 +171,344 @@ export const PaymentForm = ({
   const getSelectedAssetInfo = () => {
     return availableAssets.find(asset => asset.code === paymentData.asset);
   };
+
   const handleMaxAmount = () => {
     const selectedAsset = getSelectedAssetInfo();
     if (selectedAsset) {
-      // Reserve some XLM for fees
-      const maxAmount = selectedAsset.code === 'XLM' 
-        ? Math.max(0, parseFloat(selectedAsset.balance) - 0.5).toString()
-        : selectedAsset.balance;
+      const maxAmount = getAvailableBalance(selectedAsset.code).toString();
       onPaymentDataChange({ ...paymentData, amount: maxAmount });
     }
   };
 
-  // Check if form is valid for payment build
-  const isFormValid = paymentData.destination && 
-    paymentData.amount && 
-    paymentData.asset &&
-    (paymentData.asset === 'XLM' || paymentData.assetIssuer) &&
-    (!trustlineError || trustlineError.includes('will create a new'));
+  const addBatchPayment = () => {
+    const newPayment: BatchPayment = {
+      id: Date.now().toString(),
+      destination: '',
+      amount: '',
+      asset: paymentData.asset,
+      assetIssuer: paymentData.assetIssuer,
+      memo: ''
+    };
+    setBatchPayments([...batchPayments, newPayment]);
+  };
+
+  const removeBatchPayment = (id: string) => {
+    setBatchPayments(batchPayments.filter(p => p.id !== id));
+  };
+
+  const updateBatchPayment = (id: string, updates: Partial<BatchPayment>) => {
+    setBatchPayments(batchPayments.map(p => 
+      p.id === id ? { ...p, ...updates } : p
+    ));
+  };
+
+  // Handle smart balance distribution for batch payments
+  const redistributeBatchAmounts = () => {
+    const availableBalance = getAvailableBalance(paymentData.asset);
+    const totalPayments = batchPayments.length + 1; // +1 for main payment
+    
+    if (totalPayments > 1) {
+      const amountPerPayment = (availableBalance / totalPayments).toFixed(7);
+      onPaymentDataChange({ ...paymentData, amount: amountPerPayment });
+      setBatchPayments(batchPayments.map(p => ({ ...p, amount: amountPerPayment })));
+    }
+  };
+
+  // Check if form is valid
+  const isFormValid = () => {
+    if (isAccountMerge) {
+      return paymentData.destination && paymentData.destination !== accountPublicKey;
+    }
+    
+    if (isBatchMode) {
+      return paymentData.destination && paymentData.amount && 
+             batchPayments.every(p => p.destination && p.amount) &&
+             batchPayments.length > 0;
+    }
+    
+    if (isPathPayment) {
+      return paymentData.destination && paymentData.amount && 
+             pathSettings.receiveAsset && paymentData.asset !== pathSettings.receiveAsset;
+    }
+    
+    return paymentData.destination && 
+           paymentData.amount && 
+           paymentData.asset &&
+           (paymentData.asset === 'XLM' || paymentData.assetIssuer) &&
+           (!trustlineError || trustlineError.includes('will create a new'));
+  };
+
+  const handleBuild = () => {
+    if (isAccountMerge) {
+      onBuild(undefined, undefined, true);
+    } else if (isBatchMode) {
+      const allPayments = [
+        { 
+          id: 'main', 
+          destination: paymentData.destination, 
+          amount: paymentData.amount, 
+          asset: paymentData.asset, 
+          assetIssuer: paymentData.assetIssuer, 
+          memo: paymentData.memo 
+        },
+        ...batchPayments
+      ];
+      onBuild(undefined, allPayments);
+    } else if (isPathPayment) {
+      onBuild(undefined, undefined, false, {
+        ...paymentData,
+        receiveAsset: pathSettings.receiveAsset,
+        receiveAssetIssuer: pathSettings.receiveAssetIssuer,
+        slippageTolerance: pathSettings.slippageTolerance
+      });
+    } else {
+      onBuild(paymentData);
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_auto] gap-4 items-end">
-          <div className="space-y-2">
-            <Label htmlFor="destination">Destination Address</Label>
-            <Input
-              id="destination"
-              placeholder="GABC..."
-              maxLength={56}
-              value={paymentData.destination}
-              onChange={(e) => onPaymentDataChange({ ...paymentData, destination: e.target.value })}
-              className="text-xs sm:text-sm font-address"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="amount">Amount</Label>
-              {fiatValue && (
-                <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
-              )}
-            </div>
-            <div className="flex gap-1">
-              <Input
-                id="amount"
-                type="text"
-                placeholder="0.0"
-                inputMode="decimal"
-                className="font-amount flex-1 text-xs sm:text-sm"
-                value={amountInput}
-                onFocus={() => setIsEditingAmount(true)}
-                onBlur={() => {
-                  const maxAmount = getSelectedAssetInfo()?.code === 'XLM'
-                    ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
-                    : parseFloat(getSelectedAssetInfo()?.balance || '0');
-                  const numeric = parseFloat(amountInput.replace(/,/g, ''));
-                  const clamped = isNaN(numeric) ? 0 : Math.min(Math.max(0, numeric), maxAmount);
-                  const rounded = Number(clamped.toFixed(7));
-                  onPaymentDataChange({ ...paymentData, amount: rounded ? rounded.toString() : '' });
-                  const formatDisplayAmount = (val: string | number) => {
-                    const s = String(val);
-                    if (s === '' || s === '0') return '0.0';
-                    if (!s.includes('.')) return `${s}.0`;
-                    const [int, dec] = s.split('.');
-                    return `${int}.${dec}`;
-                  };
-                  setAmountInput(formatDisplayAmount(rounded.toString()));
-                  setIsEditingAmount(false);
-                }}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  // allow only digits and a single dot
-                  const sanitized = v.replace(/[^0-9.]/g, '');
-                  const parts = sanitized.split('.');
-                  const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
-                  setAmountInput(normalized);
-
-                  const num = parseFloat(normalized);
-                  if (!isNaN(num)) {
-                    const precise = Number(num.toFixed(7)).toString();
-                    onPaymentDataChange({ ...paymentData, amount: precise });
-                  } else {
-                    onPaymentDataChange({ ...paymentData, amount: '' });
+    <div className="space-y-6">
+      {/* Payment Mode Selector */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Payment Options</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="batch-mode"
+                checked={isBatchMode}
+                onCheckedChange={(checked) => {
+                  setIsBatchMode(checked);
+                  if (checked) {
+                    setIsAccountMerge(false);
+                    setIsPathPayment(false);
                   }
                 }}
               />
-              <Select
-                value={paymentData.asset}
-                onValueChange={(value) => {
-                  const selectedAsset = availableAssets.find(asset => asset.code === value);
-                  onPaymentDataChange({ 
-                    ...paymentData, 
-                    asset: value,
-                    assetIssuer: selectedAsset?.issuer || '',
-                    amount: '' // Reset amount when changing asset
-                  });
+              <Label htmlFor="batch-mode" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Batch Payments
+              </Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="path-payment"
+                checked={isPathPayment}
+                onCheckedChange={(checked) => {
+                  setIsPathPayment(checked);
+                  if (checked) {
+                    setIsBatchMode(false);
+                    setIsAccountMerge(false);
+                  }
                 }}
-              >
-                <SelectTrigger className="w-20 sm:w-24">
-                  <SelectValue>
-                    <span className="font-medium text-xs sm:text-sm">{paymentData.asset}</span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
-                  {/* Header */}
-                  <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
-                    <span className="uppercase tracking-wider font-medium">Asset</span>
-                    <span className="text-right uppercase tracking-wider font-medium">Balance</span>
-                  </div>
-                  {/* Items */}
-                  {availableAssets.map((asset) => {
-                    const balance = parseFloat(asset.balance);
-                    const formattedBalance = balance.toLocaleString('en-US', {
-                      minimumFractionDigits: 7,
-                      maximumFractionDigits: 7,
-                      useGrouping: true,
-                    });
-                    return (
-                      <SelectPrimitive.Item
-                        key={`${asset.code}-${asset.issuer}`}
-                        value={asset.code}
-                        className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer"
-                      >
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <SelectPrimitive.ItemIndicator>
-                            <Check className="h-4 w-4" />
-                          </SelectPrimitive.ItemIndicator>
-                        </span>
-                        <SelectPrimitive.ItemText>
-                          <div className="grid grid-cols-[80px_1fr] items-center gap-3">
-                            <span className="font-medium">{asset.code}</span>
-                            <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
-                          </div>
-                        </SelectPrimitive.ItemText>
-                      </SelectPrimitive.Item>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              />
+              <Label htmlFor="path-payment" className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Cross-Asset Payment
+              </Label>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="account-merge"
+                checked={isAccountMerge}
+                onCheckedChange={(checked) => {
+                  setIsAccountMerge(checked);
+                  if (checked) {
+                    setIsBatchMode(false);
+                    setIsPathPayment(false);
+                  }
+                }}
+              />
+              <Label htmlFor="account-merge" className="flex items-center gap-2 text-destructive">
+                <Merge className="w-4 h-4" />
+                Send All & Close Account
+              </Label>
             </div>
           </div>
+
+          {/* Feature Descriptions */}
+          {(isBatchMode || isPathPayment || isAccountMerge) && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                {isBatchMode && "Send to multiple recipients in a single atomic transaction."}
+                {isPathPayment && "Send one asset and recipient receives a different asset through automatic conversion."}
+                {isAccountMerge && (
+                  <div className="space-y-1">
+                    <p className="font-medium text-destructive">⚠️ This will permanently close your account!</p>
+                    <p>All XLM will be sent to the destination and this account will become unusable.</p>
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* XLM Reserve Information */}
+      {paymentData.asset === 'XLM' && !isAccountMerge && (
+        <Card className="border-primary/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Info className="w-4 h-4" />
+              XLM Reserve Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs space-y-1">
+            <div className="grid grid-cols-2 gap-2">
+              <span>Account reserve:</span>
+              <span className="font-mono">{calculateXLMReserve().toFixed(2)} XLM</span>
+              <span>Transaction fees:</span>
+              <span className="font-mono">~0.1 XLM</span>
+              <span>Available to send:</span>
+              <span className="font-mono font-semibold">{getAvailableBalance('XLM').toFixed(2)} XLM</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Main Payment Form */}
+      <div className="space-y-4">
+        {/* Destination */}
+        <div className="space-y-2">
+          <Label htmlFor="destination">
+            {isAccountMerge ? 'Send All Funds To' : 'Destination Address'}
+          </Label>
+          <Input
+            id="destination"
+            placeholder="GABC..."
+            maxLength={56}
+            value={paymentData.destination}
+            onChange={(e) => onPaymentDataChange({ ...paymentData, destination: e.target.value })}
+            className="text-xs sm:text-sm font-address"
+          />
         </div>
-        
-        {/* Enhanced Slider */}
-        {getSelectedAssetInfo() && (
+
+        {/* Amount and Asset (hidden for account merge) */}
+        {!isAccountMerge && (
+          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_auto] gap-4 items-end">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="amount">
+                  {isPathPayment ? 'Send Amount' : 'Amount'}
+                </Label>
+                {fiatValue && (
+                  <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <Input
+                  id="amount"
+                  type="text"
+                  placeholder="0.0"
+                  inputMode="decimal"
+                  className="font-amount flex-1 text-xs sm:text-sm"
+                  value={amountInput}
+                  onFocus={() => setIsEditingAmount(true)}
+                  onBlur={() => {
+                    const maxAmount = getAvailableBalance(paymentData.asset);
+                    const numeric = parseFloat(amountInput.replace(/,/g, ''));
+                    const clamped = isNaN(numeric) ? 0 : Math.min(Math.max(0, numeric), maxAmount);
+                    const rounded = Number(clamped.toFixed(7));
+                    onPaymentDataChange({ ...paymentData, amount: rounded ? rounded.toString() : '' });
+                    setAmountInput(formatDisplayAmount(rounded.toString()));
+                    setIsEditingAmount(false);
+                  }}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const sanitized = v.replace(/[^0-9.]/g, '');
+                    const parts = sanitized.split('.');
+                    const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
+                    setAmountInput(normalized);
+
+                    const num = parseFloat(normalized);
+                    if (!isNaN(num)) {
+                      const precise = Number(num.toFixed(7)).toString();
+                      onPaymentDataChange({ ...paymentData, amount: precise });
+                    } else {
+                      onPaymentDataChange({ ...paymentData, amount: '' });
+                    }
+                  }}
+                />
+                <Select
+                  value={paymentData.asset}
+                  onValueChange={(value) => {
+                    const selectedAsset = availableAssets.find(asset => asset.code === value);
+                    onPaymentDataChange({ 
+                      ...paymentData, 
+                      asset: value,
+                      assetIssuer: selectedAsset?.issuer || '',
+                      amount: ''
+                    });
+                  }}
+                >
+                  <SelectTrigger className="w-20 sm:w-24">
+                    <SelectValue>
+                      <span className="font-medium text-xs sm:text-sm">{paymentData.asset}</span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
+                    <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
+                      <span className="uppercase tracking-wider font-medium">Asset</span>
+                      <span className="text-right uppercase tracking-wider font-medium">Balance</span>
+                    </div>
+                    {availableAssets.map((asset) => {
+                      const balance = parseFloat(asset.balance);
+                      const formattedBalance = balance.toLocaleString('en-US', {
+                        minimumFractionDigits: 7,
+                        maximumFractionDigits: 7,
+                        useGrouping: true,
+                      });
+                      return (
+                        <SelectPrimitive.Item
+                          key={`${asset.code}-${asset.issuer}`}
+                          value={asset.code}
+                          className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer"
+                        >
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <SelectPrimitive.ItemIndicator>
+                              <Check className="h-4 w-4" />
+                            </SelectPrimitive.ItemIndicator>
+                          </span>
+                          <SelectPrimitive.ItemText>
+                            <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                              <span className="font-medium">{asset.code}</span>
+                              <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
+                            </div>
+                          </SelectPrimitive.ItemText>
+                        </SelectPrimitive.Item>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Slider for amount selection */}
+        {!isAccountMerge && getSelectedAssetInfo() && (
           <div className="space-y-3">
             <div className="relative">
               <input
                 type="range"
                 min="0"
-                max={getSelectedAssetInfo()!.code === 'XLM' 
-                  ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
-                  : parseFloat(getSelectedAssetInfo()!.balance)
-                }
+                max={getAvailableBalance(paymentData.asset)}
                 step="1"
                 value={paymentData.amount || '0'}
                 onChange={(e) => onPaymentDataChange({ ...paymentData, amount: e.target.value })}
                 className="stellar-slider w-full"
                 style={{
-                  '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / parseFloat(getSelectedAssetInfo()!.code === 'XLM' 
-                    ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5).toString()
-                    : getSelectedAssetInfo()!.balance)) * 100}%`
+                  '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / getAvailableBalance(paymentData.asset)) * 100}%`
                 } as React.CSSProperties}
               />
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Available: {parseFloat(getSelectedAssetInfo()!.balance).toLocaleString('en-US', {
+              <span>Available: {getAvailableBalance(paymentData.asset).toLocaleString('en-US', {
                 minimumFractionDigits: 0,
                 maximumFractionDigits: 7,
                 useGrouping: true
@@ -281,73 +522,213 @@ export const PaymentForm = ({
                 Max
               </Button>
             </div>
+            
+            {isBatchMode && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={redistributeBatchAmounts}
+                className="w-full text-xs"
+              >
+                Distribute Evenly Across All Payments
+              </Button>
+            )}
           </div>
         )}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="memo">Memo (Optional)</Label>
-        <Input
-          id="memo"
-          placeholder="Payment description"
-          className="font-mono"
-          value={paymentData.memo}
-          onChange={(e) => onPaymentDataChange({ ...paymentData, memo: e.target.value })}
-        />
-      </div>
-      
-      {/* Destination Account Info */}
-      {paymentData.destination && (
-        <DestinationAccountInfo destination={paymentData.destination} />
-      )}
-      
-      {/* Account Status Info */}
-      {trustlineError && (
-        <div className={`p-4 rounded-lg border ${
-          trustlineError.includes('will create a new') 
-            ? 'bg-muted/50 border-border' 
-            : 'bg-destructive/10 border-destructive/30'
-        }`}>
-          <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              trustlineError.includes('will create a new')
-                ? 'bg-muted'
-                : 'bg-destructive/10'
-            }`}>
-              {trustlineError.includes('will create a new') ? (
-                <Info className="w-4 h-4 text-muted-foreground" />
-              ) : (
-                <AlertTriangle className="w-4 h-4 text-destructive" />
-              )}
-            </div>
-            <div className="flex-1">
-              <p className={`text-sm font-medium ${
-                trustlineError.includes('will create a new')
-                  ? 'text-foreground'
-                  : 'text-foreground'
-              }`}>
-                {trustlineError}
-              </p>
-            </div>
-          </div>
+
+        {/* Path Payment Settings */}
+        {isPathPayment && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <ArrowRight className="w-4 h-4" />
+                Recipient Receives
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Receive Asset</Label>
+                  <Select
+                    value={pathSettings.receiveAsset}
+                    onValueChange={(value) => {
+                      const selectedAsset = availableAssets.find(asset => asset.code === value);
+                      setPathSettings({
+                        ...pathSettings,
+                        receiveAsset: value,
+                        receiveAssetIssuer: selectedAsset?.issuer || ''
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select asset..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableAssets.filter(asset => asset.code !== paymentData.asset).map((asset) => (
+                        <SelectPrimitive.Item key={asset.code} value={asset.code}>
+                          {asset.code}
+                        </SelectPrimitive.Item>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Slippage Tolerance</Label>
+                  <div className="space-y-2">
+                    <Slider
+                      value={[pathSettings.slippageTolerance]}
+                      onValueChange={(value) => setPathSettings({ ...pathSettings, slippageTolerance: value[0] })}
+                      min={0.1}
+                      max={5.0}
+                      step={0.1}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs">
+                      <span>0.1%</span>
+                      <Badge variant="outline">{pathSettings.slippageTolerance.toFixed(1)}%</Badge>
+                      <span>5.0%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Batch Payments */}
+        {isBatchMode && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Additional Recipients ({batchPayments.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {batchPayments.map((payment, index) => (
+                <div key={payment.id} className="p-4 border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Payment #{index + 2}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeBatchPayment(payment.id)}
+                      className="text-destructive hover:text-destructive/80"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Destination</Label>
+                      <Input
+                        placeholder="GABC..."
+                        value={payment.destination}
+                        onChange={(e) => updateBatchPayment(payment.id, { destination: e.target.value })}
+                        className="text-xs font-address"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Amount</Label>
+                      <Input
+                        placeholder="0.0"
+                        value={payment.amount}
+                        onChange={(e) => updateBatchPayment(payment.id, { amount: e.target.value })}
+                        className="font-amount"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              <Button
+                onClick={addBatchPayment}
+                variant="outline"
+                className="w-full border-dashed"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Another Payment
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Memo */}
+        <div className="space-y-2">
+          <Label htmlFor="memo">Memo (Optional)</Label>
+          <Input
+            id="memo"
+            placeholder="Payment description"
+            className="font-mono"
+            value={paymentData.memo}
+            onChange={(e) => onPaymentDataChange({ ...paymentData, memo: e.target.value })}
+          />
         </div>
-      )}
-      
-      <Button 
-        onClick={onBuild} 
-        disabled={isBuilding || !isFormValid}
-        className="w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50"
-      >
-        {isBuilding ? (
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-            Building Transaction...
-          </div>
-        ) : trustlineError?.includes('will create a new') ? (
-          'Create New Account'
-        ) : (
-          'Build Payment Transaction'
+        
+        {/* Destination Account Info */}
+        {paymentData.destination && (
+          <DestinationAccountInfo destination={paymentData.destination} />
         )}
-      </Button>
+        
+        {/* Account Status Info */}
+        {trustlineError && (
+          <div className={`p-4 rounded-lg border ${
+            trustlineError.includes('will create a new') 
+              ? 'bg-muted/50 border-border' 
+              : 'bg-destructive/10 border-destructive/30'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                trustlineError.includes('will create a new')
+                  ? 'bg-muted'
+                  : 'bg-destructive/10'
+              }`}>
+                {trustlineError.includes('will create a new') ? (
+                  <Info className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-destructive" />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className={`text-sm font-medium ${
+                  trustlineError.includes('will create a new')
+                    ? 'text-foreground'
+                    : 'text-foreground'
+                }`}>
+                  {trustlineError}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <Button 
+          onClick={handleBuild} 
+          disabled={isBuilding || !isFormValid()}
+          className={`w-full ${isAccountMerge ? 'bg-destructive hover:bg-destructive/90' : 'bg-gradient-primary hover:opacity-90'} disabled:opacity-50`}
+          size="lg"
+        >
+          {isBuilding ? (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+              Building Transaction...
+            </div>
+          ) : (
+            <>
+              {isAccountMerge && <AlertTriangle className="w-4 h-4 mr-2" />}
+              {isAccountMerge && 'Send All Funds & Close Account'}
+              {isBatchMode && `Build Batch Transaction (${batchPayments.length + 1} payments)`}
+              {isPathPayment && 'Build Cross-Asset Payment'}
+              {!isAccountMerge && !isBatchMode && !isPathPayment && (
+                trustlineError?.includes('will create a new') ? 'Create New Account' : 'Build Payment Transaction'
+              )}
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 };
