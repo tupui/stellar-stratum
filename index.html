@@ -127,12 +127,14 @@
         align-items: center;
         justify-content: center;
         background: hsl(var(--background));
+        overflow: hidden;
       }
       
       .loader-content {
         text-align: center;
         max-width: 600px;
         padding: 2rem;
+        position: relative;
       }
       
       .loader-title {
@@ -145,22 +147,169 @@
       .loader-subtitle {
         font-size: 1.125rem;
         color: hsl(var(--foreground) / 0.7);
-        margin-bottom: 2rem;
+        margin-bottom: 3rem;
       }
-      
-      .loader-spinner {
-        width: 40px;
-        height: 40px;
-        border: 3px solid hsl(var(--muted));
-        border-top: 3px solid hsl(var(--primary));
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
+
+      /* Node Network Animation */
+      .node-network {
+        position: relative;
+        width: 400px;
+        height: 300px;
         margin: 0 auto;
       }
-      
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
+
+      .node {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: hsl(var(--muted));
+        border: 2px solid hsl(var(--border));
+        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        transform-origin: center;
+      }
+
+      .node.center {
+        width: 20px;
+        height: 20px;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        background: hsl(var(--primary));
+        border-color: hsl(var(--primary));
+        animation: centerPulse 2s ease-in-out infinite;
+        z-index: 10;
+      }
+
+      .node.active {
+        background: hsl(var(--primary));
+        border-color: hsl(var(--primary));
+        box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+      }
+
+      /* Node positions with random oscillation */
+      .node:nth-child(1) { left: 20%; top: 20%; animation: oscillate1 3s ease-in-out infinite; }
+      .node:nth-child(2) { left: 80%; top: 20%; animation: oscillate2 3.5s ease-in-out infinite; }
+      .node:nth-child(3) { left: 10%; top: 60%; animation: oscillate3 2.8s ease-in-out infinite; }
+      .node:nth-child(4) { left: 90%; top: 60%; animation: oscillate4 3.2s ease-in-out infinite; }
+      .node:nth-child(5) { left: 30%; top: 85%; animation: oscillate5 2.5s ease-in-out infinite; }
+      .node:nth-child(6) { left: 70%; top: 85%; animation: oscillate6 3.8s ease-in-out infinite; }
+      .node:nth-child(7) { left: 50%; top: 10%; animation: oscillate7 2.9s ease-in-out infinite; }
+      .node:nth-child(8) { left: 15%; top: 40%; animation: oscillate8 3.6s ease-in-out infinite; }
+      .node:nth-child(9) { left: 85%; top: 40%; animation: oscillate9 2.7s ease-in-out infinite; }
+
+      /* Connection lines */
+      .connection {
+        position: absolute;
+        height: 2px;
+        background: hsl(var(--border));
+        transform-origin: left center;
+        opacity: 0.6;
+        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .connection.active {
+        background: hsl(var(--primary));
+        opacity: 1;
+        box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
+      }
+
+      /* Propagation animation */
+      .connection::after {
+        content: '';
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: hsl(var(--primary));
+        border-radius: 50%;
+        top: -2px;
+        left: -3px;
+        opacity: 0;
+        animation: propagate 1.5s linear infinite;
+      }
+
+      .connection.active::after {
+        opacity: 1;
+      }
+
+      /* Keyframe animations */
+      @keyframes centerPulse {
+        0%, 100% { 
+          transform: translate(-50%, -50%) scale(1);
+          box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+        }
+        50% { 
+          transform: translate(-50%, -50%) scale(1.2);
+          box-shadow: 0 0 30px hsl(var(--primary) / 0.8);
+        }
+      }
+
+      @keyframes propagate {
+        0% { left: -3px; opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { left: 100%; opacity: 0; }
+      }
+
+      /* Random oscillation patterns */
+      @keyframes oscillate1 {
+        0%, 100% { transform: translate(0, 0); }
+        25% { transform: translate(5px, -3px); }
+        50% { transform: translate(-2px, 4px); }
+        75% { transform: translate(3px, -2px); }
+      }
+
+      @keyframes oscillate2 {
+        0%, 100% { transform: translate(0, 0); }
+        33% { transform: translate(-4px, 3px); }
+        66% { transform: translate(2px, -5px); }
+      }
+
+      @keyframes oscillate3 {
+        0%, 100% { transform: translate(0, 0); }
+        20% { transform: translate(3px, 2px); }
+        40% { transform: translate(-1px, -4px); }
+        60% { transform: translate(-3px, 1px); }
+        80% { transform: translate(2px, 3px); }
+      }
+
+      @keyframes oscillate4 {
+        0%, 100% { transform: translate(0, 0); }
+        25% { transform: translate(-3px, -2px); }
+        50% { transform: translate(4px, 1px); }
+        75% { transform: translate(-1px, 3px); }
+      }
+
+      @keyframes oscillate5 {
+        0%, 100% { transform: translate(0, 0); }
+        30% { transform: translate(2px, -3px); }
+        70% { transform: translate(-4px, 2px); }
+      }
+
+      @keyframes oscillate6 {
+        0%, 100% { transform: translate(0, 0); }
+        40% { transform: translate(-2px, 4px); }
+        80% { transform: translate(3px, -1px); }
+      }
+
+      @keyframes oscillate7 {
+        0%, 100% { transform: translate(0, 0); }
+        35% { transform: translate(1px, 3px); }
+        65% { transform: translate(-3px, -2px); }
+      }
+
+      @keyframes oscillate8 {
+        0%, 100% { transform: translate(0, 0); }
+        15% { transform: translate(4px, 1px); }
+        45% { transform: translate(-2px, -3px); }
+        85% { transform: translate(1px, 4px); }
+      }
+
+      @keyframes oscillate9 {
+        0%, 100% { transform: translate(0, 0); }
+        25% { transform: translate(-1px, -4px); }
+        50% { transform: translate(3px, 2px); }
+        75% { transform: translate(-4px, -1px); }
       }
       
       /* Hide loader once React loads */
@@ -202,7 +351,32 @@
           <div class="loader-content">
             <div class="loader-title">Stratum</div>
             <div class="loader-subtitle">Loading Stellar Multisig Wallet...</div>
-            <div class="loader-spinner"></div>
+            <div class="node-network">
+              <!-- Outer nodes -->
+              <div class="node"></div>
+              <div class="node"></div>
+              <div class="node"></div>
+              <div class="node"></div>
+              <div class="node"></div>
+              <div class="node"></div>
+              <div class="node"></div>
+              <div class="node"></div>
+              <div class="node"></div>
+              
+              <!-- Center node -->
+              <div class="node center"></div>
+              
+              <!-- Connection lines -->
+              <div class="connection" style="width: 120px; left: 20%; top: 20%; transform: rotate(25deg);"></div>
+              <div class="connection" style="width: 100px; left: 80%; top: 20%; transform: rotate(155deg);"></div>
+              <div class="connection" style="width: 80px; left: 10%; top: 60%; transform: rotate(-15deg);"></div>
+              <div class="connection" style="width: 90px; left: 90%; top: 60%; transform: rotate(-165deg);"></div>
+              <div class="connection" style="width: 70px; left: 30%; top: 85%; transform: rotate(-45deg);"></div>
+              <div class="connection" style="width: 75px; left: 70%; top: 85%; transform: rotate(-135deg);"></div>
+              <div class="connection" style="width: 110px; left: 50%; top: 10%; transform: rotate(90deg);"></div>
+              <div class="connection" style="width: 95px; left: 15%; top: 40%; transform: rotate(20deg);"></div>
+              <div class="connection" style="width: 85px; left: 85%; top: 40%; transform: rotate(160deg);"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -214,6 +388,29 @@
     
     <!-- Hide loader once React content loads -->
     <script>
+      let loadingComplete = false;
+      
+      // Activate network animation after 2 seconds
+      setTimeout(() => {
+        const connections = document.querySelectorAll('.connection');
+        const nodes = document.querySelectorAll('.node:not(.center)');
+        
+        // Stagger the activation of connections and nodes
+        connections.forEach((connection, index) => {
+          setTimeout(() => {
+            connection.classList.add('active');
+          }, index * 200);
+        });
+        
+        nodes.forEach((node, index) => {
+          setTimeout(() => {
+            node.classList.add('active');
+          }, index * 250 + 500);
+        });
+        
+        loadingComplete = true;
+      }, 2000);
+      
       document.addEventListener('DOMContentLoaded', function() {
         // Force hide loader immediately if React content already exists
         const root = document.getElementById('root');
@@ -226,13 +423,21 @@
         
         const observer = new MutationObserver(function(mutations) {
           if (root && root.children.length > 0) {
-            document.body.classList.add('app-loaded');
-            if (loader) {
-              loader.style.display = 'none';
-              loader.style.visibility = 'hidden';
-              loader.style.height = '0';
-              loader.style.overflow = 'hidden';
-            }
+            // Wait for network animation to complete if it's running
+            const delay = loadingComplete ? 0 : 1000;
+            setTimeout(() => {
+              document.body.classList.add('app-loaded');
+              if (loader) {
+                loader.style.transition = 'opacity 0.5s ease-out';
+                loader.style.opacity = '0';
+                setTimeout(() => {
+                  loader.style.display = 'none';
+                  loader.style.visibility = 'hidden';
+                  loader.style.height = '0';
+                  loader.style.overflow = 'hidden';
+                }, 500);
+              }
+            }, delay);
             observer.disconnect();
           }
         });
@@ -241,11 +446,17 @@
           observer.observe(root, { childList: true, subtree: true });
         }
         
-        // Fallback: hide loader after 3 seconds
+        // Fallback: hide loader after 5 seconds
         setTimeout(() => {
           document.body.classList.add('app-loaded');
-          if (loader) loader.style.display = 'none';
-        }, 3000);
+          if (loader) {
+            loader.style.transition = 'opacity 0.5s ease-out';
+            loader.style.opacity = '0';
+            setTimeout(() => {
+              loader.style.display = 'none';
+            }, 500);
+          }
+        }, 5000);
       });
     </script>
   </body>
