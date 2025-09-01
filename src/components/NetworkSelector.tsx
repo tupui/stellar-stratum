@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Globe, Send, Upload } from 'lucide-react';
+import { Globe, Send } from 'lucide-react';
 import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useNetwork } from '@/contexts/NetworkContext';
 
@@ -94,18 +94,28 @@ export const NetworkSelector = ({
         </div>
 
         {currentNetwork === 'testnet' && (
-          <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
-            <p className="text-sm text-warning-foreground">
-              <strong>Note:</strong> Refractor only supports Public network. Switch to Public to use Refractor for multisig coordination.
-            </p>
+          <div className="p-4 rounded-lg border bg-primary/5 border-primary/30">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Globe className="w-4 h-4 text-primary" />
+              </div>
+              <p className="text-sm text-primary font-medium">
+                <strong>Note:</strong> Refractor only supports Public network. Switch to Public to use Refractor for multisig coordination.
+              </p>
+            </div>
           </div>
         )}
 
         {!canSubmitToNetwork && (
-          <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
-            <p className="text-sm text-warning-foreground">
-              Insufficient signatures. Transaction needs more signatures before it can be submitted to the network.
-            </p>
+          <div className="p-4 rounded-lg border bg-secondary/5 border-secondary/30">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center flex-shrink-0">
+                <Send className="w-4 h-4 text-secondary-foreground" />
+              </div>
+              <p className="text-sm text-secondary-foreground font-medium">
+                Insufficient signatures. Transaction needs more signatures before it can be submitted to the network.
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
