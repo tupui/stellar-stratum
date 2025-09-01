@@ -14,6 +14,8 @@ import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, TrendingUp, Merge
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
+import { useNetwork } from '@/contexts/NetworkContext';
+import * as StellarSDK from '@stellar/stellar-sdk';
 
 interface PaymentData {
   destination: string;
@@ -87,6 +89,7 @@ export const PaymentForm = ({
   accountPublicKey
 }: PaymentFormProps) => {
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
+  const { network } = useNetwork();
   const [fiatValue, setFiatValue] = useState<string>('');
   
   // Payment items state (includes main payment + additional payments)
@@ -95,6 +98,8 @@ export const PaymentForm = ({
   const [showAutoAdjustWarning, setShowAutoAdjustWarning] = useState(false);
   const [mergePaymentId, setMergePaymentId] = useState<string | null>(null);
   const [fiatValues, setFiatValues] = useState<Record<string, string>>({});
+  const [recipientAssetsMain, setRecipientAssetsMain] = useState<string[]>([]);
+  const [recipientAssetsById, setRecipientAssetsById] = useState<Record<string, string[]>>({});
 
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
@@ -144,6 +149,94 @@ export const PaymentForm = ({
     return numAmount > availableBalance;
   };
 
+  // Destination trustline helpers
+  const isValidPublicKey = (s?: string) => !!s && s.length === 56 && s.startsWith('G');
+
+  const fetchRecipientAssets = async (accountId: string): Promise<string[]> => {
+    const server = new StellarSDK.Horizon.Server(
+      network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org'
+    );
+    try {
+      const account = await server.loadAccount(accountId);
+      const codes = new Set<string>(['XLM']);
+      account.balances.forEach((b: any) => {
+        if (b.asset_type === 'native') codes.add('XLM');
+        else if (b.asset_code) codes.add(b.asset_code);
+      });
+      return Array.from(codes);
+    } catch {
+      return ['XLM'];
+    }
+  };
+
+  useEffect(() => {
+    if (!isValidPublicKey(paymentData.destination)) {
+      setRecipientAssetsMain([]);
+      return;
+    }
+    let cancelled = false;
+    fetchRecipientAssets(paymentData.destination).then((codes) => {
+      if (!cancelled) setRecipientAssetsMain(codes);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentData.destination, network]);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      const entries = await Promise.all(
+        additionalPayments.map(async (p) => {
+          if (!isValidPublicKey(p.destination)) return [p.id, [] as string[]] as const;
+          const codes = await fetchRecipientAssets(p.destination);
+          return [p.id, codes] as const;
+        })
+      );
+      const map: Record<string, string[]> = {};
+      entries.forEach(([id, codes]) => (map[id] = codes));
+      setRecipientAssetsById(map);
+    };
+    fetchAll();
+  }, [additionalPayments.map((p) => p.destination).join(','), network]);
+
+  // Auto-select a valid receive asset if "same" isn't accepted by destination
+  useEffect(() => {
+    if (recipientAssetsMain.length === 0) return;
+    const sameAllowed = paymentData.asset === 'XLM' || recipientAssetsMain.includes(paymentData.asset);
+    if (!sameAllowed && (!paymentData.receiveAsset || !recipientAssetsMain.includes(paymentData.receiveAsset))) {
+      const fallback = recipientAssetsMain.includes('XLM') ? 'XLM' : recipientAssetsMain[0];
+      const selectedAsset = availableAssets.find((a) => a.code === fallback);
+      onPaymentDataChange({ ...paymentData, receiveAsset: fallback, receiveAssetIssuer: selectedAsset?.issuer });
+    }
+  }, [recipientAssetsMain, paymentData.asset]);
+
+  useEffect(() => {
+    if (additionalPayments.length === 0) return;
+    setAdditionalPayments((prev) =>
+      prev.map((p) => {
+        const destAssets = recipientAssetsById[p.id] || [];
+        const sameAllowed = p.asset === 'XLM' || destAssets.includes(p.asset);
+        if (!sameAllowed && (!p.receiveAsset || !destAssets.includes(p.receiveAsset))) {
+          const fallback = destAssets.includes('XLM') ? 'XLM' : destAssets[0];
+          return { ...p, receiveAsset: fallback };
+        }
+        return p;
+      })
+    );
+  }, [recipientAssetsById]);
+
+  const getReceiveOptionsMain = () => {
+    const allowed = new Set<string>(recipientAssetsMain.length ? recipientAssetsMain : ['XLM']);
+    allowed.add('XLM');
+    return availableAssets.filter((a) => allowed.has(a.code));
+  };
+
+  const getReceiveOptionsForPayment = (id: string) => {
+    const codes = recipientAssetsById[id] || [];
+    const allowed = new Set<string>(codes.length ? codes : ['XLM']);
+    allowed.add('XLM');
+    return availableAssets.filter((a) => allowed.has(a.code));
+  };
   const handleSliderChange = (value: string, paymentId?: string) => {
     handleAmountChange(value, paymentId);
   };
@@ -626,7 +719,7 @@ export const PaymentForm = ({
                     <span className="text-muted-foreground">Same ({paymentData.asset})</span>
                   </SelectPrimitive.ItemText>
                 </SelectPrimitive.Item>
-                {availableAssets.filter(asset => asset.code !== paymentData.asset && asset.code && asset.code.trim() !== '').map((asset) => (
+                {getReceiveOptionsMain().filter(asset => asset.code !== paymentData.asset).map((asset) => (
                   <SelectPrimitive.Item
                     key={`${asset.code}-${asset.issuer}`}
                     value={asset.code}
@@ -742,7 +835,7 @@ export const PaymentForm = ({
                         <span className="text-muted-foreground">Same ({payment.asset})</span>
                       </SelectPrimitive.ItemText>
                     </SelectPrimitive.Item>
-                    {availableAssets.filter(asset => asset.code !== payment.asset && asset.code && asset.code.trim() !== '').map((asset) => (
+                    {getReceiveOptionsForPayment(payment.id).filter(asset => asset.code !== payment.asset).map((asset) => (
                       <SelectPrimitive.Item
                         key={`${asset.code}-${asset.issuer}`}
                         value={asset.code}
