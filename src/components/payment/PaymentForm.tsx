@@ -8,6 +8,7 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import { AlertTriangle, Check, Info } from 'lucide-react';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { DestinationAccountInfo } from './DestinationAccountInfo';
 
 interface PaymentData {
   destination: string;
@@ -134,6 +135,14 @@ export const PaymentForm = ({
               className="text-xs sm:text-sm"
             />
           </div>
+          
+          {/* Destination Account Info */}
+          {paymentData.destination && (
+            <div className="col-span-full">
+              <DestinationAccountInfo destination={paymentData.destination} />
+            </div>
+          )}
+          
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="amount">Amount</Label>
