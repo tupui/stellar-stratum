@@ -248,18 +248,25 @@
         box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
       }
 
-      /* Purple pulse effect for completed network */
-      .node-network.purple-pulse .node {
-        background: linear-gradient(135deg, hsl(270 90% 60%), hsl(285 85% 45%));
-        border-color: hsl(270 90% 60%);
-        box-shadow: 0 0 25px hsl(270 90% 60% / 0.8);
-        animation: purplePulse 1.5s ease-in-out infinite;
+      /* Neon yellow effect for completed network */
+      .node-network.neon-yellow .node {
+        background: hsl(var(--primary));
+        border-color: hsl(var(--primary));
+        box-shadow: 0 0 14px hsl(var(--primary) / 0.95), 0 0 34px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.35);
+        animation: neonFlicker 2.2s ease-in-out infinite;
       }
 
-      .node-network.purple-pulse .connection.active {
-        background: linear-gradient(90deg, hsl(270 90% 60%), hsl(285 85% 45%), hsl(270 90% 60%));
-        box-shadow: 0 0 15px hsl(270 90% 60% / 0.6);
-        animation: purpleFlow 2s linear infinite;
+      .node-network.neon-yellow .node.center {
+        width: 22px;
+        height: 22px;
+        animation: centerNeon 1.8s ease-in-out infinite;
+        box-shadow: 0 0 20px hsl(var(--primary) / 1), 0 0 40px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.45);
+      }
+
+      .node-network.neon-yellow .connection.active {
+        background: hsl(var(--primary));
+        box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 36px hsl(var(--primary) / 0.55), 0 0 60px hsl(var(--primary) / 0.35);
+        animation: neonFlow 2.4s linear infinite;
       }
 
       /* Propagation animation - outward from center */
@@ -299,29 +306,43 @@
         100% { left: 100%; opacity: 0; transform: scale(0.5); }
       }
 
-      @keyframes purplePulse {
-        0%, 100% { 
-          transform: scale(1);
-          box-shadow: 0 0 25px hsl(270 90% 60% / 0.8);
+      @keyframes neonFlicker {
+        0%, 100% {
+          box-shadow: 0 0 14px hsl(var(--primary) / 0.95), 0 0 34px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.35);
         }
-        50% { 
-          transform: scale(1.2);
-          box-shadow: 0 0 35px hsl(270 90% 60% / 1);
+        45% {
+          box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 28px hsl(var(--primary) / 0.5), 0 0 50px hsl(var(--primary) / 0.3);
+        }
+        50% {
+          box-shadow: 0 0 8px hsl(var(--primary) / 0.85), 0 0 18px hsl(var(--primary) / 0.45), 0 0 38px hsl(var(--primary) / 0.25);
+        }
+        55% {
+          box-shadow: 0 0 16px hsl(var(--primary) / 1), 0 0 40px hsl(var(--primary) / 0.65), 0 0 70px hsl(var(--primary) / 0.4);
+        }
+        70% {
+          box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 30px hsl(var(--primary) / 0.55), 0 0 52px hsl(var(--primary) / 0.32);
         }
       }
 
-      @keyframes purpleFlow {
-        0% { 
-          background-position: 0% 50%;
+      @keyframes centerNeon {
+        0%, 100% {
+          transform: translate(-50%, -50%) scale(1);
+          box-shadow: 0 0 20px hsl(var(--primary) / 1), 0 0 42px hsl(var(--primary) / 0.7), 0 0 90px hsl(var(--primary) / 0.45);
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1.25);
+          box-shadow: 0 0 28px hsl(var(--primary) / 1), 0 0 60px hsl(var(--primary) / 0.75), 0 0 120px hsl(var(--primary) / 0.5);
+        }
+      }
+
+      @keyframes neonFlow {
+        0%, 100% {
+          box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 36px hsl(var(--primary) / 0.55), 0 0 60px hsl(var(--primary) / 0.35);
           filter: brightness(1);
         }
-        50% { 
-          background-position: 100% 50%;
-          filter: brightness(1.3);
-        }
-        100% { 
-          background-position: 200% 50%;
-          filter: brightness(1);
+        50% {
+          box-shadow: 0 0 18px hsl(var(--primary) / 1), 0 0 48px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.45);
+          filter: brightness(1.15);
         }
       }
 
@@ -510,9 +531,9 @@
         const connectNext = () => {
           if (idx >= nodes.length) {
             animationComplete = true;
-            // Trigger purple pulse effect after all connections are made
+            // Trigger neon effect after all connections are made
             setTimeout(() => {
-              container.classList.add('purple-pulse');
+              container.classList.add('neon-yellow');
             }, 300);
             return;
           }
