@@ -1,3 +1,5 @@
+import { getHorizonUrl } from './stellar';
+
 interface AssetInfo {
   code: string;
   issuer?: string;
@@ -43,7 +45,7 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
     }
 
     // Fetch from Stellar account
-    const response = await fetch(`https://horizon.stellar.org/accounts/${assetIssuer}`);
+    const response = await fetch(`${getHorizonUrl('mainnet')}/accounts/${assetIssuer}`);
     if (!response.ok) throw new Error('Failed to fetch account data');
     
     const accountData = await response.json();

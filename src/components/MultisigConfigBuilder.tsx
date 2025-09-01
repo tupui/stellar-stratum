@@ -27,6 +27,7 @@ import {
   Operation,
   Horizon
 } from '@stellar/stellar-sdk';
+import { createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
 
 interface Signer {
   key: string;
@@ -212,10 +213,8 @@ export const MultisigConfigBuilder = ({
     
     try {
       // Determine network and Horizon server
-      const networkPassphrase = currentNetwork === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
-      const server = currentNetwork === 'testnet'
-        ? new Horizon.Server('https://horizon-testnet.stellar.org')
-        : new Horizon.Server('https://horizon.stellar.org');
+      const networkPassphrase = getNetworkPassphrase(currentNetwork);
+      const server = createHorizonServer(currentNetwork);
 
       // Load source account
       const sourceAccount = await server.loadAccount(accountPublicKey);

@@ -12,6 +12,10 @@ const getNetworkConfig = (network: 'mainnet' | 'testnet') => ({
   horizonUrl: network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org'
 });
 
+// Export network configuration getter for reuse
+export const getNetworkPassphrase = (network: 'mainnet' | 'testnet') => getNetworkConfig(network).passphrase;
+export const getHorizonUrl = (network: 'mainnet' | 'testnet') => getNetworkConfig(network).horizonUrl;
+
 // Create Stellar Wallets Kit instance for specific network
 export const createStellarKit = (network: 'mainnet' | 'testnet' = 'mainnet') => {
   const config = getNetworkConfig(network);
@@ -185,11 +189,9 @@ export const signTransaction = async (xdr: string): Promise<string> => {
 
 export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<any> => {
   try {
-    const networkPassphrase = network === 'testnet' ? 'Test SDF Network ; September 2015' : 'Public Global Stellar Network ; September 2015';
-    const serverUrl = network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org';
-    
-    const transaction = TransactionBuilder.fromXDR(signedXdr, networkPassphrase);
-    const server = new Horizon.Server(serverUrl);
+    const config = getNetworkConfig(network);
+    const transaction = TransactionBuilder.fromXDR(signedXdr, config.passphrase);
+    const server = createHorizonServer(network);
     const result = await server.submitTransaction(transaction);
     return result;
   } catch (error) {
@@ -218,8 +220,8 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
     }
 
     // Compute hash (ID) to share based on network
-    const networkPassphrase = apiNetwork === 'testnet' ? 'Test SDF Network ; September 2015' : 'Public Global Stellar Network ; September 2015';
-    const tx = TransactionBuilder.fromXDR(xdr, networkPassphrase);
+    const config = getNetworkConfig(network);
+    const tx = TransactionBuilder.fromXDR(xdr, config.passphrase);
     return tx.hash().toString('hex');
   } catch (error) {
     console.error('Failed to submit to Refractor:', error);
