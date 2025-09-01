@@ -248,6 +248,20 @@
         box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
       }
 
+      /* Purple pulse effect for completed network */
+      .node-network.purple-pulse .node {
+        background: linear-gradient(135deg, hsl(270 90% 60%), hsl(285 85% 45%));
+        border-color: hsl(270 90% 60%);
+        box-shadow: 0 0 25px hsl(270 90% 60% / 0.8);
+        animation: purplePulse 1.5s ease-in-out infinite;
+      }
+
+      .node-network.purple-pulse .connection.active {
+        background: linear-gradient(90deg, hsl(270 90% 60%), hsl(285 85% 45%), hsl(270 90% 60%));
+        box-shadow: 0 0 15px hsl(270 90% 60% / 0.6);
+        animation: purpleFlow 2s linear infinite;
+      }
+
       /* Propagation animation - outward from center */
       .connection::after {
         content: '';
@@ -283,6 +297,32 @@
         15% { opacity: 1; transform: scale(1); }
         85% { opacity: 1; transform: scale(1); }
         100% { left: 100%; opacity: 0; transform: scale(0.5); }
+      }
+
+      @keyframes purplePulse {
+        0%, 100% { 
+          transform: scale(1);
+          box-shadow: 0 0 25px hsl(270 90% 60% / 0.8);
+        }
+        50% { 
+          transform: scale(1.2);
+          box-shadow: 0 0 35px hsl(270 90% 60% / 1);
+        }
+      }
+
+      @keyframes purpleFlow {
+        0% { 
+          background-position: 0% 50%;
+          filter: brightness(1);
+        }
+        50% { 
+          background-position: 100% 50%;
+          filter: brightness(1.3);
+        }
+        100% { 
+          background-position: 200% 50%;
+          filter: brightness(1);
+        }
       }
 
       /* Large oscillation patterns - much more movement */
@@ -470,6 +510,10 @@
         const connectNext = () => {
           if (idx >= nodes.length) {
             animationComplete = true;
+            // Trigger purple pulse effect after all connections are made
+            setTimeout(() => {
+              container.classList.add('purple-pulse');
+            }, 300);
             return;
           }
           const node = nodes[idx];
