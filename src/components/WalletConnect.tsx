@@ -441,8 +441,8 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
             const isMobile = window.innerWidth < 768;
             
             // Define wallet order based on user requirements
-            const mobileOrder = ['xbull', 'hot', 'albedo', 'walletconnect', 'wallet connect'];
-            const desktopOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'hot', 'albedo', 'walletconnect', 'wallet connect'];
+            const mobileOrder = ['xbull', 'hot', 'albedo', 'walletconnect', 'wallet connect', 'wallet-connect', 'wallet_connect', 'wc'];
+            const desktopOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'hot', 'albedo', 'walletconnect', 'wallet connect', 'wallet-connect', 'wallet_connect', 'wc'];
             
             // Order and filter wallets to match exactly the requested list
             const orderAndFilter = (wallets: typeof supportedWallets, order: string[]) => {
@@ -506,10 +506,10 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                 </>
               );
             } else {
-              // Desktop: First 5 visible, rest in collapsible
+              // Desktop: First 3 visible (since Manual + Soroban are the first two), rest in collapsible
               const orderedWallets = orderAndFilter(supportedWallets, desktopOrder);
-              const primaryWallets = orderedWallets.slice(0, 5);
-              const secondaryWallets = orderedWallets.slice(5);
+              const primaryWallets = orderedWallets.slice(0, 3);
+              const secondaryWallets = orderedWallets.slice(3);
               
               return (
                 <>
