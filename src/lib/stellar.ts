@@ -151,46 +151,10 @@ export const getSupportedWallets = async (network: 'mainnet' | 'testnet' = 'main
     const kit = createStellarKit(network);
     const wallets = await kit.getSupportedWallets();
     
-    // Create fallback entries for wallets that should always be available
-    const fallbackWallets: ISupportedWallet[] = [
-      {
-        id: 'trezor',
-        name: 'Trezor',
-        icon: 'https://trezor.io/images/icons/trezor-icon.svg',
-        url: 'https://trezor.io/',
-        isAvailable: false, // Will be marked as disabled if not detected
-        type: 'hardware',
-        isPlatformWrapper: false
-      },
-      {
-        id: 'walletconnect',
-        name: 'WalletConnect',
-        icon: 'https://walletconnect.com/assets/img/wc-logo.svg',
-        url: 'https://walletconnect.com/',
-        isAvailable: false, // Will be marked as disabled if not detected
-        type: 'extension',
-        isPlatformWrapper: false
-      }
-    ];
-    
-    // Merge detected wallets with fallbacks, giving priority to detected ones
-    const mergedWallets = [...wallets];
-    
-    // Add fallback wallets if not already present
-    fallbackWallets.forEach(fallback => {
-      const existingWallet = wallets.find(w => 
-        w.id.toLowerCase() === fallback.id.toLowerCase() ||
-        w.name.toLowerCase().includes(fallback.name.toLowerCase())
-      );
-      if (!existingWallet) {
-        mergedWallets.push(fallback);
-      }
-    });
-    
-    // Filter and prioritize wallets
+    // Filter and prioritize wallets - only return actually supported wallets
     const priorityOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'hot', 'albedo', 'walletconnect', 'rabet'];
     
-    return mergedWallets
+    return wallets
       .filter(wallet => wallet.name) // Only include wallets with names
       .sort((a, b) => {
         const aIndex = priorityOrder.indexOf(a.id.toLowerCase());

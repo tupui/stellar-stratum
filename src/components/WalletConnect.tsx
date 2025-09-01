@@ -352,7 +352,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 max-h-96 overflow-y-auto">
           {/* Manual Address as a card option */}
           <Button
             variant="outline"
