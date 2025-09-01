@@ -61,7 +61,7 @@ interface TransactionBuilderProps {
   onAccountRefresh?: () => Promise<void>;
 }
 
-export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment', onAccountRefresh }: TransactionBuilderProps) => {
+export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment', initialNetwork = 'mainnet', onAccountRefresh }: TransactionBuilderProps) => {
   const { toast } = useToast();
   const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -81,7 +81,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [isSigning, setIsSigning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [currentNetwork, setCurrentNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
+  const [currentNetwork, setCurrentNetwork] = useState<'mainnet' | 'testnet'>(initialNetwork);
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' } | null>(null);
