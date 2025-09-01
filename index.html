@@ -389,8 +389,9 @@
     <!-- Hide loader once React content loads -->
     <script>
       let loadingComplete = false;
+      let animationComplete = false;
       
-      // Activate network animation after 2 seconds
+      // Activate network animation after 1 second
       setTimeout(() => {
         const connections = document.querySelectorAll('.connection');
         const nodes = document.querySelectorAll('.node:not(.center)');
@@ -408,8 +409,13 @@
           }, index * 250 + 500);
         });
         
+        // Mark animation as complete after all nodes are activated
+        setTimeout(() => {
+          animationComplete = true;
+        }, 500 + (nodes.length * 250) + 1000); // Extra second to appreciate the full effect
+        
         loadingComplete = true;
-      }, 2000);
+      }, 1000);
       
       document.addEventListener('DOMContentLoaded', function() {
         // Force hide loader immediately if React content already exists
@@ -423,21 +429,26 @@
         
         const observer = new MutationObserver(function(mutations) {
           if (root && root.children.length > 0) {
-            // Wait for network animation to complete if it's running
-            const delay = loadingComplete ? 0 : 1000;
-            setTimeout(() => {
-              document.body.classList.add('app-loaded');
-              if (loader) {
-                loader.style.transition = 'opacity 0.5s ease-out';
-                loader.style.opacity = '0';
-                setTimeout(() => {
-                  loader.style.display = 'none';
-                  loader.style.visibility = 'hidden';
-                  loader.style.height = '0';
-                  loader.style.overflow = 'hidden';
-                }, 500);
+            // Wait for full animation to complete before transitioning
+            const checkAnimation = () => {
+              if (animationComplete) {
+                document.body.classList.add('app-loaded');
+                if (loader) {
+                  loader.style.transition = 'opacity 0.8s ease-out';
+                  loader.style.opacity = '0';
+                  setTimeout(() => {
+                    loader.style.display = 'none';
+                    loader.style.visibility = 'hidden';
+                    loader.style.height = '0';
+                    loader.style.overflow = 'hidden';
+                  }, 800);
+                }
+              } else {
+                // Check again in 500ms
+                setTimeout(checkAnimation, 500);
               }
-            }, delay);
+            };
+            checkAnimation();
             observer.disconnect();
           }
         });
@@ -446,17 +457,17 @@
           observer.observe(root, { childList: true, subtree: true });
         }
         
-        // Fallback: hide loader after 5 seconds
+        // Extended fallback: hide loader after 8 seconds (ensuring animation completes)
         setTimeout(() => {
           document.body.classList.add('app-loaded');
           if (loader) {
-            loader.style.transition = 'opacity 0.5s ease-out';
+            loader.style.transition = 'opacity 0.8s ease-out';
             loader.style.opacity = '0';
             setTimeout(() => {
               loader.style.display = 'none';
-            }, 500);
+            }, 800);
           }
-        }, 5000);
+        }, 8000);
       });
     </script>
   </body>
