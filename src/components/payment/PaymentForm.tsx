@@ -232,7 +232,7 @@ export const PaymentForm = ({
                         <SelectPrimitive.ItemText>
                           <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                             <span className="font-medium">{asset.code}</span>
-                            <span className="font-mono tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
+                            <span className="font-address tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
                           </div>
                         </SelectPrimitive.ItemText>
                       </SelectPrimitive.Item>

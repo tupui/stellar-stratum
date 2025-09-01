@@ -21,6 +21,7 @@ export default {
       fontFamily: {
         'sans': ['Inter', 'ui-sans-serif', 'system-ui'],
         'mono': ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular'],
+        'address': ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular'],
       },
       colors: {
 				border: 'hsl(var(--border))',

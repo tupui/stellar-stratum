@@ -98,7 +98,7 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="font-mono text-sm text-muted-foreground">
+              <p className="font-address text-sm text-muted-foreground">
                 ID: {lastRefractorId}
               </p>
               <Button 

@@ -362,7 +362,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                   <p className="text-xs text-muted-foreground mt-1">Enter a Stellar address to view account details (no signing required)</p>
                 </div>
                 <div className="flex gap-2">
-                  <Input id="manual-address" placeholder="GABC...XYZ" value={manualAddress} onChange={(e) => setManualAddress(e.target.value)} className="font-mono text-sm" maxLength={56} />
+                  <Input id="manual-address" placeholder="GABC...XYZ" value={manualAddress} onChange={(e) => setManualAddress(e.target.value)} className="font-address text-sm" maxLength={56} />
                   <Button onClick={handleManualConnect} disabled={!manualAddress.trim()} size="sm">
                     <Plus className="w-4 h-4 mr-1" />
                     Connect

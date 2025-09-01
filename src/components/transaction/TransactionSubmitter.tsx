@@ -79,7 +79,7 @@ export const TransactionSubmitter = ({
                   <p className="text-sm font-medium">Signed by:</p>
                   {signedBy.map((signature, index) => (
                     <div key={index} className="flex items-center justify-between p-2 bg-secondary/50 rounded-md text-sm">
-                      <span className="font-mono">{signature.signerKey.slice(0, 12)}...{signature.signerKey.slice(-8)}</span>
+                      <span className="font-address">{signature.signerKey.slice(0, 12)}...{signature.signerKey.slice(-8)}</span>
                       <span className="text-muted-foreground text-xs">
                         {signature.signedAt.toLocaleTimeString()}
                       </span>
@@ -108,7 +108,7 @@ export const TransactionSubmitter = ({
             </CardHeader>
             <CardContent>
               <div className="p-3 bg-muted/50 rounded-lg">
-                <code className="text-sm break-all font-mono">{xdrOutput}</code>
+                <code className="text-sm break-all font-address">{xdrOutput}</code>
               </div>
             </CardContent>
           </Card>
@@ -135,7 +135,7 @@ export const TransactionSubmitter = ({
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">Transaction Hash</p>
-                    <p className="font-mono text-xs break-all">{successData.hash}</p>
+                    <p className="font-address text-xs break-all">{successData.hash}</p>
                   </div>
                   <Button
                     variant="ghost"

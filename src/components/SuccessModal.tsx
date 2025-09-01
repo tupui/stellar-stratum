@@ -97,7 +97,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
               </Button>
             </div>
             <div className="bg-secondary/50 rounded-lg p-3 border">
-              <p className="font-mono text-sm break-all text-foreground">{displayValue}</p>
+              <p className="font-address text-sm break-all text-foreground">{displayValue}</p>
             </div>
           </div>
           

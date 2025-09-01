@@ -146,7 +146,7 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
 
             {accountData.exists ? (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-muted-foreground truncate font-address">
                   {destination}
                 </p>
                 {accountData.balances.length > 0 && (

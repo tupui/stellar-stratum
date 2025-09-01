@@ -174,7 +174,7 @@ export const SignerSelector = ({
                   <div className="flex items-center gap-3">
                     <CheckCircle className="w-4 h-4 text-green-500" />
                     <div>
-                      <p className="font-mono text-sm">{truncateKey(signed.signerKey)}</p>
+                      <p className="font-address text-sm">{truncateKey(signed.signerKey)}</p>
                       <div className="flex gap-2 mt-1">
                         {signed.signerKey === currentAccountKey && (
                           <Badge variant="outline" className="text-xs">Current Account</Badge>
@@ -212,7 +212,7 @@ export const SignerSelector = ({
                     {availableSigners.map((signer) => (
                       <SelectItem key={signer.key} value={signer.key}>
                         <div className="flex items-center justify-between w-full">
-                          <span className="font-mono text-sm">{truncateKey(signer.key)}</span>
+                          <span className="font-address text-sm">{truncateKey(signer.key)}</span>
                           <div className="flex items-center gap-2 ml-4">
                             {signer.key === currentAccountKey && (
                               <Badge variant="outline" className="text-xs">Current</Badge>
@@ -266,7 +266,7 @@ export const SignerSelector = ({
                     <div className="flex items-center gap-3">
                       <Circle className="w-4 h-4 text-muted-foreground" />
                       <div>
-                        <p className="font-mono text-sm">{truncateKey(signer.key)}</p>
+                        <p className="font-address text-sm">{truncateKey(signer.key)}</p>
                         {signer.key === currentAccountKey && (
                           <Badge variant="outline" className="text-xs mt-1">Current Account</Badge>
                         )}

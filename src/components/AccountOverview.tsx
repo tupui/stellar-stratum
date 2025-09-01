@@ -91,7 +91,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
               <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg flex-wrap gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-muted-foreground">Public Key</p>
-                  <p className="font-mono text-xs sm:text-sm break-all">{accountData.publicKey}</p>
+                  <p className="font-address text-xs sm:text-sm break-all">{accountData.publicKey}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Button
@@ -171,12 +171,12 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
                         <div>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <p className="font-mono text-sm cursor-help hover:text-primary transition-colors">
+                              <p className="font-address text-sm cursor-help hover:text-primary transition-colors">
                                 {truncateKey(signer.key)}
                               </p>
                             </TooltipTrigger>
                             <TooltipContent side="bottom" className="max-w-xs">
-                              <p className="font-mono text-xs break-all">{signer.key}</p>
+                              <p className="font-address text-xs break-all">{signer.key}</p>
                             </TooltipContent>
                           </Tooltip>
                           <p className="text-xs text-muted-foreground capitalize">{signer.type}</p>

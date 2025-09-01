@@ -18,7 +18,7 @@ export const XdrProcessor = ({
         <Textarea
           id="xdr-input"
           placeholder="Paste transaction XDR here..."
-          className="min-h-32 font-mono text-sm"
+          className="min-h-32 font-address text-sm"
           value={xdrInput}
           onChange={(e) => onXdrInputChange(e.target.value)}
         />

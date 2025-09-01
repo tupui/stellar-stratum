@@ -98,7 +98,7 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                   {copied === 'Transaction hash' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="font-mono text-xs break-all text-muted-foreground">
+              <p className="font-address text-xs break-all text-muted-foreground">
                 {details.hash}
               </p>
             </div>
@@ -118,7 +118,7 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                   {copied === 'XDR' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="font-mono text-xs break-all text-muted-foreground">
+              <p className="font-address text-xs break-all text-muted-foreground">
                 {xdr}
               </p>
             </div>
@@ -127,7 +127,7 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <h4 className="font-medium">Source Account</h4>
-                <p className="font-mono text-sm text-muted-foreground break-all">
+                <p className="font-address text-sm text-muted-foreground break-all">
                   {details.source}
                 </p>
               </div>
@@ -161,7 +161,7 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                         {op.type === 'payment' && (
                           <div className="text-sm space-y-1">
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            <p className="break-words"><span className="text-muted-foreground">To:</span> <span className="font-mono text-xs break-all">{(op.details as any).destination}</span></p>
+                            <p className="break-words"><span className="text-muted-foreground">To:</span> <span className="font-address text-xs break-all">{(op.details as any).destination}</span></p>
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             <p><span className="text-muted-foreground">Amount:</span> {(op.details as any).amount} {(op.details as any).asset?.code || 'XLM'}</p>
                           </div>
@@ -169,10 +169,10 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                         {op.type === 'setOptions' && (
                           <div className="text-sm space-y-1">
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            <p className="break-words"><span className="text-muted-foreground">Account:</span> <span className="font-mono text-xs break-all">{(op.details as any).source || details.source}</span></p>
+                            <p className="break-words"><span className="text-muted-foreground">Account:</span> <span className="font-address text-xs break-all">{(op.details as any).source || details.source}</span></p>
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             {(op.details as any).signer && (
-                              <p className="break-words"><span className="text-muted-foreground">Signer:</span> <span className="font-mono text-xs break-all">{(op.details as any).signer.key}</span> (Weight: {(op.details as any).signer.weight})</p>
+                              <p className="break-words"><span className="text-muted-foreground">Signer:</span> <span className="font-address text-xs break-all">{(op.details as any).signer.key}</span> (Weight: {(op.details as any).signer.weight})</p>
                             )}
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             {((op.details as any).lowThreshold !== undefined || (op.details as any).medThreshold !== undefined || (op.details as any).highThreshold !== undefined) && (

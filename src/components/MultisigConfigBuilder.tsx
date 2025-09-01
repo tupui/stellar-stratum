@@ -352,7 +352,7 @@ export const MultisigConfigBuilder = ({
                   className="flex items-center justify-between p-3 rounded-lg border bg-secondary/30 border-border"
                 >
                   <div className="flex-1">
-                    <p className="font-mono text-sm break-all">{signer.key}</p>
+                    <p className="font-address text-sm break-all">{signer.key}</p>
                     <div className="flex gap-2 mt-1">
                       {signer.key === accountPublicKey && (
                         <Badge variant="outline" className="text-xs">Current Account</Badge>
@@ -479,7 +479,7 @@ export const MultisigConfigBuilder = ({
                 placeholder="GABC...XYZ"
                 value={newSignerKey}
                 onChange={(e) => setNewSignerKey(e.target.value)}
-                className="font-mono text-xs sm:text-sm h-8"
+                className="font-address text-xs sm:text-sm h-8"
                 maxLength={56}
               />
               <div className="flex items-center gap-3">
