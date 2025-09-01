@@ -105,9 +105,7 @@ export const connectWallet = async (walletId: string, network: 'mainnet' | 'test
 
 export const fetchAccountData = async (publicKey: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AccountData> => {
   try {
-    console.log(`Fetching account data for ${publicKey} on ${network}`);
     const server = createHorizonServer(network);
-    console.log(`Using Horizon server: ${server.serverURL}`);
     const account = await server.loadAccount(publicKey);
     
     return {
@@ -204,7 +202,7 @@ export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 
 export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testnet'): Promise<string> => {
   try {
     const apiNetwork = network === 'testnet' ? 'testnet' : 'public';
-    console.log('Submitting to Refractor with network:', apiNetwork);
+    
     
     const response = await fetch('https://api.refractor.space/tx', {
       method: 'POST',
@@ -228,7 +226,7 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
     const config = getNetworkConfig(network);
     const tx = TransactionBuilder.fromXDR(xdr, config.passphrase);
     const txHash = tx.hash().toString('hex');
-    console.log('Transaction submitted to Refractor, hash:', txHash);
+    
     return txHash;
   } catch (error) {
     console.error('Failed to submit to Refractor:', error);

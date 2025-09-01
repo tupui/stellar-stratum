@@ -129,7 +129,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     
     try {
       const server = createHorizonServer(currentNetwork);
-      console.log('checkTrustline using Horizon:', (server as any).serverURL, 'network:', currentNetwork);
+      
       const account = await server.loadAccount(destination);
       const hasTrustline = account.balances.some(balance => 
         'asset_code' in balance && 
@@ -239,40 +239,18 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
   };
 
-  const handleXdrProcess = async () => {
-    if (!xdrData.input.trim()) {
-      toast({
-        title: "Missing XDR",
-        description: "Please paste the XDR to process",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsBuilding(true);
+  const handleXdrInputChange = (xdr: string) => {
+    setXdrData(prev => ({ ...prev, input: xdr }));
     
-    try {
-      // Validate XDR format by parsing it
+    // Auto-validate XDR on input change
+    if (xdr.trim()) {
       try {
         const networkPassphrase = getNetworkPassphrase(currentNetwork);
-        new Transaction(xdrData.input, networkPassphrase);
+        new Transaction(xdr.trim(), networkPassphrase);
+        // Clear any previous errors silently
       } catch (parseError) {
-        throw new Error('Invalid XDR format');
+        // Invalid XDR - user is still typing, don't show error yet
       }
-      
-      toast({
-        title: "XDR processed",
-        description: "Transaction is ready for signing",
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: "Processing failed",
-        description: "Invalid XDR format",
-        variant: "destructive",
-      });
-    } finally {
-      setIsBuilding(false);
     }
   };
 
@@ -581,9 +559,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               <TabsContent value="xdr" className="space-y-4 mt-6">
                 <XdrProcessor
                   xdrInput={xdrData.input}
-                  onXdrInputChange={(xdr) => setXdrData(prev => ({ ...prev, input: xdr }))}
-                  onProcess={handleXdrProcess}
-                  isProcessing={isBuilding}
+                  onXdrInputChange={handleXdrInputChange}
                 />
               </TabsContent>
 
