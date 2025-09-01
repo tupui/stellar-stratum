@@ -482,7 +482,7 @@ export const PaymentForm = ({
                   <span className="uppercase tracking-wider font-medium">Asset</span>
                   <span className="text-right uppercase tracking-wider font-medium">Balance</span>
                 </div>
-                {availableAssets.map((asset) => {
+                {availableAssets.filter(asset => asset.code && asset.code.trim() !== '').map((asset) => {
                   const balance = parseFloat(asset.balance);
                   const formattedBalance = balance.toLocaleString('en-US', {
                     minimumFractionDigits: 7,
