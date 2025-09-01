@@ -46,7 +46,8 @@ export const PaymentForm = ({
 }: PaymentFormProps) => {
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
   const [fiatValue, setFiatValue] = useState<string>('');
-
+  const [amountInput, setAmountInput] = useState<string>('0.0');
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
   // Update fiat value when amount, asset, or currency changes
   useEffect(() => {
     const updateFiatValue = async () => {
@@ -78,10 +79,28 @@ export const PaymentForm = ({
     updateFiatValue();
   }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency]);
 
+  const formatDisplayAmount = (value: string | number) => {
+    const s = String(value);
+    if (s === '' || s === '0') return '0.0';
+    if (!s.includes('.')) return `${s}.0`;
+    const [int, dec] = s.split('.');
+    return `${int}.${dec}`;
+  };
+
+  // Sync the display value when not actively editing (e.g., slider or asset changes)
+  useEffect(() => {
+    if (isEditingAmount) return;
+    const amt = paymentData.amount;
+    if (!amt) {
+      setAmountInput('0.0');
+    } else {
+      setAmountInput(formatDisplayAmount(amt));
+    }
+  }, [paymentData.amount, paymentData.asset, isEditingAmount]);
+
   const getSelectedAssetInfo = () => {
     return availableAssets.find(asset => asset.code === paymentData.asset);
   };
-
   const handleMaxAmount = () => {
     const selectedAsset = getSelectedAssetInfo();
     if (selectedAsset) {
@@ -126,18 +145,43 @@ export const PaymentForm = ({
               <Input
                 id="amount"
                 type="text"
-                placeholder="0.0000000"
-                value={paymentData.amount ? parseFloat(paymentData.amount).toFixed(7) : '0.0000000'}
-                onChange={(e) => {
-                  const numericValue = e.target.value;
-                  const maxAmount = getSelectedAssetInfo()?.code === 'XLM' 
+                placeholder="0.0"
+                inputMode="decimal"
+                value={amountInput}
+                onFocus={() => setIsEditingAmount(true)}
+                onBlur={() => {
+                  const maxAmount = getSelectedAssetInfo()?.code === 'XLM'
                     ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
                     : parseFloat(getSelectedAssetInfo()?.balance || '0');
-                  const inputValue = parseFloat(numericValue) || 0;
-                  const cappedValue = Math.min(inputValue, maxAmount);
-                  // Ensure Stellar precision (max 7 decimal places)
-                  const stellarPreciseValue = parseFloat(cappedValue.toFixed(7));
-                  onPaymentDataChange({ ...paymentData, amount: stellarPreciseValue.toString() });
+                  const numeric = parseFloat(amountInput.replace(/,/g, ''));
+                  const clamped = isNaN(numeric) ? 0 : Math.min(Math.max(0, numeric), maxAmount);
+                  const rounded = Number(clamped.toFixed(7));
+                  onPaymentDataChange({ ...paymentData, amount: rounded ? rounded.toString() : '' });
+                  const formatDisplayAmount = (val: string | number) => {
+                    const s = String(val);
+                    if (s === '' || s === '0') return '0.0';
+                    if (!s.includes('.')) return `${s}.0`;
+                    const [int, dec] = s.split('.');
+                    return `${int}.${dec}`;
+                  };
+                  setAmountInput(formatDisplayAmount(rounded.toString()));
+                  setIsEditingAmount(false);
+                }}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // allow only digits and a single dot
+                  const sanitized = v.replace(/[^0-9.]/g, '');
+                  const parts = sanitized.split('.');
+                  const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
+                  setAmountInput(normalized);
+
+                  const num = parseFloat(normalized);
+                  if (!isNaN(num)) {
+                    const precise = Number(num.toFixed(7)).toString();
+                    onPaymentDataChange({ ...paymentData, amount: precise });
+                  } else {
+                    onPaymentDataChange({ ...paymentData, amount: '' });
+                  }
                 }}
                 className="flex-1 text-xs sm:text-sm"
               />
