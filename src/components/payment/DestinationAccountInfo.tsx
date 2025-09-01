@@ -127,16 +127,16 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
   };
 
   return (
-    <Card className="border transition-all duration-200 border-blue/30 bg-blue/5">
+    <Card className="border transition-all duration-200">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-blue/10">
-            <Info className="w-5 h-5 text-blue" />
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-muted">
+            <Info className="w-5 h-5 text-muted-foreground" />
           </div>
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
-              <p className="text-sm font-medium text-blue">
+              <p className="text-sm font-medium">
                 {accountData.exists ? 'Existing Account' : 'New Account'}
               </p>
               <Badge variant={accountData.exists ? 'default' : 'secondary'} className="text-xs">
@@ -177,7 +177,7 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
                 <p className="text-xs text-muted-foreground truncate">
                   {destination}
                 </p>
-                <p className="text-xs text-blue/70">
+                <p className="text-xs text-muted-foreground">
                   This account will be created with your payment
                 </p>
               </div>
