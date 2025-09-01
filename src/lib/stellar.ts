@@ -173,8 +173,22 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
         type: signer.type
       }))
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to fetch account data:', error);
+    
+    // Check if it's a NotFoundError (account doesn't exist)
+    if (error?.name === 'NotFoundError' || 
+        error?.response?.status === 404 || 
+        error?.response?.type === 'https://stellar.org/horizon-errors/not_found') {
+      const networkName = network === 'mainnet' ? 'Mainnet' : 'Testnet';
+      throw new Error(
+        `Account not found on Stellar ${networkName}. ` +
+        `This account doesn't exist yet. To use this account, you need to either: ` +
+        `1) Switch to the correct network, or 2) Fund the account first to activate it on ${networkName}.`
+      );
+    }
+    
+    // For other errors, provide a generic message
     throw new Error('Failed to load account data from Horizon');
   }
 };
