@@ -214,7 +214,7 @@ export const PaymentForm = ({
                   ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
                   : parseFloat(getSelectedAssetInfo()!.balance)
                 }
-                step="0.0000001"
+                step="1"
                 value={paymentData.amount || '0'}
                 onChange={(e) => onPaymentDataChange({ ...paymentData, amount: e.target.value })}
                 className="stellar-slider w-full"
