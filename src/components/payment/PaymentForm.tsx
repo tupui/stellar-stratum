@@ -303,17 +303,17 @@ export const PaymentForm = ({
       {trustlineError && (
         <div className={`p-4 rounded-lg border ${
           trustlineError.includes('will create a new') 
-            ? 'bg-primary/5 border-primary/30' 
+            ? 'bg-muted/50 border-border' 
             : 'bg-destructive/10 border-destructive/30'
         }`}>
           <div className="flex items-center gap-3">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
               trustlineError.includes('will create a new')
-                ? 'bg-primary/10'
+                ? 'bg-muted'
                 : 'bg-destructive/10'
             }`}>
               {trustlineError.includes('will create a new') ? (
-                <Info className="w-4 h-4 text-primary" />
+                <Info className="w-4 h-4 text-muted-foreground" />
               ) : (
                 <AlertTriangle className="w-4 h-4 text-destructive" />
               )}
@@ -321,7 +321,7 @@ export const PaymentForm = ({
             <div className="flex-1">
               <p className={`text-sm font-medium ${
                 trustlineError.includes('will create a new')
-                  ? 'text-primary'
+                  ? 'text-foreground'
                   : 'text-foreground'
               }`}>
                 {trustlineError}
