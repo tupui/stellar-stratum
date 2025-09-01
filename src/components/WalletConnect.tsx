@@ -185,12 +185,6 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       return;
     }
 
-    toast({
-      title: "Address connected",
-      description: "Successfully connected with manual address",
-      duration: 2000,
-    });
-
     onConnect("Manual Address", manualAddress.trim(), selectedNetwork);
   };
 
@@ -246,11 +240,6 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       if (v && typeof v.owner === 'string') {
         const resolvedAddress = v.address || v.owner;
         
-        toast({
-          title: "Domain Resolved",
-          description: `${sorobanDomain} → ${resolvedAddress.slice(0, 8)}...${resolvedAddress.slice(-8)}`,
-        });
-        
         setSorobanDomain('');
         onConnect("Soroban Domain", resolvedAddress, selectedNetwork);
       } else {
@@ -284,12 +273,6 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
     
     try {
       const { publicKey } = await connectWallet(walletId, selectedNetwork);
-      
-      toast({
-        title: "Wallet connected",
-        description: `Successfully connected to ${walletName}`,
-        duration: 2000,
-      });
       
       onConnect(walletName, publicKey, selectedNetwork);
     } catch (error) {
