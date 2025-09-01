@@ -200,6 +200,26 @@ export const PaymentForm = ({
     }
   }, [recipientAssets, paymentData.asset]);
 
+  // Helper to calculate fiat value
+  const calculateFiatValue = async (amount: string, asset: string) => {
+    const price = assetPrices[asset] || 0;
+    if (price > 0) {
+      const usdValue = parseFloat(amount) * price;
+      if (quoteCurrency === 'USD') {
+        return `$${usdValue.toFixed(2)}`;
+      } else {
+        try {
+          const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
+          const currency = getCurrentCurrency();
+          return `${currency?.symbol || ''}${convertedValue.toFixed(2)}`;
+        } catch (error) {
+          return `$${usdValue.toFixed(2)}`;
+        }
+      }
+    }
+    return 'N/A';
+  };
+
   // Update fiat value when amount, asset, or currency changes
   useEffect(() => {
     if (!paymentData.amount || !paymentData.asset) {
@@ -208,23 +228,8 @@ export const PaymentForm = ({
     }
 
     const updateFiatValue = async () => {
-      const price = assetPrices[paymentData.asset] || 0;
-      if (price > 0) {
-        const usdValue = parseFloat(paymentData.amount) * price;
-        if (quoteCurrency === 'USD') {
-          setFiatValue(`$${usdValue.toFixed(2)}`);
-        } else {
-          try {
-            const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
-            const currency = getCurrentCurrency();
-            setFiatValue(`${currency?.symbol || ''}${convertedValue.toFixed(2)}`);
-          } catch (error) {
-            setFiatValue(`$${usdValue.toFixed(2)}`);
-          }
-        }
-      } else {
-        setFiatValue('N/A');
-      }
+      const fiat = await calculateFiatValue(paymentData.amount, paymentData.asset);
+      setFiatValue(fiat);
     };
 
     updateFiatValue();
@@ -243,7 +248,7 @@ export const PaymentForm = ({
     setWillCloseAccount(checkAccountClosure(newAmount, paymentData.asset));
 
     // Check if total across all payments exceeds available balance
-    setTimeout(() => {
+    setTimeout(async () => {
       const currentAmount = parseFloat(newAmount) || 0;
       const compactTotal = compactPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
       const total = currentAmount + compactTotal;
@@ -256,11 +261,20 @@ export const PaymentForm = ({
         const newCurrentAmount = (currentAmount * ratio).toFixed(7);
         onPaymentDataChange({ ...paymentData, amount: newCurrentAmount });
         
-        setCompactPayments(prev => prev.map(p => ({
-          ...p,
-          amount: ((parseFloat(p.amount) || 0) * ratio).toFixed(7)
-        })));
+        // Update compact payments with new amounts and recalculated fiat values
+        const updatedCompactPayments = await Promise.all(
+          compactPayments.map(async (p) => {
+            const newAmount = ((parseFloat(p.amount) || 0) * ratio).toFixed(7);
+            const newFiatValue = await calculateFiatValue(newAmount, p.asset);
+            return {
+              ...p,
+              amount: newAmount,
+              fiatValue: newFiatValue
+            };
+          })
+        );
         
+        setCompactPayments(updatedCompactPayments);
         setTimeout(() => setShowAutoAdjustWarning(false), 4000);
       } else {
         setShowAutoAdjustWarning(false);
@@ -274,6 +288,12 @@ export const PaymentForm = ({
     const fullBalance = getMaxSliderValue('XLM');
     handleAmountChange(fullBalance.toString());
     setWillCloseAccount(true);
+  };
+
+  const handleRevertMerge = () => {
+    setWillCloseAccount(false);
+    const availableBalance = getAvailableBalance('XLM');
+    handleAmountChange(availableBalance.toString());
   };
 
   const getReceiveOptions = () => {
@@ -397,7 +417,7 @@ export const PaymentForm = ({
     }
   };
 
-  // Custom amount slider with embedded text input
+  // Custom amount slider with proper decimal constraints and design system colors
   const AmountSlider = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState(paymentData.amount);
@@ -406,9 +426,16 @@ export const PaymentForm = ({
     const percentage = max > 0 ? (value / max) * 100 : 0;
     const availableBalance = getAvailableBalance(paymentData.asset);
     const isOverLimit = value > availableBalance;
+    const availablePercentage = max > 0 ? (availableBalance / max) * 100 : 0;
     
     const handleEditSubmit = () => {
-      const numValue = parseFloat(editValue) || 0;
+      let numValue = parseFloat(editValue) || 0;
+      // Apply decimal constraints based on asset
+      if (paymentData.asset === 'XLM') {
+        numValue = Math.round(numValue * 10000000) / 10000000; // 7 decimal places for XLM
+      } else {
+        numValue = Math.round(numValue * 10000000) / 10000000; // 7 decimal places max for other assets
+      }
       const clampedValue = Math.min(Math.max(0, numValue), max);
       handleAmountChange(clampedValue.toString());
       setEditValue(clampedValue.toString());
@@ -432,16 +459,8 @@ export const PaymentForm = ({
 
     return (
       <div className="relative">
-        <div className="relative h-12 bg-muted/50 rounded-lg overflow-hidden border border-border/30 hover:border-border/60 transition-colors">
-          {/* Background fill */}
-          <div 
-            className={`absolute inset-y-0 left-0 transition-all duration-300 ${
-              isOverLimit ? 'bg-gradient-to-r from-warning/30 to-destructive/30' : 'bg-primary/25'
-            }`}
-            style={{ width: `${Math.min(percentage, 100)}%` }}
-          />
-          
-          {/* Slider input */}
+        <div className="relative">
+          {/* Use proper stellar slider from design system */}
           <input
             type="range"
             min={0}
@@ -449,11 +468,18 @@ export const PaymentForm = ({
             step="any"
             value={value}
             onChange={(e) => handleAmountChange(e.target.value)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            className={`w-full stellar-slider ${
+              isOverLimit && canCloseAccount() ? 'slider-merge-warning' : 
+              isOverLimit ? 'slider-warning' : ''
+            }`}
+            style={{ 
+              '--slider-progress': `${percentage}%`,
+              '--available-progress': `${availablePercentage}%`
+            } as React.CSSProperties}
             disabled={willCloseAccount}
           />
           
-          {/* Text content */}
+          {/* Amount display overlay */}
           <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-foreground">{paymentData.asset}</span>
@@ -469,16 +495,26 @@ export const PaymentForm = ({
                   value={editValue}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/,/g, '.');
-                    const sanitized = raw.replace(/[^0-9.]/g, '');
+                    let sanitized = raw.replace(/[^0-9.]/g, '');
+                    
+                    // Ensure only one decimal point
                     const parts = sanitized.split('.');
-                    const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
-                    setEditValue(normalized);
+                    if (parts.length > 2) {
+                      sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+                    }
+                    
+                    // Limit decimal places to 7
+                    if (parts[1] && parts[1].length > 7) {
+                      sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+                    }
+                    
+                    setEditValue(sanitized);
                   }}
                   onBlur={handleEditSubmit}
                   onKeyDown={handleEditKeyDown}
                   onFocus={(e) => e.currentTarget.select()}
                   className="h-7 w-28 text-xs font-mono text-right px-2 py-1 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md"
-                  placeholder="0.0"
+                  placeholder="0.0000000"
                   autoFocus
                 />
               ) : (
@@ -497,28 +533,6 @@ export const PaymentForm = ({
             </div>
           </div>
         </div>
-        
-        {/* Merge button for XLM */}
-        {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMergeAccount}
-            className="absolute -right-20 top-1/2 -translate-y-1/2 h-8 px-3 text-xs border-primary/30 hover:border-primary hover:bg-primary/10"
-          >
-            <Merge className="h-3 w-3 mr-1" />
-            Merge
-          </Button>
-        )}
-        
-        {willCloseAccount && (
-          <div className="absolute -right-16 top-1/2 -translate-y-1/2">
-            <Badge variant="destructive" className="text-xs">
-              <Merge className="h-3 w-3 mr-1" />
-              Closing
-            </Badge>
-          </div>
-        )}
       </div>
     );
   };
@@ -627,7 +641,20 @@ export const PaymentForm = ({
 
         {/* Payment Details Row */}
         <div className="space-y-3">
-          <Label className="text-sm font-medium">Amount & Assets</Label>
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Amount & Assets</Label>
+            {willCloseAccount && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRevertMerge}
+                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3 mr-1" />
+                Cancel Merge
+              </Button>
+            )}
+          </div>
           
           <div className="grid grid-cols-[140px_1fr_140px] gap-4 items-center">
             {/* From Asset */}
@@ -684,10 +711,34 @@ export const PaymentForm = ({
               </SelectContent>
             </Select>
 
-            {/* Amount Slider */}
-            <AmountSlider />
+            {/* Amount Slider with proper positioning */}
+            <div className="relative">
+              <AmountSlider />
+              {/* Merge button positioned below, not overlapping */}
+              {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleMergeAccount}
+                    className="h-6 px-2 text-xs border-primary/30 hover:border-primary hover:bg-primary/10 whitespace-nowrap"
+                  >
+                    <Merge className="h-3 w-3 mr-1" />
+                    Merge
+                  </Button>
+                </div>
+              )}
+              {willCloseAccount && (
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
+                  <Badge variant="destructive" className="text-xs whitespace-nowrap">
+                    <Merge className="h-3 w-3 mr-1" />
+                    Closing
+                  </Badge>
+                </div>
+              )}
+            </div>
 
-            {/* To Asset */}
+            {/* To Asset with recipient balances */}
             <Select
               value={paymentData.receiveAsset || "same"}
               onValueChange={(value) => {
@@ -706,7 +757,11 @@ export const PaymentForm = ({
                   </span>
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="min-w-[200px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
+              <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
+                <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
+                  <span className="uppercase tracking-wider font-medium">Asset</span>
+                  <span className="text-right uppercase tracking-wider font-medium">Recipient Has</span>
+                </div>
                 <SelectPrimitive.Item
                   value="same"
                   className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
@@ -717,7 +772,12 @@ export const PaymentForm = ({
                     </SelectPrimitive.ItemIndicator>
                   </span>
                   <SelectPrimitive.ItemText>
-                    <span className="text-muted-foreground">Same ({paymentData.asset})</span>
+                    <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                      <span className="text-muted-foreground">Same ({paymentData.asset})</span>
+                      <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
+                        {recipientAssets.includes(paymentData.asset) ? '✓' : '✗'}
+                      </span>
+                    </div>
                   </SelectPrimitive.ItemText>
                 </SelectPrimitive.Item>
                 {getReceiveOptions().filter(asset => asset.code !== paymentData.asset).map((asset) => (
@@ -732,7 +792,12 @@ export const PaymentForm = ({
                       </SelectPrimitive.ItemIndicator>
                     </span>
                     <SelectPrimitive.ItemText>
-                      <span className="font-medium">{asset.code}</span>
+                      <div className="grid grid-cols-[80px_1fr] items-center gap-3">
+                        <span className="font-medium">{asset.code}</span>
+                        <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
+                          {recipientAssets.includes(asset.code) ? '✓' : '✗'}
+                        </span>
+                      </div>
                     </SelectPrimitive.ItemText>
                   </SelectPrimitive.Item>
                 ))}
@@ -822,8 +887,20 @@ export const PaymentForm = ({
 
         {/* Action Buttons */}
         <div className="flex gap-3">
-          {/* Add Payment Button */}
-          {!willCloseAccount && isFormValid() && (
+          {/* Bundle Payment Button - converts current payment to compact view */}
+          {!willCloseAccount && isFormValid() && compactPayments.length === 0 && (
+            <Button
+              onClick={addPayment}
+              variant="outline"
+              className="border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Bundle Payment
+            </Button>
+          )}
+
+          {/* Add Payment Button - only shows when there are already bundled payments */}
+          {!willCloseAccount && isFormValid() && compactPayments.length > 0 && (
             <Button
               onClick={addPayment}
               variant="outline"
@@ -838,7 +915,7 @@ export const PaymentForm = ({
           <Button 
             onClick={handleBuild} 
             disabled={isBuilding || !isFormValid()}
-            className={`${!willCloseAccount && isFormValid() ? 'flex-1' : 'w-full'} ${
+            className={`${!willCloseAccount && isFormValid() && compactPayments.length > 0 ? 'flex-1' : 'w-full'} ${
               willCloseAccount ? 'bg-destructive hover:bg-destructive/90' : 'bg-gradient-primary hover:opacity-90'
             } disabled:opacity-50`}
             size="lg"
