@@ -120,30 +120,6 @@
         z-index: -1;
       }
       
-      .hero-decoration {
-        position: absolute;
-        opacity: 0.05;
-      }
-      
-      .hero-decoration-right {
-        right: 2.5rem;
-        top: 33.333333%;
-        transform: rotate(12deg);
-      }
-      
-      .hero-decoration-left {
-        left: 2.5rem;
-        bottom: 33.333333%;
-        transform: rotate(-12deg);
-      }
-      
-      .hero-decoration-line {
-        height: 0.25rem;
-        background: hsl(var(--primary));
-        border-radius: 9999px;
-        margin: 1rem 0;
-      }
-      
       /* Loading states */
       #app-loader {
         min-height: 100vh;
@@ -204,9 +180,6 @@
         .hero-content {
           max-width: 100%;
         }
-        .hero-decoration {
-          display: none;
-        }
       }
     </style>
     
@@ -224,19 +197,6 @@
     <div id="app-loader">
       <div class="hero-container">
         <div class="hero-bg">
-          <div class="hero-decoration hero-decoration-right">
-            <div class="hero-decoration-line" style="width: 200px;"></div>
-            <div class="hero-decoration-line" style="width: 180px;"></div>
-            <div class="hero-decoration-line" style="width: 160px;"></div>
-            <div class="hero-decoration-line" style="width: 140px;"></div>
-            <div class="hero-decoration-line" style="width: 120px;"></div>
-          </div>
-          <div class="hero-decoration hero-decoration-left">
-            <div class="hero-decoration-line" style="width: 180px;"></div>
-            <div class="hero-decoration-line" style="width: 150px;"></div>
-            <div class="hero-decoration-line" style="width: 120px;"></div>
-            <div class="hero-decoration-line" style="width: 90px;"></div>
-          </div>
         </div>
         <div class="hero-content">
           <div class="loader-content">

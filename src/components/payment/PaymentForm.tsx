@@ -132,7 +132,7 @@ export const PaymentForm = ({
               maxLength={56}
               value={paymentData.destination}
               onChange={(e) => onPaymentDataChange({ ...paymentData, destination: e.target.value })}
-              className="text-xs sm:text-sm"
+              className="text-xs sm:text-sm font-address"
             />
           </div>
           
@@ -289,6 +289,7 @@ export const PaymentForm = ({
         <Input
           id="memo"
           placeholder="Payment description"
+          className="font-mono"
           value={paymentData.memo}
           onChange={(e) => onPaymentDataChange({ ...paymentData, memo: e.target.value })}
         />
