@@ -92,23 +92,13 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="flex-1">
-        {/* Loading state */}
-        {loading && (
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-center space-y-4">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-muted-foreground">Loading account data...</p>
-            </div>
-          </div>
-        )}
-
         {/* Landing Page */}
-        {!loading && appState === 'connecting' && (
+        {appState === 'connecting' && (
           <LandingPage onConnect={handleWalletConnect} />
         )}
 
         {/* Transaction Builder */}
-        {!loading && (appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
+        {(appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
           <FiatCurrencyProvider>
             <TransactionBuilder
               key={`${appState}-${publicKey}`}
@@ -126,7 +116,7 @@ const Index = () => {
         )}
 
         {/* Account Dashboard */}
-        {!loading && appState === 'dashboard' && publicKey && accountData && (
+        {appState === 'dashboard' && publicKey && accountData && (
           <FiatCurrencyProvider>
             <AccountOverview
               accountData={accountData}
