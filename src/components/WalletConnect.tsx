@@ -352,7 +352,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
           </Button>
         </div>
       ) : (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
+        <div className="space-y-3">
           {/* Manual Address as a card option */}
           <Button
             variant="outline"
@@ -441,8 +441,8 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
             const isMobile = window.innerWidth < 768;
             
             // Define wallet order based on user requirements
-            const mobileOrder = ['xbull', 'hot', 'albedo', 'walletconnect'];
-            const desktopOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'hot', 'albedo', 'walletconnect'];
+            const mobileOrder = ['xbull', 'hot', 'albedo'];
+            const desktopOrder = ['freighter', 'xbull', 'ledger', 'hot', 'albedo'];
             
             // Order and filter wallets to match exactly the requested list
             const orderAndFilter = (wallets: typeof supportedWallets, order: string[]) => {
