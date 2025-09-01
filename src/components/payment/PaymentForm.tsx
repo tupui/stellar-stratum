@@ -94,6 +94,7 @@ export const PaymentForm = ({
   const [willCloseAccount, setWillCloseAccount] = useState(false);
   const [showAutoAdjustWarning, setShowAutoAdjustWarning] = useState(false);
   const [mergePaymentId, setMergePaymentId] = useState<string | null>(null);
+  const [fiatValues, setFiatValues] = useState<Record<string, string>>({});
 
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
@@ -158,34 +159,60 @@ export const PaymentForm = ({
 
   // Update fiat value when amount, asset, or currency changes
   useEffect(() => {
-    const updateFiatValue = async () => {
-      if (!paymentData.amount || !paymentData.asset) {
-        setFiatValue('');
-        return;
-      }
-
-      const price = assetPrices[paymentData.asset] || 0;
-      if (price === 0) {
-        setFiatValue('N/A');
-        return;
-      }
-
-      const usdValue = parseFloat(paymentData.amount) * price;
-      if (quoteCurrency === 'USD') {
-        setFiatValue(`$${usdValue.toFixed(2)}`);
-      } else {
-        try {
-          const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
-          const currency = getCurrentCurrency();
-          setFiatValue(`${currency?.symbol || ''}${convertedValue.toFixed(2)}`);
-        } catch (error) {
-          setFiatValue(`$${usdValue.toFixed(2)}`);
+    const updateFiatValues = async () => {
+      const newFiatValues: Record<string, string> = {};
+      
+      // Main payment
+      if (paymentData.amount && paymentData.asset) {
+        const price = assetPrices[paymentData.asset] || 0;
+        if (price > 0) {
+          const usdValue = parseFloat(paymentData.amount) * price;
+          if (quoteCurrency === 'USD') {
+            newFiatValues['main'] = `$${usdValue.toFixed(2)}`;
+          } else {
+            try {
+              const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
+              const currency = getCurrentCurrency();
+              newFiatValues['main'] = `${currency?.symbol || ''}${convertedValue.toFixed(2)}`;
+            } catch (error) {
+              newFiatValues['main'] = `$${usdValue.toFixed(2)}`;
+            }
+          }
+        } else {
+          newFiatValues['main'] = 'N/A';
         }
       }
+      
+      // Additional payments
+      for (const payment of additionalPayments) {
+        if (payment.amount && payment.asset) {
+          const price = assetPrices[payment.asset] || 0;
+          if (price > 0) {
+            const usdValue = parseFloat(payment.amount) * price;
+            if (quoteCurrency === 'USD') {
+              newFiatValues[payment.id] = `$${usdValue.toFixed(2)}`;
+            } else {
+              try {
+                const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
+                const currency = getCurrentCurrency();
+                newFiatValues[payment.id] = `${currency?.symbol || ''}${convertedValue.toFixed(2)}`;
+              } catch (error) {
+                newFiatValues[payment.id] = `$${usdValue.toFixed(2)}`;
+              }
+            }
+          } else {
+            newFiatValues[payment.id] = 'N/A';
+          }
+        }
+      }
+      
+      setFiatValues(newFiatValues);
+      // Legacy support for main payment fiat value
+      setFiatValue(newFiatValues['main'] || '');
     };
 
-    updateFiatValue();
-  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency]);
+    updateFiatValues();
+  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency, additionalPayments]);
 
   const formatDisplayAmount = (value: string | number) => {
     const s = String(value);
@@ -273,8 +300,8 @@ export const PaymentForm = ({
             amount: ((parseFloat(p.amount) || 0) * ratio).toFixed(7)
           })));
           
-          // Hide warning after 3 seconds
-          setTimeout(() => setShowAutoAdjustWarning(false), 3000);
+          // Hide warning after 4 seconds
+          setTimeout(() => setShowAutoAdjustWarning(false), 4000);
         } else {
           setShowAutoAdjustWarning(false);
         }
@@ -554,7 +581,7 @@ export const PaymentForm = ({
                     <span className="text-muted-foreground">Same ({paymentData.asset})</span>
                   </SelectPrimitive.ItemText>
                 </SelectPrimitive.Item>
-                {availableAssets.filter(asset => asset.code !== paymentData.asset).map((asset) => (
+                {availableAssets.filter(asset => asset.code !== paymentData.asset && asset.code && asset.code.trim() !== '').map((asset) => (
                   <SelectPrimitive.Item
                     key={`${asset.code}-${asset.issuer}`}
                     value={asset.code}
@@ -586,9 +613,14 @@ export const PaymentForm = ({
 
         {/* Additional Payments */}
         {additionalPayments.map((payment, index) => (
-          <div key={payment.id} className="space-y-3 p-3 border rounded-lg bg-muted/30">
+          <div key={payment.id} className="space-y-3 pt-6 mt-6 border-t border-border/50">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Payment #{index + 2}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">Payment #{index + 2}</span>
+                {fiatValues[payment.id] && (
+                  <span className="text-xs text-muted-foreground">≈ {fiatValues[payment.id]}</span>
+                )}
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -611,7 +643,7 @@ export const PaymentForm = ({
             {/* Compact Payment Row for Additional Payment */}
             <div className="grid grid-cols-[120px_1fr_120px] gap-3 items-center">
               {/* From Asset (locked to main payment asset) */}
-              <div className="h-10 flex items-center justify-center bg-muted rounded-md">
+              <div className="h-10 flex items-center justify-center bg-muted/50 rounded-md border border-border/30">
                 <span className="font-medium text-xs">{payment.asset}</span>
               </div>
 
@@ -657,7 +689,7 @@ export const PaymentForm = ({
                       <span className="text-muted-foreground">Same ({payment.asset})</span>
                     </SelectPrimitive.ItemText>
                   </SelectPrimitive.Item>
-                  {availableAssets.filter(asset => asset.code !== payment.asset).map((asset) => (
+                  {availableAssets.filter(asset => asset.code !== payment.asset && asset.code && asset.code.trim() !== '').map((asset) => (
                     <SelectPrimitive.Item
                       key={`${asset.code}-${asset.issuer}`}
                       value={asset.code}
