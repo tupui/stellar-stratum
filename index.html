@@ -219,9 +219,6 @@
         opacity: 0;
         transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         z-index: 5;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
       }
 
       .connection.active {
@@ -230,51 +227,60 @@
         box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
       }
 
-      /* Connection positioning - calculated from center (50%, 50%) to each node position */
-      .connection:nth-child(11) { /* to node 1 */ 
-        width: 140px; 
-        transform: translate(-50%, -50%) rotate(-42deg);
-        transform-origin: 0 50%;
+      /* Connection positioning - from center (50%, 50%) to each node position */
+      .connection:nth-child(11) { /* to node 1 at (15%, 15%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 141px; /* distance from center to node 1 */
+        transform: translate(-10px, -1px) rotate(-45deg);
       }
-      .connection:nth-child(12) { /* to node 2 */ 
-        width: 180px; 
-        transform: translate(-50%, -50%) rotate(-18deg);
-        transform-origin: 0 50%;
+      .connection:nth-child(12) { /* to node 2 at (85%, 18%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 141px; /* distance from center to node 2 */
+        transform: translate(-10px, -1px) rotate(-23deg);
       }
-      .connection:nth-child(13) { /* to node 3 */ 
-        width: 170px; 
-        transform: translate(-50%, -50%) rotate(15deg);
-        transform-origin: 0 50%;
+      .connection:nth-child(13) { /* to node 3 at (8%, 52%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 168px; /* distance from center to node 3 */
+        transform: translate(-10px, -1px) rotate(175deg);
       }
-      .connection:nth-child(14) { /* to node 4 */ 
-        width: 185px; 
-        transform: translate(-50%, -50%) rotate(18deg);
-        transform-origin: 0 50%;
+      .connection:nth-child(14) { /* to node 4 at (92%, 58%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 169px; /* distance from center to node 4 */
+        transform: translate(-10px, -1px) rotate(11deg);
       }
-      .connection:nth-child(15) { /* to node 5 */ 
-        width: 160px; 
-        transform: translate(-50%, -50%) rotate(58deg);
-        transform-origin: 0 50%;
+      .connection:nth-child(15) { /* to node 5 at (25%, 88%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 133px; /* distance from center to node 5 */
+        transform: translate(-10px, -1px) rotate(126deg);
       }
-      .connection:nth-child(16) { /* to node 6 */ 
-        width: 155px; 
-        transform: translate(-50%, -50%) rotate(68deg);
-        transform-origin: 0 50%;
+      .connection:nth-child(16) { /* to node 6 at (75%, 85%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 129px; /* distance from center to node 6 */
+        transform: translate(-10px, -1px) rotate(54deg);
       }
-      .connection:nth-child(17) { /* to node 7 */ 
-        width: 142px; 
-        transform: translate(-50%, -50%) rotate(-85deg);
-        transform-origin: 0 50%;
+      .connection:nth-child(17) { /* to node 7 at (48%, 8%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 126px; /* distance from center to node 7 */
+        transform: translate(-10px, -1px) rotate(-84deg);
       }
-      .connection:nth-child(18) { /* to node 8 */ 
-        width: 165px; 
-        transform: translate(-50%, -50%) rotate(-12deg);
-        transform-origin: 0 50%;
+      .connection:nth-child(18) { /* to node 8 at (12%, 35%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 158px; /* distance from center to node 8 */
+        transform: translate(-10px, -1px) rotate(158deg);
       }
-      .connection:nth-child(19) { /* to node 9 */ 
-        width: 175px; 
-        transform: translate(-50%, -50%) rotate(-2deg);
-        transform-origin: 0 50%;
+      .connection:nth-child(19) { /* to node 9 at (88%, 38%) */ 
+        left: 50%; 
+        top: 50%; 
+        width: 152px; /* distance from center to node 9 */
+        transform: translate(-10px, -1px) rotate(-18deg);
       }
 
       /* Propagation animation - outward from center */
