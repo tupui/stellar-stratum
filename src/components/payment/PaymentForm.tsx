@@ -126,15 +126,10 @@ export const PaymentForm = ({
               <Input
                 id="amount"
                 type="text"
-                placeholder="0.00"
-                value={paymentData.amount ? parseFloat(paymentData.amount).toLocaleString('en-US', {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 7,
-                  useGrouping: true
-                }) : ''}
+                placeholder="0.0000000"
+                value={paymentData.amount ? parseFloat(paymentData.amount).toFixed(7) : '0.0000000'}
                 onChange={(e) => {
-                  // Remove commas and convert to number
-                  const numericValue = e.target.value.replace(/,/g, '');
+                  const numericValue = e.target.value;
                   const maxAmount = getSelectedAssetInfo()?.code === 'XLM' 
                     ? Math.max(0, parseFloat(getSelectedAssetInfo()!.balance) - 0.5)
                     : parseFloat(getSelectedAssetInfo()?.balance || '0');
