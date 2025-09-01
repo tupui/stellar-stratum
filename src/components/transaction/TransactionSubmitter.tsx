@@ -47,6 +47,8 @@ export const TransactionSubmitter = ({
         isSubmitting={isSubmitting}
         onSubmitToNetwork={onSubmitToNetwork}
         onSubmitToRefractor={onSubmitToRefractor}
+        canSubmitToNetwork={canSubmitToNetwork}
+        canSubmitToRefractor={canSubmitToRefractor}
       />
 
       {/* Transaction Details */}

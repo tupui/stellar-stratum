@@ -435,7 +435,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return threshold || 1;
   };
 
-  const canSubmitToNetwork = getCurrentWeight() >= getRequiredWeight();
+  const canSubmitToNetwork = accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
   const canSubmitToRefractor = Boolean(xdrData.output || xdrData.input);
 
   const copyXDR = async () => {
@@ -632,6 +632,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             onSubmitToNetwork={handleSubmitToNetwork}
             onSubmitToRefractor={handleSubmitToRefractor}
             isSubmitting={isSubmitting}
+            canSubmitToNetwork={canSubmitToNetwork}
+            canSubmitToRefractor={canSubmitToRefractor}
           />
         )}
 

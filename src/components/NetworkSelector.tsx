@@ -10,18 +10,20 @@ interface NetworkSelectorProps {
   onSubmitToNetwork: () => Promise<void>;
   onSubmitToRefractor: () => Promise<void>;
   isSubmitting: boolean;
+  canSubmitToNetwork: boolean;
+  canSubmitToRefractor: boolean;
 }
 
 export const NetworkSelector = ({
   onSubmitToNetwork,
   onSubmitToRefractor,
-  isSubmitting
+  isSubmitting,
+  canSubmitToNetwork,
+  canSubmitToRefractor
 }: NetworkSelectorProps) => {
   const { network: currentNetwork, setNetwork: onNetworkChange } = useNetwork();
   
-  // Simple heuristic for whether we can submit to network
-  const canSubmitToNetwork = true; // This will be properly calculated in the parent
-  const canSubmitToRefractor = true; // This will be properly calculated in the parent
+  
 
   return (
     <Card className="shadow-card">
@@ -41,7 +43,7 @@ export const NetworkSelector = ({
             <SelectContent>
               <SelectItem value="mainnet">
                 <div className="flex items-center gap-2">
-                  <Badge variant="default">Mainnet</Badge>
+                  <Badge variant="default">Public</Badge>
                   <span>horizon.stellar.org</span>
                 </div>
               </SelectItem>
@@ -62,8 +64,17 @@ export const NetworkSelector = ({
             disabled={!canSubmitToNetwork || isSubmitting}
             className="w-full h-12 bg-success hover:bg-success/90 text-success-foreground"
           >
-            <Send className="w-4 h-4 mr-2" />
-            Submit to {currentNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}
+            {isSubmitting ? (
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Submitting...
+              </div>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-2" />
+                Submit to {currentNetwork === 'testnet' ? 'Testnet' : 'Public'}
+              </>
+            )}
           </Button>
 
           <Button
@@ -72,12 +83,21 @@ export const NetworkSelector = ({
             variant="outline"
             className="w-full h-12"
           >
-            <img 
-              src={refractorLogo} 
-              alt="Refractor" 
-              className="w-4 h-4 mr-2"
-            />
-            Share via Refractor
+            {isSubmitting ? (
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                Submitting...
+              </div>
+            ) : (
+              <>
+                <img 
+                  src={refractorLogo} 
+                  alt="Refractor" 
+                  className="w-4 h-4 mr-2"
+                />
+                Share via Refractor
+              </>
+            )}
           </Button>
         </div>
 
