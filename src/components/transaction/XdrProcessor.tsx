@@ -22,9 +22,6 @@ export const XdrProcessor = ({
           value={xdrInput}
           onChange={(e) => onXdrInputChange(e.target.value)}
         />
-        <p className="text-xs text-muted-foreground">
-          XDR will be validated automatically when pasted
-        </p>
       </div>
     </div>
   );
