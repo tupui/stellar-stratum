@@ -19,7 +19,7 @@ import {
   Memo,
   Horizon
 } from '@stellar/stellar-sdk';
-import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor } from '@/lib/stellar';
+import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer } from '@/lib/stellar';
 import { signWithWallet } from '@/lib/walletKit';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
@@ -126,9 +126,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     if (assetCode === 'XLM') return true;
     
     try {
-      const server = currentNetwork === 'testnet'
-        ? new Horizon.Server('https://horizon-testnet.stellar.org')
-        : new Horizon.Server('https://horizon.stellar.org');
+      const server = createHorizonServer(currentNetwork);
       
       const account = await server.loadAccount(destination);
       const hasTrustline = account.balances.some(balance => 
@@ -187,9 +185,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     try {
       // Determine network and Horizon server
       const networkPassphrase = currentNetwork === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
-      const server = currentNetwork === 'testnet'
-        ? new Horizon.Server('https://horizon-testnet.stellar.org')
-        : new Horizon.Server('https://horizon.stellar.org');
+      const server = createHorizonServer(currentNetwork);
 
       // Load source account
       const sourceAccount = await server.loadAccount(accountPublicKey);
