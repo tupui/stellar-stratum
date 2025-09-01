@@ -526,15 +526,15 @@
         };
         requestAnimationFrame(updateConnections);
 
-        // Much faster sequential connection
+        // 1.5s total animation - perfectly timed
         let idx = 0;
         const connectNext = () => {
           if (idx >= nodes.length) {
             animationComplete = true;
-            // Immediate neon effect
+            // Final neon effect completes the 1.5s
             setTimeout(() => {
               container.classList.add('neon-yellow');
-            }, 50);
+            }, 130);
             return;
           }
           const node = nodes[idx];
@@ -548,10 +548,10 @@
           node.classList.add('connected');
           conn.classList.add('active');
           idx += 1;
-          setTimeout(connectNext, 60); // Much faster - was 150ms
+          setTimeout(connectNext, 130); // 9 * 130ms = 1170ms
         };
 
-        // Start immediately - was 800ms
+        // Start timing: 200ms + 1170ms + 130ms = 1500ms (1.5s)
         setTimeout(connectNext, 200);
       }
 
