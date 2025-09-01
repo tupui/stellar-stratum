@@ -87,7 +87,6 @@ export const PaymentForm = ({
   
   // Advanced features state
   const [isBatchMode, setIsBatchMode] = useState(false);
-  const [isAccountMerge, setIsAccountMerge] = useState(false);
   const [isPathPayment, setIsPathPayment] = useState(false);
   const [batchPayments, setBatchPayments] = useState<BatchPayment[]>([]);
   const [pathSettings, setPathSettings] = useState({
@@ -95,6 +94,7 @@ export const PaymentForm = ({
     receiveAssetIssuer: '',
     slippageTolerance: 0.5
   });
+  const [willCloseAccount, setWillCloseAccount] = useState(false);
 
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
@@ -116,6 +116,32 @@ export const PaymentForm = ({
       return Math.max(0, balance - reserve - 0.1); // Extra 0.1 for transaction fees
     }
     return balance;
+  };
+
+  const getMaxSliderValue = (assetCode: string) => {
+    const asset = availableAssets.find(a => a.code === assetCode);
+    if (!asset) return 0;
+    
+    const balance = parseFloat(asset.balance);
+    if (assetCode === 'XLM') {
+      // Allow slider to go 5% beyond available balance for account merge
+      return balance * 1.05;
+    }
+    return balance;
+  };
+
+  const canCloseAccount = () => {
+    // Only allow account closure if account has only XLM (no other trustlines)
+    return accountData.balances.filter(b => b.asset_type !== 'native').length === 0;
+  };
+
+  const checkAccountClosure = (amount: string, assetCode: string) => {
+    if (assetCode !== 'XLM') return false;
+    
+    const numAmount = parseFloat(amount);
+    const availableBalance = getAvailableBalance('XLM');
+    
+    return numAmount > availableBalance && canCloseAccount();
   };
 
   // Update fiat value when amount, asset, or currency changes
@@ -214,16 +240,58 @@ export const PaymentForm = ({
     }
   };
 
+  // Calculate total amount across all payments
+  const getTotalBatchAmount = () => {
+    const mainAmount = parseFloat(paymentData.amount) || 0;
+    const batchTotal = batchPayments.reduce((sum, payment) => sum + (parseFloat(payment.amount) || 0), 0);
+    return mainAmount + batchTotal;
+  };
+
+  // Update amounts when they exceed available balance
+  const handleAmountChange = (newAmount: string, paymentId?: string) => {
+    if (paymentId) {
+      // Update batch payment
+      updateBatchPayment(paymentId, { amount: newAmount });
+    } else {
+      // Update main payment
+      onPaymentDataChange({ ...paymentData, amount: newAmount });
+      setWillCloseAccount(checkAccountClosure(newAmount, paymentData.asset));
+    }
+
+    // Check if total exceeds available balance in batch mode
+    if (isBatchMode) {
+      setTimeout(() => {
+        const total = getTotalBatchAmount();
+        const available = getAvailableBalance(paymentData.asset);
+        
+        if (total > available) {
+          // Proportionally reduce all amounts
+          const ratio = available / total;
+          const newMainAmount = ((parseFloat(paymentData.amount) || 0) * ratio).toFixed(7);
+          onPaymentDataChange({ ...paymentData, amount: newMainAmount });
+          
+          setBatchPayments(prev => prev.map(p => ({
+            ...p,
+            amount: ((parseFloat(p.amount) || 0) * ratio).toFixed(7)
+          })));
+        }
+      }, 100);
+    }
+  };
+
   // Check if form is valid
   const isFormValid = () => {
-    if (isAccountMerge) {
-      return paymentData.destination && paymentData.destination !== accountPublicKey;
+    if (willCloseAccount) {
+      return paymentData.destination && paymentData.destination !== accountPublicKey && canCloseAccount();
     }
     
     if (isBatchMode) {
+      const totalAmount = getTotalBatchAmount();
+      const available = getAvailableBalance(paymentData.asset);
       return paymentData.destination && paymentData.amount && 
              batchPayments.every(p => p.destination && p.amount) &&
-             batchPayments.length > 0;
+             batchPayments.length > 0 &&
+             totalAmount <= available;
     }
     
     if (isPathPayment) {
@@ -239,7 +307,7 @@ export const PaymentForm = ({
   };
 
   const handleBuild = () => {
-    if (isAccountMerge) {
+    if (willCloseAccount) {
       onBuild(undefined, undefined, true);
     } else if (isBatchMode) {
       const allPayments = [
@@ -282,7 +350,6 @@ export const PaymentForm = ({
                 onCheckedChange={(checked) => {
                   setIsBatchMode(checked);
                   if (checked) {
-                    setIsAccountMerge(false);
                     setIsPathPayment(false);
                   }
                 }}
@@ -301,7 +368,6 @@ export const PaymentForm = ({
                   setIsPathPayment(checked);
                   if (checked) {
                     setIsBatchMode(false);
-                    setIsAccountMerge(false);
                   }
                 }}
               />
@@ -310,73 +376,27 @@ export const PaymentForm = ({
                 Cross-Asset Payment
               </Label>
             </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="account-merge"
-                checked={isAccountMerge}
-                onCheckedChange={(checked) => {
-                  setIsAccountMerge(checked);
-                  if (checked) {
-                    setIsBatchMode(false);
-                    setIsPathPayment(false);
-                  }
-                }}
-              />
-              <Label htmlFor="account-merge" className="flex items-center gap-2 text-destructive">
-                <Merge className="w-4 h-4" />
-                Send All & Close Account
-              </Label>
-            </div>
           </div>
 
           {/* Feature Descriptions */}
-          {(isBatchMode || isPathPayment || isAccountMerge) && (
+          {(isBatchMode || isPathPayment) && (
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
                 {isBatchMode && "Send to multiple recipients in a single atomic transaction."}
                 {isPathPayment && "Send one asset and recipient receives a different asset through automatic conversion."}
-                {isAccountMerge && (
-                  <div className="space-y-1">
-                    <p className="font-medium text-destructive">⚠️ This will permanently close your account!</p>
-                    <p>All XLM will be sent to the destination and this account will become unusable.</p>
-                  </div>
-                )}
               </AlertDescription>
             </Alert>
           )}
         </CardContent>
       </Card>
 
-      {/* XLM Reserve Information */}
-      {paymentData.asset === 'XLM' && !isAccountMerge && (
-        <Card className="border-primary/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Info className="w-4 h-4" />
-              XLM Reserve Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs space-y-1">
-            <div className="grid grid-cols-2 gap-2">
-              <span>Account reserve:</span>
-              <span className="font-mono">{calculateXLMReserve().toFixed(2)} XLM</span>
-              <span>Transaction fees:</span>
-              <span className="font-mono">~0.1 XLM</span>
-              <span>Available to send:</span>
-              <span className="font-mono font-semibold">{getAvailableBalance('XLM').toFixed(2)} XLM</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Main Payment Form */}
       <div className="space-y-4">
         {/* Destination */}
         <div className="space-y-2">
           <Label htmlFor="destination">
-            {isAccountMerge ? 'Send All Funds To' : 'Destination Address'}
+            {willCloseAccount ? 'Send All Funds To' : 'Destination Address'}
           </Label>
           <Input
             id="destination"
@@ -388,8 +408,8 @@ export const PaymentForm = ({
           />
         </div>
 
-        {/* Amount and Asset (hidden for account merge) */}
-        {!isAccountMerge && (
+        {/* Amount and Asset */}
+        {(
           <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr_auto] gap-4 items-end">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -410,11 +430,9 @@ export const PaymentForm = ({
                   value={amountInput}
                   onFocus={() => setIsEditingAmount(true)}
                   onBlur={() => {
-                    const maxAmount = getAvailableBalance(paymentData.asset);
                     const numeric = parseFloat(amountInput.replace(/,/g, ''));
-                    const clamped = isNaN(numeric) ? 0 : Math.min(Math.max(0, numeric), maxAmount);
-                    const rounded = Number(clamped.toFixed(7));
-                    onPaymentDataChange({ ...paymentData, amount: rounded ? rounded.toString() : '' });
+                    const rounded = isNaN(numeric) ? 0 : Number(numeric.toFixed(7));
+                    handleAmountChange(rounded ? rounded.toString() : '');
                     setAmountInput(formatDisplayAmount(rounded.toString()));
                     setIsEditingAmount(false);
                   }}
@@ -428,9 +446,9 @@ export const PaymentForm = ({
                     const num = parseFloat(normalized);
                     if (!isNaN(num)) {
                       const precise = Number(num.toFixed(7)).toString();
-                      onPaymentDataChange({ ...paymentData, amount: precise });
+                      handleAmountChange(precise);
                     } else {
-                      onPaymentDataChange({ ...paymentData, amount: '' });
+                      handleAmountChange('');
                     }
                   }}
                 />
@@ -491,22 +509,33 @@ export const PaymentForm = ({
         )}
 
         {/* Slider for amount selection */}
-        {!isAccountMerge && getSelectedAssetInfo() && (
+        {getSelectedAssetInfo() && (
           <div className="space-y-3">
             <div className="relative">
               <input
                 type="range"
                 min="0"
-                max={getAvailableBalance(paymentData.asset)}
+                max={getMaxSliderValue(paymentData.asset)}
                 step="1"
                 value={paymentData.amount || '0'}
-                onChange={(e) => onPaymentDataChange({ ...paymentData, amount: e.target.value })}
-                className="stellar-slider w-full"
+                onChange={(e) => handleAmountChange(e.target.value)}
+                className={`stellar-slider w-full ${willCloseAccount ? 'slider-warning' : ''}`}
                 style={{
-                  '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / getAvailableBalance(paymentData.asset)) * 100}%`
+                  '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / getMaxSliderValue(paymentData.asset)) * 100}%`
                 } as React.CSSProperties}
               />
             </div>
+            
+            {/* Account closure warning */}
+            {willCloseAccount && (
+              <Alert className="border-destructive/50 bg-destructive/10">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <AlertDescription className="text-destructive">
+                  <strong>Warning:</strong> This amount will close your account permanently! All remaining XLM will be sent to the destination.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Available: {getAvailableBalance(paymentData.asset).toLocaleString('en-US', {
                 minimumFractionDigits: 0,
@@ -524,14 +553,24 @@ export const PaymentForm = ({
             </div>
             
             {isBatchMode && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={redistributeBatchAmounts}
-                className="w-full text-xs"
-              >
-                Distribute Evenly Across All Payments
-              </Button>
+              <div className="space-y-2">
+                {getTotalBatchAmount() > getAvailableBalance(paymentData.asset) && (
+                  <Alert className="border-destructive/50 bg-destructive/10">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <AlertDescription className="text-destructive text-xs">
+                      Total amount exceeds available balance. Amounts will be automatically adjusted.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={redistributeBatchAmounts}
+                  className="w-full text-xs"
+                >
+                  Distribute Evenly Across All Payments
+                </Button>
+              </div>
             )}
           </div>
         )}
@@ -598,62 +637,90 @@ export const PaymentForm = ({
 
         {/* Batch Payments */}
         {isBatchMode && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Additional Recipients ({batchPayments.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {batchPayments.map((payment, index) => (
-                <div key={payment.id} className="p-4 border rounded-lg space-y-3">
+          <div className="space-y-4">
+            {batchPayments.map((payment, index) => (
+              <div key={payment.id} className="space-y-4 p-4 border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Payment #{index + 2}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeBatchPayment(payment.id)}
+                    className="text-destructive hover:text-destructive/80"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                {/* Destination */}
+                <div className="space-y-2">
+                  <Label>Destination Address</Label>
+                  <Input
+                    placeholder="GABC..."
+                    maxLength={56}
+                    value={payment.destination}
+                    onChange={(e) => updateBatchPayment(payment.id, { destination: e.target.value })}
+                    className="text-xs sm:text-sm font-address"
+                  />
+                </div>
+                
+                {/* Amount with Slider */}
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Payment #{index + 2}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeBatchPayment(payment.id)}
-                      className="text-destructive hover:text-destructive/80"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <Label>Amount</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {payment.asset} {parseFloat(payment.amount || '0').toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 7
+                      })}
+                    </span>
                   </div>
+                  <Input
+                    placeholder="0.0"
+                    value={payment.amount}
+                    onChange={(e) => handleAmountChange(e.target.value, payment.id)}
+                    className="font-amount"
+                  />
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Destination</Label>
-                      <Input
-                        placeholder="GABC..."
-                        value={payment.destination}
-                        onChange={(e) => updateBatchPayment(payment.id, { destination: e.target.value })}
-                        className="text-xs font-address"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Amount</Label>
-                      <Input
-                        placeholder="0.0"
-                        value={payment.amount}
-                        onChange={(e) => updateBatchPayment(payment.id, { amount: e.target.value })}
-                        className="font-amount"
-                      />
-                    </div>
+                  {/* Individual slider for batch payment */}
+                  <div className="relative">
+                    <input
+                      type="range"
+                      min="0"
+                      max={getAvailableBalance(paymentData.asset)}
+                      step="1"
+                      value={payment.amount || '0'}
+                      onChange={(e) => handleAmountChange(e.target.value, payment.id)}
+                      className="stellar-slider w-full"
+                      style={{
+                        '--slider-progress': `${((parseFloat(payment.amount) || 0) / getAvailableBalance(paymentData.asset)) * 100}%`
+                      } as React.CSSProperties}
+                    />
                   </div>
                 </div>
-              ))}
-              
-              <Button
-                onClick={addBatchPayment}
-                variant="outline"
-                className="w-full border-dashed"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Another Payment
-              </Button>
-            </CardContent>
-          </Card>
+                
+                {/* Memo for batch payment */}
+                <div className="space-y-2">
+                  <Label>Memo (Optional)</Label>
+                  <Input
+                    placeholder="Payment description"
+                    className="font-mono text-xs"
+                    value={payment.memo}
+                    onChange={(e) => updateBatchPayment(payment.id, { memo: e.target.value })}
+                  />
+                </div>
+              </div>
+            ))}
+            
+            <Button
+              onClick={addBatchPayment}
+              variant="outline"
+              className="w-full border-dashed"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Another Payment
+            </Button>
+          </div>
         )}
 
         {/* Memo */}
@@ -708,7 +775,7 @@ export const PaymentForm = ({
         <Button 
           onClick={handleBuild} 
           disabled={isBuilding || !isFormValid()}
-          className={`w-full ${isAccountMerge ? 'bg-destructive hover:bg-destructive/90' : 'bg-gradient-primary hover:opacity-90'} disabled:opacity-50`}
+          className={`w-full ${willCloseAccount ? 'bg-destructive hover:bg-destructive/90' : 'bg-gradient-primary hover:opacity-90'} disabled:opacity-50`}
           size="lg"
         >
           {isBuilding ? (
@@ -718,11 +785,11 @@ export const PaymentForm = ({
             </div>
           ) : (
             <>
-              {isAccountMerge && <AlertTriangle className="w-4 h-4 mr-2" />}
-              {isAccountMerge && 'Send All Funds & Close Account'}
+              {willCloseAccount && <AlertTriangle className="w-4 h-4 mr-2" />}
+              {willCloseAccount && 'Send All Funds & Close Account'}
               {isBatchMode && `Build Batch Transaction (${batchPayments.length + 1} payments)`}
               {isPathPayment && 'Build Cross-Asset Payment'}
-              {!isAccountMerge && !isBatchMode && !isPathPayment && (
+              {!willCloseAccount && !isBatchMode && !isPathPayment && (
                 trustlineError?.includes('will create a new') ? 'Create New Account' : 'Build Payment Transaction'
               )}
             </>
