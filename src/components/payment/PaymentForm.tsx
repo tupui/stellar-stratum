@@ -523,15 +523,15 @@ export const PaymentForm = ({
 
             {/* To Asset */}
             <Select
-              value={paymentData.receiveAsset || ''}
+              value={paymentData.receiveAsset || "same"}
               onValueChange={(value) => {
-                const selectedAsset = availableAssets.find(asset => asset.code === value);
-                onPaymentDataChange({
-                  ...paymentData,
-                  receiveAsset: value || undefined,
-                  receiveAssetIssuer: selectedAsset?.issuer || undefined
-                });
-              }}
+                  const selectedAsset = availableAssets.find(asset => asset.code === value);
+                  onPaymentDataChange({
+                    ...paymentData,
+                    receiveAsset: value === "same" ? undefined : value,
+                    receiveAssetIssuer: selectedAsset?.issuer || undefined
+                  });
+                }}
             >
               <SelectTrigger className="h-10">
                 <SelectValue placeholder="Same">
@@ -542,7 +542,7 @@ export const PaymentForm = ({
               </SelectTrigger>
               <SelectContent className="min-w-[200px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
                 <SelectPrimitive.Item
-                  value=""
+                  value="same"
                   className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
                 >
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
@@ -627,11 +627,11 @@ export const PaymentForm = ({
 
               {/* To Asset */}
               <Select
-                value={payment.receiveAsset || ''}
+                value={payment.receiveAsset || "same"}
                 onValueChange={(value) => {
                   const selectedAsset = availableAssets.find(asset => asset.code === value);
                   updatePayment(payment.id, {
-                    receiveAsset: value || undefined,
+                    receiveAsset: value === "same" ? undefined : value,
                     receiveAssetIssuer: selectedAsset?.issuer || undefined
                   });
                 }}
@@ -643,11 +643,11 @@ export const PaymentForm = ({
                     </span>
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="min-w-[200px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
-                  <SelectPrimitive.Item
-                    value=""
-                    className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
-                  >
+              <SelectContent className="min-w-[200px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
+                <SelectPrimitive.Item
+                  value="same"
+                  className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                >
                     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                       <SelectPrimitive.ItemIndicator>
                         <Check className="h-4 w-4" />
