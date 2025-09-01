@@ -99,8 +99,10 @@ export const PaymentForm = ({
   // State for current payment
   const [fiatValue, setFiatValue] = useState<string>('');
   const [recipientAssets, setRecipientAssets] = useState<string[]>([]);
+  const [recipientBalances, setRecipientBalances] = useState<Record<string, string>>({});
   const [willCloseAccount, setWillCloseAccount] = useState(false);
   const [showAutoAdjustWarning, setShowAutoAdjustWarning] = useState(false);
+  const [showBundleActions, setShowBundleActions] = useState(false);
 
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
@@ -153,20 +155,26 @@ export const PaymentForm = ({
   // Destination trustline helpers
   const isValidPublicKey = (s?: string) => !!s && s.length === 56 && s.startsWith('G');
 
-  const fetchRecipientAssets = async (accountId: string): Promise<string[]> => {
+  const fetchRecipientAssets = async (accountId: string): Promise<{ assets: string[], balances: Record<string, string> }> => {
     const server = new StellarSDK.Horizon.Server(
       network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org'
     );
     try {
       const account = await server.loadAccount(accountId);
       const codes = new Set<string>(['XLM']);
+      const balances: Record<string, string> = {};
       account.balances.forEach((b: any) => {
-        if (b.asset_type === 'native') codes.add('XLM');
-        else if (b.asset_code) codes.add(b.asset_code);
+        if (b.asset_type === 'native') {
+          codes.add('XLM');
+          balances['XLM'] = b.balance;
+        } else if (b.asset_code) {
+          codes.add(b.asset_code);
+          balances[b.asset_code] = b.balance;
+        }
       });
-      return Array.from(codes);
+      return { assets: Array.from(codes), balances };
     } catch {
-      return ['XLM'];
+      return { assets: ['XLM'], balances: {} };
     }
   };
 
@@ -174,11 +182,15 @@ export const PaymentForm = ({
   useEffect(() => {
     if (!isValidPublicKey(paymentData.destination)) {
       setRecipientAssets([]);
+      setRecipientBalances({});
       return;
     }
     let cancelled = false;
-    fetchRecipientAssets(paymentData.destination).then((codes) => {
-      if (!cancelled) setRecipientAssets(codes);
+    fetchRecipientAssets(paymentData.destination).then(({ assets, balances }) => {
+      if (!cancelled) {
+        setRecipientAssets(assets);
+        setRecipientBalances(balances);
+      }
     });
     return () => {
       cancelled = true;
@@ -302,6 +314,10 @@ export const PaymentForm = ({
     return availableAssets.filter((a) => allowed.has(a.code));
   };
 
+  const handleBundlePayment = async () => {
+    setShowBundleActions(true);
+  };
+
   const addPayment = async () => {
     // Calculate fiat value for the current payment
     let currentFiatValue = '';
@@ -351,6 +367,7 @@ export const PaymentForm = ({
       slippageTolerance: 0.5
     });
     setWillCloseAccount(false);
+    setShowBundleActions(false);
   };
 
   const editCompactPayment = (payment: CompactPayment) => {
@@ -458,9 +475,66 @@ export const PaymentForm = ({
     }, [paymentData.amount, isEditing]);
 
     return (
-      <div className="relative">
+      <div className="space-y-2">
+        {/* Amount display above slider */}
+        <div className="flex items-center justify-between">
+          <div className="text-right">
+            {isEditing ? (
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={editValue}
+                onChange={(e) => {
+                  // Enhanced input validation with more permissive handling
+                  let sanitized = e.target.value
+                    .replace(/[^0-9.,]/g, '')  // Only allow numbers, dots, and commas
+                    .replace(/,/g, '.');       // Convert commas to dots
+                  
+                  // Ensure only one decimal point
+                  const parts = sanitized.split('.');
+                  if (parts.length > 2) {
+                    sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+                  }
+                  
+                  // Limit decimal places to 7
+                  if (parts[1] && parts[1].length > 7) {
+                    sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+                  }
+                  
+                  setEditValue(sanitized);
+                }}
+                onBlur={handleEditSubmit}
+                onKeyDown={handleEditKeyDown}
+                onFocus={(e) => e.currentTarget.select()}
+                className="h-7 w-32 text-sm font-mono text-right px-2 py-1 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md"
+                placeholder="0.0000000"
+                autoFocus
+              />
+            ) : (
+              <div 
+                className="cursor-pointer hover:bg-background/20 rounded px-2 py-1 transition-colors group"
+                onClick={() => setIsEditing(true)}
+              >
+                <div className="text-lg font-mono font-semibold text-foreground group-hover:text-primary transition-colors">
+                  {formatDisplayAmount(value.toString())}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            / {formatDisplayAmount(max.toString())}
+          </div>
+        </div>
+
+        {/* Fiat conversion with units */}
+        {fiatValue && (
+          <div className="text-center">
+            <span className="text-sm text-primary font-medium">≈ {fiatValue}</span>
+          </div>
+        )}
+
+        {/* Slider without currency label */}
         <div className="relative">
-          {/* Use proper stellar slider from design system */}
           <input
             type="range"
             min={0}
@@ -476,62 +550,7 @@ export const PaymentForm = ({
               '--slider-progress': `${percentage}%`,
               '--available-progress': `${availablePercentage}%`
             } as React.CSSProperties}
-            disabled={willCloseAccount}
           />
-          
-          {/* Amount display overlay */}
-          <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-foreground">{paymentData.asset}</span>
-              {isOverLimit && canCloseAccount() && (
-                <Badge variant="destructive" className="text-xs pointer-events-none">Close Account</Badge>
-              )}
-            </div>
-            <div className="text-right pointer-events-auto">
-              {isEditing ? (
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={editValue}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/,/g, '.');
-                    let sanitized = raw.replace(/[^0-9.]/g, '');
-                    
-                    // Ensure only one decimal point
-                    const parts = sanitized.split('.');
-                    if (parts.length > 2) {
-                      sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-                    }
-                    
-                    // Limit decimal places to 7
-                    if (parts[1] && parts[1].length > 7) {
-                      sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
-                    }
-                    
-                    setEditValue(sanitized);
-                  }}
-                  onBlur={handleEditSubmit}
-                  onKeyDown={handleEditKeyDown}
-                  onFocus={(e) => e.currentTarget.select()}
-                  className="h-7 w-28 text-xs font-mono text-right px-2 py-1 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md"
-                  placeholder="0.0000000"
-                  autoFocus
-                />
-              ) : (
-                <div 
-                  className="cursor-pointer hover:bg-background/20 rounded px-2 py-1 transition-colors group"
-                  onClick={() => setIsEditing(true)}
-                >
-                  <div className="text-sm font-mono font-semibold text-foreground group-hover:text-primary transition-colors">
-                    {formatDisplayAmount(value.toString())}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    / {formatDisplayAmount(max.toString())}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -615,14 +634,11 @@ export const PaymentForm = ({
 
       {/* Current Payment Form */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold">
-            {compactPayments.length > 0 ? `Payment #${compactPayments.length + 1}` : 'Payment Details'}
-          </h3>
-          {fiatValue && (
-            <span className="text-sm text-primary font-medium">≈ {fiatValue}</span>
-          )}
-        </div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold">
+              {compactPayments.length > 0 ? `Payment #${compactPayments.length + 1}` : 'Payment Details'}
+            </h3>
+          </div>
 
         {/* Destination */}
         <div className="space-y-2">
@@ -775,7 +791,10 @@ export const PaymentForm = ({
                     <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                       <span className="text-muted-foreground">Same ({paymentData.asset})</span>
                       <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
-                        {recipientAssets.includes(paymentData.asset) ? '✓' : '✗'}
+                        {recipientBalances[paymentData.asset] 
+                          ? parseFloat(recipientBalances[paymentData.asset]).toLocaleString('en-US', { maximumFractionDigits: 7 })
+                          : recipientAssets.includes(paymentData.asset) ? '0.0000000' : '—'
+                        }
                       </span>
                     </div>
                   </SelectPrimitive.ItemText>
@@ -795,7 +814,10 @@ export const PaymentForm = ({
                       <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                         <span className="font-medium">{asset.code}</span>
                         <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
-                          {recipientAssets.includes(asset.code) ? '✓' : '✗'}
+                          {recipientBalances[asset.code] 
+                            ? parseFloat(recipientBalances[asset.code]).toLocaleString('en-US', { maximumFractionDigits: 7 })
+                            : recipientAssets.includes(asset.code) ? '0.0000000' : '—'
+                          }
                         </span>
                       </div>
                     </SelectPrimitive.ItemText>
@@ -887,10 +909,9 @@ export const PaymentForm = ({
 
         {/* Action Buttons */}
         <div className="flex gap-3">
-          {/* Bundle Payment Button - converts current payment to compact view */}
-          {!willCloseAccount && isFormValid() && compactPayments.length === 0 && (
+          {!willCloseAccount && isFormValid() && !showBundleActions && compactPayments.length === 0 && (
             <Button
-              onClick={addPayment}
+              onClick={handleBundlePayment}
               variant="outline"
               className="border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
             >
@@ -899,8 +920,37 @@ export const PaymentForm = ({
             </Button>
           )}
 
-          {/* Add Payment Button - only shows when there are already bundled payments */}
-          {!willCloseAccount && isFormValid() && compactPayments.length > 0 && (
+          {/* Bundle Actions - Show after clicking Bundle Payment */}
+          {showBundleActions && (
+            <>
+              <Button
+                onClick={addPayment}
+                variant="outline"
+                className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Payment
+              </Button>
+              <Button 
+                onClick={handleBuild} 
+                disabled={isBuilding}
+                className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
+                size="lg"
+              >
+                {isBuilding ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    Building...
+                  </div>
+                ) : (
+                  'Build Transaction'
+                )}
+              </Button>
+            </>
+          )}
+
+          {/* Add Another Payment Button - only shows when there are already bundled payments */}
+          {!willCloseAccount && isFormValid() && compactPayments.length > 0 && !showBundleActions && (
             <Button
               onClick={addPayment}
               variant="outline"
@@ -911,34 +961,36 @@ export const PaymentForm = ({
             </Button>
           )}
 
-          {/* Build Transaction Button */}
-          <Button 
-            onClick={handleBuild} 
-            disabled={isBuilding || !isFormValid()}
-            className={`${!willCloseAccount && isFormValid() && compactPayments.length > 0 ? 'flex-1' : 'w-full'} ${
-              willCloseAccount ? 'bg-destructive hover:bg-destructive/90' : 'bg-gradient-primary hover:opacity-90'
-            } disabled:opacity-50`}
-            size="lg"
-          >
-            {isBuilding ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                Building Transaction...
-              </div>
-            ) : (
-              <>
-                {willCloseAccount && <AlertTriangle className="w-4 h-4 mr-2" />}
-                {willCloseAccount && 'Send All Funds & Close Account'}
-                {compactPayments.length > 0 && !willCloseAccount && 
-                  `Build Batch Transaction (${compactPayments.length + 1} payments)`}
-                {compactPayments.length === 0 && !willCloseAccount && 
-                  (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
-                    'Build Cross-Asset Payment' : 
-                    (trustlineError?.includes('will create a new') ? 'Create New Account' : 'Build Payment Transaction')
-                  )}
-              </>
-            )}
-          </Button>
+          {/* Single Build Transaction Button */}
+          {!showBundleActions && (
+            <Button 
+              onClick={handleBuild} 
+              disabled={isBuilding || !isFormValid()}
+              className={`${!willCloseAccount && isFormValid() && compactPayments.length > 0 ? 'flex-1' : 'w-full'} ${
+                willCloseAccount ? 'bg-destructive hover:bg-destructive/90' : 'bg-gradient-primary hover:opacity-90'
+              } disabled:opacity-50`}
+              size="lg"
+            >
+              {isBuilding ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                  Building Transaction...
+                </div>
+              ) : (
+                <>
+                  {willCloseAccount && <AlertTriangle className="w-4 h-4 mr-2" />}
+                  {willCloseAccount && 'Send All Funds & Close Account'}
+                  {compactPayments.length > 0 && !willCloseAccount && 
+                    `Build Batch Transaction (${compactPayments.length + 1} payments)`}
+                  {compactPayments.length === 0 && !willCloseAccount && 
+                    (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
+                      'Build Cross-Asset Payment' : 
+                      (trustlineError?.includes('will create a new') ? 'Create New Account' : 'Build Payment Transaction')
+                    )}
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </div>

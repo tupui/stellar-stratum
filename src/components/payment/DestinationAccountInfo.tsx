@@ -126,6 +126,11 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
     return bal.asset_code;
   };
 
+  // Only show card for new accounts
+  if (accountData.exists) {
+    return null;
+  }
+
   return (
     <Card className="border transition-all duration-200">
       <CardContent className="p-4">
@@ -136,52 +141,20 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
-              <p className="text-sm font-medium">
-                {accountData.exists ? 'Existing Account' : 'New Account'}
-              </p>
-              <Badge variant={accountData.exists ? 'default' : 'secondary'} className="text-xs">
+              <p className="text-sm font-medium">New Account</p>
+              <Badge variant="secondary" className="text-xs">
                 {network}
               </Badge>
             </div>
 
-            {accountData.exists ? (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground truncate font-address">
-                  {destination}
-                </p>
-                {accountData.balances.length > 0 && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1 mb-1">
-                      <Wallet className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground font-medium">Balances</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {accountData.balances.slice(0, 4).map((bal, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-xs">
-                          <span className="font-amount text-muted-foreground tabular-nums">
-                            {formatBalance(bal.balance)} {getAssetDisplay(bal)}
-                          </span>
-                        </div>
-                      ))}
-                      {accountData.balances.length > 4 && (
-                        <div className="text-xs text-muted-foreground col-span-full">
-                          +{accountData.balances.length - 4} more assets
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground truncate">
-                  {destination}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  This account will be created with your payment
-                </p>
-              </div>
-            )}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground truncate">
+                {destination}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                This account will be created with your payment
+              </p>
+            </div>
           </div>
         </div>
       </CardContent>
