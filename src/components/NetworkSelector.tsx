@@ -93,6 +93,14 @@ export const NetworkSelector = ({
           </Button>
         </div>
 
+        {currentNetwork === 'testnet' && (
+          <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
+            <p className="text-sm text-warning-foreground">
+              <strong>Note:</strong> Refractor only supports Public network. Switch to Public to use Refractor for multisig coordination.
+            </p>
+          </div>
+        )}
+
         {!canSubmitToNetwork && (
           <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
             <p className="text-sm text-warning-foreground">

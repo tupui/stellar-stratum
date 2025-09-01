@@ -437,7 +437,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   };
 
   const canSubmitToNetwork = accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
-  const canSubmitToRefractor = Boolean(xdrData.output || xdrData.input);
+  const canSubmitToRefractor = Boolean(xdrData.output || xdrData.input) && currentNetwork === 'mainnet';
 
   const copyXDR = async () => {
     const textToCopy = xdrData.output || xdrData.input;
