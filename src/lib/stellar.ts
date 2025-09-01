@@ -6,15 +6,33 @@ import {
 import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
-// Initialize Stellar Wallets Kit using the working pattern (use passphrase for maximum compatibility)
-export const stellarKit = new StellarWalletsKit({
-  modules: [...allowAllModules(), new LedgerModule()],
-  // @ts-ignore - library accepts both enum and passphrase string
-  network: 'Public Global Stellar Network ; September 2015',
+// Network configuration
+const getNetworkConfig = (network: 'mainnet' | 'testnet') => ({
+  passphrase: network === 'testnet' ? 'Test SDF Network ; September 2015' : 'Public Global Stellar Network ; September 2015',
+  horizonUrl: network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org'
 });
 
-// Horizon server for account data
-export const horizonServer = new Horizon.Server('https://horizon.stellar.org'); // Change to testnet for testing
+// Create Stellar Wallets Kit instance for specific network
+export const createStellarKit = (network: 'mainnet' | 'testnet' = 'mainnet') => {
+  const config = getNetworkConfig(network);
+  return new StellarWalletsKit({
+    modules: [...allowAllModules(), new LedgerModule()],
+    // @ts-ignore - library accepts both enum and passphrase string
+    network: config.passphrase,
+  });
+};
+
+// Default kit for mainnet (backward compatibility)
+export const stellarKit = createStellarKit('mainnet');
+
+// Create Horizon server for specific network
+export const createHorizonServer = (network: 'mainnet' | 'testnet' = 'mainnet') => {
+  const config = getNetworkConfig(network);
+  return new Horizon.Server(config.horizonUrl);
+};
+
+// Default horizon server for mainnet (backward compatibility)
+export const horizonServer = createHorizonServer('mainnet');
 
 export interface AccountData {
   publicKey: string;
@@ -36,9 +54,9 @@ export interface AccountData {
   }>;
 }
 
-export const connectWallet = async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
+export const connectWallet = async (walletId: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<{ publicKey: string; walletName: string }> => {
   try {
-    const kit = stellarKit;
+    const kit = createStellarKit(network);
     // Set the selected wallet generically
     kit.setWallet(walletId);
 
@@ -81,9 +99,10 @@ export const connectWallet = async (walletId: string): Promise<{ publicKey: stri
   }
 };
 
-export const fetchAccountData = async (publicKey: string): Promise<AccountData> => {
+export const fetchAccountData = async (publicKey: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AccountData> => {
   try {
-    const account = await horizonServer.loadAccount(publicKey);
+    const server = createHorizonServer(network);
+    const account = await server.loadAccount(publicKey);
     
     return {
       publicKey,
@@ -121,10 +140,11 @@ export const fetchAccountData = async (publicKey: string): Promise<AccountData> 
   }
 };
 
-export const getSupportedWallets = async (): Promise<ISupportedWallet[]> => {
+export const getSupportedWallets = async (network: 'mainnet' | 'testnet' = 'mainnet'): Promise<ISupportedWallet[]> => {
   try {
-    // Use stellarKit directly - it already has all modules loaded
-    const wallets = await stellarKit.getSupportedWallets();
+    // Create kit for the specified network
+    const kit = createStellarKit(network);
+    const wallets = await kit.getSupportedWallets();
     
     // Filter and prioritize wallets
     const priorityOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'albedo', 'rabet'];

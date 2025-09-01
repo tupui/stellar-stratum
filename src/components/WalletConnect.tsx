@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info, KeyRound, Plus, Globe } from 'lucide-react';
 
@@ -14,7 +15,7 @@ import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
 
 interface WalletConnectProps {
-  onConnect: (walletType: string, publicKey: string) => void;
+  onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
   isModal?: boolean;
 }
 
@@ -28,11 +29,12 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
   const [sorobanDomain, setSorobanDomain] = useState('');
   const [showSorobanInput, setShowSorobanInput] = useState(false);
   const [resolvingDomain, setResolvingDomain] = useState(false);
+  const [selectedNetwork, setSelectedNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
 
   const loadWallets = async () => {
     try {
       setLoading(true);
-      const wallets = await getSupportedWallets();
+      const wallets = await getSupportedWallets(selectedNetwork);
       setSupportedWallets(wallets);
     } catch (error) {
       console.error('Failed to load wallets:', error);
@@ -53,7 +55,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
     
     const checkWallets = async () => {
       await loadWallets();
-      const wallets = await getSupportedWallets();
+      const wallets = await getSupportedWallets(selectedNetwork);
       
       // Stop scanning if we found available wallets
       if (wallets.some(wallet => wallet.isAvailable)) {
@@ -77,7 +79,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       clearInterval(interval);
       clearTimeout(timeout);
     };
-  }, []);
+  }, [selectedNetwork]); // Re-run when network changes
 
   const getWalletIcon = (wallet: ISupportedWallet) => {
     const isLedger = wallet.id.toLowerCase().includes('ledger');
@@ -186,7 +188,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       duration: 2000,
     });
 
-    onConnect("Manual Address", manualAddress.trim());
+    onConnect("Manual Address", manualAddress.trim(), selectedNetwork);
   };
 
   const handleSorobanConnect = async () => {
@@ -218,8 +220,9 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
       
       // Use proper SDK structure from working example
-      const networkPassphrase = StellarSDK.Networks.PUBLIC;
-      const rpcServer = new StellarSDK.rpc.Server('https://mainnet.sorobanrpc.com');
+      const networkPassphrase = selectedNetwork === 'testnet' ? StellarSDK.Networks.TESTNET : StellarSDK.Networks.PUBLIC;
+      const rpcUrl = selectedNetwork === 'testnet' ? 'https://soroban-testnet.stellar.org' : 'https://mainnet.sorobanrpc.com';
+      const rpcServer = new StellarSDK.rpc.Server(rpcUrl);
       
       const sdk = new SorobanDomainsSDK({
         stellarSDK: StellarSDK,
@@ -246,7 +249,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
         });
         
         setSorobanDomain('');
-        onConnect("Soroban Domain", resolvedAddress);
+        onConnect("Soroban Domain", resolvedAddress, selectedNetwork);
       } else {
         toast({
           title: "Domain Not Found",
@@ -277,7 +280,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
     setConnecting(walletId);
     
     try {
-      const { publicKey } = await connectWallet(walletId);
+      const { publicKey } = await connectWallet(walletId, selectedNetwork);
       
       toast({
         title: "Wallet connected",
@@ -285,7 +288,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
         duration: 2000,
       });
       
-      onConnect(walletName, publicKey);
+      onConnect(walletName, publicKey, selectedNetwork);
     } catch (error) {
       const { userMessage, fullError } = sanitizeError(error);
       console.error('Failed to connect wallet:', fullError);
@@ -305,6 +308,31 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
 
   const walletContent = (
     <>
+      {/* Network Selection */}
+      <div className="mb-6 space-y-2">
+        <Label className="text-sm font-medium">Network</Label>
+        <Select value={selectedNetwork} onValueChange={(value: 'mainnet' | 'testnet') => setSelectedNetwork(value)}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mainnet">
+              <div className="flex items-center gap-2">
+                <Badge variant="default">Mainnet</Badge>
+                <span>horizon.stellar.org</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="testnet">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">Testnet</Badge>
+                <span>horizon-testnet.stellar.org</span>
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Separator className="mb-6" />
       {loading && supportedWallets.length === 0 ? (
         <div className="flex items-center justify-center py-8">
           <div className="flex items-center gap-2 text-muted-foreground">

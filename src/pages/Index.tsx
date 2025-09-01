@@ -36,15 +36,17 @@ const Index = () => {
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>('');
+  const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
 
-  const handleWalletConnect = async (walletType: string, publicKey: string) => {
+  const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
     setConnectedWallet(walletType);
     setPublicKey(publicKey);
+    setNetwork(selectedNetwork);
     setLoading(true);
     
     try {
       // Fetch real account data from Horizon
-      const realAccountData = await fetchAccountData(publicKey);
+      const realAccountData = await fetchAccountData(publicKey, selectedNetwork);
       setAccountData(realAccountData);
       setAppState('dashboard');
       
@@ -115,7 +117,7 @@ const Index = () => {
               initialTab={appState === 'multisig-config' ? 'multisig' : 'payment'}
               onAccountRefresh={async () => {
                 if (!publicKey) return;
-                const realAccountData = await fetchAccountData(publicKey);
+                const realAccountData = await fetchAccountData(publicKey, network);
                 setAccountData(realAccountData);
               }}
             />
@@ -131,7 +133,7 @@ const Index = () => {
               onSignTransaction={() => {}}
               onRefreshBalances={async () => {
                 if (!publicKey) return;
-                const realAccountData = await fetchAccountData(publicKey);
+                const realAccountData = await fetchAccountData(publicKey, network);
                 setAccountData(realAccountData);
               }}
               onDisconnect={handleDisconnect}

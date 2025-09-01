@@ -6,15 +6,15 @@ import { Wallet, RefreshCw } from 'lucide-react';
 const WalletConnect = lazy(() => import('@/components/WalletConnect').then(module => ({ default: module.WalletConnect })));
 
 interface LandingPageProps {
-  onConnect: (walletType: string, publicKey: string) => void;
+  onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
 }
 
 export const LandingPage = ({ onConnect }: LandingPageProps) => {
   const [showWalletModal, setShowWalletModal] = useState(false);
 
-  const handleConnect = (walletType: string, publicKey: string) => {
+  const handleConnect = (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => {
     setShowWalletModal(false);
-    onConnect(walletType, publicKey);
+    onConnect(walletType, publicKey, network);
   };
 
   return (
