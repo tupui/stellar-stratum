@@ -191,7 +191,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         }
         
         needsCreateAccount = true;
-        setTrustlineError('This transaction will create a new Stellar account for the destination address.');
+        // Clear any previous trustline errors since this is just account creation
+        setTrustlineError('');
       } else {
         // Account exists - check trustline for non-XLM assets
         if (paymentData.asset !== 'XLM') {
