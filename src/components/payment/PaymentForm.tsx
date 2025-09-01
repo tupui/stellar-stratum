@@ -88,12 +88,12 @@ export const PaymentForm = ({
 }: PaymentFormProps) => {
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
   const [fiatValue, setFiatValue] = useState<string>('');
-  const [amountInput, setAmountInput] = useState<string>('0.0');
-  const [isEditingAmount, setIsEditingAmount] = useState(false);
   
   // Payment items state (includes main payment + additional payments)
   const [additionalPayments, setAdditionalPayments] = useState<PaymentItem[]>([]);
   const [willCloseAccount, setWillCloseAccount] = useState(false);
+  const [showAutoAdjustWarning, setShowAutoAdjustWarning] = useState(false);
+  const [mergePaymentId, setMergePaymentId] = useState<string | null>(null);
 
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
@@ -143,25 +143,17 @@ export const PaymentForm = ({
     return numAmount > availableBalance;
   };
 
-  // Jump behavior: when going beyond available balance for XLM, jump to full balance
   const handleSliderChange = (value: string, paymentId?: string) => {
-    const numValue = parseFloat(value);
-    const asset = paymentId ? 
-      additionalPayments.find(p => p.id === paymentId)?.asset || paymentData.asset :
-      paymentData.asset;
-    
-    if (asset === 'XLM' && canCloseAccount()) {
-      const availableBalance = getAvailableBalance('XLM');
-      const fullBalance = getMaxSliderValue('XLM');
-      
-      // If we go beyond available balance, jump to full balance
-      if (numValue > availableBalance) {
-        handleAmountChange(fullBalance.toString(), paymentId);
-        return;
-      }
-    }
-    
     handleAmountChange(value, paymentId);
+  };
+
+  const handleMergeAccount = (paymentId?: string) => {
+    if (!canCloseAccount()) return;
+    
+    const fullBalance = getMaxSliderValue('XLM');
+    handleAmountChange(fullBalance.toString(), paymentId);
+    setMergePaymentId(paymentId || 'main');
+    setWillCloseAccount(true);
   };
 
   // Update fiat value when amount, asset, or currency changes
@@ -201,29 +193,6 @@ export const PaymentForm = ({
     if (!s.includes('.')) return `${s}.0`;
     const [int, dec] = s.split('.');
     return `${int}.${dec}`;
-  };
-
-  // Sync the display value when not actively editing
-  useEffect(() => {
-    if (isEditingAmount) return;
-    const amt = paymentData.amount;
-    if (!amt) {
-      setAmountInput('0.0');
-    } else {
-      setAmountInput(formatDisplayAmount(amt));
-    }
-  }, [paymentData.amount, paymentData.asset, isEditingAmount]);
-
-  const getSelectedAssetInfo = () => {
-    return availableAssets.find(asset => asset.code === paymentData.asset);
-  };
-
-  const handleMaxAmount = () => {
-    const selectedAsset = getSelectedAssetInfo();
-    if (selectedAsset) {
-      const maxAmount = getAvailableBalance(selectedAsset.code).toString();
-      onPaymentDataChange({ ...paymentData, amount: maxAmount });
-    }
   };
 
   const addPayment = () => {
@@ -281,6 +250,11 @@ export const PaymentForm = ({
       setWillCloseAccount(checkAccountClosure(newAmount, paymentData.asset));
     }
 
+    // Reset merge state if amount changes and it's not a merge
+    if (mergePaymentId && !willCloseAccount) {
+      setMergePaymentId(null);
+    }
+
     // Smart balance redistribution when total exceeds available
     if (additionalPayments.length > 0) {
       setTimeout(() => {
@@ -288,6 +262,7 @@ export const PaymentForm = ({
         const available = getAvailableBalance(paymentData.asset);
         
         if (total > available) {
+          setShowAutoAdjustWarning(true);
           // Proportionally reduce all amounts
           const ratio = available / total;
           const newMainAmount = ((parseFloat(paymentData.amount) || 0) * ratio).toFixed(7);
@@ -297,6 +272,11 @@ export const PaymentForm = ({
             ...p,
             amount: ((parseFloat(p.amount) || 0) * ratio).toFixed(7)
           })));
+          
+          // Hide warning after 3 seconds
+          setTimeout(() => setShowAutoAdjustWarning(false), 3000);
+        } else {
+          setShowAutoAdjustWarning(false);
         }
       }, 100);
     }
@@ -351,13 +331,110 @@ export const PaymentForm = ({
     }
   };
 
+  // Custom slider component with embedded text
+  const CustomSlider = ({ 
+    value, 
+    max, 
+    assetCode, 
+    paymentId, 
+    onValueChange,
+    className = ""
+  }: {
+    value: number;
+    max: number;
+    assetCode: string;
+    paymentId?: string;
+    onValueChange: (value: string) => void;
+    className?: string;
+  }) => {
+    const percentage = max > 0 ? (value / max) * 100 : 0;
+    const availableBalance = getAvailableBalance(assetCode);
+    const isOverLimit = value > availableBalance;
+    const isMerged = mergePaymentId === (paymentId || 'main');
+    
+    return (
+      <div className={`relative ${className}`}>
+        <div className="relative h-12 bg-muted rounded-lg overflow-hidden">
+          {/* Background fill */}
+          <div 
+            className={`absolute inset-y-0 left-0 transition-all duration-300 ${
+              isOverLimit ? 'bg-gradient-to-r from-yellow-500/20 to-red-500/20' : 'bg-primary/20'
+            }`}
+            style={{ width: `${Math.min(percentage, 100)}%` }}
+          />
+          
+          {/* Slider input */}
+          <input
+            type="range"
+            min={0}
+            max={max}
+            step="any"
+            value={value}
+            onChange={(e) => onValueChange(e.target.value)}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            disabled={isMerged}
+          />
+          
+          {/* Text content */}
+          <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{assetCode}</span>
+              {isOverLimit && canCloseAccount() && (
+                <Badge variant="destructive" className="text-xs">Close Account</Badge>
+              )}
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-mono">
+                {formatDisplayAmount(value.toString())}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                / {formatDisplayAmount(max.toString())}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Merge button for XLM */}
+        {assetCode === 'XLM' && canCloseAccount() && !isMerged && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleMergeAccount(paymentId)}
+            className="absolute -right-20 top-1/2 -translate-y-1/2 h-8 px-3 text-xs"
+          >
+            <Merge className="h-3 w-3 mr-1" />
+            Merge
+          </Button>
+        )}
+        
+        {isMerged && (
+          <div className="absolute -right-16 top-1/2 -translate-y-1/2">
+            <Badge variant="destructive" className="text-xs">
+              <Merge className="h-3 w-3 mr-1" />
+              Closing
+            </Badge>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {showAutoAdjustWarning && (
+        <Alert variant="destructive" className="animate-fade-in">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Total amount exceeds available balance. Amounts will be automatically adjusted.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Main Payment Form */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* Destination */}
         <div className="space-y-2">
-          <Label htmlFor="destination">
+          <Label htmlFor="destination" className="text-sm">
             {willCloseAccount ? 'Send All Funds To' : 'Destination Address'}
           </Label>
           <Input
@@ -366,54 +443,21 @@ export const PaymentForm = ({
             maxLength={56}
             value={paymentData.destination}
             onChange={(e) => onPaymentDataChange({ ...paymentData, destination: e.target.value })}
-            className="text-xs sm:text-sm font-address"
+            className="text-xs font-address"
           />
         </div>
 
-        {/* Amount and Asset */}
-        <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-4 items-end">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="amount">Send Amount</Label>
-              {fiatValue && (
-                <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
-              )}
-            </div>
-            <Input
-              id="amount"
-              type="text"
-              placeholder="0.0"
-              inputMode="decimal"
-              className="font-amount text-xs sm:text-sm"
-              value={amountInput}
-              onFocus={() => setIsEditingAmount(true)}
-              onBlur={() => {
-                const numeric = parseFloat(amountInput.replace(/,/g, ''));
-                const rounded = isNaN(numeric) ? 0 : Number(numeric.toFixed(7));
-                handleAmountChange(rounded ? rounded.toString() : '');
-                setAmountInput(formatDisplayAmount(rounded.toString()));
-                setIsEditingAmount(false);
-              }}
-              onChange={(e) => {
-                const v = e.target.value;
-                const sanitized = v.replace(/[^0-9.]/g, '');
-                const parts = sanitized.split('.');
-                const normalized = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
-                setAmountInput(normalized);
-
-                const num = parseFloat(normalized);
-                if (!isNaN(num)) {
-                  const precise = Number(num.toFixed(7)).toString();
-                  handleAmountChange(precise);
-                } else {
-                  handleAmountChange('');
-                }
-              }}
-            />
+        {/* Compact Payment Row */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">Payment Details</Label>
+            {fiatValue && (
+              <span className="text-xs text-muted-foreground">≈ {fiatValue}</span>
+            )}
           </div>
-
-          <div className="space-y-2">
-            <Label>Asset</Label>
+          
+          <div className="grid grid-cols-[120px_1fr_120px] gap-3 items-center">
+            {/* From Asset */}
             <Select
               value={paymentData.asset}
               onValueChange={(value) => {
@@ -424,11 +468,13 @@ export const PaymentForm = ({
                   assetIssuer: selectedAsset?.issuer || '',
                   amount: ''
                 });
+                setMergePaymentId(null);
+                setWillCloseAccount(false);
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-10">
                 <SelectValue>
-                  <span className="font-medium text-xs sm:text-sm">{paymentData.asset}</span>
+                  <span className="font-medium text-xs">{paymentData.asset}</span>
                 </SelectValue>
               </SelectTrigger>
               <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
@@ -465,267 +511,170 @@ export const PaymentForm = ({
                 })}
               </SelectContent>
             </Select>
-          </div>
-        </div>
 
-        {/* Cross-Asset Payment Option */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Recipient Receives (Optional)</Label>
+            {/* Amount Slider */}
+            <CustomSlider
+              value={parseFloat(paymentData.amount) || 0}
+              max={getMaxSliderValue(paymentData.asset)}
+              assetCode={paymentData.asset}
+              onValueChange={(value) => handleSliderChange(value)}
+              className="min-w-0"
+            />
+
+            {/* To Asset */}
             <Select
               value={paymentData.receiveAsset || ''}
               onValueChange={(value) => {
                 const selectedAsset = availableAssets.find(asset => asset.code === value);
                 onPaymentDataChange({
                   ...paymentData,
-                  receiveAsset: value === paymentData.asset ? '' : value,
-                  receiveAssetIssuer: selectedAsset?.issuer || ''
+                  receiveAsset: value || undefined,
+                  receiveAssetIssuer: selectedAsset?.issuer || undefined
                 });
               }}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Same as send asset">
-                  {paymentData.receiveAsset && (
-                    <span className="font-medium text-xs sm:text-sm">{paymentData.receiveAsset}</span>
-                  )}
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Same">
+                  <span className="font-medium text-xs">
+                    {paymentData.receiveAsset || paymentData.asset}
+                  </span>
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent>
-                <SelectPrimitive.Item value={paymentData.asset}>
-                  Same as send asset
+              <SelectContent className="min-w-[200px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
+                <SelectPrimitive.Item
+                  value=""
+                  className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                >
+                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                    <SelectPrimitive.ItemIndicator>
+                      <Check className="h-4 w-4" />
+                    </SelectPrimitive.ItemIndicator>
+                  </span>
+                  <SelectPrimitive.ItemText>
+                    <span className="text-muted-foreground">Same ({paymentData.asset})</span>
+                  </SelectPrimitive.ItemText>
                 </SelectPrimitive.Item>
                 {availableAssets.filter(asset => asset.code !== paymentData.asset).map((asset) => (
-                  <SelectPrimitive.Item key={asset.code} value={asset.code}>
-                    {asset.code}
+                  <SelectPrimitive.Item
+                    key={`${asset.code}-${asset.issuer}`}
+                    value={asset.code}
+                    className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                  >
+                    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                      <SelectPrimitive.ItemIndicator>
+                        <Check className="h-4 w-4" />
+                      </SelectPrimitive.ItemIndicator>
+                    </span>
+                    <SelectPrimitive.ItemText>
+                      <span className="font-medium">{asset.code}</span>
+                    </SelectPrimitive.ItemText>
                   </SelectPrimitive.Item>
                 ))}
               </SelectContent>
             </Select>
           </div>
-
-          {paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset && (
-            <div className="space-y-2">
-              <Label>Slippage Tolerance</Label>
-              <div className="space-y-2">
-                <Slider
-                  value={[paymentData.slippageTolerance || 0.5]}
-                  onValueChange={(value) => onPaymentDataChange({ 
-                    ...paymentData, 
-                    slippageTolerance: value[0] 
-                  })}
-                  min={0.1}
-                  max={5.0}
-                  step={0.1}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs">
-                  <span>0.1%</span>
-                  <Badge variant="outline">{(paymentData.slippageTolerance || 0.5).toFixed(1)}%</Badge>
-                  <span>5.0%</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Slider for amount selection */}
-        {getSelectedAssetInfo() && (
-          <div className="space-y-3">
-            <div className="relative">
-              <input
-                type="range"
-                min="0"
-                max={getMaxSliderValue(paymentData.asset)}
-                step="1"
-                value={paymentData.amount || '0'}
-                onChange={(e) => handleSliderChange(e.target.value)}
-                className={`stellar-slider w-full ${
-                  willCloseAccount ? 'slider-merge-warning' : 
-                  (parseFloat(paymentData.amount) || 0) > getAvailableBalance(paymentData.asset) ? 'slider-warning' : ''
-                }`}
-                style={{
-                  '--slider-progress': `${((parseFloat(paymentData.amount) || 0) / getMaxSliderValue(paymentData.asset)) * 100}%`,
-                  '--available-progress': `${(getAvailableBalance(paymentData.asset) / getMaxSliderValue(paymentData.asset)) * 100}%`
-                } as React.CSSProperties}
-              />
-            </div>
-            
-            {/* Account closure warning */}
-            {willCloseAccount && (
-              <Alert className="border-destructive/50 bg-destructive/10">
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-                <AlertDescription className="text-destructive">
-                  <strong>Warning:</strong> This amount will close your account permanently! All remaining XLM will be sent to the destination.
-                </AlertDescription>
-              </Alert>
-            )}
-            
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Available: {getAvailableBalance(paymentData.asset).toLocaleString('en-US', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 7,
-                useGrouping: true
-              })} {paymentData.asset}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleMaxAmount}
-                className="h-auto p-1 text-xs text-primary hover:text-primary/80"
-              >
-                Max
-              </Button>
-            </div>
-            
-            {additionalPayments.length > 0 && (
-              <div className="space-y-2">
-                {getTotalAmount() > getAvailableBalance(paymentData.asset) && (
-                  <Alert className="border-destructive/50 bg-destructive/10">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <AlertDescription className="text-destructive text-xs">
-                      Total amount exceeds available balance. Amounts will be automatically adjusted.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={distributeFundsEvenly}
-                  className="w-full text-xs"
-                >
-                  Distribute Evenly Across All Payments
-                </Button>
-              </div>
-            )}
-          </div>
+        {willCloseAccount && (
+          <Alert variant="destructive" className="animate-fade-in">
+            <Merge className="h-4 w-4" />
+            <AlertDescription>
+              This will close your account and send all remaining XLM to the destination address.
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Additional Payments */}
         {additionalPayments.map((payment, index) => (
-          <div key={payment.id} className="space-y-4 p-4 border rounded-lg bg-muted/30">
+          <div key={payment.id} className="space-y-3 p-3 border rounded-lg bg-muted/30">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Payment #{index + 2}</span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => removePayment(payment.id)}
-                className="text-destructive hover:text-destructive/80"
+                className="text-destructive hover:text-destructive/80 h-8 w-8 p-0"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
             
             {/* Destination */}
-            <div className="space-y-2">
-              <Label>Destination Address</Label>
-              <Input
-                placeholder="GABC..."
-                maxLength={56}
-                value={payment.destination}
-                onChange={(e) => updatePayment(payment.id, { destination: e.target.value })}
-                className="text-xs sm:text-sm font-address"
-              />
-            </div>
+            <Input
+              placeholder="Destination address..."
+              maxLength={56}
+              value={payment.destination}
+              onChange={(e) => updatePayment(payment.id, { destination: e.target.value })}
+              className="text-xs font-address"
+            />
             
-            {/* Amount */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Amount</Label>
-                <span className="text-xs text-muted-foreground">
-                  {payment.asset} {parseFloat(payment.amount || '0').toLocaleString('en-US', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 7
-                  })}
-                </span>
+            {/* Compact Payment Row for Additional Payment */}
+            <div className="grid grid-cols-[120px_1fr_120px] gap-3 items-center">
+              {/* From Asset (locked to main payment asset) */}
+              <div className="h-10 flex items-center justify-center bg-muted rounded-md">
+                <span className="font-medium text-xs">{payment.asset}</span>
               </div>
-              <Input
-                placeholder="0.0"
-                value={payment.amount}
-                onChange={(e) => handleAmountChange(e.target.value, payment.id)}
-                className="font-amount"
-              />
-              
-              {/* Individual slider for additional payment */}
-              <div className="relative">
-                <input
-                  type="range"
-                  min="0"
-                  max={getAvailableBalance(paymentData.asset)}
-                  step="1"
-                  value={payment.amount || '0'}
-                  onChange={(e) => handleSliderChange(e.target.value, payment.id)}
-                  className="stellar-slider w-full"
-                  style={{
-                    '--slider-progress': `${((parseFloat(payment.amount) || 0) / getAvailableBalance(paymentData.asset)) * 100}%`
-                  } as React.CSSProperties}
-                />
-              </div>
-            </div>
 
-            {/* Cross-Asset Payment for Additional Payment */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Recipient Receives</Label>
-                <Select
-                  value={payment.receiveAsset || ''}
-                  onValueChange={(value) => {
-                    const selectedAsset = availableAssets.find(asset => asset.code === value);
-                    updatePayment(payment.id, {
-                      receiveAsset: value === payment.asset ? '' : value,
-                      receiveAssetIssuer: selectedAsset?.issuer || ''
-                    });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Same as send asset">
-                      {payment.receiveAsset && (
-                        <span className="font-medium text-xs sm:text-sm">{payment.receiveAsset}</span>
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectPrimitive.Item value={payment.asset}>
-                      Same as send asset
+              {/* Amount Slider */}
+              <CustomSlider
+                value={parseFloat(payment.amount) || 0}
+                max={getAvailableBalance(payment.asset)}
+                assetCode={payment.asset}
+                paymentId={payment.id}
+                onValueChange={(value) => handleSliderChange(value, payment.id)}
+                className="min-w-0"
+              />
+
+              {/* To Asset */}
+              <Select
+                value={payment.receiveAsset || ''}
+                onValueChange={(value) => {
+                  const selectedAsset = availableAssets.find(asset => asset.code === value);
+                  updatePayment(payment.id, {
+                    receiveAsset: value || undefined,
+                    receiveAssetIssuer: selectedAsset?.issuer || undefined
+                  });
+                }}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Same">
+                    <span className="font-medium text-xs">
+                      {payment.receiveAsset || payment.asset}
+                    </span>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent className="min-w-[200px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
+                  <SelectPrimitive.Item
+                    value=""
+                    className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                  >
+                    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                      <SelectPrimitive.ItemIndicator>
+                        <Check className="h-4 w-4" />
+                      </SelectPrimitive.ItemIndicator>
+                    </span>
+                    <SelectPrimitive.ItemText>
+                      <span className="text-muted-foreground">Same ({payment.asset})</span>
+                    </SelectPrimitive.ItemText>
+                  </SelectPrimitive.Item>
+                  {availableAssets.filter(asset => asset.code !== payment.asset).map((asset) => (
+                    <SelectPrimitive.Item
+                      key={`${asset.code}-${asset.issuer}`}
+                      value={asset.code}
+                      className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
+                    >
+                      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                        <SelectPrimitive.ItemIndicator>
+                          <Check className="h-4 w-4" />
+                        </SelectPrimitive.ItemIndicator>
+                      </span>
+                      <SelectPrimitive.ItemText>
+                        <span className="font-medium">{asset.code}</span>
+                      </SelectPrimitive.ItemText>
                     </SelectPrimitive.Item>
-                    {availableAssets.filter(asset => asset.code !== payment.asset).map((asset) => (
-                      <SelectPrimitive.Item key={asset.code} value={asset.code}>
-                        {asset.code}
-                      </SelectPrimitive.Item>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
-                <div className="space-y-2">
-                  <Label>Slippage Tolerance</Label>
-                  <div className="space-y-2">
-                    <Slider
-                      value={[payment.slippageTolerance || 0.5]}
-                      onValueChange={(value) => updatePayment(payment.id, { slippageTolerance: value[0] })}
-                      min={0.1}
-                      max={5.0}
-                      step={0.1}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs">
-                      <span>0.1%</span>
-                      <Badge variant="outline">{(payment.slippageTolerance || 0.5).toFixed(1)}%</Badge>
-                      <span>5.0%</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Memo for additional payment */}
-            <div className="space-y-2">
-              <Label>Memo (Optional)</Label>
-              <Input
-                placeholder="Payment description"
-                className="font-mono text-xs"
-                value={payment.memo}
-                onChange={(e) => updatePayment(payment.id, { memo: e.target.value })}
-              />
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         ))}
@@ -742,11 +691,11 @@ export const PaymentForm = ({
 
         {/* Memo */}
         <div className="space-y-2">
-          <Label htmlFor="memo">Memo (Optional)</Label>
+          <Label htmlFor="memo" className="text-sm">Memo (Optional)</Label>
           <Input
             id="memo"
             placeholder="Payment description"
-            className="font-mono"
+            className="font-mono text-xs"
             value={paymentData.memo}
             onChange={(e) => onPaymentDataChange({ ...paymentData, memo: e.target.value })}
           />
@@ -759,25 +708,25 @@ export const PaymentForm = ({
         
         {/* Account Status Info */}
         {trustlineError && (
-          <div className={`p-4 rounded-lg border ${
+          <div className={`p-3 rounded-lg border ${
             trustlineError.includes('will create a new') 
               ? 'bg-muted/50 border-border' 
               : 'bg-destructive/10 border-destructive/30'
           }`}>
             <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
                 trustlineError.includes('will create a new')
                   ? 'bg-muted'
                   : 'bg-destructive/10'
               }`}>
                 {trustlineError.includes('will create a new') ? (
-                  <Info className="w-4 h-4 text-muted-foreground" />
+                  <Info className="w-3 h-3 text-muted-foreground" />
                 ) : (
-                  <AlertTriangle className="w-4 h-4 text-destructive" />
+                  <AlertTriangle className="w-3 h-3 text-destructive" />
                 )}
               </div>
               <div className="flex-1">
-                <p className={`text-sm font-medium ${
+                <p className={`text-xs font-medium ${
                   trustlineError.includes('will create a new')
                     ? 'text-foreground'
                     : 'text-foreground'
