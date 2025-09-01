@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info, KeyRound, Plus, Globe } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info, KeyRound, Plus, Globe, ChevronDown } from 'lucide-react';
 
 import { getSupportedWallets, connectWallet, getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
@@ -30,6 +31,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
   const [sorobanDomain, setSorobanDomain] = useState('');
   const [showSorobanInput, setShowSorobanInput] = useState(false);
   const [resolvingDomain, setResolvingDomain] = useState(false);
+  const [showMoreWallets, setShowMoreWallets] = useState(false);
   const { network: selectedNetwork, setNetwork: setSelectedNetwork } = useNetwork();
 
   const loadWallets = async () => {
@@ -437,68 +439,164 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
 
           {(() => {
             const isMobile = window.innerWidth < 768;
-            const primaryWallets = ['freighter', 'xbull', 'ledger'];
-            // Only show Lobstr on mobile
+            
+            // Define wallet order based on user requirements
+            const mobileOrder = ['xbull', 'hot', 'albedo', 'walletconnect'];
+            const desktopPrimaryOrder = ['freighter', 'xbull', 'ledger'];
+            const desktopSecondaryOrder = ['trezor', 'hot', 'albedo', 'walletconnect'];
+            
+            // Function to sort wallets by specified order
+            const sortWalletsByOrder = (wallets: typeof supportedWallets, order: string[]) => {
+              return wallets
+                .filter(w => order.some(p => w.id.toLowerCase().includes(p)))
+                .sort((a, b) => {
+                  const aIndex = order.findIndex(p => a.id.toLowerCase().includes(p));
+                  const bIndex = order.findIndex(p => b.id.toLowerCase().includes(p));
+                  return aIndex - bIndex;
+                });
+            };
+            
             if (isMobile) {
-              primaryWallets.push('lobstr');
-            }
-            const primary = supportedWallets.filter(w => 
-              primaryWallets.some(p => w.id.toLowerCase().includes(p))
-            );
-            const secondary = supportedWallets.filter(w => 
-              !primaryWallets.some(p => w.id.toLowerCase().includes(p))
-            );
-
-            return (
-              <>
-                {primary.map((wallet) => {
-                  const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
-                  
-                  return (
-                    <TooltipProvider key={wallet.id}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-                            onClick={() => handleConnect(wallet.id, wallet.name)}
-                            disabled={connecting !== null}
-                          >
-                            <div className="flex items-center gap-3">
-                              {getWalletIcon(wallet)}
-                              <div className="text-left">
-                                <div className="font-medium flex items-center gap-2">
-                                  {wallet.name}
-                                  {isHardware && (
-                                    <Info className="w-3 h-3 text-muted-foreground" />
-                                  )}
+              const orderedWallets = sortWalletsByOrder(supportedWallets, mobileOrder);
+              
+              return (
+                <>
+                  {orderedWallets.map((wallet) => {
+                    const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+                    
+                    return (
+                      <TooltipProvider key={wallet.id}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                              onClick={() => handleConnect(wallet.id, wallet.name)}
+                              disabled={connecting !== null}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 flex items-center justify-center">
+                                  {getWalletIcon(wallet)}
+                                  <Usb className="w-8 h-8 text-primary hidden" />
                                 </div>
-                                 <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                   {getWalletDescription(wallet)}
-                                   {isHardware && (
-                                     <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                                       Hardware
-                                     </span>
-                                   )}
-                                 </div>
+                                <div className="text-left">
+                                  <div className="font-medium">{wallet.name}</div>
+                                  <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                </div>
                               </div>
-                            </div>
-                            {connecting === wallet.id ? (
-                              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <ArrowRight className="w-4 h-4" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom" collisionPadding={8} className="max-w-xs">
-                          <p>{getWalletTooltip(wallet)}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  );
-                })}
-              </>
-            );
+                              <div className="flex items-center gap-2">
+                                {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin" />}
+                                <ArrowRight className="w-4 h-4" />
+                              </div>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{getWalletTooltip(wallet)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })}
+                </>
+              );
+            } else {
+              // Desktop: First 5 visible, rest in collapsible
+              const primaryWallets = sortWalletsByOrder(supportedWallets, desktopPrimaryOrder);
+              const secondaryWallets = sortWalletsByOrder(supportedWallets, desktopSecondaryOrder);
+              
+              return (
+                <>
+                  {primaryWallets.map((wallet) => {
+                    const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+                    
+                    return (
+                      <TooltipProvider key={wallet.id}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                              onClick={() => handleConnect(wallet.id, wallet.name)}
+                              disabled={connecting !== null}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 flex items-center justify-center">
+                                  {getWalletIcon(wallet)}
+                                  <Usb className="w-8 h-8 text-primary hidden" />
+                                </div>
+                                <div className="text-left">
+                                  <div className="font-medium">{wallet.name}</div>
+                                  <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin" />}
+                                <ArrowRight className="w-4 h-4" />
+                              </div>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{getWalletTooltip(wallet)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  })}
+                  
+                  {secondaryWallets.length > 0 && (
+                    <Collapsible open={showMoreWallets} onOpenChange={setShowMoreWallets}>
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-between h-12 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth text-sm"
+                        >
+                          <span>See more wallets ({secondaryWallets.length})</span>
+                          <ChevronDown className={`w-4 h-4 transition-transform ${showMoreWallets ? 'rotate-180' : ''}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 mt-3">
+                        {secondaryWallets.map((wallet) => {
+                          const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+                          
+                          return (
+                            <TooltipProvider key={wallet.id}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                                    onClick={() => handleConnect(wallet.id, wallet.name)}
+                                    disabled={connecting !== null}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 flex items-center justify-center">
+                                        {getWalletIcon(wallet)}
+                                        <Usb className="w-8 h-8 text-primary hidden" />
+                                      </div>
+                                      <div className="text-left">
+                                        <div className="font-medium">{wallet.name}</div>
+                                        <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin" />}
+                                      <ArrowRight className="w-4 h-4" />
+                                    </div>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{getWalletTooltip(wallet)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+                </>
+              );
+            }
           })()}
         </div>
       )}
