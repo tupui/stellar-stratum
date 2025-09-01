@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info, KeyRound, Plus, Globe } from 'lucide-react';
 
-import { getSupportedWallets, connectWallet } from '@/lib/stellar';
+import { getSupportedWallets, connectWallet, getNetworkPassphrase } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';

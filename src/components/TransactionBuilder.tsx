@@ -19,7 +19,7 @@ import {
   Memo,
   Horizon
 } from '@stellar/stellar-sdk';
-import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer } from '@/lib/stellar';
+import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
 import { signWithWallet } from '@/lib/walletKit';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
@@ -57,6 +57,7 @@ interface TransactionBuilderProps {
     };
   };
   initialTab?: string;
+  initialNetwork?: 'mainnet' | 'testnet';
   onAccountRefresh?: () => Promise<void>;
 }
 
@@ -127,7 +128,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     
     try {
       const server = createHorizonServer(currentNetwork);
-      
+      console.log('checkTrustline using Horizon:', (server as any).serverURL, 'network:', currentNetwork);
       const account = await server.loadAccount(destination);
       const hasTrustline = account.balances.some(balance => 
         'asset_code' in balance && 
@@ -184,7 +185,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     
     try {
       // Determine network and Horizon server
-      const networkPassphrase = currentNetwork === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+      const networkPassphrase = getNetworkPassphrase(currentNetwork);
       const server = createHorizonServer(currentNetwork);
 
       // Load source account
@@ -252,7 +253,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     try {
       // Validate XDR format by parsing it
       try {
-        const networkPassphrase = currentNetwork === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+        const networkPassphrase = getNetworkPassphrase(currentNetwork);
         new Transaction(xdrData.input, networkPassphrase);
       } catch (parseError) {
         throw new Error('Invalid XDR format');

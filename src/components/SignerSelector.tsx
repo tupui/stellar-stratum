@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Users, CheckCircle, Circle, Plus } from 'lucide-react';
-import { Transaction, Networks } from '@stellar/stellar-sdk';
-import { getSupportedWallets } from '@/lib/stellar';
+import { Transaction } from '@stellar/stellar-sdk';
+import { getSupportedWallets, getNetworkPassphrase } from '@/lib/stellar';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 
 interface Signer {
@@ -60,7 +60,7 @@ export const SignerSelector = ({
   // Extract existing signatures from XDR
   useEffect(() => {
     try {
-      const networkPassphrase = network === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+      const networkPassphrase = getNetworkPassphrase(network);
       const transaction = new Transaction(xdr, networkPassphrase);
       
       // Get public keys of existing signatures by checking which signers match the signature hints

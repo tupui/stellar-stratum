@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Hash, FileText, Copy, Check } from 'lucide-react';
-import { Transaction, Networks } from '@stellar/stellar-sdk';
+import { Transaction } from '@stellar/stellar-sdk';
 import { useToast } from '@/hooks/use-toast';
+import { getNetworkPassphrase } from '@/lib/stellar';
 
 interface XdrDetailsProps {
   xdr: string;
@@ -19,7 +20,7 @@ export const XdrDetails = ({ xdr, network = 'mainnet' }: XdrDetailsProps) => {
 
   const getTransactionDetails = () => {
     try {
-      const networkPassphrase = network === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+      const networkPassphrase = getNetworkPassphrase(network);
       const transaction = new Transaction(xdr, networkPassphrase);
       
       return {
