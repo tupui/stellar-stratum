@@ -506,10 +506,10 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                 </>
               );
             } else {
-              // Desktop: First 3 visible, rest in collapsible
+              // Desktop: First 5 visible, rest in collapsible
               const orderedWallets = orderAndFilter(supportedWallets, desktopOrder);
-              const primaryWallets = orderedWallets.slice(0, 3);
-              const secondaryWallets = orderedWallets.slice(3);
+              const primaryWallets = orderedWallets.slice(0, 5);
+              const secondaryWallets = orderedWallets.slice(5);
               
               return (
                 <>
