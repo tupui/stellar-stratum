@@ -478,7 +478,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                               variant="outline"
                               className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
                               onClick={() => handleConnect(wallet.id, wallet.name)}
-                              disabled={connecting !== null}
+                              disabled={connecting !== null || !wallet.isAvailable}
                             >
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 flex items-center justify-center">
@@ -524,7 +524,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                               variant="outline"
                               className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
                               onClick={() => handleConnect(wallet.id, wallet.name)}
-                              disabled={connecting !== null}
+                              disabled={connecting !== null || !wallet.isAvailable}
                             >
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 flex items-center justify-center">
@@ -554,11 +554,11 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                     <Collapsible open={showMoreWallets} onOpenChange={setShowMoreWallets}>
                       <CollapsibleTrigger asChild>
                         <Button
-                          variant="outline"
-                          className="w-full justify-between h-12 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth text-sm"
+                          variant="link"
+                          className="justify-start px-0 text-sm"
                         >
                           <span>See more wallets ({secondaryWallets.length})</span>
-                          <ChevronDown className={`w-4 h-4 transition-transform ${showMoreWallets ? 'rotate-180' : ''}`} />
+                          <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${showMoreWallets ? 'rotate-180' : ''}`} />
                         </Button>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="space-y-3 mt-3">
@@ -573,7 +573,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                                     variant="outline"
                                     className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
                                     onClick={() => handleConnect(wallet.id, wallet.name)}
-                                    disabled={connecting !== null}
+                                    disabled={connecting !== null || !wallet.isAvailable}
                                   >
                                     <div className="flex items-center gap-3">
                                       <div className="w-8 h-8 flex items-center justify-center">

@@ -1,9 +1,13 @@
 import { 
   StellarWalletsKit, 
   ISupportedWallet,
-  allowAllModules
+  allowAllModules,
+  WalletNetwork
 } from '@creit.tech/stellar-wallets-kit';
 import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
+import { WalletConnectModule, WalletConnectAllowedMethods } from '@creit.tech/stellar-wallets-kit/modules/walletconnect.module';
+import { TrezorModule } from '@creit.tech/stellar-wallets-kit/modules/trezor.module';
+import { walletConnectConfig, trezorConfig } from './walletConfig';
 
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
@@ -20,8 +24,38 @@ export const getHorizonUrl = (network: 'mainnet' | 'testnet') => getNetworkConfi
 // Create Stellar Wallets Kit instance for specific network
 export const createStellarKit = (network: 'mainnet' | 'testnet' = 'mainnet') => {
   const config = getNetworkConfig(network);
+  const modules: any[] = [...allowAllModules(), new LedgerModule()];
+
+  // WalletConnect (optional)
+  try {
+    if (walletConnectConfig.projectId) {
+      modules.push(
+        new WalletConnectModule({
+          url: walletConnectConfig.url ?? (typeof window !== 'undefined' ? window.location.origin : ''),
+          projectId: walletConnectConfig.projectId,
+          method: WalletConnectAllowedMethods.SIGN,
+          description: walletConnectConfig.description ?? 'Connect with WalletConnect',
+          name: walletConnectConfig.name ?? 'Stellar DApp',
+          icons: walletConnectConfig.iconUrl ? [walletConnectConfig.iconUrl] : [],
+          network: network === 'testnet' ? WalletNetwork.TESTNET : WalletNetwork.PUBLIC,
+        })
+      );
+    }
+  } catch (e) {
+    console.warn('WalletConnect module not initialized:', e);
+  }
+
+  // Trezor (optional)
+  try {
+    if (trezorConfig.url && trezorConfig.email) {
+      modules.push(new TrezorModule({ appUrl: trezorConfig.url, email: trezorConfig.email, appName: 'Stellar Multisig' }));
+    }
+  } catch (e) {
+    console.warn('Trezor module not initialized:', e);
+  }
+
   return new StellarWalletsKit({
-    modules: [...allowAllModules(), new LedgerModule()],
+    modules,
     // @ts-ignore - library accepts both enum and passphrase string
     network: config.passphrase,
   });
@@ -150,24 +184,49 @@ export const getSupportedWallets = async (network: 'mainnet' | 'testnet' = 'main
     // Create kit for the specified network
     const kit = createStellarKit(network);
     const wallets = await kit.getSupportedWallets();
-    
-    // Filter and prioritize wallets - only return actually supported wallets
+
+    // Create fallback entries for wallets that should always be visible
+    const fallbackWallets: ISupportedWallet[] = [
+      {
+        id: 'walletconnect',
+        name: 'WalletConnect',
+        icon: 'https://walletconnect.com/assets/img/wc-logo.svg',
+        url: 'https://walletconnect.com/',
+        isAvailable: false,
+        type: 'extension',
+        isPlatformWrapper: false,
+      },
+      {
+        id: 'trezor',
+        name: 'Trezor',
+        icon: 'https://trezor.io/images/icons/trezor-icon.svg',
+        url: 'https://trezor.io/',
+        isAvailable: false,
+        type: 'hardware',
+        isPlatformWrapper: false,
+      },
+    ];
+
+    // Merge detected wallets with fallbacks, giving priority to detected ones
+    const mergedWallets = [...wallets];
+    fallbackWallets.forEach((fallback) => {
+      const exists = wallets.find(
+        (w) => w.id.toLowerCase() === fallback.id.toLowerCase() || w.name.toLowerCase().includes(fallback.name.toLowerCase())
+      );
+      if (!exists) mergedWallets.push(fallback);
+    });
+
+    // Filter and prioritize wallets
     const priorityOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'hot', 'albedo', 'walletconnect', 'rabet'];
-    
-    return wallets
-      .filter(wallet => wallet.name) // Only include wallets with names
+
+    return mergedWallets
+      .filter((wallet) => wallet.name)
       .sort((a, b) => {
         const aIndex = priorityOrder.indexOf(a.id.toLowerCase());
         const bIndex = priorityOrder.indexOf(b.id.toLowerCase());
-        
-        // If both are in priority list, sort by index
         if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-        
-        // If only one is in priority list, prioritize it
         if (aIndex !== -1) return -1;
         if (bIndex !== -1) return 1;
-        
-        // Otherwise sort alphabetically
         return a.name.localeCompare(b.name);
       });
   } catch (error) {
