@@ -418,7 +418,7 @@ export const MultisigConfigBuilder = ({
                   >
                     <div className="space-y-2">
                       <div className="min-w-0">
-                        <p className="font-mono text-sm break-all">{signer.key}</p>
+                        <p className="font-address text-sm break-all">{signer.key}</p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2">

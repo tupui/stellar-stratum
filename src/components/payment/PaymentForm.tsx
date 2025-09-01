@@ -149,6 +149,7 @@ export const PaymentForm = ({
                 type="text"
                 placeholder="0.0"
                 inputMode="decimal"
+                className="font-amount flex-1 text-xs sm:text-sm"
                 value={amountInput}
                 onFocus={() => setIsEditingAmount(true)}
                 onBlur={() => {
@@ -185,7 +186,6 @@ export const PaymentForm = ({
                     onPaymentDataChange({ ...paymentData, amount: '' });
                   }
                 }}
-                className="flex-1 text-xs sm:text-sm"
               />
               <Select
                 value={paymentData.asset}
@@ -232,7 +232,7 @@ export const PaymentForm = ({
                         <SelectPrimitive.ItemText>
                           <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                             <span className="font-medium">{asset.code}</span>
-                            <span className="font-address tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
+                            <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
                           </div>
                         </SelectPrimitive.ItemText>
                       </SelectPrimitive.Item>

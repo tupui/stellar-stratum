@@ -20,8 +20,9 @@ export default {
     extend: {
       fontFamily: {
         'sans': ['Inter', 'ui-sans-serif', 'system-ui'],
-        'mono': ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular'],
-        'address': ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular'],
+        'mono': ['Source Code Pro', 'ui-monospace', 'SFMono-Regular'],
+        'address': ['Source Code Pro', 'ui-monospace', 'SFMono-Regular'],
+        'amount': ['Source Code Pro', 'ui-monospace', 'SFMono-Regular'],
       },
       colors: {
 				border: 'hsl(var(--border))',

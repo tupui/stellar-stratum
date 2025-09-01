@@ -328,7 +328,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
                   </div>
 
                   <div className="text-right">
-                    <p className="font-mono font-semibold text-foreground">
+                    <p className="font-amount font-semibold text-foreground">
                       {formatBalance(asset.balance)}
                     </p>
                     <p className="text-sm text-muted-foreground/70">{asset.symbol}</p>

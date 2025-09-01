@@ -158,7 +158,7 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {accountData.balances.slice(0, 4).map((bal, idx) => (
                         <div key={idx} className="flex justify-between items-center text-xs">
-                          <span className="font-mono text-muted-foreground tabular-nums">
+                          <span className="font-amount text-muted-foreground tabular-nums">
                             {formatBalance(bal.balance)} {getAssetDisplay(bal)}
                           </span>
                         </div>
