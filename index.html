@@ -507,6 +507,11 @@
           return { x: r.left + r.width / 2 - cr.left, y: r.top + r.height / 2 - cr.top };
         };
 
+        // Keep updating connection geometry throughout the whole sequence
+        let keepUpdating = true;
+        // Allow extra time for center neon scale so lines stay attached
+        setTimeout(() => { keepUpdating = false; }, 2200);
+
         const updateConnections = () => {
           const c = getCenter(center);
           nodes.forEach((node, i) => {
@@ -522,7 +527,7 @@
             conn.style.transform = `rotate(${angle}deg)`;
             conn.style.width = `${dist}px`;
           });
-          if (!animationComplete) requestAnimationFrame(updateConnections);
+          if (keepUpdating) requestAnimationFrame(updateConnections);
         };
         requestAnimationFrame(updateConnections);
 
