@@ -150,11 +150,11 @@
         margin-bottom: 3rem;
       }
 
-      /* Node Network Animation */
+      /* Node Network Animation - Responsive */
       .node-network {
         position: relative;
-        width: 400px;
-        height: 300px;
+        width: min(400px, 85vw);
+        height: min(300px, 60vh);
         margin: 0 auto;
       }
 
@@ -188,7 +188,7 @@
         animation: none !important;
       }
 
-      /* Node positions with large random oscillation - only when not connected */
+      /* Node positions with responsive oscillation */
       .node:nth-child(1):not(.connected) { left: 15%; top: 15%; animation: bigOscillate1 3.2s ease-in-out infinite; }
       .node:nth-child(2):not(.connected) { left: 85%; top: 18%; animation: bigOscillate2 2.8s ease-in-out infinite; }
       .node:nth-child(3):not(.connected) { left: 8%; top: 52%; animation: bigOscillate3 3.6s ease-in-out infinite; }
@@ -346,72 +346,72 @@
         }
       }
 
-      /* Large oscillation patterns - much more movement */
+      /* Large oscillation patterns - responsive movement */
       @keyframes bigOscillate1 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        20% { transform: translate(15px, -12px) rotate(8deg); }
-        40% { transform: translate(-8px, 18px) rotate(-6deg); }
-        60% { transform: translate(12px, -6px) rotate(10deg); }
-        80% { transform: translate(-10px, 14px) rotate(-4deg); }
+        20% { transform: translate(min(15px, 3vw), min(-12px, -2.5vw)) rotate(8deg); }
+        40% { transform: translate(min(-8px, -1.5vw), min(18px, 3.5vw)) rotate(-6deg); }
+        60% { transform: translate(min(12px, 2.5vw), min(-6px, -1vw)) rotate(10deg); }
+        80% { transform: translate(min(-10px, -2vw), min(14px, 3vw)) rotate(-4deg); }
       }
 
       @keyframes bigOscillate2 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        25% { transform: translate(-14px, 10px) rotate(-8deg); }
-        50% { transform: translate(6px, -16px) rotate(12deg); }
-        75% { transform: translate(-4px, 8px) rotate(-10deg); }
+        25% { transform: translate(min(-14px, -3vw), min(10px, 2vw)) rotate(-8deg); }
+        50% { transform: translate(min(6px, 1vw), min(-16px, -3vw)) rotate(12deg); }
+        75% { transform: translate(min(-4px, -1vw), min(8px, 1.5vw)) rotate(-10deg); }
       }
 
       @keyframes bigOscillate3 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        15% { transform: translate(10px, 8px) rotate(6deg); }
-        35% { transform: translate(-12px, -14px) rotate(-12deg); }
-        55% { transform: translate(-6px, 4px) rotate(4deg); }
-        75% { transform: translate(14px, 12px) rotate(8deg); }
+        15% { transform: translate(min(10px, 2vw), min(8px, 1.5vw)) rotate(6deg); }
+        35% { transform: translate(min(-12px, -2.5vw), min(-14px, -3vw)) rotate(-12deg); }
+        55% { transform: translate(min(-6px, -1vw), min(4px, 1vw)) rotate(4deg); }
+        75% { transform: translate(min(14px, 3vw), min(12px, 2.5vw)) rotate(8deg); }
       }
 
       @keyframes bigOscillate4 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        30% { transform: translate(-10px, -8px) rotate(-6deg); }
-        60% { transform: translate(16px, 4px) rotate(10deg); }
-        80% { transform: translate(-4px, 12px) rotate(-8deg); }
+        30% { transform: translate(min(-10px, -2vw), min(-8px, -1.5vw)) rotate(-6deg); }
+        60% { transform: translate(min(16px, 3vw), min(4px, 1vw)) rotate(10deg); }
+        80% { transform: translate(min(-4px, -1vw), min(12px, 2.5vw)) rotate(-8deg); }
       }
 
       @keyframes bigOscillate5 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        20% { transform: translate(8px, -10px) rotate(4deg); }
-        45% { transform: translate(-14px, 6px) rotate(-10deg); }
-        70% { transform: translate(4px, 14px) rotate(6deg); }
+        20% { transform: translate(min(8px, 1.5vw), min(-10px, -2vw)) rotate(4deg); }
+        45% { transform: translate(min(-14px, -3vw), min(6px, 1vw)) rotate(-10deg); }
+        70% { transform: translate(min(4px, 1vw), min(14px, 3vw)) rotate(6deg); }
       }
 
       @keyframes bigOscillate6 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        35% { transform: translate(-6px, 12px) rotate(-4deg); }
-        65% { transform: translate(12px, -8px) rotate(8deg); }
-        85% { transform: translate(-16px, -4px) rotate(-12deg); }
+        35% { transform: translate(min(-6px, -1vw), min(12px, 2.5vw)) rotate(-4deg); }
+        65% { transform: translate(min(12px, 2.5vw), min(-8px, -1.5vw)) rotate(8deg); }
+        85% { transform: translate(min(-16px, -3vw), min(-4px, -1vw)) rotate(-12deg); }
       }
 
       @keyframes bigOscillate7 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        25% { transform: translate(4px, 16px) rotate(2deg); }
-        50% { transform: translate(-10px, -6px) rotate(-8deg); }
-        75% { transform: translate(14px, 2px) rotate(10deg); }
+        25% { transform: translate(min(4px, 1vw), min(16px, 3vw)) rotate(2deg); }
+        50% { transform: translate(min(-10px, -2vw), min(-6px, -1vw)) rotate(-8deg); }
+        75% { transform: translate(min(14px, 3vw), min(2px, 0.5vw)) rotate(10deg); }
       }
 
       @keyframes bigOscillate8 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        18% { transform: translate(18px, 4px) rotate(12deg); }
-        42% { transform: translate(-8px, -12px) rotate(-6deg); }
-        68% { transform: translate(2px, 16px) rotate(4deg); }
-        88% { transform: translate(-14px, -2px) rotate(-10deg); }
+        18% { transform: translate(min(18px, 3.5vw), min(4px, 1vw)) rotate(12deg); }
+        42% { transform: translate(min(-8px, -1.5vw), min(-12px, -2.5vw)) rotate(-6deg); }
+        68% { transform: translate(min(2px, 0.5vw), min(16px, 3vw)) rotate(4deg); }
+        88% { transform: translate(min(-14px, -3vw), min(-2px, -0.5vw)) rotate(-10deg); }
       }
 
       @keyframes bigOscillate9 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        22% { transform: translate(-4px, -14px) rotate(-8deg); }
-        44% { transform: translate(12px, 8px) rotate(6deg); }
-        66% { transform: translate(-16px, 2px) rotate(-12deg); }
-        88% { transform: translate(6px, -10px) rotate(8deg); }
+        22% { transform: translate(min(-4px, -1vw), min(-14px, -3vw)) rotate(-8deg); }
+        44% { transform: translate(min(12px, 2.5vw), min(8px, 1.5vw)) rotate(6deg); }
+        66% { transform: translate(min(-16px, -3vw), min(2px, 0.5vw)) rotate(-12deg); }
+        88% { transform: translate(min(6px, 1vw), min(-10px, -2vw)) rotate(8deg); }
       }
       
       /* Hide loader once React loads */
@@ -430,6 +430,60 @@
         }
         .hero-content {
           max-width: 100%;
+        }
+        
+        /* Mobile-optimized animation */
+        .node-network {
+          width: min(320px, 90vw);
+          height: min(240px, 50vh);
+        }
+        
+        .node {
+          width: 10px;
+          height: 10px;
+          border-width: 1.5px;
+        }
+        
+        .node.center {
+          width: 16px;
+          height: 16px;
+        }
+        
+        .node-network.neon-yellow .node.center {
+          width: 18px;
+          height: 18px;
+        }
+        
+        .connection {
+          height: 1.5px;
+        }
+        
+        /* Reduce neon glow intensity on mobile for better performance */
+        .node-network.neon-yellow .node {
+          box-shadow: 0 0 8px hsl(var(--primary) / 0.8), 0 0 16px hsl(var(--primary) / 0.4);
+        }
+        
+        .node-network.neon-yellow .node.center {
+          box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 24px hsl(var(--primary) / 0.5);
+        }
+        
+        .node-network.neon-yellow .connection.active {
+          box-shadow: 0 0 6px hsl(var(--primary) / 0.7), 0 0 12px hsl(var(--primary) / 0.35);
+        }
+      }
+
+      @media (max-width: 480px) {
+        .loader-title {
+          font-size: 2rem;
+        }
+        
+        .loader-subtitle {
+          font-size: 1rem;
+        }
+        
+        .node-network {
+          width: min(280px, 95vw);
+          height: min(200px, 45vh);
         }
       }
     </style>
