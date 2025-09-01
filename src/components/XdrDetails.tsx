@@ -161,7 +161,7 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                         {op.type === 'payment' && (
                           <div className="text-sm space-y-1">
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            <p className="break-words"><span className="text-muted-foreground">To:</span> <span className="font-mono text-xs">{(op.details as any).destination}</span></p>
+                            <p className="break-words"><span className="text-muted-foreground">To:</span> <span className="font-mono text-xs break-all">{(op.details as any).destination}</span></p>
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             <p><span className="text-muted-foreground">Amount:</span> {(op.details as any).amount} {(op.details as any).asset?.code || 'XLM'}</p>
                           </div>
@@ -169,10 +169,10 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                         {op.type === 'setOptions' && (
                           <div className="text-sm space-y-1">
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            <p className="break-words"><span className="text-muted-foreground">Account:</span> <span className="font-mono text-xs">{(op.details as any).source || details.source}</span></p>
+                            <p className="break-words"><span className="text-muted-foreground">Account:</span> <span className="font-mono text-xs break-all">{(op.details as any).source || details.source}</span></p>
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             {(op.details as any).signer && (
-                              <p className="break-words"><span className="text-muted-foreground">Signer:</span> <span className="font-mono text-xs">{(op.details as any).signer.key}</span> (Weight: {(op.details as any).signer.weight})</p>
+                              <p className="break-words"><span className="text-muted-foreground">Signer:</span> <span className="font-mono text-xs break-all">{(op.details as any).signer.key}</span> (Weight: {(op.details as any).signer.weight})</p>
                             )}
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             {((op.details as any).lowThreshold !== undefined || (op.details as any).medThreshold !== undefined || (op.details as any).highThreshold !== undefined) && (
