@@ -58,7 +58,7 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
       </header>
 
       {/* Main Content */}
-      <div className="flex items-center justify-center min-h-screen px-6">
+      <div className="flex items-center justify-center min-h-screen px-6 pt-24">
         <div className="max-w-6xl mx-auto text-center">
           <h1 className="text-6xl md:text-8xl lg:text-9xl font-black leading-none mb-8 tracking-tight">
             <span className="text-foreground">Multi-Signature</span>
