@@ -163,7 +163,7 @@
         width: 12px;
         height: 12px;
         border-radius: 50%;
-        background: hsl(var(--muted));
+        background: hsl(var(--muted-foreground));
         border: 2px solid hsl(var(--border));
         transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         transform-origin: center;
@@ -181,32 +181,47 @@
         z-index: 10;
       }
 
-      .node.active {
+      .node.connected {
         background: hsl(var(--primary));
         border-color: hsl(var(--primary));
         box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
+        animation: none !important;
       }
 
-      /* Node positions with enhanced random oscillation */
-      .node:nth-child(1) { left: 15%; top: 15%; animation: oscillate1 4.2s ease-in-out infinite; }
-      .node:nth-child(2) { left: 85%; top: 18%; animation: oscillate2 3.8s ease-in-out infinite; }
-      .node:nth-child(3) { left: 8%; top: 52%; animation: oscillate3 3.3s ease-in-out infinite; }
-      .node:nth-child(4) { left: 92%; top: 58%; animation: oscillate4 4.1s ease-in-out infinite; }
-      .node:nth-child(5) { left: 25%; top: 88%; animation: oscillate5 3.6s ease-in-out infinite; }
-      .node:nth-child(6) { left: 75%; top: 85%; animation: oscillate6 4.4s ease-in-out infinite; }
-      .node:nth-child(7) { left: 48%; top: 8%; animation: oscillate7 3.9s ease-in-out infinite; }
-      .node:nth-child(8) { left: 12%; top: 35%; animation: oscillate8 4.7s ease-in-out infinite; }
-      .node:nth-child(9) { left: 88%; top: 38%; animation: oscillate9 3.4s ease-in-out infinite; }
+      /* Node positions with large random oscillation - only when not connected */
+      .node:nth-child(1):not(.connected) { left: 15%; top: 15%; animation: bigOscillate1 3.2s ease-in-out infinite; }
+      .node:nth-child(2):not(.connected) { left: 85%; top: 18%; animation: bigOscillate2 2.8s ease-in-out infinite; }
+      .node:nth-child(3):not(.connected) { left: 8%; top: 52%; animation: bigOscillate3 3.6s ease-in-out infinite; }
+      .node:nth-child(4):not(.connected) { left: 92%; top: 58%; animation: bigOscillate4 2.9s ease-in-out infinite; }
+      .node:nth-child(5):not(.connected) { left: 25%; top: 88%; animation: bigOscillate5 3.4s ease-in-out infinite; }
+      .node:nth-child(6):not(.connected) { left: 75%; top: 85%; animation: bigOscillate6 3.1s ease-in-out infinite; }
+      .node:nth-child(7):not(.connected) { left: 48%; top: 8%; animation: bigOscillate7 2.7s ease-in-out infinite; }
+      .node:nth-child(8):not(.connected) { left: 12%; top: 35%; animation: bigOscillate8 3.5s ease-in-out infinite; }
+      .node:nth-child(9):not(.connected) { left: 88%; top: 38%; animation: bigOscillate9 2.6s ease-in-out infinite; }
 
-      /* Connection lines - properly connecting center to outer nodes */
+      /* Static positions when connected */
+      .node:nth-child(1).connected { left: 15%; top: 15%; }
+      .node:nth-child(2).connected { left: 85%; top: 18%; }
+      .node:nth-child(3).connected { left: 8%; top: 52%; }
+      .node:nth-child(4).connected { left: 92%; top: 58%; }
+      .node:nth-child(5).connected { left: 25%; top: 88%; }
+      .node:nth-child(6).connected { left: 75%; top: 85%; }
+      .node:nth-child(7).connected { left: 48%; top: 8%; }
+      .node:nth-child(8).connected { left: 12%; top: 35%; }
+      .node:nth-child(9).connected { left: 88%; top: 38%; }
+
+      /* Connection lines - dynamically positioned from center to target nodes */
       .connection {
         position: absolute;
         height: 2px;
         background: hsl(var(--border));
         transform-origin: left center;
-        opacity: 0.6;
+        opacity: 0;
         transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         z-index: 5;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
       }
 
       .connection.active {
@@ -215,16 +230,52 @@
         box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
       }
 
-      /* Connection positioning from center (200px, 150px) to each node */
-      .connection:nth-child(11) { /* to node 1 */ left: 200px; top: 150px; width: 140px; transform-origin: 0 50%; transform: rotate(-45deg) translateX(-70px); }
-      .connection:nth-child(12) { /* to node 2 */ left: 200px; top: 150px; width: 180px; transform-origin: 0 50%; transform: rotate(-25deg) translateX(-90px); }
-      .connection:nth-child(13) { /* to node 3 */ left: 200px; top: 150px; width: 170px; transform-origin: 0 50%; transform: rotate(8deg) translateX(-85px); }
-      .connection:nth-child(14) { /* to node 4 */ left: 200px; top: 150px; width: 185px; transform-origin: 0 50%; transform: rotate(12deg) translateX(-92px); }
-      .connection:nth-child(15) { /* to node 5 */ left: 200px; top: 150px; width: 160px; transform-origin: 0 50%; transform: rotate(55deg) translateX(-80px); }
-      .connection:nth-child(16) { /* to node 6 */ left: 200px; top: 150px; width: 155px; transform-origin: 0 50%; transform: rotate(65deg) translateX(-77px); }
-      .connection:nth-child(17) { /* to node 7 */ left: 200px; top: 150px; width: 142px; transform-origin: 0 50%; transform: rotate(-90deg) translateX(-71px); }
-      .connection:nth-child(18) { /* to node 8 */ left: 200px; top: 150px; width: 165px; transform-origin: 0 50%; transform: rotate(-18deg) translateX(-82px); }
-      .connection:nth-child(19) { /* to node 9 */ left: 200px; top: 150px; width: 175px; transform-origin: 0 50%; transform: rotate(-5deg) translateX(-87px); }
+      /* Connection positioning - calculated from center (50%, 50%) to each node position */
+      .connection:nth-child(11) { /* to node 1 */ 
+        width: 140px; 
+        transform: translate(-50%, -50%) rotate(-42deg);
+        transform-origin: 0 50%;
+      }
+      .connection:nth-child(12) { /* to node 2 */ 
+        width: 180px; 
+        transform: translate(-50%, -50%) rotate(-18deg);
+        transform-origin: 0 50%;
+      }
+      .connection:nth-child(13) { /* to node 3 */ 
+        width: 170px; 
+        transform: translate(-50%, -50%) rotate(15deg);
+        transform-origin: 0 50%;
+      }
+      .connection:nth-child(14) { /* to node 4 */ 
+        width: 185px; 
+        transform: translate(-50%, -50%) rotate(18deg);
+        transform-origin: 0 50%;
+      }
+      .connection:nth-child(15) { /* to node 5 */ 
+        width: 160px; 
+        transform: translate(-50%, -50%) rotate(58deg);
+        transform-origin: 0 50%;
+      }
+      .connection:nth-child(16) { /* to node 6 */ 
+        width: 155px; 
+        transform: translate(-50%, -50%) rotate(68deg);
+        transform-origin: 0 50%;
+      }
+      .connection:nth-child(17) { /* to node 7 */ 
+        width: 142px; 
+        transform: translate(-50%, -50%) rotate(-85deg);
+        transform-origin: 0 50%;
+      }
+      .connection:nth-child(18) { /* to node 8 */ 
+        width: 165px; 
+        transform: translate(-50%, -50%) rotate(-12deg);
+        transform-origin: 0 50%;
+      }
+      .connection:nth-child(19) { /* to node 9 */ 
+        width: 175px; 
+        transform: translate(-50%, -50%) rotate(-2deg);
+        transform-origin: 0 50%;
+      }
 
       /* Propagation animation - outward from center */
       .connection::after {
@@ -263,72 +314,72 @@
         100% { left: 100%; opacity: 0; transform: scale(0.5); }
       }
 
-      /* Enhanced random oscillation patterns with more freedom */
-      @keyframes oscillate1 {
+      /* Large oscillation patterns - much more movement */
+      @keyframes bigOscillate1 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        20% { transform: translate(8px, -6px) rotate(5deg); }
-        40% { transform: translate(-4px, 7px) rotate(-3deg); }
-        60% { transform: translate(6px, -3px) rotate(4deg); }
-        80% { transform: translate(-5px, 8px) rotate(-2deg); }
+        20% { transform: translate(15px, -12px) rotate(8deg); }
+        40% { transform: translate(-8px, 18px) rotate(-6deg); }
+        60% { transform: translate(12px, -6px) rotate(10deg); }
+        80% { transform: translate(-10px, 14px) rotate(-4deg); }
       }
 
-      @keyframes oscillate2 {
+      @keyframes bigOscillate2 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        25% { transform: translate(-7px, 5px) rotate(-4deg); }
-        50% { transform: translate(3px, -8px) rotate(6deg); }
-        75% { transform: translate(-2px, 4px) rotate(-5deg); }
+        25% { transform: translate(-14px, 10px) rotate(-8deg); }
+        50% { transform: translate(6px, -16px) rotate(12deg); }
+        75% { transform: translate(-4px, 8px) rotate(-10deg); }
       }
 
-      @keyframes oscillate3 {
+      @keyframes bigOscillate3 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        15% { transform: translate(5px, 4px) rotate(3deg); }
-        35% { transform: translate(-6px, -7px) rotate(-6deg); }
-        55% { transform: translate(-3px, 2px) rotate(2deg); }
-        75% { transform: translate(7px, 6px) rotate(4deg); }
+        15% { transform: translate(10px, 8px) rotate(6deg); }
+        35% { transform: translate(-12px, -14px) rotate(-12deg); }
+        55% { transform: translate(-6px, 4px) rotate(4deg); }
+        75% { transform: translate(14px, 12px) rotate(8deg); }
       }
 
-      @keyframes oscillate4 {
+      @keyframes bigOscillate4 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        30% { transform: translate(-5px, -4px) rotate(-3deg); }
-        60% { transform: translate(8px, 2px) rotate(5deg); }
-        80% { transform: translate(-2px, 6px) rotate(-4deg); }
+        30% { transform: translate(-10px, -8px) rotate(-6deg); }
+        60% { transform: translate(16px, 4px) rotate(10deg); }
+        80% { transform: translate(-4px, 12px) rotate(-8deg); }
       }
 
-      @keyframes oscillate5 {
+      @keyframes bigOscillate5 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        20% { transform: translate(4px, -5px) rotate(2deg); }
-        45% { transform: translate(-7px, 3px) rotate(-5deg); }
-        70% { transform: translate(2px, 7px) rotate(3deg); }
+        20% { transform: translate(8px, -10px) rotate(4deg); }
+        45% { transform: translate(-14px, 6px) rotate(-10deg); }
+        70% { transform: translate(4px, 14px) rotate(6deg); }
       }
 
-      @keyframes oscillate6 {
+      @keyframes bigOscillate6 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        35% { transform: translate(-3px, 6px) rotate(-2deg); }
-        65% { transform: translate(6px, -4px) rotate(4deg); }
-        85% { transform: translate(-8px, -2px) rotate(-6deg); }
+        35% { transform: translate(-6px, 12px) rotate(-4deg); }
+        65% { transform: translate(12px, -8px) rotate(8deg); }
+        85% { transform: translate(-16px, -4px) rotate(-12deg); }
       }
 
-      @keyframes oscillate7 {
+      @keyframes bigOscillate7 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        25% { transform: translate(2px, 8px) rotate(1deg); }
-        50% { transform: translate(-5px, -3px) rotate(-4deg); }
-        75% { transform: translate(7px, 1px) rotate(5deg); }
+        25% { transform: translate(4px, 16px) rotate(2deg); }
+        50% { transform: translate(-10px, -6px) rotate(-8deg); }
+        75% { transform: translate(14px, 2px) rotate(10deg); }
       }
 
-      @keyframes oscillate8 {
+      @keyframes bigOscillate8 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        18% { transform: translate(9px, 2px) rotate(6deg); }
-        42% { transform: translate(-4px, -6px) rotate(-3deg); }
-        68% { transform: translate(1px, 8px) rotate(2deg); }
-        88% { transform: translate(-7px, -1px) rotate(-5deg); }
+        18% { transform: translate(18px, 4px) rotate(12deg); }
+        42% { transform: translate(-8px, -12px) rotate(-6deg); }
+        68% { transform: translate(2px, 16px) rotate(4deg); }
+        88% { transform: translate(-14px, -2px) rotate(-10deg); }
       }
 
-      @keyframes oscillate9 {
+      @keyframes bigOscillate9 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        22% { transform: translate(-2px, -7px) rotate(-4deg); }
-        44% { transform: translate(6px, 4px) rotate(3deg); }
-        66% { transform: translate(-8px, 1px) rotate(-6deg); }
-        88% { transform: translate(3px, -5px) rotate(4deg); }
+        22% { transform: translate(-4px, -14px) rotate(-8deg); }
+        44% { transform: translate(12px, 8px) rotate(6deg); }
+        66% { transform: translate(-16px, 2px) rotate(-12deg); }
+        88% { transform: translate(6px, -10px) rotate(8deg); }
       }
       
       /* Hide loader once React loads */
@@ -419,22 +470,21 @@
         connections.forEach((connection, index) => {
           setTimeout(() => {
             connection.classList.add('active');
-          }, index * 200);
+            // When connection activates, stop the corresponding node's movement
+            const correspondingNode = nodes[index];
+            if (correspondingNode) {
+              correspondingNode.classList.add('connected');
+            }
+          }, index * 300);
         });
         
-        nodes.forEach((node, index) => {
-          setTimeout(() => {
-            node.classList.add('active');
-          }, index * 250 + 500);
-        });
-        
-        // Mark animation as complete after all nodes are activated
+        // Mark animation as complete after all nodes are connected
         setTimeout(() => {
           animationComplete = true;
-        }, 500 + (nodes.length * 250) + 1000); // Extra second to appreciate the full effect
+        }, (connections.length * 300) + 1500); // Extra time to appreciate the final effect
         
         loadingComplete = true;
-      }, 1000);
+      }, 1500);
       
       document.addEventListener('DOMContentLoaded', function() {
         // Force hide loader immediately if React content already exists
@@ -476,7 +526,7 @@
           observer.observe(root, { childList: true, subtree: true });
         }
         
-        // Extended fallback: hide loader after 8 seconds (ensuring animation completes)
+        // Extended fallback: hide loader after 10 seconds (ensuring animation completes)
         setTimeout(() => {
           document.body.classList.add('app-loaded');
           if (loader) {
@@ -486,7 +536,7 @@
               loader.style.display = 'none';
             }, 800);
           }
-        }, 8000);
+        }, 10000);
       });
     </script>
   </body>
