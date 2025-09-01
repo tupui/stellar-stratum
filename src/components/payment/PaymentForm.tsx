@@ -257,26 +257,32 @@ export const PaymentForm = ({
       {trustlineError && (
         <div className={`p-4 rounded-lg border ${
           trustlineError.includes('will create a new') 
-            ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/50 dark:border-blue-800' 
+            ? 'bg-success/5 border-success/50' 
             : 'bg-destructive/10 border-destructive/30'
         }`}>
           <div className="flex items-center gap-3">
-            <AlertTriangle className={`w-5 h-5 flex-shrink-0 ${
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
               trustlineError.includes('will create a new')
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-red-500'
-            }`} />
+                ? 'bg-success/10'
+                : 'bg-destructive/10'
+            }`}>
+              {trustlineError.includes('will create a new') ? (
+                <Check className="w-4 h-4 text-success" />
+              ) : (
+                <AlertTriangle className="w-4 h-4 text-destructive" />
+              )}
+            </div>
             <div className="flex-1">
-              <p className={`text-sm ${
+              <p className={`text-sm font-medium ${
                 trustlineError.includes('will create a new')
-                  ? 'text-blue-800 dark:text-blue-200'
+                  ? 'text-success'
                   : 'text-foreground'
               }`}>
                 {trustlineError}
               </p>
               {trustlineError.includes('will create a new') && (
-                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                  ✓ New accounts require a minimum of 1 XLM to fund the base reserve.
+                <p className="text-xs text-success/80 mt-1">
+                  New accounts require a minimum of 1 XLM to fund the base reserve.
                 </p>
               )}
             </div>
