@@ -127,30 +127,20 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
   };
 
   return (
-    <Card className={`border transition-all duration-200 ${
-      accountData.exists 
-        ? 'border-primary/30 bg-primary/5' 
-        : 'border-secondary/30 bg-secondary/5'
-    }`}>
+    <Card className="border transition-all duration-200 border-blue/30 bg-blue/5">
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-            accountData.exists 
-              ? 'bg-primary/10' 
-              : 'bg-secondary/10'
-          }`}>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-blue/10">
             {accountData.exists ? (
-              <CheckCircle className="w-5 h-5 text-primary" />
+              <CheckCircle className="w-5 h-5 text-blue" />
             ) : (
-              <User className="w-5 h-5 text-secondary-foreground" />
+              <User className="w-5 h-5 text-blue" />
             )}
           </div>
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
-              <p className={`text-sm font-medium ${
-                accountData.exists ? 'text-primary' : 'text-secondary-foreground'
-              }`}>
+              <p className="text-sm font-medium text-blue">
                 {accountData.exists ? 'Existing Account' : 'New Account'}
               </p>
               <Badge variant={accountData.exists ? 'default' : 'secondary'} className="text-xs">
@@ -194,7 +184,7 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
                 <p className="text-xs text-muted-foreground truncate">
                   {destination}
                 </p>
-                <p className="text-xs text-secondary-foreground/70">
+                <p className="text-xs text-blue/70">
                   This account will be created with your payment
                 </p>
               </div>
