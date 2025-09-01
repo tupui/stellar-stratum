@@ -490,8 +490,47 @@
     
     <!-- Hide loader once React content loads -->
     <script>
-      // Dynamic node-network animation with exact connections
+      // Smart loading system that adapts to actual load time
       let animationComplete = false;
+      let reactReady = false;
+      let preloadComplete = false;
+
+      // Preload critical resources during animation
+      function preloadResources() {
+        const preloadPromises = [];
+        
+        // Preload critical fonts
+        if (document.fonts && document.fonts.load) {
+          preloadPromises.push(document.fonts.load('16px Inter'));
+          preloadPromises.push(document.fonts.load('600 20px Inter'));
+        }
+        
+        // Preload any critical images that might be used
+        const criticalImages = [
+          '/ledger-logo.png',
+          '/public/images/soroban-domains-logo.png'
+        ];
+        
+        criticalImages.forEach(src => {
+          const img = new Image();
+          img.src = src;
+          const promise = new Promise(resolve => {
+            img.onload = resolve;
+            img.onerror = resolve; // Don't fail if image doesn't exist
+          });
+          preloadPromises.push(promise);
+        });
+
+        // Complete preload after all resources or timeout
+        Promise.allSettled(preloadPromises).then(() => {
+          preloadComplete = true;
+        });
+        
+        // Fallback timeout for preload
+        setTimeout(() => {
+          preloadComplete = true;
+        }, 1000);
+      }
 
       function setupNetworkAnimation() {
         const container = document.querySelector('.node-network');
@@ -535,11 +574,23 @@
         let idx = 0;
         const connectNext = () => {
           if (idx >= nodes.length) {
-            animationComplete = true;
-            // Final neon effect completes the 1.5s
-            setTimeout(() => {
+            // Check if we need to extend animation
+            if (!reactReady) {
+              // Extend with subtle pulse while waiting
               container.classList.add('neon-yellow');
-            }, 130);
+              // Keep checking every 500ms
+              const checkReady = () => {
+                if (reactReady && preloadComplete) {
+                  animationComplete = true;
+                } else {
+                  setTimeout(checkReady, 200);
+                }
+              };
+              setTimeout(checkReady, 100);
+            } else {
+              animationComplete = true;
+              container.classList.add('neon-yellow');
+            }
             return;
           }
           const node = nodes[idx];
@@ -560,28 +611,45 @@
         setTimeout(connectNext, 200);
       }
 
-      // Start network animation immediately
+      // Start preloading and animation immediately
+      preloadResources();
       setupNetworkAnimation();
 
-      // Handle hiding loader after React mounts AND animation completes
+      // Handle hiding loader with smart timing
       document.addEventListener('DOMContentLoaded', function() {
         const root = document.getElementById('root');
         const loader = document.getElementById('app-loader');
 
-        // Allow React to load without waiting for animation
         const tryHide = () => {
           if (root && root.children.length > 0) {
-            // Start fade immediately when React loads
-            document.body.classList.add('app-loaded');
-            if (loader) {
-              loader.style.transition = 'opacity 0.4s ease-out';
-              loader.style.opacity = '0';
-              setTimeout(() => {
-                loader.style.display = 'none';
-                loader.style.visibility = 'hidden';
-                loader.style.height = '0';
-                loader.style.overflow = 'hidden';
-              }, 400);
+            reactReady = true;
+            
+            // Only hide when both animation and preload are complete
+            const finalHide = () => {
+              if (animationComplete && preloadComplete) {
+                document.body.classList.add('app-loaded');
+                if (loader) {
+                  loader.style.transition = 'opacity 0.6s ease-out';
+                  loader.style.opacity = '0';
+                  setTimeout(() => {
+                    loader.style.display = 'none';
+                    loader.style.visibility = 'hidden';
+                    loader.style.height = '0';
+                    loader.style.overflow = 'hidden';
+                  }, 600);
+                }
+                return true;
+              }
+              return false;
+            };
+
+            if (!finalHide()) {
+              // Check every 100ms until ready
+              const checkInterval = setInterval(() => {
+                if (finalHide()) {
+                  clearInterval(checkInterval);
+                }
+              }, 100);
             }
             return true;
           }
@@ -595,11 +663,23 @@
           if (root) observer.observe(root, { childList: true, subtree: true });
         }
 
-        // Much shorter fallback - don't block the app
+        // Absolute fallback - never get stuck
         setTimeout(() => {
-          if (!animationComplete) animationComplete = true;
-          tryHide();
-        }, 2000); // Reduced from 5000ms
+          reactReady = true;
+          animationComplete = true;
+          preloadComplete = true;
+          document.body.classList.add('app-loaded');
+          if (loader) {
+            loader.style.transition = 'opacity 0.4s ease-out';
+            loader.style.opacity = '0';
+            setTimeout(() => {
+              loader.style.display = 'none';
+              loader.style.visibility = 'hidden';
+              loader.style.height = '0';
+              loader.style.overflow = 'hidden';
+            }, 400);
+          }
+        }, 8000); // 8s absolute maximum
       });
     </script>
   </body>
