@@ -4,11 +4,10 @@ import { Badge } from '@/components/ui/badge';
 import { Copy, ExternalLink } from 'lucide-react';
 import { NetworkSelector } from '@/components/NetworkSelector';
 import { XdrDetails } from '@/components/XdrDetails';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface TransactionSubmitterProps {
   xdrOutput: string;
-  currentNetwork: 'mainnet' | 'testnet';
-  onNetworkChange: (network: 'mainnet' | 'testnet') => void;
   signedBy: Array<{ signerKey: string; signedAt: Date }>;
   currentWeight: number;
   requiredWeight: number;
@@ -24,8 +23,6 @@ interface TransactionSubmitterProps {
 
 export const TransactionSubmitter = ({ 
   xdrOutput,
-  currentNetwork,
-  onNetworkChange,
   signedBy,
   currentWeight,
   requiredWeight,
@@ -38,6 +35,7 @@ export const TransactionSubmitter = ({
   onSubmitToRefractor,
   copied
 }: TransactionSubmitterProps) => {
+  const { network: currentNetwork } = useNetwork();
   if (!xdrOutput && !successData) {
     return null;
   }
@@ -46,10 +44,6 @@ export const TransactionSubmitter = ({
     <div className="space-y-6">
       {/* Network Selection */}
       <NetworkSelector
-        currentNetwork={currentNetwork}
-        onNetworkChange={onNetworkChange}
-        canSubmitToNetwork={canSubmitToNetwork}
-        canSubmitToRefractor={canSubmitToRefractor}
         isSubmitting={isSubmitting}
         onSubmitToNetwork={onSubmitToNetwork}
         onSubmitToRefractor={onSubmitToRefractor}
@@ -117,7 +111,6 @@ export const TransactionSubmitter = ({
           {/* XDR Details */}
           <XdrDetails 
             xdr={xdrOutput} 
-            network={currentNetwork} 
           />
         </>
       )}

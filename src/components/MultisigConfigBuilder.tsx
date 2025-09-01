@@ -28,6 +28,7 @@ import {
   Horizon
 } from '@stellar/stellar-sdk';
 import { createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface Signer {
   key: string;
@@ -45,7 +46,6 @@ interface MultisigConfigBuilderProps {
   accountPublicKey: string;
   currentSigners: Signer[];
   currentThresholds: Thresholds;
-  currentNetwork: 'mainnet' | 'testnet';
   onXdrGenerated: (xdr: string) => void;
   onAccountRefresh?: () => Promise<void>;
 }
@@ -67,10 +67,10 @@ export const MultisigConfigBuilder = ({
   accountPublicKey, 
   currentSigners, 
   currentThresholds,
-  currentNetwork,
   onXdrGenerated 
 }: MultisigConfigBuilderProps) => {
   const { toast } = useToast();
+  const { network: currentNetwork } = useNetwork();
   
   // State for new configuration
   const [editableSigners, setEditableSigners] = useState<EditableSigner[]>([]);

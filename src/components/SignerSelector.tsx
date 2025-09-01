@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Users, CheckCircle, Circle, Plus } from 'lucide-react';
 import { Transaction } from '@stellar/stellar-sdk';
 import { getSupportedWallets, getNetworkPassphrase } from '@/lib/stellar';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 
 interface Signer {
@@ -22,7 +23,6 @@ interface SignedBySigner {
 
 interface SignerSelectorProps {
   xdr: string;
-  network: 'mainnet' | 'testnet';
   signers: Signer[];
   currentAccountKey: string;
   signedBy: SignedBySigner[];
@@ -33,14 +33,14 @@ interface SignerSelectorProps {
 
 export const SignerSelector = ({ 
   xdr,
-  network,
-  signers, 
+  signers,
   currentAccountKey, 
   signedBy, 
   requiredWeight, 
   onSignWithSigner,
   isSigning 
 }: SignerSelectorProps) => {
+  const { network } = useNetwork();
   const [selectedSigner, setSelectedSigner] = useState<string>('');
   const [selectedWalletId, setSelectedWalletId] = useState<string>('');
   const [wallets, setWallets] = useState<ISupportedWallet[]>([]);

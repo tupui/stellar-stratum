@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info, KeyRound, Plus, Globe } from 'lucide-react';
 
 import { getSupportedWallets, connectWallet, getNetworkPassphrase } from '@/lib/stellar';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
@@ -29,7 +30,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
   const [sorobanDomain, setSorobanDomain] = useState('');
   const [showSorobanInput, setShowSorobanInput] = useState(false);
   const [resolvingDomain, setResolvingDomain] = useState(false);
-  const [selectedNetwork, setSelectedNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
+  const { network: selectedNetwork, setNetwork: setSelectedNetwork } = useNetwork();
 
   const loadWallets = async () => {
     try {

@@ -6,6 +6,7 @@ import { Footer } from '@/components/Footer';
 import { fetchAccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface AccountData {
   publicKey: string;
@@ -31,12 +32,12 @@ type AppState = 'connecting' | 'dashboard' | 'transaction' | 'multisig-config';
 
 const Index = () => {
   const { toast } = useToast();
+  const { network, setNetwork } = useNetwork();
   const [appState, setAppState] = useState<AppState>('connecting');
   const [connectedWallet, setConnectedWallet] = useState<string>('');
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>('');
-  const [network, setNetwork] = useState<'mainnet' | 'testnet'>('mainnet');
 
   const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
     setConnectedWallet(walletType);
@@ -115,7 +116,6 @@ const Index = () => {
               accountPublicKey={publicKey}
               accountData={accountData}
               initialTab={appState === 'multisig-config' ? 'multisig' : 'payment'}
-              initialNetwork={network}
               onAccountRefresh={async () => {
                 if (!publicKey) return;
                 const realAccountData = await fetchAccountData(publicKey, network);

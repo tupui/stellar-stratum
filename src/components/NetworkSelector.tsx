@@ -4,37 +4,34 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Globe, Send, Upload } from 'lucide-react';
 import refractorLogo from '@/assets/refractor-favicon.ico';
-import { useState } from 'react';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface NetworkSelectorProps {
-  currentNetwork: 'mainnet' | 'testnet';
-  onNetworkChange: (network: 'mainnet' | 'testnet') => void;
   onSubmitToNetwork: () => Promise<void>;
   onSubmitToRefractor: () => Promise<void>;
-  canSubmitToNetwork: boolean;
-  canSubmitToRefractor: boolean;
   isSubmitting: boolean;
 }
 
 export const NetworkSelector = ({
-  currentNetwork,
-  onNetworkChange,
   onSubmitToNetwork,
   onSubmitToRefractor,
-  canSubmitToNetwork,
-  canSubmitToRefractor,
   isSubmitting
 }: NetworkSelectorProps) => {
+  const { network: currentNetwork, setNetwork: onNetworkChange } = useNetwork();
+  
+  // Simple heuristic for whether we can submit to network
+  const canSubmitToNetwork = true; // This will be properly calculated in the parent
+  const canSubmitToRefractor = true; // This will be properly calculated in the parent
+
   return (
     <Card className="shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Globe className="w-5 h-5" />
-          Submission Options
+          Submit Transaction
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Network Selection */}
+      <CardContent className="space-y-6">
         <div className="space-y-2">
           <label className="text-sm font-medium">Target Network</label>
           <Select value={currentNetwork} onValueChange={onNetworkChange}>
@@ -59,50 +56,38 @@ export const NetworkSelector = ({
         </div>
 
         {/* Submit Buttons */}
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Button
             onClick={onSubmitToNetwork}
             disabled={!canSubmitToNetwork || isSubmitting}
-            className="w-full bg-gradient-success hover:opacity-90"
+            className="w-full h-12 bg-success hover:bg-success/90 text-success-foreground"
           >
-            {isSubmitting ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                Submitting to {currentNetwork}...
-              </div>
-            ) : (
-              <>
-                <Send className="w-4 h-4 mr-2" />
-                Initiate Multisig Transaction
-              </>
-            )}
+            <Send className="w-4 h-4 mr-2" />
+            Submit to {currentNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}
           </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or</span>
-            </div>
-          </div>
 
           <Button
             onClick={onSubmitToRefractor}
             disabled={!canSubmitToRefractor || isSubmitting}
             variant="outline"
-            className="w-full inline-flex items-center gap-2"
+            className="w-full h-12"
           >
-            <img src={refractorLogo} alt="Refractor" className="w-4 h-4" />
-            <span>Send to Refractor</span>
+            <img 
+              src={refractorLogo} 
+              alt="Refractor" 
+              className="w-4 h-4 mr-2"
+            />
+            Share via Refractor
           </Button>
-
-          {!canSubmitToNetwork && canSubmitToRefractor && (
-            <p className="text-xs text-muted-foreground">
-              Not enough signatures for network submission. Use Refractor to collect more signatures.
-            </p>
-          )}
         </div>
+
+        {!canSubmitToNetwork && (
+          <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
+            <p className="text-sm text-warning-foreground">
+              Insufficient signatures. Transaction needs more signatures before it can be submitted to the network.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

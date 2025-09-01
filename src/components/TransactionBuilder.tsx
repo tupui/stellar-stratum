@@ -30,6 +30,7 @@ import { SuccessModal } from './SuccessModal';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { PaymentForm } from './payment/PaymentForm';
 import { XdrProcessor } from './transaction/XdrProcessor';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
@@ -57,12 +58,12 @@ interface TransactionBuilderProps {
     };
   };
   initialTab?: string;
-  initialNetwork?: 'mainnet' | 'testnet';
   onAccountRefresh?: () => Promise<void>;
 }
 
-export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment', initialNetwork = 'mainnet', onAccountRefresh }: TransactionBuilderProps) => {
+export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment', onAccountRefresh }: TransactionBuilderProps) => {
   const { toast } = useToast();
+  const { network: currentNetwork, setNetwork: setCurrentNetwork } = useNetwork();
   const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [paymentData, setPaymentData] = useState({
@@ -81,7 +82,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [isSigning, setIsSigning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [currentNetwork, setCurrentNetwork] = useState<'mainnet' | 'testnet'>(initialNetwork);
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' } | null>(null);
@@ -591,7 +591,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   accountPublicKey={accountPublicKey}
                   currentSigners={accountData.signers}
                   currentThresholds={accountData.thresholds}
-                  currentNetwork={currentNetwork}
                   onXdrGenerated={(xdr) => setXdrData(prev => ({ ...prev, output: xdr }))}
                   onAccountRefresh={onAccountRefresh}
                 />
@@ -611,7 +610,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         {(xdrData.output || xdrData.input) && (
           <XdrDetails 
             xdr={xdrData.output || xdrData.input} 
-            network={currentNetwork}
           />
         )}
 
@@ -619,7 +617,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         {(xdrData.output || xdrData.input) && (
           <SignerSelector
             xdr={xdrData.output || xdrData.input}
-            network={currentNetwork}
             signers={accountData.signers}
             currentAccountKey={accountPublicKey}
             signedBy={signedBy}
@@ -632,12 +629,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         {/* Network Selector & Submission */}
         {(xdrData.output || xdrData.input) && (
           <NetworkSelector
-            currentNetwork={currentNetwork}
-            onNetworkChange={setCurrentNetwork}
             onSubmitToNetwork={handleSubmitToNetwork}
             onSubmitToRefractor={handleSubmitToRefractor}
-            canSubmitToNetwork={canSubmitToNetwork}
-            canSubmitToRefractor={canSubmitToRefractor}
             isSubmitting={isSubmitting}
           />
         )}

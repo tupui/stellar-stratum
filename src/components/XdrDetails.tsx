@@ -7,13 +7,14 @@ import { ChevronDown, Hash, FileText, Copy, Check } from 'lucide-react';
 import { Transaction } from '@stellar/stellar-sdk';
 import { useToast } from '@/hooks/use-toast';
 import { getNetworkPassphrase } from '@/lib/stellar';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface XdrDetailsProps {
   xdr: string;
-  network?: 'mainnet' | 'testnet';
 }
 
-export const XdrDetails = ({ xdr, network = 'mainnet' }: XdrDetailsProps) => {
+export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
+  const { network } = useNetwork();
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const { toast } = useToast();
