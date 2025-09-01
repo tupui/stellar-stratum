@@ -227,60 +227,25 @@
         box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
       }
 
-      /* Connection positioning - from center (50%, 50%) to each node position */
-      .connection:nth-child(11) { /* to node 1 at (15%, 15%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 141px; /* distance from center to node 1 */
-        transform: translate(-10px, -1px) rotate(-45deg);
+      /* Connection base positioning - will be computed dynamically */
+      .connection {
+        position: absolute;
+        height: 2px;
+        background: hsl(var(--border));
+        transform-origin: 0 50%;
+        opacity: 0;
+        transition: background 0.4s ease, opacity 0.4s ease;
+        z-index: 5;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%) rotate(0deg);
+        width: 0;
       }
-      .connection:nth-child(12) { /* to node 2 at (85%, 18%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 141px; /* distance from center to node 2 */
-        transform: translate(-10px, -1px) rotate(-23deg);
-      }
-      .connection:nth-child(13) { /* to node 3 at (8%, 52%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 168px; /* distance from center to node 3 */
-        transform: translate(-10px, -1px) rotate(175deg);
-      }
-      .connection:nth-child(14) { /* to node 4 at (92%, 58%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 169px; /* distance from center to node 4 */
-        transform: translate(-10px, -1px) rotate(11deg);
-      }
-      .connection:nth-child(15) { /* to node 5 at (25%, 88%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 133px; /* distance from center to node 5 */
-        transform: translate(-10px, -1px) rotate(126deg);
-      }
-      .connection:nth-child(16) { /* to node 6 at (75%, 85%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 129px; /* distance from center to node 6 */
-        transform: translate(-10px, -1px) rotate(54deg);
-      }
-      .connection:nth-child(17) { /* to node 7 at (48%, 8%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 126px; /* distance from center to node 7 */
-        transform: translate(-10px, -1px) rotate(-84deg);
-      }
-      .connection:nth-child(18) { /* to node 8 at (12%, 35%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 158px; /* distance from center to node 8 */
-        transform: translate(-10px, -1px) rotate(158deg);
-      }
-      .connection:nth-child(19) { /* to node 9 at (88%, 38%) */ 
-        left: 50%; 
-        top: 50%; 
-        width: 152px; /* distance from center to node 9 */
-        transform: translate(-10px, -1px) rotate(-18deg);
+
+      .connection.active {
+        background: hsl(var(--primary));
+        opacity: 1;
+        box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
       }
 
       /* Propagation animation - outward from center */
@@ -464,85 +429,105 @@
     
     <!-- Hide loader once React content loads -->
     <script>
-      let loadingComplete = false;
+      // Dynamic node-network animation with exact connections
       let animationComplete = false;
-      
-      // Activate network animation after 1 second
-      setTimeout(() => {
-        const connections = document.querySelectorAll('.connection');
-        const nodes = document.querySelectorAll('.node:not(.center)');
-        
-        // Stagger the activation of connections and nodes
-        connections.forEach((connection, index) => {
-          setTimeout(() => {
-            connection.classList.add('active');
-            // When connection activates, stop the corresponding node's movement
-            const correspondingNode = nodes[index];
-            if (correspondingNode) {
-              correspondingNode.classList.add('connected');
-            }
-          }, index * 300);
-        });
-        
-        // Mark animation as complete after all nodes are connected
-        setTimeout(() => {
-          animationComplete = true;
-        }, (connections.length * 300) + 1500); // Extra time to appreciate the final effect
-        
-        loadingComplete = true;
-      }, 1500);
-      
+
+      function setupNetworkAnimation() {
+        const container = document.querySelector('.node-network');
+        if (!container) return;
+        const center = container.querySelector('.node.center');
+        const nodes = Array.from(container.querySelectorAll('.node:not(.center)'));
+        const connections = Array.from(container.querySelectorAll('.connection'));
+        if (!center || nodes.length !== connections.length) return;
+
+        const getCenter = (el) => {
+          const cr = container.getBoundingClientRect();
+          const r = el.getBoundingClientRect();
+          return { x: r.left + r.width / 2 - cr.left, y: r.top + r.height / 2 - cr.top };
+        };
+
+        const updateConnections = () => {
+          const c = getCenter(center);
+          nodes.forEach((node, i) => {
+            const conn = connections[i];
+            if (!conn) return;
+            const n = getCenter(node);
+            const dx = n.x - c.x;
+            const dy = n.y - c.y;
+            const dist = Math.hypot(dx, dy);
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            conn.style.left = `${c.x}px`;
+            conn.style.top = `${c.y}px`;
+            conn.style.transform = `rotate(${angle}deg)`;
+            conn.style.width = `${dist}px`;
+          });
+          if (!animationComplete) requestAnimationFrame(updateConnections);
+        };
+        requestAnimationFrame(updateConnections);
+
+        // Sequentially connect and freeze nodes
+        let idx = 0;
+        const connectNext = () => {
+          if (idx >= nodes.length) {
+            animationComplete = true;
+            return;
+          }
+          const node = nodes[idx];
+          const conn = connections[idx];
+          // Freeze node at its current absolute px position
+          const cr = container.getBoundingClientRect();
+          const r = node.getBoundingClientRect();
+          node.style.left = `${r.left - cr.left}px`;
+          node.style.top = `${r.top - cr.top}px`;
+          node.style.transform = 'translate(0, 0)';
+          node.classList.add('connected');
+          conn.classList.add('active');
+          idx += 1;
+          setTimeout(connectNext, 300);
+        };
+
+        // Start after a brief delay
+        setTimeout(connectNext, 1000);
+      }
+
+      // Start network animation immediately
+      setupNetworkAnimation();
+
+      // Handle hiding loader after React mounts AND animation completes
       document.addEventListener('DOMContentLoaded', function() {
-        // Force hide loader immediately if React content already exists
         const root = document.getElementById('root');
         const loader = document.getElementById('app-loader');
-        
-        if (root && root.children.length > 0) {
-          document.body.classList.add('app-loaded');
-          if (loader) loader.style.display = 'none';
-        }
-        
-        const observer = new MutationObserver(function(mutations) {
-          if (root && root.children.length > 0) {
-            // Wait for full animation to complete before transitioning
-            const checkAnimation = () => {
-              if (animationComplete) {
-                document.body.classList.add('app-loaded');
-                if (loader) {
-                  loader.style.transition = 'opacity 0.8s ease-out';
-                  loader.style.opacity = '0';
-                  setTimeout(() => {
-                    loader.style.display = 'none';
-                    loader.style.visibility = 'hidden';
-                    loader.style.height = '0';
-                    loader.style.overflow = 'hidden';
-                  }, 800);
-                }
-              } else {
-                // Check again in 500ms
-                setTimeout(checkAnimation, 500);
-              }
-            };
-            checkAnimation();
-            observer.disconnect();
+
+        const tryHide = () => {
+          if (root && root.children.length > 0 && animationComplete) {
+            document.body.classList.add('app-loaded');
+            if (loader) {
+              loader.style.transition = 'opacity 0.8s ease-out';
+              loader.style.opacity = '0';
+              setTimeout(() => {
+                loader.style.display = 'none';
+                loader.style.visibility = 'hidden';
+                loader.style.height = '0';
+                loader.style.overflow = 'hidden';
+              }, 800);
+            }
+            return true;
           }
-        });
-        
-        if (root) {
-          observer.observe(root, { childList: true, subtree: true });
+          return false;
+        };
+
+        if (!tryHide()) {
+          const observer = new MutationObserver(() => {
+            if (tryHide()) observer.disconnect();
+          });
+          if (root) observer.observe(root, { childList: true, subtree: true });
         }
-        
-        // Extended fallback: hide loader after 10 seconds (ensuring animation completes)
+
+        // Hard fallback to avoid being stuck
         setTimeout(() => {
-          document.body.classList.add('app-loaded');
-          if (loader) {
-            loader.style.transition = 'opacity 0.8s ease-out';
-            loader.style.opacity = '0';
-            setTimeout(() => {
-              loader.style.display = 'none';
-            }, 800);
-          }
-        }, 10000);
+          if (!animationComplete) animationComplete = true;
+          tryHide();
+        }, 12000);
       });
     </script>
   </body>
