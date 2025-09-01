@@ -204,6 +204,8 @@ export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 
 export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testnet'): Promise<string> => {
   try {
     const apiNetwork = network === 'testnet' ? 'testnet' : 'public';
+    console.log('Submitting to Refractor with network:', apiNetwork);
+    
     const response = await fetch('https://api.refractor.space/tx', {
       method: 'POST',
       headers: {
@@ -216,16 +218,20 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
     });
 
     if (!response.ok) {
-      throw new Error('Failed to submit to Refractor');
+      const errorText = await response.text();
+      console.error('Refractor API error:', response.status, errorText);
+      throw new Error(`Refractor API error: ${response.status} - ${errorText}`);
     }
 
     // Compute hash (ID) to share based on network
     const config = getNetworkConfig(network);
     const tx = TransactionBuilder.fromXDR(xdr, config.passphrase);
-    return tx.hash().toString('hex');
+    const txHash = tx.hash().toString('hex');
+    console.log('Transaction submitted to Refractor, hash:', txHash);
+    return txHash;
   } catch (error) {
     console.error('Failed to submit to Refractor:', error);
-    throw new Error('Failed to submit to Refractor');
+    throw new Error(`Failed to submit to Refractor: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 

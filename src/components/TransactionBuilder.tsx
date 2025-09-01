@@ -80,7 +80,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   });
   const [isBuilding, setIsBuilding] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingToNetwork, setIsSubmittingToNetwork] = useState(false);
+  const [isSubmittingToRefractor, setIsSubmittingToRefractor] = useState(false);
   const [copied, setCopied] = useState(false);
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
@@ -350,7 +351,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     const xdrToSubmit = xdrData.output;
     if (!xdrToSubmit) return;
     
-    setIsSubmitting(true);
+    setIsSubmittingToNetwork(true);
     try {
       const result = await submitTransaction(xdrToSubmit, currentNetwork);
       
@@ -372,7 +373,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         variant: "destructive",
       });
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingToNetwork(false);
     }
   };
 
@@ -380,7 +381,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     const xdrToSubmit = xdrData.output || xdrData.input;
     if (!xdrToSubmit) return;
     
-    setIsSubmitting(true);
+    setIsSubmittingToRefractor(true);
     try {
       const id = await submitToRefractor(xdrToSubmit, currentNetwork);
       setRefractorId(id);
@@ -394,7 +395,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         variant: "destructive",
       });
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingToRefractor(false);
     }
   };
 
@@ -631,7 +632,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           <NetworkSelector
             onSubmitToNetwork={handleSubmitToNetwork}
             onSubmitToRefractor={handleSubmitToRefractor}
-            isSubmitting={isSubmitting}
+            isSubmittingToNetwork={isSubmittingToNetwork}
+            isSubmittingToRefractor={isSubmittingToRefractor}
             canSubmitToNetwork={canSubmitToNetwork}
             canSubmitToRefractor={canSubmitToRefractor}
           />

@@ -44,7 +44,8 @@ export const TransactionSubmitter = ({
     <div className="space-y-6">
       {/* Network Selection */}
       <NetworkSelector
-        isSubmitting={isSubmitting}
+        isSubmittingToNetwork={isSubmitting}
+        isSubmittingToRefractor={isSubmitting}
         onSubmitToNetwork={onSubmitToNetwork}
         onSubmitToRefractor={onSubmitToRefractor}
         canSubmitToNetwork={canSubmitToNetwork}

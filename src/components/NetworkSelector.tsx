@@ -9,7 +9,8 @@ import { useNetwork } from '@/contexts/NetworkContext';
 interface NetworkSelectorProps {
   onSubmitToNetwork: () => Promise<void>;
   onSubmitToRefractor: () => Promise<void>;
-  isSubmitting: boolean;
+  isSubmittingToNetwork: boolean;
+  isSubmittingToRefractor: boolean;
   canSubmitToNetwork: boolean;
   canSubmitToRefractor: boolean;
 }
@@ -17,7 +18,8 @@ interface NetworkSelectorProps {
 export const NetworkSelector = ({
   onSubmitToNetwork,
   onSubmitToRefractor,
-  isSubmitting,
+  isSubmittingToNetwork,
+  isSubmittingToRefractor,
   canSubmitToNetwork,
   canSubmitToRefractor
 }: NetworkSelectorProps) => {
@@ -61,10 +63,10 @@ export const NetworkSelector = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Button
             onClick={onSubmitToNetwork}
-            disabled={!canSubmitToNetwork || isSubmitting}
+            disabled={!canSubmitToNetwork || isSubmittingToNetwork}
             className="w-full h-12 bg-success hover:bg-success/90 text-success-foreground"
           >
-            {isSubmitting ? (
+            {isSubmittingToNetwork ? (
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 Submitting...
@@ -79,11 +81,11 @@ export const NetworkSelector = ({
 
           <Button
             onClick={onSubmitToRefractor}
-            disabled={!canSubmitToRefractor || isSubmitting}
+            disabled={!canSubmitToRefractor || isSubmittingToRefractor}
             variant="outline"
             className="w-full h-12"
           >
-            {isSubmitting ? (
+            {isSubmittingToRefractor ? (
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 Submitting...
