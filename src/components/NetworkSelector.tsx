@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Globe, Send, Upload } from 'lucide-react';
 import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useNetwork } from '@/contexts/NetworkContext';
@@ -23,7 +22,7 @@ export const NetworkSelector = ({
   canSubmitToNetwork,
   canSubmitToRefractor
 }: NetworkSelectorProps) => {
-  const { network: currentNetwork, setNetwork: onNetworkChange } = useNetwork();
+  const { network: currentNetwork } = useNetwork();
   
   
 
@@ -38,25 +37,16 @@ export const NetworkSelector = ({
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <label className="text-sm font-medium">Target Network</label>
-          <Select value={currentNetwork} onValueChange={onNetworkChange}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="mainnet">
-                <div className="flex items-center gap-2">
-                  <Badge variant="default">Public</Badge>
-                  <span>horizon.stellar.org</span>
-                </div>
-              </SelectItem>
-              <SelectItem value="testnet">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Testnet</Badge>
-                  <span>horizon-testnet.stellar.org</span>
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+            <div className="flex items-center gap-2">
+              {currentNetwork === 'testnet' ? (
+                <Badge variant="secondary">Testnet</Badge>
+              ) : (
+                <Badge variant="default">Public</Badge>
+              )}
+              <span>{currentNetwork === 'testnet' ? 'horizon-testnet.stellar.org' : 'horizon.stellar.org'}</span>
+            </div>
+          </div>
         </div>
 
         {/* Submit Buttons */}

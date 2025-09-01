@@ -13,7 +13,8 @@ interface TransactionSubmitterProps {
   requiredWeight: number;
   canSubmitToNetwork: boolean;
   canSubmitToRefractor: boolean;
-  isSubmitting: boolean;
+  isSubmittingToNetwork: boolean;
+  isSubmittingToRefractor: boolean;
   successData: { hash: string; network: 'mainnet' | 'testnet' } | null;
   onCopyXdr: () => void;
   onSubmitToNetwork: () => Promise<void>;
@@ -28,7 +29,8 @@ export const TransactionSubmitter = ({
   requiredWeight,
   canSubmitToNetwork,
   canSubmitToRefractor,
-  isSubmitting,
+  isSubmittingToNetwork,
+  isSubmittingToRefractor,
   successData,
   onCopyXdr,
   onSubmitToNetwork,
@@ -44,8 +46,8 @@ export const TransactionSubmitter = ({
     <div className="space-y-6">
       {/* Network Selection */}
       <NetworkSelector
-        isSubmittingToNetwork={isSubmitting}
-        isSubmittingToRefractor={isSubmitting}
+        isSubmittingToNetwork={isSubmittingToNetwork}
+        isSubmittingToRefractor={isSubmittingToRefractor}
         onSubmitToNetwork={onSubmitToNetwork}
         onSubmitToRefractor={onSubmitToRefractor}
         canSubmitToNetwork={canSubmitToNetwork}
