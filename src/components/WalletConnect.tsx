@@ -356,7 +356,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
           {/* Manual Address as a card option */}
           <Button
             variant="outline"
-            className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+             className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
             onClick={() => setShowManualInput(!showManualInput)}
           >
             <div className="flex items-center gap-3">
@@ -392,7 +392,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
           {/* Soroban Domains Option */}
           <Button
             variant="outline"
-            className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+            className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
             onClick={() => setShowSorobanInput(!showSorobanInput)}
           >
             <div className="flex items-center gap-3">
@@ -441,28 +441,29 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
             const isMobile = window.innerWidth < 768;
             
             // Define wallet order based on user requirements
-            const mobileOrder = ['xbull', 'hot', 'albedo', 'walletconnect'];
-            const desktopOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'hot', 'albedo', 'walletconnect'];
+            const mobileOrder = ['xbull', 'hot', 'albedo', 'walletconnect', 'wallet connect'];
+            const desktopOrder = ['freighter', 'xbull', 'ledger', 'trezor', 'hot', 'albedo', 'walletconnect', 'wallet connect'];
             
-            // Function to sort wallets by specified order, with unmatched wallets at the end
-            const sortWalletsByOrder = (wallets: typeof supportedWallets, order: string[]) => {
-              return wallets.sort((a, b) => {
-                const aIndex = order.findIndex(p => a.id.toLowerCase().includes(p));
-                const bIndex = order.findIndex(p => b.id.toLowerCase().includes(p));
-                
-                // If both found in order, sort by order
-                if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-                // If only a found, a comes first
-                if (aIndex !== -1) return -1;
-                // If only b found, b comes first
-                if (bIndex !== -1) return 1;
-                // If neither found, maintain original order
-                return 0;
-              });
+            // Order and filter wallets to match exactly the requested list
+            const orderAndFilter = (wallets: typeof supportedWallets, order: string[]) => {
+              const added = new Set<string>();
+              const result: ISupportedWallet[] = [];
+              const matches = (w: ISupportedWallet, token: string) =>
+                w.id.toLowerCase().includes(token) || w.name.toLowerCase().includes(token);
+              for (const token of order) {
+                for (const w of wallets) {
+                  if (added.has(w.id)) continue;
+                  if (matches(w, token)) {
+                    result.push(w);
+                    added.add(w.id);
+                  }
+                }
+              }
+              return result;
             };
             
             if (isMobile) {
-              const orderedWallets = sortWalletsByOrder(supportedWallets, mobileOrder);
+              const orderedWallets = orderAndFilter(supportedWallets, mobileOrder);
               
               return (
                 <>
@@ -475,7 +476,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                           <TooltipTrigger asChild>
                             <Button
                               variant="outline"
-                              className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                              className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
                               onClick={() => handleConnect(wallet.id, wallet.name)}
                               disabled={connecting !== null}
                             >
@@ -506,7 +507,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
               );
             } else {
               // Desktop: First 3 visible, rest in collapsible
-              const orderedWallets = sortWalletsByOrder(supportedWallets, desktopOrder);
+              const orderedWallets = orderAndFilter(supportedWallets, desktopOrder);
               const primaryWallets = orderedWallets.slice(0, 3);
               const secondaryWallets = orderedWallets.slice(3);
               
@@ -521,7 +522,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                           <TooltipTrigger asChild>
                             <Button
                               variant="outline"
-                              className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                              className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
                               onClick={() => handleConnect(wallet.id, wallet.name)}
                               disabled={connecting !== null}
                             >
@@ -570,7 +571,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                                 <TooltipTrigger asChild>
                                   <Button
                                     variant="outline"
-                                    className="w-full justify-between h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
+                                    className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
                                     onClick={() => handleConnect(wallet.id, wallet.name)}
                                     disabled={connecting !== null}
                                   >
@@ -611,7 +612,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
 
   if (isModal) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         {walletContent}
       </div>
     );
