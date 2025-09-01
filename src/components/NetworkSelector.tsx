@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Globe, Send } from 'lucide-react';
+import { Send, Key } from 'lucide-react';
 import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useNetwork } from '@/contexts/NetworkContext';
 
@@ -30,7 +30,7 @@ export const NetworkSelector = ({
     <Card className="shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Globe className="w-5 h-5" />
+          <Send className="w-5 h-5" />
           Submit Transaction
         </CardTitle>
       </CardHeader>
@@ -94,12 +94,16 @@ export const NetworkSelector = ({
         </div>
 
         {currentNetwork === 'testnet' && (
-          <div className="p-4 rounded-lg border bg-primary/5 border-primary/30">
+          <div className="p-4 rounded-lg border bg-blue/5 border-blue/30">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Globe className="w-4 h-4 text-primary" />
+              <div className="w-8 h-8 rounded-full bg-blue/10 flex items-center justify-center flex-shrink-0">
+                <img 
+                  src={refractorLogo} 
+                  alt="Refractor" 
+                  className="w-4 h-4"
+                />
               </div>
-              <p className="text-sm text-primary font-medium">
+              <p className="text-sm text-blue font-medium">
                 <strong>Note:</strong> Refractor only supports Public network. Switch to Public to use Refractor for multisig coordination.
               </p>
             </div>
@@ -107,12 +111,12 @@ export const NetworkSelector = ({
         )}
 
         {!canSubmitToNetwork && (
-          <div className="p-4 rounded-lg border bg-secondary/5 border-secondary/30">
+          <div className="p-4 rounded-lg border bg-warning/5 border-warning/30">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center flex-shrink-0">
-                <Send className="w-4 h-4 text-secondary-foreground" />
+              <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center flex-shrink-0">
+                <Key className="w-4 h-4 text-warning" />
               </div>
-              <p className="text-sm text-secondary-foreground font-medium">
+              <p className="text-sm text-warning font-medium">
                 Insufficient signatures. Transaction needs more signatures before it can be submitted to the network.
               </p>
             </div>

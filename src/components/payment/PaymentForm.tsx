@@ -328,11 +328,6 @@ export const PaymentForm = ({
               }`}>
                 {trustlineError}
               </p>
-              {trustlineError.includes('will create a new') && (
-                <p className="text-xs text-primary/70 mt-1">
-                  New accounts require a minimum of 1 XLM to fund the base reserve.
-                </p>
-              )}
             </div>
           </div>
         </div>

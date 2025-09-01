@@ -63,7 +63,14 @@ export default {
 					glow: 'hsl(var(--success-glow))'
 				},
 				warning: 'hsl(var(--warning))',
-				info: 'hsl(var(--info))',
+				info: {
+					DEFAULT: 'hsl(var(--info))',
+					light: 'hsl(var(--info-light))'
+				},
+				blue: {
+					DEFAULT: 'hsl(var(--blue))',
+					foreground: 'hsl(var(--blue-foreground))'
+				},
 				'stellar-yellow': 'hsl(var(--stellar-yellow))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
