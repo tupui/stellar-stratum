@@ -124,6 +124,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     };
     loadPrices();
   }, [accountData.balances]);
+  const checkAccountExists = async (destination: string) => {
+    try {
+      const server = createHorizonServer(currentNetwork);
+      await server.loadAccount(destination);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const checkTrustline = async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
     
@@ -139,8 +149,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       
       return hasTrustline;
     } catch (error) {
-      // If we can't load the account, it might not exist
-      throw new Error('Destination account does not exist');
+      // If we can't load the account, it doesn't exist
+      throw new Error('Account does not exist');
     }
   };
 
@@ -154,34 +164,65 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       return;
     }
 
-    // Check for trustline if not XLM
-    if (paymentData.asset !== 'XLM') {
-      if (!paymentData.assetIssuer) {
-        toast({
-          title: "Missing asset issuer",
-          description: "Asset issuer is required for non-XLM assets",
-          variant: "destructive",
-        });
-        return;
-      }
+    setIsBuilding(true);
+    setTrustlineError('');
 
-      setIsBuilding(true);
-      try {
-        const hasTrustline = await checkTrustline(paymentData.destination, paymentData.asset, paymentData.assetIssuer);
-        if (!hasTrustline) {
-          setTrustlineError('The destination account does not have a trustline for this asset');
+    let accountExists = false;
+    let needsCreateAccount = false;
+
+    // First check if the destination account exists
+    try {
+      accountExists = await checkAccountExists(paymentData.destination);
+      
+      if (!accountExists) {
+        // Account doesn't exist - we'll need to create it with XLM
+        if (paymentData.asset !== 'XLM') {
+          setTrustlineError('Cannot send non-XLM assets to accounts that don\'t exist. Please send XLM first to create the account.');
           setIsBuilding(false);
           return;
         }
-        setTrustlineError('');
-      } catch (error) {
-        setTrustlineError(error instanceof Error ? error.message : 'Failed to verify trustline');
-        setIsBuilding(false);
-        return;
+        
+        // Check minimum balance for account creation (1 XLM minimum)
+        const amount = parseFloat(paymentData.amount);
+        if (amount < 1) {
+          setTrustlineError('Account creation requires a minimum of 1 XLM to fund the new account.');
+          setIsBuilding(false);
+          return;
+        }
+        
+        needsCreateAccount = true;
+        setTrustlineError('This transaction will create a new Stellar account for the destination address.');
+      } else {
+        // Account exists - check trustline for non-XLM assets
+        if (paymentData.asset !== 'XLM') {
+          if (!paymentData.assetIssuer) {
+            toast({
+              title: "Missing asset issuer",
+              description: "Asset issuer is required for non-XLM assets",
+              variant: "destructive",
+            });
+            setIsBuilding(false);
+            return;
+          }
+
+          try {
+            const hasTrustline = await checkTrustline(paymentData.destination, paymentData.asset, paymentData.assetIssuer);
+            if (!hasTrustline) {
+              setTrustlineError('The destination account does not have a trustline for this asset');
+              setIsBuilding(false);
+              return;
+            }
+          } catch (error) {
+            setTrustlineError(error instanceof Error ? error.message : 'Failed to verify trustline');
+            setIsBuilding(false);
+            return;
+          }
+        }
       }
-    } else {
-      setTrustlineError('');
-      setIsBuilding(true);
+    } catch (error) {
+      setTrustlineError('Failed to verify destination account');
+      setIsBuilding(false);
+      return;
     }
     
     try {
@@ -198,16 +239,25 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         networkPassphrase,
       });
 
-      // Add payment operation
-      const asset = paymentData.asset === 'XLM' 
-        ? Asset.native() 
-        : new Asset(paymentData.asset, paymentData.assetIssuer);
-      
-      transaction.addOperation(Operation.payment({
-        destination: paymentData.destination,
-        asset,
-        amount: paymentData.amount,
-      }));
+      // Add appropriate operation based on account existence
+      if (needsCreateAccount) {
+        // Use createAccount operation for new accounts (XLM only)
+        transaction.addOperation(Operation.createAccount({
+          destination: paymentData.destination,
+          startingBalance: paymentData.amount,
+        }));
+      } else {
+        // Use payment operation for existing accounts
+        const asset = paymentData.asset === 'XLM' 
+          ? Asset.native() 
+          : new Asset(paymentData.asset, paymentData.assetIssuer);
+        
+        transaction.addOperation(Operation.payment({
+          destination: paymentData.destination,
+          asset,
+          amount: paymentData.amount,
+        }));
+      }
 
       // Add memo if provided
       if (paymentData.memo) {

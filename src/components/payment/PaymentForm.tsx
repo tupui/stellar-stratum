@@ -98,7 +98,7 @@ export const PaymentForm = ({
     paymentData.amount && 
     paymentData.asset &&
     (paymentData.asset === 'XLM' || paymentData.assetIssuer) &&
-    !trustlineError;
+    (!trustlineError || trustlineError.includes('will create a new'));
 
   return (
     <div className="space-y-4">
@@ -253,13 +253,32 @@ export const PaymentForm = ({
         />
       </div>
       
-      {/* Trustline Error */}
+      {/* Account Status Info */}
       {trustlineError && (
-        <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+        <div className={`p-4 rounded-lg border ${
+          trustlineError.includes('will create a new') 
+            ? 'bg-blue-50 border-blue-200 dark:bg-blue-950/50 dark:border-blue-800' 
+            : 'bg-destructive/10 border-destructive/30'
+        }`}>
           <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <AlertTriangle className={`w-5 h-5 flex-shrink-0 ${
+              trustlineError.includes('will create a new')
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-red-500'
+            }`} />
             <div className="flex-1">
-              <p className="text-sm text-foreground">{trustlineError}</p>
+              <p className={`text-sm ${
+                trustlineError.includes('will create a new')
+                  ? 'text-blue-800 dark:text-blue-200'
+                  : 'text-foreground'
+              }`}>
+                {trustlineError}
+              </p>
+              {trustlineError.includes('will create a new') && (
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  ✓ New accounts require a minimum of 1 XLM to fund the base reserve.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -275,6 +294,8 @@ export const PaymentForm = ({
             <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
             Building Transaction...
           </div>
+        ) : trustlineError?.includes('will create a new') ? (
+          'Create New Account'
         ) : (
           'Build Payment Transaction'
         )}
