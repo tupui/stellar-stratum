@@ -814,9 +814,11 @@ export const PaymentForm = ({
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">FROM</span>
                         <div className="font-semibold text-sm">{formatDisplayAmount(payment.amount)}</div>
-                        <div className="text-sm text-muted-foreground">{payment.asset}</div>
                       </div>
-                      <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={24} />
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm text-muted-foreground">{payment.asset}</div>
+                        <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={24} />
+                      </div>
                     </div>
                     
                     {/* Arrow separator */}
@@ -828,12 +830,14 @@ export const PaymentForm = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">TO</span>
-                        <div className="text-sm font-medium">{payment.receiveAsset || payment.asset}</div>
                         {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
                           <div className="text-xs text-muted-foreground">Path</div>
                         )}
                       </div>
-                      <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={24} />
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium">{payment.receiveAsset || payment.asset}</div>
+                        <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={24} />
+                      </div>
                     </div>
                   </div>
                     
