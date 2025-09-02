@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LandingPage } from '@/components/LandingPage';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { AccountOverview } from '@/components/AccountOverview';
 import { TransactionBuilder } from '@/components/TransactionBuilder';
 import { Footer } from '@/components/Footer';
@@ -28,7 +29,7 @@ interface AccountData {
   }>;
 }
 
-type AppState = 'connecting' | 'dashboard' | 'transaction' | 'multisig-config';
+type AppState = 'connecting' | 'loading' | 'dashboard' | 'transaction' | 'multisig-config';
 
 const Index = () => {
   const { toast } = useToast();
@@ -44,12 +45,12 @@ const Index = () => {
     setPublicKey(publicKey);
     setNetwork(selectedNetwork);
     setLoading(true);
+    setAppState('loading');
     
     try {
       // Fetch real account data from Horizon
       const realAccountData = await fetchAccountData(publicKey, selectedNetwork);
       setAccountData(realAccountData);
-      setAppState('dashboard');
       
     } catch (error) {
       console.error('Failed to load account:', error);
@@ -64,6 +65,10 @@ const Index = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLoadingComplete = () => {
+    setAppState('dashboard');
   };
 
   const handleInitiateTransaction = () => {
@@ -92,6 +97,11 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <div className="flex-1">
+        {/* Loading Screen */}
+        {appState === 'loading' && (
+          <LoadingScreen onComplete={handleLoadingComplete} isConnecting={loading} />
+        )}
+
         {/* Landing Page */}
         {appState === 'connecting' && (
           <LandingPage onConnect={handleWalletConnect} />
@@ -133,8 +143,8 @@ const Index = () => {
         )}
       </div>
       
-      {/* Only show footer when not on connecting page */}
-      {appState !== 'connecting' && <Footer />}
+      {/* Only show footer when not on connecting or loading page */}
+      {appState !== 'connecting' && appState !== 'loading' && <Footer />}
     </div>
   );
 };
