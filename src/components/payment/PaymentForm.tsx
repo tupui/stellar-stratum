@@ -483,7 +483,24 @@ export const PaymentForm = ({
       onBuild(mergeData, true);
     } else if (compactPayments.length > 0 && hasActiveForm) {
       // Build batch transaction with only compact payments
-      onBuild(undefined, false, compactPayments);
+      // Check if any compact payment is an account closure
+      const hasAccountClosure = compactPayments.some(payment => {
+        const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
+        return closesAccount;
+      });
+      
+      if (hasAccountClosure) {
+        // Find the account closure payment and build it as a merge
+        const closurePayment = compactPayments.find(payment => {
+          const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
+          return closesAccount;
+        });
+        if (closurePayment) {
+          onBuild(closurePayment, true);
+        }
+      } else {
+        onBuild(undefined, false, compactPayments);
+      }
     } else if (compactPayments.length > 0 && !hasActiveForm) {
       // Build batch transaction with compact payments + current payment
       const allPayments = [...compactPayments, {
@@ -498,7 +515,25 @@ export const PaymentForm = ({
         slippageTolerance: paymentData.slippageTolerance,
         fiatValue: fiatValue
       }];
-      onBuild(undefined, false, allPayments);
+      
+      // Check if any payment is an account closure
+      const hasAccountClosure = allPayments.some(payment => {
+        const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
+        return closesAccount;
+      });
+      
+      if (hasAccountClosure) {
+        // Find the account closure payment and build it as a merge
+        const closurePayment = allPayments.find(payment => {
+          const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
+          return closesAccount;
+        });
+        if (closurePayment) {
+          onBuild(closurePayment, true);
+        }
+      } else {
+        onBuild(undefined, false, allPayments);
+      }
     } else if (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset) {
       // Single cross-asset payment
       onBuild(undefined, false, undefined, paymentData);
