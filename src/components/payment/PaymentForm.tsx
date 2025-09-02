@@ -43,6 +43,7 @@ interface CompactPayment {
   memo: string;
   slippageTolerance?: number;
   fiatValue?: string;
+  isAccountClosure?: boolean;
 }
 interface PaymentFormProps {
   paymentData: PaymentData;
@@ -382,6 +383,9 @@ export const PaymentForm = ({
       }
     }
 
+    // Check if this payment is an account closure
+    const isAccountClosure = checkAccountClosure(paymentData.amount, paymentData.asset);
+
     // Create compact payment from current form
     const compactPayment: CompactPayment = {
       id: Date.now().toString(),
@@ -393,7 +397,8 @@ export const PaymentForm = ({
       receiveAssetIssuer: paymentData.receiveAssetIssuer,
       memo: paymentData.memo,
       slippageTolerance: paymentData.slippageTolerance,
-      fiatValue: currentFiatValue
+      fiatValue: currentFiatValue,
+      isAccountClosure: isAccountClosure
     };
     setCompactPayments([...compactPayments, compactPayment]);
 
@@ -483,26 +488,19 @@ export const PaymentForm = ({
       onBuild(mergeData, true);
     } else if (compactPayments.length > 0 && hasActiveForm) {
       // Build batch transaction with only compact payments
-      // Check if any compact payment is an account closure
-      const hasAccountClosure = compactPayments.some(payment => {
-        const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
-        return closesAccount;
-      });
+      // Check if any compact payment is an account closure using the stored flag
+      const accountClosurePayment = compactPayments.find(payment => payment.isAccountClosure);
       
-      if (hasAccountClosure) {
-        // Find the account closure payment and build it as a merge
-        const closurePayment = compactPayments.find(payment => {
-          const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
-          return closesAccount;
-        });
-        if (closurePayment) {
-          onBuild(closurePayment, true);
-        }
+      if (accountClosurePayment) {
+        // Build the account closure payment as a merge
+        onBuild(accountClosurePayment, true);
       } else {
         onBuild(undefined, false, compactPayments);
       }
     } else if (compactPayments.length > 0 && !hasActiveForm) {
       // Build batch transaction with compact payments + current payment
+      const currentPaymentIsAccountClosure = checkAccountClosure(paymentData.amount, paymentData.asset);
+      
       const allPayments = [...compactPayments, {
         id: 'current',
         destination: paymentData.destination,
@@ -513,24 +511,16 @@ export const PaymentForm = ({
         receiveAssetIssuer: paymentData.receiveAssetIssuer,
         memo: paymentData.memo,
         slippageTolerance: paymentData.slippageTolerance,
-        fiatValue: fiatValue
+        fiatValue: fiatValue,
+        isAccountClosure: currentPaymentIsAccountClosure
       }];
       
-      // Check if any payment is an account closure
-      const hasAccountClosure = allPayments.some(payment => {
-        const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
-        return closesAccount;
-      });
+      // Check if any payment is an account closure using the stored flag
+      const accountClosurePayment = allPayments.find(payment => payment.isAccountClosure);
       
-      if (hasAccountClosure) {
-        // Find the account closure payment and build it as a merge
-        const closurePayment = allPayments.find(payment => {
-          const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
-          return closesAccount;
-        });
-        if (closurePayment) {
-          onBuild(closurePayment, true);
-        }
+      if (accountClosurePayment) {
+        // Build the account closure payment as a merge
+        onBuild(accountClosurePayment, true);
       } else {
         onBuild(undefined, false, allPayments);
       }
@@ -655,8 +645,8 @@ export const PaymentForm = ({
           </div>
           
           {compactPayments.map((payment, index) => {
-        // Check if this payment will close the account
-        const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
+        // Check if this payment will close the account using the stored flag
+        const closesAccount = payment.isAccountClosure || false;
         return <Card key={payment.id} className={`p-4 border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-muted/30'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
