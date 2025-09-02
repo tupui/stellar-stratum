@@ -655,13 +655,13 @@ export const PaymentForm = ({
         </Alert>
       )}
 
-      {/* Compact Previous Payments */}
+      {/* Compact Transactions List */}
       {compactPayments.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-muted-foreground">Previous Payments</h3>
+            <h3 className="text-sm font-medium text-muted-foreground">List of Transactions</h3>
             <Badge variant="secondary" className="text-xs">
-              {compactPayments.length} payment{compactPayments.length > 1 ? 's' : ''}
+              {compactPayments.length} transaction{compactPayments.length > 1 ? 's' : ''}
             </Badge>
           </div>
           
@@ -676,7 +676,7 @@ export const PaymentForm = ({
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="text-sm font-medium">Payment #{index + 1}</span>
+                      <span className="text-sm font-medium">Transaction #{index + 1}</span>
                       {closesAccount && (
                         <Badge variant="destructive" className="text-[10px] px-1 py-0">
                           <Merge className="h-2 w-2 mr-1" />
@@ -687,7 +687,25 @@ export const PaymentForm = ({
                         <span className="text-xs text-primary font-medium">≈ {payment.fiatValue}</span>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-4 text-xs">
+                    
+                    {/* Mobile From/To indicator */}
+                    <div className="md:hidden mb-3">
+                      <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+                        <div className="flex flex-col items-center">
+                          <div className="text-[10px] text-muted-foreground mb-1">FROM</div>
+                          <div className="text-sm font-semibold">{formatDisplayAmount(payment.amount)} {payment.asset}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <ArrowRight className="w-4 h-4 text-primary" />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <div className="text-[10px] text-muted-foreground mb-1">TO</div>
+                          <div className="text-sm font-semibold">{payment.receiveAsset || payment.asset}</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="hidden md:grid grid-cols-3 gap-4 text-xs">
                       <div>
                         <span className="text-muted-foreground">To:</span>
                         <p className="font-mono truncate">{payment.destination}</p>
@@ -699,6 +717,13 @@ export const PaymentForm = ({
                       <div>
                         <span className="text-muted-foreground">Receive:</span>
                         <p className="font-semibold">{payment.receiveAsset || payment.asset}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="md:hidden grid grid-cols-1 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">To:</span>
+                        <p className="font-mono truncate">{payment.destination}</p>
                       </div>
                     </div>
                     {payment.memo && (
@@ -735,11 +760,14 @@ export const PaymentForm = ({
 
       {/* Current Payment Form */}
       <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">
-              {compactPayments.length > 0 ? `Payment #${compactPayments.length + 1}` : 'Payment Details'}
-            </h3>
-          </div>
+          {/* Only show header when we have an active form (not in bundle mode) */}
+          {!hasActiveForm && (
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold">
+                {compactPayments.length > 0 ? `Transaction #${compactPayments.length + 1}` : 'Transaction Details'}
+              </h3>
+            </div>
+          )}
 
         {!hasActiveForm && (<>
         {/* Same source and destination warning */}
@@ -773,26 +801,27 @@ export const PaymentForm = ({
             <Label className="text-sm font-medium">Amount & Assets</Label>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_140px] gap-4 items-start md:items-center">
-            {/* From Asset */}
-            <Select
-              value={paymentData.asset}
-              onValueChange={(value) => {
-                const selectedAsset = availableAssets.find(asset => asset.code === value);
-                onPaymentDataChange({ 
-                  ...paymentData, 
-                  asset: value,
-                  assetIssuer: selectedAsset?.issuer || '',
-                  amount: ''
-                });
-                setWillCloseAccount(false);
-              }}
-            >
-              <SelectTrigger className="h-12 border-border/60 focus:border-primary">
-                <SelectValue>
-                  <span className="font-semibold text-sm">{paymentData.asset}</span>
-                </SelectValue>
-              </SelectTrigger>
+            <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_140px] gap-4 items-center">
+              {/* From Asset */}
+              <div className="flex items-center justify-center">
+                <Select
+                  value={paymentData.asset}
+                  onValueChange={(value) => {
+                    const selectedAsset = availableAssets.find(asset => asset.code === value);
+                    onPaymentDataChange({ 
+                      ...paymentData, 
+                      asset: value,
+                      assetIssuer: selectedAsset?.issuer || '',
+                      amount: ''
+                    });
+                    setWillCloseAccount(false);
+                  }}
+                >
+                  <SelectTrigger className="h-12 border-border/60 focus:border-primary">
+                    <SelectValue>
+                      <span className="font-semibold text-sm">{paymentData.asset}</span>
+                    </SelectValue>
+                  </SelectTrigger>
               <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
                 <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
                   <span className="uppercase tracking-wider font-medium">Asset</span>
@@ -825,47 +854,51 @@ export const PaymentForm = ({
                     </SelectPrimitive.Item>
                   );
                 })}
-              </SelectContent>
-            </Select>
+                 </SelectContent>
+                </Select>
+              </div>
 
-            {/* Amount Slider with proper positioning and merge button */}
-            <div className="relative self-center">
-              <AmountSlider />
-              {/* Merge button positioned below slider */}
-              {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
-                <div className="text-center mt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleMergeAccount}
-                    className="h-7 px-3 text-xs border-primary/30 hover:border-primary hover:bg-primary/10 whitespace-nowrap"
-                  >
-                    <Merge className="h-3 w-3 mr-1" />
-                    Merge Account
-                  </Button>
+              {/* Amount Slider - properly centered */}
+              <div className="flex items-center justify-center">
+                <div className="w-full">
+                  <AmountSlider />
+                  {/* Merge button positioned below slider */}
+                  {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
+                    <div className="text-center mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleMergeAccount}
+                        className="h-7 px-3 text-xs border-primary/30 hover:border-primary hover:bg-primary/10 whitespace-nowrap"
+                      >
+                        <Merge className="h-3 w-3 mr-1" />
+                        Merge Account
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </div>
 
-            {/* To Asset with recipient balances */}
-            <Select
-              value={paymentData.receiveAsset || "same"}
-              onValueChange={(value) => {
-                const selectedAsset = recipientAssetOptions.find(asset => asset.code === value);
-                onPaymentDataChange({
-                  ...paymentData,
-                  receiveAsset: value === "same" ? undefined : value,
-                  receiveAssetIssuer: selectedAsset?.issuer || undefined
-                });
-              }}
-            >
-              <SelectTrigger className="h-12 border-border/60 focus:border-primary">
-                <SelectValue placeholder="Same">
-                  <span className="font-semibold text-sm">
-                    {paymentData.receiveAsset || paymentData.asset}
-                  </span>
-                </SelectValue>
-              </SelectTrigger>
+              {/* To Asset with recipient balances */}
+              <div className="flex items-center justify-center">
+                <Select
+                  value={paymentData.receiveAsset || "same"}
+                  onValueChange={(value) => {
+                    const selectedAsset = recipientAssetOptions.find(asset => asset.code === value);
+                    onPaymentDataChange({
+                      ...paymentData,
+                      receiveAsset: value === "same" ? undefined : value,
+                      receiveAssetIssuer: selectedAsset?.issuer || undefined
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-12 border-border/60 focus:border-primary">
+                    <SelectValue placeholder="Same">
+                      <span className="font-semibold text-sm">
+                        {paymentData.receiveAsset || paymentData.asset}
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
               <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
                 <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
                   <span className="uppercase tracking-wider font-medium">Asset</span>
@@ -913,10 +946,11 @@ export const PaymentForm = ({
                       </div>
                     </SelectPrimitive.ItemText>
                   </SelectPrimitive.Item>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                  ))}
+                 </SelectContent>
+                </Select>
+              </div>
+            </div>
         </div>
 
         {/* Slippage Tolerance (only when cross-asset) */}
@@ -1003,7 +1037,7 @@ export const PaymentForm = ({
                 className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
               >
               <Plus className="w-4 h-4 mr-2" />
-              Add
+              Add Transaction
               </Button>
               <Button 
                 onClick={handleBuild} 
@@ -1017,16 +1051,17 @@ export const PaymentForm = ({
                     Building...
                   </div>
                 ) : (
-                  'Build'
+                  'Build Transaction'
                 )}
               </Button>
-              <Button
-                onClick={() => setHasActiveForm(false)}
-                variant="destructive"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
+               <Button
+                 onClick={() => setHasActiveForm(false)}
+                 variant="destructive"
+                 className="flex-1"
+                 size="lg"
+               >
+                 Cancel
+               </Button>
             </>
           )}
 
@@ -1042,13 +1077,14 @@ export const PaymentForm = ({
                  <Plus className="w-4 h-4 mr-2" />
                  Bundle
                </Button>
-              <Button
-                onClick={cancelCurrentPayment}
-                variant="destructive"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
+               <Button
+                 onClick={cancelCurrentPayment}
+                 variant="destructive"
+                 className="flex-1"
+                 size="lg"
+               >
+                 Cancel
+               </Button>
             </>
           )}
 
