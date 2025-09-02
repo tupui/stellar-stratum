@@ -933,7 +933,7 @@ export const PaymentForm = ({
             </div>
           </div>
         )}
-        </>)
+        </>)}
 
         {/* Action Buttons */}
         <div className="flex gap-3">
