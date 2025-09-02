@@ -384,8 +384,12 @@ export const PaymentForm = ({
   const handleMergeAccount = () => {
     if (!canCloseAccount()) return;
     
+    console.log('Merge account clicked, willCloseAccount will be set to true');
+    
     // For merge, show the leftover balance that will be transferred
     const leftoverBalance = getLeftoverBalance('XLM');
+    
+    console.log('Leftover balance for merge:', leftoverBalance);
     
     // Use current destination if provided, otherwise require user input
     onPaymentDataChange({
@@ -396,6 +400,7 @@ export const PaymentForm = ({
       amount: leftoverBalance.toString()
     });
     setWillCloseAccount(true);
+    console.log('willCloseAccount state set to true');
   };
 
   // Helper function for path payment receive amount calculation
@@ -762,6 +767,12 @@ export const PaymentForm = ({
 
         {/* Slider */}
         <div className="relative self-center px-2">
+          {/* Debug info */}
+          {willCloseAccount && (
+            <div className="text-xs text-destructive mb-2 text-center">
+              DEBUG: Merge mode active - slider should be red
+            </div>
+          )}
           <Slider
             value={[sliderValue]}
             onValueChange={(values) => {
@@ -782,6 +793,12 @@ export const PaymentForm = ({
               '--available-progress': `${availablePercentage}%`
             } as React.CSSProperties}
           />
+          {/* Debug current classes */}
+          {willCloseAccount && (
+            <div className="text-xs text-destructive mt-1 text-center">
+              Classes: stellar-slider slider-merge
+            </div>
+          )}
         </div>
         {/* Meta row: only fiat value */}
         {fiatValue && <div className="text-right text-xs text-muted-foreground px-2">
