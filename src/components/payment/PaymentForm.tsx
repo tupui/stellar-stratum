@@ -528,15 +528,8 @@ export const PaymentForm = ({
       onBuild(mergeData, true);
     } else if (compactPayments.length > 0 && hasActiveForm) {
       // Build batch transaction with only compact payments
-      // Check if any compact payment is an account closure using the stored flag
-      const accountClosurePayment = compactPayments.find(payment => payment.isAccountClosure);
-      
-      if (accountClosurePayment) {
-        // Build the account closure payment as a merge
-        onBuild(accountClosurePayment, true);
-      } else {
-        onBuild(undefined, false, compactPayments);
-      }
+      // All payments should be included even if one is an account closure
+      onBuild(undefined, false, compactPayments);
     } else if (compactPayments.length > 0 && !hasActiveForm) {
       // Build batch transaction with compact payments + current payment
       const currentPaymentIsAccountClosure = checkAccountClosure(paymentData.amount, paymentData.asset);
@@ -555,15 +548,8 @@ export const PaymentForm = ({
         isAccountClosure: currentPaymentIsAccountClosure
       }];
       
-      // Check if any payment is an account closure using the stored flag
-      const accountClosurePayment = allPayments.find(payment => payment.isAccountClosure);
-      
-      if (accountClosurePayment) {
-        // Build the account closure payment as a merge
-        onBuild(accountClosurePayment, true);
-      } else {
-        onBuild(undefined, false, allPayments);
-      }
+      // Build all payments as a batch transaction (including any account closures)
+      onBuild(undefined, false, allPayments);
     } else if (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset) {
       // Single cross-asset payment
       onBuild(undefined, false, undefined, paymentData);
