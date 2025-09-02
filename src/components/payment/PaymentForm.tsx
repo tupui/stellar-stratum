@@ -96,14 +96,14 @@ export const PaymentForm = ({
   const [compactPayments, setCompactPayments] = useState<CompactPayment[]>([]);
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
   
-  // State for current payment
+  // State for current payment and flow control
   const [fiatValue, setFiatValue] = useState<string>('');
   type RecipientAsset = { code: string; issuer?: string; balance: string };
   const [recipientAssetOptions, setRecipientAssetOptions] = useState<RecipientAsset[]>([]);
   const [recipientExists, setRecipientExists] = useState<boolean | null>(null);
   const [willCloseAccount, setWillCloseAccount] = useState(false);
   const [showAutoAdjustWarning, setShowAutoAdjustWarning] = useState(false);
-  const [showBundleActions, setShowBundleActions] = useState(false);
+  const [hasActiveForm, setHasActiveForm] = useState(false);
   const isDraggingRef = useRef(false);
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
@@ -313,6 +313,16 @@ export const PaymentForm = ({
     
     const fullBalance = getMaxSliderValue('XLM');
     handleAmountChange(fullBalance.toString());
+    
+    // Use current destination if provided, otherwise require user input
+    if (!paymentData.destination) {
+      onPaymentDataChange({ 
+        ...paymentData, 
+        destination: '',
+        amount: fullBalance.toString()
+      });
+    }
+    
     setWillCloseAccount(true);
   };
 
@@ -336,11 +346,10 @@ export const PaymentForm = ({
   const recipientHas = (code: string) => recipientAssetOptions.some(a => a.code === code);
   const recipientBalance = (code: string) => recipientAssetOptions.find(a => a.code === code)?.balance;
 
-  const handleBundlePayment = () => {
-    setShowBundleActions(true);
-  };
-
-  const addPayment = async () => {
+  const handleBundlePayment = async () => {
+    // Bundle current form: convert it to compact payment and add to list
+    if (!isFormValid()) return;
+    
     // Calculate fiat value for the current payment
     let currentFiatValue = '';
     if (paymentData.amount && paymentData.asset) {
@@ -361,7 +370,7 @@ export const PaymentForm = ({
       }
     }
 
-    // Move current payment to compact payments
+    // Create compact payment from current form
     const compactPayment: CompactPayment = {
       id: Date.now().toString(),
       destination: paymentData.destination,
@@ -389,7 +398,25 @@ export const PaymentForm = ({
       slippageTolerance: 0.5
     });
     setWillCloseAccount(false);
+    setHasActiveForm(true); // Show bundle actions
   };
+
+  const addPayment = () => {
+    // Reset form for new payment entry
+    onPaymentDataChange({
+      destination: '',
+      amount: '',
+      asset: paymentData.asset, // Keep same asset
+      assetIssuer: paymentData.assetIssuer,
+      memo: '',
+      receiveAsset: undefined,
+      receiveAssetIssuer: undefined,
+      slippageTolerance: 0.5
+    });
+    setWillCloseAccount(false);
+    setHasActiveForm(false); // Show form with bundle/cancel buttons
+  };
+
 
   const editCompactPayment = (payment: CompactPayment) => {
     // Move compact payment back to main form
@@ -414,6 +441,7 @@ export const PaymentForm = ({
   };
 
   const cancelCurrentPayment = () => {
+    // Clear current form and return to bundle actions
     onPaymentDataChange({
       destination: '',
       amount: '',
@@ -425,10 +453,15 @@ export const PaymentForm = ({
       slippageTolerance: 0.5,
     });
     setWillCloseAccount(false);
-    setShowBundleActions(true);
+    setHasActiveForm(true);
   };
 
   const isFormValid = () => {
+    // Prevent same source and destination addresses
+    if (paymentData.destination === accountPublicKey) {
+      return false;
+    }
+    
     if (willCloseAccount) {
       return paymentData.destination && paymentData.destination !== accountPublicKey && canCloseAccount();
     }
@@ -442,8 +475,16 @@ export const PaymentForm = ({
 
   const handleBuild = () => {
     if (willCloseAccount) {
-      onBuild(paymentData, true);
-    } else if (compactPayments.length > 0) {
+      // Use current destination for merge
+      const mergeData = {
+        ...paymentData,
+        destination: paymentData.destination || accountPublicKey
+      };
+      onBuild(mergeData, true);
+    } else if (compactPayments.length > 0 && hasActiveForm) {
+      // Build batch transaction with only compact payments
+      onBuild(undefined, false, compactPayments);
+    } else if (compactPayments.length > 0 && !hasActiveForm) {
       // Build batch transaction with compact payments + current payment
       const allPayments = [
         ...compactPayments,
@@ -521,48 +562,45 @@ export const PaymentForm = ({
     }, []);
 
     return (
-      <div className="space-y-2">
-        {/* Amount display above slider */}
-        <div className="flex items-center justify-between">
-          {/* Centered amount */}
-          <div className="flex-1 text-center">
-            {isEditing ? (
-              <Input
-                type="text"
-                inputMode="decimal"
-                value={editValue}
-                onChange={(e) => {
-                  let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
-                  const parts = sanitized.split('.');
-                  if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-                  if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
-                  setEditValue(sanitized);
-                }}
-                onBlur={handleEditSubmit}
-                onKeyDown={handleEditKeyDown}
-                onFocus={(e) => e.currentTarget.select()}
-                className="h-8 w-40 text-xl font-amount text-center px-2 py-1 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md"
-                placeholder="0.0000000"
-                autoFocus
-              />
-            ) : (
-              <div
-                className="cursor-pointer rounded px-2 py-1"
-                onClick={() => setIsEditing(true)}
-              >
-                <div className="text-2xl font-amount font-semibold text-foreground">
-                  {formatDisplayAmount(value.toString())}
-                </div>
+      <div className="space-y-3">
+        {/* Centered amount display */}
+        <div className="text-center">
+          {isEditing ? (
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={editValue}
+              onChange={(e) => {
+                let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
+                const parts = sanitized.split('.');
+                if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+                if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+                setEditValue(sanitized);
+              }}
+              onBlur={handleEditSubmit}
+              onKeyDown={handleEditKeyDown}
+              onFocus={(e) => e.currentTarget.select()}
+              className="h-10 w-48 text-2xl font-amount text-center px-3 py-2 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md mx-auto"
+              placeholder="0.0000000"
+              autoFocus
+            />
+          ) : (
+            <div
+              className="cursor-pointer rounded px-3 py-2 mx-auto w-fit"
+              onClick={() => setIsEditing(true)}
+            >
+              <div className="text-3xl font-amount font-semibold text-foreground">
+                {formatDisplayAmount(value.toString())}
               </div>
-            )}
-          </div>
-          <div className="ml-2 text-sm text-muted-foreground whitespace-nowrap">
-            / {formatDisplayAmount(maxAmount.toString())}
-          </div>
+              <div className="text-sm text-muted-foreground mt-1">
+                / {formatDisplayAmount(maxAmount.toString())}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Slider */}
-        <div className="relative">
+        <div className="relative px-2">
           <input
             type="range"
             min={0}
@@ -587,7 +625,7 @@ export const PaymentForm = ({
           />
         </div>
         {/* Meta row */}
-        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+        <div className="flex items-center justify-between text-xs text-muted-foreground px-2">
           <span className="font-amount">Available: {availableBalance.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 7 })} {paymentData.asset}</span>
           {fiatValue && <span className="font-amount font-medium text-primary">≈ {fiatValue}</span>}
         </div>
@@ -606,6 +644,16 @@ export const PaymentForm = ({
         </Alert>
       )}
 
+      {/* Account Merge Warning - show before payments list */}
+      {willCloseAccount && (
+        <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <AlertDescription className="text-destructive font-medium">
+            <span className="font-bold">Account Closure:</span> This transaction will close your source account and send all remaining funds to the destination. This action cannot be undone.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Compact Previous Payments */}
       {compactPayments.length > 0 && (
         <div className="space-y-3">
@@ -616,58 +664,71 @@ export const PaymentForm = ({
             </Badge>
           </div>
           
-          {compactPayments.map((payment, index) => (
-            <Card key={payment.id} className="p-4 bg-muted/30 border-border/60">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-sm font-medium">Payment #{index + 1}</span>
-                    {payment.fiatValue && (
-                      <span className="text-xs text-primary font-medium">≈ {payment.fiatValue}</span>
+          {compactPayments.map((payment, index) => {
+            // Check if this payment will close the account
+            const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
+            
+            return (
+              <Card key={payment.id} className={`p-4 border-border/60 ${
+                closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-muted/30'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-sm font-medium">Payment #{index + 1}</span>
+                      {closesAccount && (
+                        <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                          <Merge className="h-2 w-2 mr-1" />
+                          Account Closure
+                        </Badge>
+                      )}
+                      {payment.fiatValue && (
+                        <span className="text-xs text-primary font-medium">≈ {payment.fiatValue}</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">To:</span>
+                        <p className="font-mono truncate">{payment.destination}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Amount:</span>
+                        <p className="font-semibold">{formatDisplayAmount(payment.amount)} {payment.asset}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Receive:</span>
+                        <p className="font-semibold">{payment.receiveAsset || payment.asset}</p>
+                      </div>
+                    </div>
+                    {payment.memo && (
+                      <div className="mt-2 text-xs">
+                        <span className="text-muted-foreground">Memo:</span>
+                        <p className="font-mono">{payment.memo}</p>
+                      </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-4 text-xs">
-                    <div>
-                      <span className="text-muted-foreground">To:</span>
-                      <p className="font-mono truncate">{payment.destination}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Amount:</span>
-                      <p className="font-semibold">{formatDisplayAmount(payment.amount)} {payment.asset}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Receive:</span>
-                      <p className="font-semibold">{payment.receiveAsset || payment.asset}</p>
-                    </div>
+                  <div className="flex items-center gap-2 ml-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => editCompactPayment(payment)}
+                      className="h-8 w-8 p-0 hover:bg-background/50"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeCompactPayment(payment.id)}
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
                   </div>
-                  {payment.memo && (
-                    <div className="mt-2 text-xs">
-                      <span className="text-muted-foreground">Memo:</span>
-                      <p className="font-mono">{payment.memo}</p>
-                    </div>
-                  )}
                 </div>
-                <div className="flex items-center gap-2 ml-4">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => editCompactPayment(payment)}
-                    className="h-8 w-8 p-0 hover:bg-background/50"
-                  >
-                    <Edit2 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeCompactPayment(payment.id)}
-                    className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -679,7 +740,17 @@ export const PaymentForm = ({
             </h3>
           </div>
 
-        {!showBundleActions && (<>
+        {!hasActiveForm && (<>
+        {/* Same source and destination warning */}
+        {paymentData.destination === accountPublicKey && (
+          <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="text-destructive">
+              Source and destination addresses cannot be the same.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Destination */}
         <div className="space-y-2">
           <Label htmlFor="destination" className="text-sm font-medium">
@@ -701,7 +772,7 @@ export const PaymentForm = ({
             <Label className="text-sm font-medium">Amount & Assets</Label>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_140px] gap-4 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_140px] gap-4 items-start md:items-center">
             {/* From Asset */}
             <Select
               value={paymentData.asset}
@@ -756,20 +827,20 @@ export const PaymentForm = ({
               </SelectContent>
             </Select>
 
-            {/* Amount Slider with proper positioning */}
-            <div className="relative">
+            {/* Amount Slider with proper positioning and merge button */}
+            <div className="relative md:pt-2">
               <AmountSlider />
-              {/* Merge button positioned below, not overlapping */}
+              {/* Merge button positioned below slider */}
               {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
-                <div className="md:absolute md:-bottom-8 md:left-1/2 md:-translate-x-1/2 mt-2 md:mt-0 text-center">
+                <div className="text-center mt-3">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleMergeAccount}
-                    className="h-6 px-2 text-xs border-primary/30 hover:border-primary hover:bg-primary/10 whitespace-nowrap"
+                    className="h-7 px-3 text-xs border-primary/30 hover:border-primary hover:bg-primary/10 whitespace-nowrap"
                   >
                     <Merge className="h-3 w-3 mr-1" />
-                    Merge
+                    Merge Account
                   </Button>
                 </div>
               )}
@@ -860,7 +931,7 @@ export const PaymentForm = ({
                 value={paymentData.slippageTolerance || 0.5}
                 onChange={(e) => onPaymentDataChange({ ...paymentData, slippageTolerance: parseFloat(e.target.value) })}
                 className="flex-1 stellar-slider stellar-slider-purple"
-                style={{ '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / (5 - 0.1) * 100}%` } as React.CSSProperties}
+                style={{ '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / (4.9) * 100}%` } as React.CSSProperties}
               />
               <span className="text-sm font-amount w-12 text-right">
                 {(paymentData.slippageTolerance || 0.5).toFixed(1)}%
@@ -922,9 +993,8 @@ export const PaymentForm = ({
 
         {/* Action Buttons */}
         <div className="flex gap-3">
-
-          {/* Bundle Actions - Show after clicking Bundle Payment */}
-          {showBundleActions && (
+          {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
+          {hasActiveForm && (
             <>
               <Button
                 onClick={addPayment}
@@ -936,7 +1006,7 @@ export const PaymentForm = ({
               </Button>
               <Button 
                 onClick={handleBuild} 
-                disabled={isBuilding || !isFormValid()}
+                disabled={isBuilding || compactPayments.length === 0}
                 className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
                 size="lg"
               >
@@ -950,8 +1020,8 @@ export const PaymentForm = ({
                 )}
               </Button>
               <Button
-                onClick={() => setShowBundleActions(false)}
-                variant="ghost"
+                onClick={() => setHasActiveForm(false)}
+                variant="destructive"
                 className="flex-1"
               >
                 Cancel
@@ -959,28 +1029,54 @@ export const PaymentForm = ({
             </>
           )}
 
-          {compactPayments.length > 0 && !showBundleActions && (
+          {/* Form with Bundle/Cancel - Show when hasActiveForm is false and form has content */}
+          {!hasActiveForm && (paymentData.destination || paymentData.amount) && (
             <>
-              <Button
-                onClick={handleBundlePayment}
-                variant="outline"
-                className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Bundle Payment
-              </Button>
+               <Button
+                 onClick={handleBundlePayment}
+                 variant="outline"
+                 disabled={!isFormValid()}
+                 className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+               >
+                 <Plus className="w-4 h-4 mr-2" />
+                 Bundle
+               </Button>
               <Button
                 onClick={cancelCurrentPayment}
-                variant="ghost"
+                variant="destructive"
                 className="flex-1"
               >
-                Cancel Current Transaction
+                Cancel
               </Button>
             </>
           )}
 
-          {/* Primary action: show only Bundle first */}
-          {!showBundleActions && compactPayments.length === 0 && (
+          {/* Build single transaction - Show when no compact payments and form is valid */}
+          {!hasActiveForm && compactPayments.length === 0 && isFormValid() && (
+            <Button
+              onClick={handleBuild}
+              disabled={isBuilding}
+              className="w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50"
+              size="lg"
+            >
+              {isBuilding ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                  Building...
+                </div>
+              ) : willCloseAccount ? (
+                <>
+                  <Merge className="w-4 h-4 mr-2" />
+                  Merge Account
+                </>
+              ) : (
+                'Build Transaction'
+              )}
+            </Button>
+          )}
+
+          {/* Initial bundle button - Show when form is empty and no payments */}
+          {!hasActiveForm && compactPayments.length === 0 && !paymentData.destination && !paymentData.amount && (
             <Button
               onClick={handleBundlePayment}
               variant="outline"
