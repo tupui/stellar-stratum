@@ -227,7 +227,7 @@ export const SwapInterface = ({
             style={{'--slider-progress': `${sliderValue[0]}%`} as React.CSSProperties}
           />
           <div className="flex justify-between items-center text-xs text-muted-foreground">
-            <span>Available: {formatBalance(availableAmount)}</span>
+            <span>Available: {formatBalance(availableAmount)} {fromAsset}</span>
           </div>
         </div>
       </div>
