@@ -29,8 +29,8 @@ const tomlCache = new Map<string, CacheEntry<SEP1TomlAsset[]>>();
 const assetInfoCache = new Map<string, CacheEntry<AssetInfo>>();
 
 // Cache expiry times
-const TOML_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
-const ASSET_INFO_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+const TOML_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
+const ASSET_INFO_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
 const STORAGE_KEY_PREFIX = 'stellar_asset_cache_';
 
 // Load cache from localStorage on startup
