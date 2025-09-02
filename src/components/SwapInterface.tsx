@@ -156,16 +156,18 @@ export const SwapInterface = ({
                 </div>
               </SelectValue>
             </SelectTrigger>
-            <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[380px]">
-              {availableAssets.map(asset => <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
+            <SelectContent className="bg-card border border-border shadow-lg z-50 w-[420px] min-w-[420px]">
+              {availableAssets.map(asset => (
+                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
                   <div className="w-full grid grid-cols-[auto_1fr_auto] items-center gap-3">
                     <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                     <span className="font-medium truncate">{asset.code}</span>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap font-amount w-[140px] text-right">
+                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap font-amount w-[160px] justify-self-end text-right pr-1">
                       {formatBalanceAligned(asset.balance)}
                     </span>
                   </div>
-                </SelectItem>)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
