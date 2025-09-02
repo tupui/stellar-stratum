@@ -200,7 +200,7 @@ export const getSupportedWallets = async (network: 'mainnet' | 'testnet' = 'main
     const wallets = await kit.getSupportedWallets();
 
     // Filter and prioritize wallets
-    const priorityOrder = ['freighter', 'xbull', 'ledger', 'hot', 'albedo', 'rabet'];
+    const priorityOrder = ['freighter', 'xbull', 'ledger', 'lobstr', 'hot', 'albedo', 'rabet'];
 
     return wallets
       .filter((wallet) => wallet.name)
