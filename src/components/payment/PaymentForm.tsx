@@ -476,11 +476,13 @@ export const PaymentForm = ({
     const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState(paymentData.amount);
     const value = parseFloat(paymentData.amount) || 0;
-    const max = getMaxSliderValue(paymentData.asset);
-    const percentage = max > 0 ? (value / max) * 100 : 0;
+    const maxAmount = getMaxSliderValue(paymentData.asset);
+    const sliderMax = 1000; // integer steps for smooth drag
+    const sliderValue = maxAmount > 0 ? Math.round((value / maxAmount) * sliderMax) : 0;
+    const percentage = sliderMax > 0 ? (sliderValue / sliderMax) * 100 : 0;
     const availableBalance = getAvailableBalance(paymentData.asset);
     const isOverLimit = value > availableBalance;
-    const availablePercentage = max > 0 ? (availableBalance / max) * 100 : 0;
+    const availablePercentage = maxAmount > 0 ? Math.min(100, (availableBalance / maxAmount) * 100) : 0;
     
     const handleEditSubmit = () => {
       let numValue = parseFloat(editValue) || 0;
@@ -488,15 +490,13 @@ export const PaymentForm = ({
       if (paymentData.asset === 'XLM') {
         numValue = Math.round(numValue * 10000000) / 10000000; // 7 decimal places for XLM
       } else {
-        numValue = Math.round(numValue * 10000000) / 10000000; // 7 decimal places max for other assets
+        numValue = Math.round(numValue * 10000000) / 10000000; // 7 decimals for issued assets too
       }
-      const clampedValue = Math.min(Math.max(0, numValue), max);
-      handleAmountChange(clampedValue.toString());
-      setEditValue(clampedValue.toString());
+      handleAmountChange(numValue.toString());
       setIsEditing(false);
     };
 
-    const handleEditKeyDown = (e: React.KeyboardEvent) => {
+    const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') {
         handleEditSubmit();
       } else if (e.key === 'Escape') {
@@ -569,7 +569,7 @@ export const PaymentForm = ({
             )}
           </div>
           <div className="text-sm text-muted-foreground">
-            / {formatDisplayAmount(max.toString())}
+            / {formatDisplayAmount(maxAmount.toString())}
           </div>
         </div>
 
@@ -585,11 +585,15 @@ export const PaymentForm = ({
           <input
             type="range"
             min={0}
-            max={max}
-            step={0.0000001}
-            value={value}
-            onChange={(e) => handleAmountChange(e.target.value)}
-            onInput={(e) => handleAmountChange((e.target as HTMLInputElement).value)}
+            max={sliderMax}
+            step={1}
+            value={sliderValue}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10) || 0;
+              const newAmount = maxAmount > 0 ? (v / sliderMax) * maxAmount : 0;
+              isDraggingRef.current = true;
+              handleAmountChange(newAmount.toFixed(7));
+            }}
             onMouseDown={() => { isDraggingRef.current = true; }}
             onTouchStart={() => { isDraggingRef.current = true; }}
             className={`w-full stellar-slider ${
@@ -690,6 +694,7 @@ export const PaymentForm = ({
             </h3>
           </div>
 
+        {!showBundleActions && (<>
         {/* Destination */}
         <div className="space-y-2">
           <Label htmlFor="destination" className="text-sm font-medium">
@@ -928,6 +933,7 @@ export const PaymentForm = ({
             </div>
           </div>
         )}
+        </>)
 
         {/* Action Buttons */}
         <div className="flex gap-3">
@@ -946,7 +952,7 @@ export const PaymentForm = ({
           {showBundleActions && (
             <>
               <Button
-                onClick={addPayment}
+                onClick={() => setShowBundleActions(false)}
                 variant="outline"
                 className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
               >
@@ -955,7 +961,7 @@ export const PaymentForm = ({
               </Button>
               <Button 
                 onClick={handleBuild} 
-                disabled={isBuilding}
+                disabled={isBuilding || !isFormValid()}
                 className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
                 size="lg"
               >

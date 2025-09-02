@@ -178,12 +178,28 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
       if (isAccountMerge) {
         // Account merge operation
-        if (!paymentData?.destination) {
-          throw new Error('Destination required for account merge');
+        const dest = paymentData?.destination?.trim();
+        if (!dest) {
+          toast({
+            title: 'Destination required',
+            description: 'Enter a destination address to merge into.',
+            variant: 'destructive',
+          });
+          setIsBuilding(false);
+          return;
+        }
+        if (dest === accountPublicKey) {
+          toast({
+            title: 'Invalid destination',
+            description: 'You cannot merge an account into itself.',
+            variant: 'destructive',
+          });
+          setIsBuilding(false);
+          return;
         }
         
         transaction.addOperation(Operation.accountMerge({
-          destination: paymentData.destination,
+          destination: dest,
         }));
         
       } else if (batchPayments) {
