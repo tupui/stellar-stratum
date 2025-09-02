@@ -298,7 +298,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
       <div className="mb-6 flex items-center gap-3">
         <Label className="text-sm font-medium whitespace-nowrap">Network</Label>
         <Select value={selectedNetwork} onValueChange={(value: 'mainnet' | 'testnet') => setSelectedNetwork(value)}>
-          <SelectTrigger className="flex-1">
+          <SelectTrigger className="w-32 h-8 text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
