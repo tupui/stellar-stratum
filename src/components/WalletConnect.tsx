@@ -264,18 +264,29 @@ export const WalletConnect = ({
   };
   const walletContent = <>
       {/* Network Toggle */}
-      <div className="mb-6 flex justify-end items-center gap-3">
-        <Label htmlFor="network-toggle" className={`text-sm font-medium ${selectedNetwork === 'mainnet' ? 'text-foreground' : 'text-muted-foreground'}`}>
-          Mainnet
-        </Label>
-        <Switch 
-          id="network-toggle"
-          checked={selectedNetwork === 'testnet'} 
-          onCheckedChange={(checked) => setSelectedNetwork(checked ? 'testnet' : 'mainnet')}
-        />
-        <Label htmlFor="network-toggle" className={`text-sm font-medium ${selectedNetwork === 'testnet' ? 'text-foreground' : 'text-muted-foreground'}`}>
-          Testnet
-        </Label>
+      <div className="mb-6 flex justify-end">
+        <div className="relative bg-muted rounded-full p-1 flex">
+          <button
+            onClick={() => setSelectedNetwork('mainnet')}
+            className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+              selectedNetwork === 'mainnet'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Mainnet
+          </button>
+          <button
+            onClick={() => setSelectedNetwork('testnet')}
+            className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+              selectedNetwork === 'testnet'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Testnet
+          </button>
+        </div>
       </div>
 
       <Separator className="mb-6" />
