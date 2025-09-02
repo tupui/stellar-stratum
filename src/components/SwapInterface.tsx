@@ -301,7 +301,7 @@ export const SwapInterface = ({
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-3">
                     <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
-                    <span className="text-muted-foreground">Same ({fromAsset})</span>
+                    <span className="text-muted-foreground">{fromAsset}</span>
                   </div>
                   <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0" style={{ 
                     textAlign: 'right',
