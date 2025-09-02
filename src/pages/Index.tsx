@@ -91,16 +91,16 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <div className="flex-1">
-        {/* Landing Page */}
-        {appState === 'connecting' && (
-          <LandingPage onConnect={handleWalletConnect} />
-        )}
+    <FiatCurrencyProvider>
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1">
+          {/* Landing Page */}
+          {appState === 'connecting' && (
+            <LandingPage onConnect={handleWalletConnect} />
+          )}
 
-        {/* Transaction Builder */}
-        {(appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
-          <FiatCurrencyProvider>
+          {/* Transaction Builder */}
+          {(appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
             <TransactionBuilder
               key={`${appState}-${publicKey}`}
               onBack={handleBackToDashboard}
@@ -113,12 +113,10 @@ const Index = () => {
                 setAccountData(realAccountData);
               }}
             />
-          </FiatCurrencyProvider>
-        )}
+          )}
 
-        {/* Account Dashboard */}
-        {appState === 'dashboard' && publicKey && accountData && (
-          <FiatCurrencyProvider>
+          {/* Account Dashboard */}
+          {appState === 'dashboard' && publicKey && accountData && (
             <AccountOverview
               accountData={accountData}
               onInitiateTransaction={handleInitiateTransaction}
@@ -130,13 +128,13 @@ const Index = () => {
               }}
               onDisconnect={handleDisconnect}
             />
-          </FiatCurrencyProvider>
-        )}
+          )}
+        </div>
+        
+        {/* Only show footer when not on connecting page */}
+        {appState !== 'connecting' && <Footer />}
       </div>
-      
-      {/* Only show footer when not on connecting page */}
-      {appState !== 'connecting' && <Footer />}
-    </div>
+    </FiatCurrencyProvider>
   );
 };
 
