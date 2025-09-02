@@ -157,27 +157,20 @@ export const SwapInterface = ({
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
-              <div className="px-3 py-2 border-b border-border/50">
-                <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  <span>Asset</span>
-                  <span>Balance</span>
-                </div>
-              </div>
-{availableAssets.map((asset) => (
-  <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
-    <div className="flex items-center justify-between w-full">
-      <div className="flex items-center gap-3">
-        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-        <span className="font-medium">{asset.code}</span>
-      </div>
-      <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0">
-        {formatBalance(asset.balance)}
-      </span>
-    </div>
-  </SelectItem>
-))
-              }
-             </SelectContent>
+              {availableAssets.map((asset) => (
+                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-3">
+                      <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
+                      <span className="font-medium">{asset.code}</span>
+                    </div>
+                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0" style={{ textAlignLast: 'right' }}>
+                      {formatBalance(asset.balance)}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
 
           <div className="flex-1">
@@ -304,33 +297,25 @@ export const SwapInterface = ({
                     <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
                     <span className="text-muted-foreground">Same ({fromAsset})</span>
                   </div>
-                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0">
+                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0" style={{ textAlignLast: 'right' }}>
                     {formatBalance(toAssetBalance)}
                   </span>
                 </div>
               </SelectItem>
-  {recipientAssets.filter(asset => asset.code !== fromAsset).length > 0 && (
-    <div className="px-3 py-2 border-b border-border/50">
-      <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        <span>Asset</span>
-        <span>Balance</span>
-      </div>
-    </div>
-  )}
-  {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
-    <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
-      <div className="flex items-center justify-between w-full">
-        <div className="flex items-center gap-3">
-          <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-          <span className="font-medium">{asset.code}</span>
-        </div>
-        <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0">
-          {formatBalance(asset.balance)}
-        </span>
-      </div>
-    </SelectItem>
-  ))}
-</SelectContent>
+              {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
+                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-3">
+                      <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
+                      <span className="font-medium">{asset.code}</span>
+                    </div>
+                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0" style={{ textAlignLast: 'right' }}>
+                      {formatBalance(asset.balance)}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
 
           <div className="flex-1 text-right">
