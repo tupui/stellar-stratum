@@ -33,10 +33,11 @@ export const NetworkSelector = ({
       <CardContent className="space-y-6">
         <div className="space-y-2">
           
-          <div className="flex items-center rounded-md border border-border px-3 py-2">
-            <span className="text-sm font-medium">
-              Network {currentNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}
-            </span>
+          <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
+            <Badge variant={currentNetwork === 'testnet' ? 'warning' : 'success'}>
+              {currentNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}
+            </Badge>
+            <span className="text-sm">Network</span>
           </div>
         </div>
 
