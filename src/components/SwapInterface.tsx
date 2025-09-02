@@ -118,6 +118,15 @@ export const SwapInterface = ({
   const isPathPayment = toAsset && toAsset !== fromAsset;
   const displayReceiveAmount = isPathPayment ? receiveAmount || amount : amount;
 
+  // Helper to build a single monospaced line with spaces so the amount is flush-right
+  const getPaddedRowText = (label: string, value: string | number) => {
+    const amt = formatBalanceAligned(value);
+    const totalChars = 28; // tune to fit the dropdown width
+    const used = label.length + 1 + amt.length; // +1 for at least one space
+    const spaces = Math.max(1, totalChars - used);
+    return `${label}${' '.repeat(spaces)}${amt}`;
+  };
+
   return <div className={cn("max-w-lg mx-auto", className)}>
       {/* From Section */}
       <div className={cn(
