@@ -187,7 +187,7 @@ export const SwapAmountInput = ({
                 />
               ) : (
                 <div
-                  className="text-xl md:text-2xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors"
+                  className="text-xl md:text-2xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors text-right"
                   onClick={() => setIsEditingAmount(true)}
                 >
                   {amount ? formatAmount(amount) : '0.0'}
