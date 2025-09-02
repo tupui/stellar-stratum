@@ -156,15 +156,21 @@ export const SwapInterface = ({
                 </div>
               </SelectValue>
             </SelectTrigger>
-            <SelectContent className="bg-card border border-border shadow-lg z-50">
+            <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
+              <div className="px-3 py-2 border-b border-border/50">
+                <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <span>Asset</span>
+                  <span>Balance</span>
+                </div>
+              </div>
               {availableAssets.map((asset) => (
-                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3">
                   <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-                      <span>{asset.code}</span>
+                      <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-sm font-mono text-muted-foreground">
                       {formatBalance(asset.balance)}
                     </span>
                   </div>
@@ -290,21 +296,29 @@ export const SwapInterface = ({
                 </div>
               </SelectValue>
             </SelectTrigger>
-            <SelectContent className="bg-card border border-border shadow-lg z-50">
-              <SelectItem value="same">
-                <div className="flex items-center gap-2">
+            <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
+              <SelectItem value="same" className="px-3 py-3">
+                <div className="flex items-center gap-3">
                   <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
                   <span className="text-muted-foreground">Same ({fromAsset})</span>
                 </div>
               </SelectItem>
+              {recipientAssets.filter(asset => asset.code !== fromAsset).length > 0 && (
+                <div className="px-3 py-2 border-b border-border/50">
+                  <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    <span>Asset</span>
+                    <span>Balance</span>
+                  </div>
+                </div>
+              )}
               {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
-                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3">
                   <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-                      <span>{asset.code}</span>
+                      <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-sm font-mono text-muted-foreground">
                       {formatBalance(asset.balance)}
                     </span>
                   </div>
