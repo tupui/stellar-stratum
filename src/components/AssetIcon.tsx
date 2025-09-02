@@ -63,7 +63,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
 
   return (
     <div
-      className={`rounded-full bg-white overflow-hidden shadow-sm border border-border/20 ${className}`}
+      className={`rounded-full bg-white overflow-hidden shadow-sm border border-border/20 p-0.5 ${className}`}
       style={{ width: size, height: size }}
       role="img"
       aria-label={`${assetInfo.name || assetCode || 'Asset'} logo`}
