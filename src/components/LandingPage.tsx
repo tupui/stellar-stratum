@@ -2,23 +2,21 @@ import { useState, Suspense, lazy } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Wallet, RefreshCw } from 'lucide-react';
-
-const WalletConnect = lazy(() => import('@/components/WalletConnect').then(module => ({ default: module.WalletConnect })));
-
+const WalletConnect = lazy(() => import('@/components/WalletConnect').then(module => ({
+  default: module.WalletConnect
+})));
 interface LandingPageProps {
   onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
 }
-
-export const LandingPage = ({ onConnect }: LandingPageProps) => {
+export const LandingPage = ({
+  onConnect
+}: LandingPageProps) => {
   const [showWalletModal, setShowWalletModal] = useState(false);
-
   const handleConnect = (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => {
     setShowWalletModal(false);
     onConnect(walletType, publicKey, network);
   };
-
-  return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+  return <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Subtle Background Elements */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-gradient-to-br from-background to-background/50" />
@@ -26,17 +24,21 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
         {/* Multi-sig layers visualization */}
         <div className="absolute right-10 top-1/3 opacity-5 rotate-12">
           <div className="flex flex-col gap-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className={`h-1 bg-stellar-yellow rounded-full`} style={{ width: `${200 - i * 20}px` }} />
-            ))}
+            {Array.from({
+            length: 5
+          }).map((_, i) => <div key={i} className={`h-1 bg-stellar-yellow rounded-full`} style={{
+            width: `${200 - i * 20}px`
+          }} />)}
           </div>
         </div>
         
         <div className="absolute left-10 bottom-1/3 opacity-5 -rotate-12">
           <div className="flex flex-col gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className={`h-1 bg-stellar-yellow rounded-full`} style={{ width: `${180 - i * 30}px` }} />
-            ))}
+            {Array.from({
+            length: 4
+          }).map((_, i) => <div key={i} className={`h-1 bg-stellar-yellow rounded-full`} style={{
+            width: `${180 - i * 30}px`
+          }} />)}
           </div>
         </div>
       </div>
@@ -45,11 +47,7 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
       <header className="absolute top-0 left-0 right-0 z-20 p-6">
         <div className="container mx-auto flex justify-between items-center">
           <div className="text-2xl font-bold">Stratum</div>
-          <Button 
-            variant="outline" 
-            className="border-muted-foreground/20 hover:border-stellar-yellow hover:text-stellar-yellow"
-            asChild
-          >
+          <Button variant="outline" className="border-muted-foreground/20 hover:border-stellar-yellow hover:text-stellar-yellow" asChild>
             <a href="https://x.com/PamphileRoy" target="_blank" rel="noopener noreferrer">
               Contact
             </a>
@@ -74,23 +72,14 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-            <Button
-              size="lg"
-              className="h-16 px-12 text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105"
-              onClick={() => setShowWalletModal(true)}
-            >
+            <Button size="lg" className="h-16 px-12 text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
               Launch App
             </Button>
           </div>
 
           <div className="mt-20 text-sm text-muted-foreground">
             Built on <span className="text-stellar-yellow font-medium">Stellar</span> by{' '}
-            <a 
-              href="https://consulting-manao.com/" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-stellar-yellow font-medium hover:underline"
-            >
+            <a href="https://consulting-manao.com/" target="_blank" rel="noopener noreferrer" className="text-stellar-yellow font-medium hover:underline">
               Consulting Manao GmbH
             </a>
           </div>
@@ -105,22 +94,17 @@ export const LandingPage = ({ onConnect }: LandingPageProps) => {
               <Wallet className="w-5 h-5" />
               Connect Wallet
             </DialogTitle>
-            <DialogDescription>
-              Choose your preferred method to connect and get started with Stratum.
-            </DialogDescription>
+            
           </DialogHeader>
-          <Suspense fallback={
-            <div className="flex items-center justify-center py-8">
+          <Suspense fallback={<div className="flex items-center justify-center py-8">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span>Loading wallets...</span>
               </div>
-            </div>
-          }>
+            </div>}>
             <WalletConnect onConnect={handleConnect} isModal />
           </Suspense>
         </DialogContent>
       </Dialog>
-    </div>
-  );
+    </div>;
 };
