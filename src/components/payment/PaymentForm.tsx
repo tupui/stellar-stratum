@@ -936,6 +936,15 @@ export const PaymentForm = ({
           })} className="text-xs font-address bg-background border-border/60 focus:border-primary" />
         </div>
 
+        {/* Memo */}
+        <div className="space-y-2">
+          <Label htmlFor="memo" className="text-sm font-medium">Memo (Optional)</Label>
+          <Input id="memo" placeholder="Payment description" className="font-mono text-xs bg-background border-border/60 focus:border-primary" value={paymentData.memo} onChange={e => onPaymentDataChange({
+            ...paymentData,
+            memo: e.target.value
+          })} />
+        </div>
+
         {/* Payment Details Row */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -999,14 +1008,6 @@ export const PaymentForm = ({
         </div>
 
 
-        {/* Memo */}
-        <div className="space-y-2">
-          <Label htmlFor="memo" className="text-sm font-medium">Memo (Optional)</Label>
-          <Input id="memo" placeholder="Payment description" className="font-mono text-xs bg-background border-border/60 focus:border-primary" value={paymentData.memo} onChange={e => onPaymentDataChange({
-            ...paymentData,
-            memo: e.target.value
-          })} />
-        </div>
 
 
         {/* Destination Account Info */}
