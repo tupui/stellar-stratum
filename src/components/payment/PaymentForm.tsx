@@ -363,7 +363,7 @@ export const PaymentForm = ({
           }
           setResolvingDomain(false);
         }
-      }, 70);
+      }, 150);
       
       setDebounceTimer(timer);
     } else {
