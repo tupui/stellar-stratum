@@ -76,6 +76,7 @@ interface PaymentFormProps {
   };
   accountPublicKey: string;
   onClearTransaction?: () => void;
+  onTransactionBuilt?: () => void;
 }
 export const PaymentForm = ({
   paymentData,
@@ -87,7 +88,8 @@ export const PaymentForm = ({
   isBuilding,
   accountData,
   accountPublicKey,
-  onClearTransaction
+  onClearTransaction,
+  onTransactionBuilt
 }: PaymentFormProps) => {
   const {
     quoteCurrency,
@@ -103,6 +105,7 @@ export const PaymentForm = ({
 
   // State for current payment and flow control
   const [fiatValue, setFiatValue] = useState<string>('');
+  const [isTransactionBuilt, setIsTransactionBuilt] = useState(false);
   type RecipientAsset = {
     code: string;
     issuer?: string;
@@ -114,6 +117,20 @@ export const PaymentForm = ({
   
   const [hasActiveForm, setHasActiveForm] = useState(false);
   const isDraggingRef = useRef(false);
+  
+  // Effect to handle transaction built callback
+  useEffect(() => {
+    if (onTransactionBuilt && isTransactionBuilt) {
+      onTransactionBuilt();
+    }
+  }, [onTransactionBuilt, isTransactionBuilt]);
+
+  // Reset built state when clearing transaction
+  useEffect(() => {
+    if (!paymentData.destination && !paymentData.amount && compactPayments.length === 0) {
+      setIsTransactionBuilt(false);
+    }
+  }, [paymentData.destination, paymentData.amount, compactPayments.length]);
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
     const baseReserve = 0.5;
@@ -636,6 +653,9 @@ export const PaymentForm = ({
       paymentData
     });
 
+    // Set transaction as built when building starts
+    setIsTransactionBuilt(true);
+
     if (compactPayments.length > 0 && hasActiveForm) {
       console.log('Taking batch path with active form');
       // Build batch transaction with compact payments
@@ -1050,34 +1070,35 @@ export const PaymentForm = ({
         </>}
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 px-1">
-          {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
-          {hasActiveForm && <>
-              <Button 
-                onClick={addPayment} 
-                variant="outline" 
-                size="lg" 
-                className="flex-1 min-w-0 border-dashed border-primary hover:border-primary hover:bg-primary/5 text-primary hover:text-primary transition-colors hover:animate-[glow-pulse_1s_ease-in-out] active:animate-[glow-expand_0.3s_ease-out]"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                <span className="truncate">Add Operation</span>
-              </Button>
-              <Button 
-                onClick={handleBuild} 
-                disabled={isBuilding || compactPayments.length === 0} 
-                className="flex-1 min-w-0 bg-gradient-success hover:opacity-90 disabled:opacity-50 hover:animate-[glow-pulse-purple_1s_ease-in-out] active:animate-[glow-expand-purple_0.3s_ease-out]"
-                size="lg"
-              >
-                {isBuilding ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                    <span className="truncate">Building...</span>
-                  </div>
-                ) : (
-                  <span className="truncate">Build Transaction</span>
-                )}
-              </Button>
-            </>}
+        {!isTransactionBuilt && (
+          <div className="flex flex-col sm:flex-row gap-3 px-1">
+            {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
+            {hasActiveForm && <>
+                <Button 
+                  onClick={addPayment} 
+                  variant="outline" 
+                  size="lg" 
+                  className="flex-1 min-w-0 border-dashed border-primary hover:border-primary hover:bg-primary/5 text-primary hover:text-primary transition-colors hover:animate-[glow-pulse_1s_ease-in-out] active:animate-[glow-expand_0.3s_ease-out]"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="truncate">Add Operation</span>
+                </Button>
+                <Button 
+                  onClick={handleBuild} 
+                  disabled={isBuilding || compactPayments.length === 0} 
+                  className="flex-1 min-w-0 bg-gradient-success hover:opacity-90 disabled:opacity-50 hover:animate-[glow-pulse-purple_1s_ease-in-out] active:animate-[glow-expand-purple_0.3s_ease-out]"
+                  size="lg"
+                >
+                  {isBuilding ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                      <span className="truncate">Building...</span>
+                    </div>
+                  ) : (
+                    <span className="truncate">Build Transaction</span>
+                  )}
+                </Button>
+              </>}
 
           {/* Form with Bundle/Cancel - Show when hasActiveForm is false and form has content */}
           {!hasActiveForm && (
@@ -1142,6 +1163,36 @@ export const PaymentForm = ({
               Bundle Payment
             </Button>}
         </div>
+
+        {/* Transaction Built Success State */}
+        {isTransactionBuilt && (
+          <div className="px-1">
+            <div className="flex items-center justify-center p-6 bg-success/10 border border-success/30 rounded-2xl">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Check className="h-6 w-6 text-success" />
+                </div>
+                <h3 className="text-lg font-semibold text-success mb-2">Transaction Built Successfully</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your transaction XDR has been generated and is ready for signing
+                </p>
+                <Button 
+                  onClick={() => {
+                    setIsTransactionBuilt(false);
+                    // Reset form state
+                    onClearTransaction?.();
+                  }} 
+                  variant="outline"
+                  size="sm"
+                  className="border-success/30 text-success hover:bg-success/10"
+                >
+                  Build Another Transaction
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>;
+    </div>
+  );
 };

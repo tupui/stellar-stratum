@@ -741,12 +741,15 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   isBuilding={isBuilding}
                   accountData={accountData}
                   accountPublicKey={accountPublicKey}
-                  onClearTransaction={() => {
-                    setXdrData({ input: '', output: '' });
-                    setSignedBy([]);
-                    setRefractorId('');
-                    setSuccessData(null);
-                  }}
+                onClearTransaction={() => {
+                  setXdrData({ input: '', output: '' });
+                  setSignedBy([]);
+                  setRefractorId('');
+                  setSuccessData(null);
+                }}
+                onTransactionBuilt={() => {
+                  // This will be called when transaction is successfully built
+                }}
                 />
               </TabsContent>
 
