@@ -517,7 +517,7 @@ export const WalletConnect = ({
                 href="https://consulting-manao.com/" 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="text-stellar-yellow font-medium hover:underline glow-on-hover transition-all duration-300"
+                className="text-stellar-yellow font-medium hover:underline text-glow-yellow transition-all duration-300"
               >
                 Consulting Manao GmbH
               </a>
