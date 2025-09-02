@@ -939,13 +939,15 @@ export const PaymentForm = ({
                     </div>
                   </div>
 
-                  {/* Account Closure badge on its own row when present */}
+                  {/* Account Closure warning on its own row when present */}
                   {closesAccount && (
-                    <div className="flex justify-start">
-                      <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
-                        <Merge className="h-3 w-3 mr-1" />
-                        Account Closure
-                      </Badge>
+                    <div className="col-span-full mt-2">
+                      <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                          <p className="text-destructive font-semibold text-sm">Account Closure: This transaction will close your source account and send all remaining funds to the destination. This action cannot be undone.</p>
+                        </div>
+                      </div>
                     </div>
                   )}
 

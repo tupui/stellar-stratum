@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp, Hash, FileText, Copy, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, Hash, FileText, Copy, Check, AlertTriangle } from 'lucide-react';
 import { Transaction } from '@stellar/stellar-sdk';
 import { useToast } from '@/hooks/use-toast';
 import { getNetworkPassphrase } from '@/lib/stellar';
@@ -204,9 +204,13 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                             <p className="break-words"><span className="text-muted-foreground">From:</span> <span className="font-address text-xs break-all">{(op.details as any).source || details.source}</span></p>
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             <p className="break-words"><span className="text-muted-foreground">To:</span> <span className="font-address text-xs break-all">{(op.details as any).destination}</span></p>
-                            <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-xs">
-                              <p className="text-destructive font-medium">⚠️ Account Closure</p>
-                              <p className="text-muted-foreground mt-1">This operation will permanently close the source account and transfer all remaining XLM balance to the destination account. This action cannot be undone.</p>
+                            <div className="mt-2 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+                              <div className="flex items-start gap-2">
+                                <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <p className="text-destructive font-semibold text-sm">Account Closure: This transaction will close your source account and send all remaining funds to the destination. This action cannot be undone.</p>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         )}
