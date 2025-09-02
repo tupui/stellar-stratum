@@ -1057,7 +1057,7 @@ export const PaymentForm = ({
                 onClick={addPayment} 
                 variant="outline" 
                 size="lg" 
-                className="flex-1 min-w-0 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+                className="flex-1 min-w-0 border-dashed border-primary hover:border-primary hover:bg-primary/5 text-primary hover:text-primary transition-colors hover:animate-[glow-pulse_1s_ease-in-out] active:animate-[glow-expand_0.3s_ease-out]"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 <span className="truncate">Add Operation</span>
@@ -1065,7 +1065,7 @@ export const PaymentForm = ({
               <Button 
                 onClick={handleBuild} 
                 disabled={isBuilding || compactPayments.length === 0} 
-                className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
+                className="flex-1 min-w-0 bg-gradient-success hover:opacity-90 disabled:opacity-50 hover:animate-[glow-pulse-purple_1s_ease-in-out] active:animate-[glow-expand-purple_0.3s_ease-out]"
                 size="lg"
               >
                 {isBuilding ? (
