@@ -3,6 +3,8 @@
  * considering reserve requirements and previous operations
  */
 
+import { Decimal } from 'decimal.js';
+
 interface Asset {
   code: string;
   issuer?: string;
@@ -27,29 +29,29 @@ export function calculateAvailableBalance(
   previousOperations: Operation[] = [],
   reserveAmount: number = 1 // Default reserve for XLM
 ): number {
-  const rawBalance = parseFloat(asset.balance) || 0;
+  const rawBalance = new Decimal(asset.balance || '0');
   
   // Calculate total amount already allocated in previous operations for this asset
   const allocatedAmount = previousOperations
     .filter(op => op.asset === asset.code)
-    .reduce((total, op) => total + (parseFloat(op.amount) || 0), 0);
+    .reduce((total, op) => total.plus(new Decimal(op.amount || '0')), new Decimal(0));
   
   // Apply reserve requirements based on asset type
-  let availableAfterReserve: number;
+  let availableAfterReserve: Decimal;
   
   if (asset.code === 'XLM') {
     // XLM requires minimum balance for account existence + network fee margin
-    const totalReserve = reserveAmount + 1; // Add 1 XLM margin for network fees
-    availableAfterReserve = Math.max(0, rawBalance - totalReserve);
+    const totalReserve = new Decimal(reserveAmount).plus(1); // Add 1 XLM margin for network fees
+    availableAfterReserve = Decimal.max(0, rawBalance.minus(totalReserve));
   } else {
     // Non-native assets don't have reserve requirements
     availableAfterReserve = rawBalance;
   }
   
   // Subtract already allocated amounts
-  const finalAvailable = Math.max(0, availableAfterReserve - allocatedAmount);
+  const finalAvailable = Decimal.max(0, availableAfterReserve.minus(allocatedAmount));
   
-  return finalAvailable;
+  return finalAvailable.toNumber();
 }
 
 /**
@@ -86,17 +88,18 @@ export function validateAndCapAmount(
   availableBalance: number,
   precision: number = 7
 ): string {
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  const decimalAmount = new Decimal(amount || '0');
+  const decimalAvailableBalance = new Decimal(availableBalance || '0');
   
-  if (isNaN(numAmount) || numAmount <= 0) {
+  if (decimalAmount.isNaN() || decimalAmount.lte(0)) {
     return '0';
   }
   
-  // Cap by available balance
-  const cappedAmount = Math.min(numAmount, availableBalance);
+  // Cap by available balance using precise decimal arithmetic
+  const cappedAmount = Decimal.min(decimalAmount, decimalAvailableBalance);
   
   // Round to specified precision to avoid floating point issues
-  return (Math.round(cappedAmount * Math.pow(10, precision)) / Math.pow(10, precision)).toString();
+  return cappedAmount.toDecimalPlaces(precision).toString();
 }
 
 /**
@@ -106,7 +109,11 @@ export function calculateBalancePercentage(
   amount: string | number,
   availableBalance: number
 ): number {
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  if (availableBalance === 0 || isNaN(numAmount) || numAmount <= 0) return 0;
-  return Math.min(100, Math.max(0, (numAmount / availableBalance) * 100));
+  const decimalAmount = new Decimal(amount || '0');
+  const decimalAvailableBalance = new Decimal(availableBalance || '0');
+  
+  if (decimalAvailableBalance.eq(0) || decimalAmount.isNaN() || decimalAmount.lte(0)) return 0;
+  
+  const percentage = decimalAmount.dividedBy(decimalAvailableBalance).mul(100);
+  return Math.min(100, Math.max(0, percentage.toNumber()));
 }
