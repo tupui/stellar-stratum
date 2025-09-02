@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Hash, FileText, Copy, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, Hash, FileText, Copy, Check } from 'lucide-react';
 import { Transaction } from '@stellar/stellar-sdk';
 import { useToast } from '@/hooks/use-toast';
 import { getNetworkPassphrase } from '@/lib/stellar';
@@ -64,22 +64,27 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
   return (
     <Card className="shadow-card">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-secondary/50 transition-colors">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
-                  Advanced Transaction Details
-                </CardTitle>
-                <CardDescription>
-                  View transaction hash, operations, and decoded information
-                </CardDescription>
-              </div>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-base sm:text-lg whitespace-nowrap flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Advanced Transaction Details
+              </CardTitle>
+              <CardDescription>
+                View transaction hash, operations, and decoded information
+              </CardDescription>
             </div>
-          </CardHeader>
-        </CollapsibleTrigger>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsOpen(!isOpen)}
+              className="shrink-0 ml-2"
+            >
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
+        </CardHeader>
         
         <CollapsibleContent>
           <CardContent className="space-y-4">

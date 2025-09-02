@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Users, CheckCircle, Circle, Plus } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Users, CheckCircle, Circle, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Transaction } from '@stellar/stellar-sdk';
 import { getSupportedWallets, getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
@@ -45,6 +46,7 @@ export const SignerSelector = ({
   const [selectedWalletId, setSelectedWalletId] = useState<string>('');
   const [wallets, setWallets] = useState<ISupportedWallet[]>([]);
   const [existingSignatures, setExistingSignatures] = useState<string[]>([]);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Load available wallets for signing (no manual/domains here)
   useEffect(() => {
@@ -146,21 +148,35 @@ export const SignerSelector = ({
 
   return (
     <Card className="shadow-card">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="w-5 h-5" />
-          Signature Management
-        </CardTitle>
-        <div className="flex items-center gap-4">
-          <Badge variant={hasMinimumSignatures ? 'default' : 'secondary'}>
-            Weight: {currentWeight}/{requiredWeight}
-          </Badge>
-          <Badge variant="outline">
-            {signedBy.length} of {signers.length} signers
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <Collapsible open={!isCollapsed} onOpenChange={(open) => setIsCollapsed(!open)}>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-base sm:text-lg whitespace-nowrap flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Signature Management
+              </CardTitle>
+              <div className="flex items-center gap-4 mt-2">
+                <Badge variant={hasMinimumSignatures ? 'default' : 'secondary'}>
+                  Weight: {currentWeight}/{requiredWeight}
+                </Badge>
+                <Badge variant="outline">
+                  {signedBy.length} of {signers.length} signers
+                </Badge>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="shrink-0 ml-2"
+            >
+              {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </Button>
+          </div>
+        </CardHeader>
+        {!isCollapsed && (
+          <CardContent className="space-y-4">
         {/* Current Signatures */}
         <div className="space-y-3">
           <h4 className="text-sm font-medium">Current Signatures</h4>
@@ -289,7 +305,9 @@ export const SignerSelector = ({
             </p>
           </div>
         )}
-      </CardContent>
+          </CardContent>
+        )}
+      </Collapsible>
     </Card>
   );
 };
