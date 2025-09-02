@@ -413,11 +413,15 @@ export const PaymentForm = ({
     // Otherwise, use recipient's actual balances
     const unique = new Map<string, RecipientAsset>();
     recipientAssetOptions.forEach(a => unique.set(a.code, a));
-    // Always ensure XLM is present
-    if (!unique.has('XLM')) unique.set('XLM', {
-      code: 'XLM',
-      balance: '0'
-    });
+    // Always ensure XLM is present, but preserve existing balance
+    if (!unique.has('XLM')) {
+      // Find XLM balance from original data or default to '0'
+      const xlmBalance = recipientAssetOptions.find(a => a.code === 'XLM')?.balance || '0';
+      unique.set('XLM', {
+        code: 'XLM',
+        balance: xlmBalance
+      });
+    }
     return Array.from(unique.values());
   };
   const recipientHas = (code: string) => recipientAssetOptions.some(a => a.code === code);
