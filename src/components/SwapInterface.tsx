@@ -265,7 +265,7 @@ export const SwapInterface = ({
           <span className="text-sm text-muted-foreground">They receive</span>
           {recipientAssets.length > 0 && (
             <div className="text-sm text-muted-foreground">
-              Has: {formatBalance(toAssetBalance)}
+              Current: {formatBalance(toAssetBalance)}
             </div>
           )}
         </div>
