@@ -336,6 +336,100 @@ All colors MUST be HSL.
     border-radius: 6px;
     background: transparent;
   }
+
+  /* Shadcn Slider customization for stellar sliders */
+  .stellar-slider [data-radix-slider-track] {
+    height: 8px;
+    border-radius: 6px;
+    background-image: linear-gradient(
+      to right,
+      hsl(var(--primary)) 0%,
+      hsl(var(--primary)) var(--slider-progress, 0%),
+      hsl(var(--muted)) var(--slider-progress, 0%),
+      hsl(var(--muted)) 100%
+    );
+    transition: all 0.2s ease;
+  }
+
+  .stellar-slider:hover [data-radix-slider-track] {
+    background-image: linear-gradient(
+      to right,
+      hsl(var(--primary-glow)) 0%,
+      hsl(var(--primary-glow)) var(--slider-progress, 0%),
+      hsl(var(--muted)) var(--slider-progress, 0%),
+      hsl(var(--muted)) 100%
+    );
+  }
+
+  .stellar-slider.slider-warning [data-radix-slider-track] {
+    background-image: linear-gradient(
+      to right,
+      hsl(var(--primary)) 0%,
+      hsl(var(--primary)) var(--available-progress, 90%),
+      hsl(38 92% 50%) var(--available-progress, 90%),
+      hsl(0 84% 60%) var(--slider-progress, 95%),
+      hsl(var(--muted)) var(--slider-progress, 95%),
+      hsl(var(--muted)) 100%
+    );
+  }
+
+  .stellar-slider.slider-merge [data-radix-slider-track] {
+    background-image: linear-gradient(
+      to right,
+      hsl(0 84% 60%) 0%,
+      hsl(0 84% 60%) var(--slider-progress, 0%),
+      hsl(var(--muted)) var(--slider-progress, 0%),
+      hsl(var(--muted)) 100%
+    );
+  }
+
+  .stellar-slider.slider-merge-warning [data-radix-slider-track] {
+    background-image: linear-gradient(
+      to right,
+      hsl(0 84% 60%) 0%,
+      hsl(0 84% 60%) var(--slider-progress, 0%),
+      hsl(var(--muted)) var(--slider-progress, 0%),
+      hsl(var(--muted)) 100%
+    );
+  }
+
+  /* Hide the default range (Shadcn Slider shows it as decoration) */
+  .stellar-slider [data-radix-slider-range] {
+    display: none;
+  }
+
+  /* Customize the thumb for Shadcn Slider */
+  .stellar-slider [data-radix-slider-thumb] {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: hsl(var(--primary));
+    border: 2px solid hsl(var(--background));
+    cursor: pointer;
+    box-shadow: 0 1px 4px hsl(var(--primary) / 0.3);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+    z-index: 2;
+  }
+
+  .stellar-slider:hover [data-radix-slider-thumb] {
+    background: hsl(var(--primary-glow));
+    transform: scale(1.1);
+    box-shadow: 0 0 12px hsl(var(--primary) / 0.5);
+  }
+
+  .stellar-slider.slider-merge [data-radix-slider-thumb],
+  .stellar-slider.slider-merge-warning [data-radix-slider-thumb] {
+    background: hsl(0 84% 60%);
+    box-shadow: 0 1px 4px hsl(0 84% 60% / 0.3);
+  }
+
+  .stellar-slider.slider-merge:hover [data-radix-slider-thumb],
+  .stellar-slider.slider-merge-warning:hover [data-radix-slider-thumb] {
+    background: hsl(0 84% 70%);
+    transform: scale(1.1);
+    box-shadow: 0 0 12px hsl(0 84% 60% / 0.5);
+  }
   
   /* Legacy slider styles for backward compatibility */
   .slider-glow {

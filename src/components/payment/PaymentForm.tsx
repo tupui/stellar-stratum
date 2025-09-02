@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, TrendingUp, Merge, Users, Edit2, X } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
@@ -657,19 +658,25 @@ export const PaymentForm = ({
 
         {/* Slider */}
         <div className="relative self-center px-2">
-          <input type="range" min={0} max={sliderMax} step={1} value={sliderValue} onChange={e => {
-          const v = parseInt(e.target.value, 10) || 0;
-          const newAmount = maxAmount > 0 ? v / sliderMax * maxAmount : 0;
-          isDraggingRef.current = true;
-          handleAmountChange(newAmount.toFixed(7));
-        }} onMouseDown={() => {
-          isDraggingRef.current = true;
-        }} onTouchStart={() => {
-          isDraggingRef.current = true;
-        }} className={`w-full stellar-slider ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`} style={{
-          '--slider-progress': `${percentage}%`,
-          '--available-progress': `${availablePercentage}%`
-        } as React.CSSProperties} />
+          <Slider
+            value={[sliderValue]}
+            onValueChange={(values) => {
+              const v = values[0] || 0;
+              const newAmount = maxAmount > 0 ? v / sliderMax * maxAmount : 0;
+              isDraggingRef.current = true;
+              handleAmountChange(newAmount.toFixed(7));
+            }}
+            onPointerDown={() => {
+              isDraggingRef.current = true;
+            }}
+            max={sliderMax}
+            step={1}
+            className={`w-full ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`}
+            style={{
+              '--slider-progress': `${percentage}%`,
+              '--available-progress': `${availablePercentage}%`
+            } as React.CSSProperties}
+          />
         </div>
         {/* Meta row: only fiat value */}
         {fiatValue && <div className="text-right text-xs text-muted-foreground px-2">
