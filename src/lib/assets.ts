@@ -15,8 +15,58 @@ interface SEP1TomlAsset {
   name?: string;
 }
 
+// Enhanced caching system
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  expiresAt: number;
+}
+
 // Cache for SEP1 TOML data
-const tomlCache = new Map<string, SEP1TomlAsset[]>();
+const tomlCache = new Map<string, CacheEntry<SEP1TomlAsset[]>>();
+
+// Cache for asset info with longer expiry
+const assetInfoCache = new Map<string, CacheEntry<AssetInfo>>();
+
+// Cache expiry times
+const TOML_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+const ASSET_INFO_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+const STORAGE_KEY_PREFIX = 'stellar_asset_cache_';
+
+// Load cache from localStorage on startup
+const loadCacheFromStorage = () => {
+  try {
+    const keys = Object.keys(localStorage).filter(key => key.startsWith(STORAGE_KEY_PREFIX));
+    keys.forEach(key => {
+      const data = localStorage.getItem(key);
+      if (data) {
+        const parsed = JSON.parse(data);
+        const assetKey = key.replace(STORAGE_KEY_PREFIX, '');
+        
+        // Check if cache entry is still valid
+        if (parsed.expiresAt > Date.now()) {
+          assetInfoCache.set(assetKey, parsed);
+        } else {
+          localStorage.removeItem(key);
+        }
+      }
+    });
+  } catch (error) {
+    console.warn('Failed to load asset cache from localStorage:', error);
+  }
+};
+
+// Save cache entry to localStorage
+const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(entry));
+  } catch (error) {
+    console.warn('Failed to save asset cache to localStorage:', error);
+  }
+};
+
+// Initialize cache from storage
+loadCacheFromStorage();
 
 export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): Promise<AssetInfo> => {
   // Native XLM
@@ -28,67 +78,98 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
     };
   }
 
+  // Check asset info cache first
+  const assetCacheKey = `${assetCode}:${assetIssuer}`;
+  const cachedAssetInfo = assetInfoCache.get(assetCacheKey);
+  if (cachedAssetInfo && cachedAssetInfo.expiresAt > Date.now()) {
+    return cachedAssetInfo.data;
+  }
+
   try {
-    // Check cache first
-    const cacheKey = assetIssuer;
-    if (tomlCache.has(cacheKey)) {
-      const cachedAssets = tomlCache.get(cacheKey)!;
-      const asset = cachedAssets.find(a => a.code === assetCode);
-      if (asset) {
-        return {
-          code: asset.code,
-          issuer: asset.issuer,
-          name: asset.name || asset.desc,
-          image: asset.image
-        };
+    // Check TOML cache
+    const tomlCacheKey = assetIssuer;
+    const cachedToml = tomlCache.get(tomlCacheKey);
+    
+    let assets: SEP1TomlAsset[];
+    
+    if (cachedToml && cachedToml.expiresAt > Date.now()) {
+      assets = cachedToml.data;
+    } else {
+      // Fetch from Stellar account
+      const response = await fetch(`${getHorizonUrl('mainnet')}/accounts/${assetIssuer}`);
+      if (!response.ok) throw new Error('Failed to fetch account data');
+      
+      const accountData = await response.json();
+      const homeDomain = accountData.home_domain;
+      
+      if (!homeDomain) {
+        throw new Error('No home domain found');
       }
-    }
 
-    // Fetch from Stellar account
-    const response = await fetch(`${getHorizonUrl('mainnet')}/accounts/${assetIssuer}`);
-    if (!response.ok) throw new Error('Failed to fetch account data');
-    
-    const accountData = await response.json();
-    const homeDomain = accountData.home_domain;
-    
-    if (!homeDomain) {
-      throw new Error('No home domain found');
+      // Fetch SEP-1 TOML
+      const tomlResponse = await fetch(`https://${homeDomain}/.well-known/stellar.toml`);
+      if (!tomlResponse.ok) throw new Error('Failed to fetch TOML');
+      
+      const tomlText = await tomlResponse.text();
+      
+      // Parse TOML (simple parser for CURRENCIES section)
+      assets = parseTomlCurrencies(tomlText);
+      
+      // Cache the TOML results with expiry
+      const now = Date.now();
+      const tomlCacheEntry: CacheEntry<SEP1TomlAsset[]> = {
+        data: assets,
+        timestamp: now,
+        expiresAt: now + TOML_CACHE_DURATION
+      };
+      tomlCache.set(tomlCacheKey, tomlCacheEntry);
     }
-
-    // Fetch SEP-1 TOML
-    const tomlResponse = await fetch(`https://${homeDomain}/.well-known/stellar.toml`);
-    if (!tomlResponse.ok) throw new Error('Failed to fetch TOML');
-    
-    const tomlText = await tomlResponse.text();
-    
-    // Parse TOML (simple parser for CURRENCIES section)
-    const assets = parseTomlCurrencies(tomlText);
-    
-    // Cache the results
-    tomlCache.set(cacheKey, assets);
     
     // Find the specific asset
     const asset = assets.find(a => a.code === assetCode && a.issuer === assetIssuer);
     
     if (asset) {
-      return {
+      const assetInfo: AssetInfo = {
         code: asset.code,
         issuer: asset.issuer,
         name: asset.name || asset.desc,
         image: asset.image
       };
+      
+      // Cache the asset info with longer expiry
+      const now = Date.now();
+      const assetCacheEntry: CacheEntry<AssetInfo> = {
+        data: assetInfo,
+        timestamp: now,
+        expiresAt: now + ASSET_INFO_CACHE_DURATION
+      };
+      assetInfoCache.set(assetCacheKey, assetCacheEntry);
+      saveCacheToStorage(assetCacheKey, assetCacheEntry);
+      
+      return assetInfo;
     }
     
     throw new Error('Asset not found in TOML');
   } catch (error) {
     console.warn(`Failed to fetch asset info for ${assetCode}:${assetIssuer}`, error);
     
-    // Return default asset info
-    return {
+    // Return default asset info and cache it briefly
+    const defaultAssetInfo: AssetInfo = {
       code: assetCode,
       issuer: assetIssuer,
       name: assetCode
     };
+    
+    // Cache default info for shorter duration to retry sooner
+    const now = Date.now();
+    const defaultCacheEntry: CacheEntry<AssetInfo> = {
+      data: defaultAssetInfo,
+      timestamp: now,
+      expiresAt: now + (5 * 60 * 1000) // 5 minutes for failed lookups
+    };
+    assetInfoCache.set(assetCacheKey, defaultCacheEntry);
+    
+    return defaultAssetInfo;
   }
 };
 
