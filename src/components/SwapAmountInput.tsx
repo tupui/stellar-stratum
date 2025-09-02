@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AssetIcon } from '@/components/AssetIcon';
 import { cn } from '@/lib/utils';
 import { calculateAvailableBalance, formatBalance, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
+import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 
 interface Asset {
   code: string;
@@ -56,6 +57,7 @@ export const SwapAmountInput = ({
 }: SwapAmountInputProps) => {
   const [isEditingAmount, setIsEditingAmount] = useState(false);
   const [editValue, setEditValue] = useState(amount);
+  const { getCurrentCurrency } = useFiatCurrency();
 
   const fromAssetObject = availableAssets.find(a => a.code === fromAsset);
   const fromAssetBalance = fromAssetObject?.balance || '0';
@@ -210,7 +212,7 @@ export const SwapAmountInput = ({
               )}
               {fiatValue && (
                 <div className="text-sm text-muted-foreground mt-1">
-                  ≈ {fiatValue}
+                  ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '')}
                 </div>
               )}
             </div>
