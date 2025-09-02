@@ -333,20 +333,15 @@ export const SwapInterface = ({
           </Select>
 
           <div className="flex-1 text-right">
-            {isPathPayment && (
-              <div className="text-sm text-muted-foreground mb-1 font-amount">
-                {receiveAmount ? formatAmount(receiveAmount) : '0.0'}
-              </div>
-            )}
             <div className="text-xl font-mono text-muted-foreground font-amount">
               {isPathPayment ? 
                 (receiveAmount ? formatAmount(receiveAmount) : '0.0') :
                 (amount ? formatAmount(amount) : '0.0')
               }
             </div>
-            {fiatValue && (
-              <div className="text-sm text-muted-foreground mt-1 text-right font-amount">
-                ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '')}
+            {isPathPayment && (
+              <div className="text-sm text-muted-foreground mt-1 font-amount">
+                Min {receiveAmount ? formatAmount(receiveAmount) : '0.0'}
               </div>
             )}
           </div>
