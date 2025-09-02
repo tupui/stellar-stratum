@@ -144,11 +144,11 @@ export const SwapAmountInput = ({
                 onFromAssetChange(value, selectedAsset?.issuer);
               }}
             >
-              <SelectTrigger className="w-full sm:w-44 h-14 bg-background/80 border-border/60 hover:border-border rounded-full px-4">
+              <SelectTrigger className="w-full sm:w-44 h-14 bg-background/80 border-border/60 hover:border-border rounded-full pl-2 pr-4">
                 <SelectValue>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={40} />
-                    <span className="font-semibold">{fromAsset}</span>
+                    <span className="font-semibold ml-1">{fromAsset}</span>
                   </div>
                 </SelectValue>
               </SelectTrigger>
@@ -277,15 +277,15 @@ export const SwapAmountInput = ({
               }
             }}
           >
-            <SelectTrigger className="w-full sm:w-44 h-14 bg-background/60 border-border/40 hover:border-border/60 rounded-full px-4">
+            <SelectTrigger className="w-full sm:w-44 h-14 bg-background/60 border-border/40 hover:border-border/60 rounded-full pl-2 pr-4">
                 <SelectValue>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <AssetIcon 
                       assetCode={toAsset || fromAsset} 
                       assetIssuer={toAssetIssuer || fromAssetIssuer} 
                       size={40} 
                     />
-                    <span className="font-semibold">{toAsset || fromAsset}</span>
+                    <span className="font-semibold ml-1">{toAsset || fromAsset}</span>
                   </div>
                 </SelectValue>
             </SelectTrigger>
