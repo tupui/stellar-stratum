@@ -126,7 +126,7 @@ export const SwapAmountInput = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs hover:bg-primary/10 hover:text-primary"
+                className="h-6 px-2 text-xs bg-success/10 text-success hover:bg-success/20 hover:text-success border border-success/20"
                 onClick={() => handlePercentageClick(100)}
               >
                 MAX
