@@ -770,7 +770,7 @@ export const PaymentForm = ({
         return <Card key={payment.id} className={`p-4 md:p-6 rounded-2xl border border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-card/60'} hover:bg-card transition-colors shadow-sm`}>
                 {/* Mobile-first responsive layout */}
                 <div className="space-y-4">
-                  {/* Header with operation number, badges, and actions */}
+                  {/* Header with operation number, badges, fiat value, and actions - all in one row */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-foreground">Operation #{index + 1}</span>
@@ -780,30 +780,32 @@ export const PaymentForm = ({
                           Account Closure
                         </Badge>
                       )}
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
                       {payment.fiatValue && (
                         <span className="text-sm font-semibold text-primary">≈ {payment.fiatValue}</span>
                       )}
-                    </div>
-                    
-                    <div className="flex gap-2 flex-shrink-0">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => editCompactPayment(payment)} 
-                        className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
-                        title="Edit operation"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => removeCompactPayment(payment.id)} 
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                        title="Remove operation"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => editCompactPayment(payment)} 
+                          className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+                          title="Edit operation"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => removeCompactPayment(payment.id)} 
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                          title="Remove operation"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
