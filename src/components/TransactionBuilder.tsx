@@ -693,8 +693,18 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                       // Handle account merge
                       handlePaymentBuild(paymentData, true);
                     } else if (batchPayments) {
-                      // Handle batch payments
-                      handlePaymentBuild(undefined, false, batchPayments);
+                      // Check if any payment in the batch is a path payment
+                      const pathPaymentInBatch = batchPayments.find(payment => 
+                        payment.receiveAsset && payment.receiveAsset !== payment.asset
+                      );
+                      
+                      if (pathPaymentInBatch) {
+                        // Handle the path payment separately
+                        handlePaymentBuild(pathPaymentInBatch, false, undefined, pathPaymentInBatch);
+                      } else {
+                        // Handle regular batch payments
+                        handlePaymentBuild(undefined, false, batchPayments);
+                      }
                     } else if (pathPayment) {
                       // Handle path payment
                       handlePaymentBuild(paymentData, false, undefined, pathPayment);
@@ -706,6 +716,12 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   isBuilding={isBuilding}
                   accountData={accountData}
                   accountPublicKey={accountPublicKey}
+                  onClearTransaction={() => {
+                    setXdrData({ input: '', output: '' });
+                    setSignedBy([]);
+                    setRefractorId('');
+                    setSuccessData(null);
+                  }}
                 />
               </TabsContent>
 

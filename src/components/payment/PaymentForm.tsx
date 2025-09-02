@@ -72,6 +72,7 @@ interface PaymentFormProps {
     };
   };
   accountPublicKey: string;
+  onClearTransaction?: () => void;
 }
 export const PaymentForm = ({
   paymentData,
@@ -82,7 +83,8 @@ export const PaymentForm = ({
   onBuild,
   isBuilding,
   accountData,
-  accountPublicKey
+  accountPublicKey,
+  onClearTransaction
 }: PaymentFormProps) => {
   const {
     quoteCurrency,
@@ -402,6 +404,9 @@ export const PaymentForm = ({
     };
     setCompactPayments([...compactPayments, compactPayment]);
 
+    // Clear any built transaction since it's no longer valid
+    onClearTransaction?.();
+
     // Reset current payment form
     onPaymentDataChange({
       destination: '',
@@ -452,6 +457,9 @@ export const PaymentForm = ({
   };
   const removeCompactPayment = (id: string) => {
     setCompactPayments(compactPayments.filter(p => p.id !== id));
+    
+    // Clear any built transaction since it's no longer valid
+    onClearTransaction?.();
   };
   const cancelCurrentPayment = () => {
     // Clear current form and go to appropriate state
