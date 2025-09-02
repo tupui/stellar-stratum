@@ -5,11 +5,15 @@ import { cn } from "@/lib/utils"
 
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,
-  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root> & {
+    glowColor?: 'primary' | 'purple';
+  }
+>(({ className, glowColor = 'primary', ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
       "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 ring-1 ring-border data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted/60",
+      glowColor === 'primary' && "toggle-glow",
+      glowColor === 'purple' && "toggle-purple-glow data-[state=checked]:bg-success",
       className
     )}
     {...props}

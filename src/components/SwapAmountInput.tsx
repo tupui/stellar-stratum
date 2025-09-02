@@ -125,7 +125,7 @@ export const SwapAmountInput = ({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs bg-success/10 text-success hover:bg-success/20 hover:text-success border border-success/20"
+                className="h-6 px-2 text-xs bg-success/10 text-success hover:bg-success/20 hover:text-success border border-success/20 glow-purple-on-hover"
                 onClick={() => handlePercentageClick(100)}
               >
                 MAX
@@ -246,7 +246,7 @@ export const SwapAmountInput = ({
             <Button
               variant="outline"
               size="sm"
-              className="w-10 h-10 rounded-full border bg-card hover:bg-muted/50 hover:border-primary/50 transition-all duration-200 shadow-sm"
+              className="w-10 h-10 rounded-full border bg-card hover:bg-muted/50 hover:border-primary/50 transition-all duration-200 shadow-sm glow-on-hover"
               onClick={onSwapDirection}
             >
               <ArrowUpDown className="h-4 w-4" />

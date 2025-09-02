@@ -142,6 +142,66 @@ All colors MUST be HSL.
   }
 }
 
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.4);
+  }
+}
+
+@keyframes glow-pulse-purple {
+  0%, 100% {
+    box-shadow: 0 0 20px hsl(var(--success) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px hsl(var(--success) / 0.6), 0 0 60px hsl(var(--success) / 0.4);
+  }
+}
+
+@keyframes glow-expand {
+  0% {
+    box-shadow: 0 0 0px hsl(var(--primary) / 0);
+  }
+  100% {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.5), 0 0 60px hsl(var(--primary) / 0.3);
+  }
+}
+
+@keyframes glow-expand-purple {
+  0% {
+    box-shadow: 0 0 0px hsl(var(--success) / 0);
+  }
+  100% {
+    box-shadow: 0 0 30px hsl(var(--success) / 0.5), 0 0 60px hsl(var(--success) / 0.3);
+  }
+}
+
+@keyframes glow-ripple {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px hsl(var(--primary) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+  }
+}
+
+@keyframes glow-ripple-purple {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--success) / 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px hsl(var(--success) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--success) / 0);
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -581,5 +641,111 @@ All colors MUST be HSL.
     background: hsl(var(--muted) / 0.5);
     transform: rotate(180deg);
     box-shadow: 0 6px 20px hsl(var(--primary) / 0.2);
+  }
+
+  /* Glow utility classes for interactive elements */
+  .glow-on-hover {
+    transition: all 0.3s ease;
+  }
+
+  .glow-on-hover:hover {
+    animation: glow-expand 0.3s ease-out forwards;
+  }
+
+  .glow-on-hover:active {
+    animation: glow-ripple 0.6s ease-out;
+  }
+
+  .glow-purple-on-hover {
+    transition: all 0.3s ease;
+  }
+
+  .glow-purple-on-hover:hover {
+    animation: glow-expand-purple 0.3s ease-out forwards;
+  }
+
+  .glow-purple-on-hover:active {
+    animation: glow-ripple-purple 0.6s ease-out;
+  }
+
+  .glow-pulse {
+    animation: glow-pulse 2s ease-in-out infinite;
+  }
+
+  .glow-pulse-purple {
+    animation: glow-pulse-purple 2s ease-in-out infinite;
+  }
+
+  /* Enhanced button styles with glow */
+  .btn-primary-glow {
+    @apply bg-primary text-primary-foreground transition-all duration-300 ease-out;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.2);
+  }
+
+  .btn-primary-glow:hover {
+    @apply bg-primary/90;
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.2);
+    animation: glow-pulse 1s ease-in-out;
+  }
+
+  .btn-primary-glow:active {
+    animation: glow-ripple 0.6s ease-out;
+  }
+
+  .btn-success-glow {
+    @apply bg-success text-success-foreground transition-all duration-300 ease-out;
+    box-shadow: 0 2px 8px hsl(var(--success) / 0.2);
+  }
+
+  .btn-success-glow:hover {
+    @apply bg-success/90;
+    box-shadow: 0 0 30px hsl(var(--success) / 0.4), 0 0 60px hsl(var(--success) / 0.2);
+    animation: glow-pulse-purple 1s ease-in-out;
+  }
+
+  .btn-success-glow:active {
+    animation: glow-ripple-purple 0.6s ease-out;
+  }
+
+  /* Toggle/Switch glow effects */
+  .toggle-glow[data-state="checked"] {
+    background: hsl(var(--primary));
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+    animation: glow-expand 0.3s ease-out forwards;
+  }
+
+  .toggle-purple-glow[data-state="checked"] {
+    background: hsl(var(--success));
+    box-shadow: 0 0 20px hsl(var(--success) / 0.3);
+    animation: glow-expand-purple 0.3s ease-out forwards;
+  }
+
+  /* Enhanced slider glow effects */
+  .stellar-slider:active {
+    animation: glow-pulse 0.8s ease-out;
+  }
+
+  .stellar-slider-purple:active {
+    animation: glow-pulse-purple 0.8s ease-out;
+  }
+
+  /* Loading spinner glow */
+  .spinner-glow {
+    animation: spin 1s linear infinite, glow-pulse 2s ease-in-out infinite alternate;
+  }
+
+  .spinner-purple-glow {
+    animation: spin 1s linear infinite, glow-pulse-purple 2s ease-in-out infinite alternate;
+  }
+
+  /* Interactive card glow */
+  .card-glow:hover {
+    border-color: hsl(var(--primary) / 0.5);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.1), 0 8px 32px hsl(var(--primary) / 0.05);
+  }
+
+  .card-purple-glow:hover {
+    border-color: hsl(var(--success) / 0.5);
+    box-shadow: 0 0 20px hsl(var(--success) / 0.1), 0 8px 32px hsl(var(--success) / 0.05);
   }
 }

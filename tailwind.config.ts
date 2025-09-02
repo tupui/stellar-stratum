@@ -118,11 +118,71 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'glow-pulse': {
+					'0%, 100%': {
+						boxShadow: '0 0 20px hsl(var(--primary) / 0.3)'
+					},
+					'50%': {
+						boxShadow: '0 0 40px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.4)'
+					}
+				},
+				'glow-pulse-purple': {
+					'0%, 100%': {
+						boxShadow: '0 0 20px hsl(var(--success) / 0.3)'
+					},
+					'50%': {
+						boxShadow: '0 0 40px hsl(var(--success) / 0.6), 0 0 60px hsl(var(--success) / 0.4)'
+					}
+				},
+				'glow-expand': {
+					'0%': {
+						boxShadow: '0 0 0px hsl(var(--primary) / 0)'
+					},
+					'100%': {
+						boxShadow: '0 0 30px hsl(var(--primary) / 0.5), 0 0 60px hsl(var(--primary) / 0.3)'
+					}
+				},
+				'glow-expand-purple': {
+					'0%': {
+						boxShadow: '0 0 0px hsl(var(--success) / 0)'
+					},
+					'100%': {
+						boxShadow: '0 0 30px hsl(var(--success) / 0.5), 0 0 60px hsl(var(--success) / 0.3)'
+					}
+				},
+				'glow-ripple': {
+					'0%': {
+						boxShadow: '0 0 0 0 hsl(var(--primary) / 0.7)'
+					},
+					'70%': {
+						boxShadow: '0 0 0 10px hsl(var(--primary) / 0)'
+					},
+					'100%': {
+						boxShadow: '0 0 0 0 hsl(var(--primary) / 0)'
+					}
+				},
+				'glow-ripple-purple': {
+					'0%': {
+						boxShadow: '0 0 0 0 hsl(var(--success) / 0.7)'
+					},
+					'70%': {
+						boxShadow: '0 0 0 10px hsl(var(--success) / 0)'
+					},
+					'100%': {
+						boxShadow: '0 0 0 0 hsl(var(--success) / 0)'
+					}
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+				'glow-pulse-purple': 'glow-pulse-purple 2s ease-in-out infinite',
+				'glow-expand': 'glow-expand 0.3s ease-out forwards',
+				'glow-expand-purple': 'glow-expand-purple 0.3s ease-out forwards',
+				'glow-ripple': 'glow-ripple 0.6s ease-out',
+				'glow-ripple-purple': 'glow-ripple-purple 0.6s ease-out'
 			}
 		}
 	},

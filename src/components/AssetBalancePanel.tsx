@@ -199,9 +199,9 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
               size="sm"
               onClick={handleRefresh}
               disabled={loading}
-              className="h-8 px-2"
+              className="h-8 px-2 glow-on-hover"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin spinner-glow' : ''}`} />
             </Button>
           </div>
         </div>
@@ -282,7 +282,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
           {loading && filteredAssets.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <div className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-success" />
+                <RefreshCw className="w-4 h-4 animate-spin text-success spinner-purple-glow" />
                 <span className="text-success bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent font-medium">Loading prices...</span>
               </div>
             </div>

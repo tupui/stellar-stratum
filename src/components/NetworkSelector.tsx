@@ -36,9 +36,9 @@ export const NetworkSelector = ({
 
         {/* Submit Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Button onClick={onSubmitToNetwork} disabled={!canSubmitToNetwork || isSubmittingToNetwork} className="w-full h-12 bg-success hover:bg-success/90 text-success-foreground">
+          <Button onClick={onSubmitToNetwork} disabled={!canSubmitToNetwork || isSubmittingToNetwork} className="w-full h-12 bg-success hover:bg-success/90 text-success-foreground glow-purple-on-hover">
             {isSubmittingToNetwork ? <div className="flex items-center gap-2">
-                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin spinner-purple-glow" />
                 Submitting...
               </div> : <>
                 <Send className="w-4 h-4 mr-2" />

@@ -351,7 +351,7 @@ export const WalletConnect = ({
                 <div className="flex gap-2">
                   <Input id="soroban-domain" placeholder="mydomain" value={sorobanDomain} onChange={e => setSorobanDomain(e.target.value)} className="text-sm" />
                   <Button onClick={handleSorobanConnect} disabled={!sorobanDomain.trim() || resolvingDomain} size="sm">
-                    {resolvingDomain ? <RefreshCw className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+                    {resolvingDomain ? <RefreshCw className="w-4 h-4 mr-1 animate-spin spinner-glow" /> : <Plus className="w-4 h-4 mr-1" />}
                     Resolve
                   </Button>
                 </div>
@@ -401,7 +401,7 @@ export const WalletConnect = ({
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin" />}
+                                {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin spinner-glow" />}
                                 <ArrowRight className="w-4 h-4" />
                               </div>
                             </Button>
