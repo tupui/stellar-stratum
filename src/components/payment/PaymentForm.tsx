@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, TrendingUp, Merge, Users, Edit2, X } from 'lucide-react';
+import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, TrendingUp, Merge, Users, Edit2, X } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -853,24 +853,49 @@ export const PaymentForm = ({
                   )}
 
                   {/* Asset transfer visualization - single row compact layout */}
-                  <div className="bg-background/50 rounded-lg p-2">
-                    <div className="flex items-center justify-center gap-1.5 text-xs">
+                  <div className="bg-background/50 rounded-lg p-2 w-fit mx-auto">
+                    {/* Desktop: horizontal layout */}
+                    <div className="hidden sm:flex items-center justify-center gap-2 text-xs">
                       {/* From: Logo Currency Amount */}
-                      <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={24} />
+                      <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={32} />
                       <span className="text-muted-foreground font-medium">{payment.asset}</span>
-                      <span className="font-semibold">{formatDisplayAmount(payment.amount)}</span>
+                      <span className="font-semibold font-amount">{formatDisplayAmount(payment.amount)}</span>
                       
                       {/* Arrow */}
-                      <ArrowRight className="w-3 h-3 text-muted-foreground mx-1" />
+                      <ArrowRight className="w-4 h-4 text-muted-foreground mx-1" />
                       
                       {/* To: Logo Currency [Value if path payment] */}
-                      <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={24} />
+                      <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={32} />
                       <span className="text-muted-foreground font-medium">{payment.receiveAsset || payment.asset}</span>
                       {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
-                        <span className="text-white font-semibold">
+                        <span className="text-white font-semibold font-amount">
                           &gt; {calculatePathPaymentReceiveAmount(payment.amount, payment.asset, payment.receiveAsset)}
                         </span>
                       )}
+                    </div>
+                    
+                    {/* Mobile: vertical layout */}
+                    <div className="sm:hidden flex flex-col items-center gap-2 text-xs">
+                      {/* From: Logo Currency Amount */}
+                      <div className="flex items-center gap-2">
+                        <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={32} />
+                        <span className="text-muted-foreground font-medium">{payment.asset}</span>
+                        <span className="font-semibold font-amount">{formatDisplayAmount(payment.amount)}</span>
+                      </div>
+                      
+                      {/* Arrow down */}
+                      <ArrowDown className="w-4 h-4 text-muted-foreground" />
+                      
+                      {/* To: Logo Currency [Value if path payment] */}
+                      <div className="flex items-center gap-2">
+                        <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={32} />
+                        <span className="text-muted-foreground font-medium">{payment.receiveAsset || payment.asset}</span>
+                        {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
+                          <span className="text-white font-semibold font-amount">
+                            &gt; {calculatePathPaymentReceiveAmount(payment.amount, payment.asset, payment.receiveAsset)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                     
