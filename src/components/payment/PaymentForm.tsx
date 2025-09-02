@@ -1082,7 +1082,7 @@ export const PaymentForm = ({
                 </Button>
                 <Button 
                   onClick={cancelCurrentPayment} 
-                  variant="outline" 
+                  variant="destructive" 
                   className="flex-1 min-w-0" 
                   size="lg"
                 >
