@@ -210,6 +210,17 @@ All colors MUST be HSL.
     );
   }
 
+  /* Account merge slider - red to indicate merge operation */  
+  .stellar-slider.slider-merge {
+    background-image: linear-gradient(
+      to right,
+      hsl(0 84% 60%) 0%,
+      hsl(0 84% 60%) var(--slider-progress, 0%),
+      hsl(var(--muted)) var(--slider-progress, 0%),
+      hsl(var(--muted)) 100%
+    );
+  }
+
   /* Account merge warning slider */  
   .stellar-slider.slider-merge-warning {
     background-image: linear-gradient(

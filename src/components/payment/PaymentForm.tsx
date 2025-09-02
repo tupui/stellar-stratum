@@ -129,6 +129,15 @@ export const PaymentForm = ({
     }
     return balance;
   };
+
+  // Calculate leftover balance after all other transactions (for merge display)
+  const getLeftoverBalance = (assetCode: string) => {
+    const totalBalance = getAvailableBalance(assetCode);
+    const compactTotal = compactPayments
+      .filter(p => p.asset === assetCode && !p.isAccountClosure) // Exclude other merges
+      .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    return Math.max(0, totalBalance - compactTotal);
+  };
   const getMaxSliderValue = (assetCode: string) => {
     const asset = availableAssets.find(a => a.code === assetCode);
     if (!asset) return 0;
@@ -265,6 +274,17 @@ export const PaymentForm = ({
     };
     updateFiatValue();
   }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency]);
+
+  // Update amount when willCloseAccount changes or when compactPayments change
+  useEffect(() => {
+    if (willCloseAccount && paymentData.asset === 'XLM') {
+      const leftoverBalance = getLeftoverBalance('XLM');
+      onPaymentDataChange({
+        ...paymentData,
+        amount: leftoverBalance.toFixed(7)
+      });
+    }
+  }, [willCloseAccount, compactPayments]);
   const formatDisplayAmount = (value: string | number) => {
     const s = String(value);
     if (s === '' || s === '0') return '0.0';
@@ -273,6 +293,17 @@ export const PaymentForm = ({
     return `${int}.${dec}`;
   };
   const handleAmountChange = (newAmount: string) => {
+    // For merge operations, don't allow manual amount changes - use leftover balance
+    if (willCloseAccount && paymentData.asset === 'XLM') {
+      const leftoverBalance = getLeftoverBalance('XLM');
+      const fixed = leftoverBalance.toFixed(7);
+      onPaymentDataChange({
+        ...paymentData,
+        amount: fixed
+      });
+      return;
+    }
+
     // Enforce 7 decimal places max and clamp to [0, max]
     const max = getMaxSliderValue(paymentData.asset);
     let num = parseFloat(newAmount);
@@ -324,17 +355,18 @@ export const PaymentForm = ({
   };
   const handleMergeAccount = () => {
     if (!canCloseAccount()) return;
-    const fullBalance = getMaxSliderValue('XLM');
-    handleAmountChange(fullBalance.toString());
-
+    
+    // For merge, show the leftover balance that will be transferred
+    const leftoverBalance = getLeftoverBalance('XLM');
+    
     // Use current destination if provided, otherwise require user input
-    if (!paymentData.destination) {
-      onPaymentDataChange({
-        ...paymentData,
-        destination: '',
-        amount: fullBalance.toString()
-      });
-    }
+    onPaymentDataChange({
+      ...paymentData,
+      asset: 'XLM',
+      assetIssuer: '',
+      destination: paymentData.destination || '',
+      amount: leftoverBalance.toString()
+    });
     setWillCloseAccount(true);
   };
   const handleRevertMerge = () => {
@@ -616,7 +648,7 @@ export const PaymentForm = ({
           isDraggingRef.current = true;
         }} onTouchStart={() => {
           isDraggingRef.current = true;
-        }} className={`w-full stellar-slider ${isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`} style={{
+        }} className={`w-full stellar-slider ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`} style={{
           '--slider-progress': `${percentage}%`,
           '--available-progress': `${availablePercentage}%`
         } as React.CSSProperties} />
