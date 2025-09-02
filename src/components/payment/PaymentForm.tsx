@@ -467,7 +467,7 @@ export const PaymentForm = ({
     setHasActiveForm(false); // Show form with bundle/cancel buttons
   };
   const editCompactPayment = (payment: CompactPayment) => {
-    // Move compact payment back to main form
+    // Load compact payment into form for editing, but keep it in the bundle
     onPaymentDataChange({
       destination: payment.destination,
       amount: payment.amount,
@@ -479,9 +479,12 @@ export const PaymentForm = ({
       slippageTolerance: payment.slippageTolerance
     });
 
-    // Remove from compact payments
-    setCompactPayments(compactPayments.filter(p => p.id !== payment.id));
-    setEditingPaymentId(null);
+    setEditingPaymentId(payment.id);
+    setHasActiveForm(false);
+    setWillCloseAccount(!!payment.isAccountClosure);
+
+    // Do not remove from compact payments to avoid accidental deletion
+    onClearTransaction?.(); // Any previously built tx is stale when entering edit mode
   };
   const removeCompactPayment = (id: string) => {
     setCompactPayments(compactPayments.filter(p => p.id !== id));
@@ -489,7 +492,65 @@ export const PaymentForm = ({
     // Clear any built transaction since it's no longer valid
     onClearTransaction?.();
   };
+
+  const handleSaveEdit = async () => {
+    if (!editingPaymentId) return;
+    if (!isFormValid()) return;
+
+    const updatedFiat = await calculateFiatValue(paymentData.amount, paymentData.asset);
+    const isAccountClosure = willCloseAccount || checkAccountClosure(paymentData.amount, paymentData.asset);
+
+    setCompactPayments(prev => prev.map(p => p.id === editingPaymentId ? {
+      ...p,
+      destination: paymentData.destination,
+      amount: paymentData.amount,
+      asset: paymentData.asset,
+      assetIssuer: paymentData.assetIssuer,
+      receiveAsset: paymentData.receiveAsset,
+      receiveAssetIssuer: paymentData.receiveAssetIssuer,
+      memo: paymentData.memo,
+      slippageTolerance: paymentData.slippageTolerance,
+      fiatValue: updatedFiat,
+      isAccountClosure
+    } : p));
+
+    setEditingPaymentId(null);
+    setHasActiveForm(true);
+
+    // Reset current form
+    onPaymentDataChange({
+      destination: '',
+      amount: '',
+      asset: paymentData.asset,
+      assetIssuer: paymentData.assetIssuer,
+      memo: '',
+      receiveAsset: undefined,
+      receiveAssetIssuer: undefined,
+      slippageTolerance: 0.5
+    });
+    setWillCloseAccount(false);
+    onClearTransaction?.();
+  };
+
   const cancelCurrentPayment = () => {
+    // If editing, exit edit mode and keep the bundle unchanged
+    if (editingPaymentId) {
+      setEditingPaymentId(null);
+      setHasActiveForm(true);
+      onPaymentDataChange({
+        destination: '',
+        amount: '',
+        asset: paymentData.asset,
+        assetIssuer: paymentData.assetIssuer,
+        memo: '',
+        receiveAsset: undefined,
+        receiveAssetIssuer: undefined,
+        slippageTolerance: 0.5
+      });
+      setWillCloseAccount(false);
+      return;
+    }
+
     // Clear current form and go to appropriate state
     onPaymentDataChange({
       destination: '',
@@ -784,7 +845,7 @@ export const PaymentForm = ({
           {/* Only show header when we have an active form (not in bundle mode) */}
           {!hasActiveForm && <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold">
-                {compactPayments.length > 0 ? `Operation #${compactPayments.length + 1}` : 'Operation Details'}
+                {editingPaymentId ? 'Edit Operation' : (compactPayments.length > 0 ? `Operation #${compactPayments.length + 1}` : 'Operation Details')}
               </h3>
             </div>}
 
@@ -940,7 +1001,28 @@ export const PaymentForm = ({
             </>}
 
           {/* Form with Bundle/Cancel - Show when hasActiveForm is false and form has content */}
-          {!hasActiveForm && <>
+          {!hasActiveForm && (
+            editingPaymentId ? (
+              <>
+                <Button 
+                  onClick={handleSaveEdit} 
+                  disabled={!isFormValid()} 
+                  size="lg"
+                  className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
+                >
+                  Save Changes
+                </Button>
+                <Button 
+                  onClick={cancelCurrentPayment} 
+                  variant="outline" 
+                  className="flex-1" 
+                  size="lg"
+                >
+                  Cancel Edit
+                </Button>
+              </>
+            ) : (
+              <>
                <Button 
                  onClick={handleBundlePayment} 
                  variant="outline" 
@@ -959,7 +1041,10 @@ export const PaymentForm = ({
                >
                  Cancel
                </Button>
-            </>}
+              </>
+            )
+          )}
+
 
           {/* Build single transaction - Show when no compact payments and form is valid */}
           {false && <Button onClick={handleBuild} disabled={isBuilding} className="w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50" size="lg">
