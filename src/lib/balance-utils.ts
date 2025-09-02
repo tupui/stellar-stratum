@@ -68,15 +68,16 @@ export function formatBalance(balance: string | number): string {
 }
 
 /**
- * Format balance for decimal-aligned display
+ * Format balance for decimal-aligned display with fixed total width
  */
 export function formatBalanceAligned(balance: string | number): string {
   const num = typeof balance === 'string' ? parseFloat(balance) : balance;
-  if (num === 0) return '0.0000000';
-  if (num < 0.0000001) return '<0.0000001';
+  if (num === 0) return '0.0000000'.padStart(20);
+  if (num < 0.0000001) return '<0.0000001'.padStart(20);
   
-  // Always format with 7 decimal places for perfect alignment
-  return num.toFixed(7);
+  // Format with 7 decimal places and pad to consistent width
+  const formatted = num.toFixed(7);
+  return formatted.padStart(20); // Pad to 20 characters for alignment
 }
 
 /**
