@@ -1163,6 +1163,7 @@ export const PaymentForm = ({
               Bundle Payment
             </Button>}
         </div>
+        )}
 
         {/* Transaction Built Success State */}
         {isTransactionBuilt && (
