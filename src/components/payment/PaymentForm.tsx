@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Slider } from '@/components/ui/slider';
+
 import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, TrendingUp, Merge, Users, Edit2, X } from 'lucide-react';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -524,82 +524,72 @@ export const PaymentForm = ({
       <div className="space-y-2">
         {/* Amount display above slider */}
         <div className="flex items-center justify-between">
-          <div className="text-right">
+          {/* Centered amount */}
+          <div className="flex-1 text-center">
             {isEditing ? (
               <Input
                 type="text"
                 inputMode="decimal"
                 value={editValue}
                 onChange={(e) => {
-                  // Enhanced input validation with more permissive handling
-                  let sanitized = e.target.value
-                    .replace(/[^0-9.,]/g, '')  // Only allow numbers, dots, and commas
-                    .replace(/,/g, '.');       // Convert commas to dots
-                  
-                  // Ensure only one decimal point
+                  let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
                   const parts = sanitized.split('.');
-                  if (parts.length > 2) {
-                    sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-                  }
-                  
-                  // Limit decimal places to 7
-                  if (parts[1] && parts[1].length > 7) {
-                    sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
-                  }
-                  
+                  if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+                  if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
                   setEditValue(sanitized);
                 }}
                 onBlur={handleEditSubmit}
                 onKeyDown={handleEditKeyDown}
                 onFocus={(e) => e.currentTarget.select()}
-                className="h-7 w-32 text-sm font-mono text-right px-2 py-1 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md"
+                className="h-8 w-40 text-xl font-amount text-center px-2 py-1 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md"
                 placeholder="0.0000000"
                 autoFocus
               />
             ) : (
-              <div 
-                className="cursor-pointer hover:bg-background/20 rounded px-2 py-1 transition-colors group"
+              <div
+                className="cursor-pointer rounded px-2 py-1"
                 onClick={() => setIsEditing(true)}
               >
-                <div className="text-lg font-mono font-semibold text-foreground group-hover:text-primary transition-colors">
+                <div className="text-2xl font-amount font-semibold text-foreground">
                   {formatDisplayAmount(value.toString())}
                 </div>
               </div>
             )}
           </div>
-          <div className="text-sm text-muted-foreground">
+          <div className="ml-2 text-sm text-muted-foreground whitespace-nowrap">
             / {formatDisplayAmount(maxAmount.toString())}
           </div>
         </div>
 
-        {/* Fiat conversion with units */}
-        {fiatValue && (
-          <div className="text-center">
-            <span className="text-sm text-primary font-medium">≈ {fiatValue}</span>
-          </div>
-        )}
-
         {/* Slider */}
         <div className="relative">
-          <Slider
+          <input
+            type="range"
             min={0}
             max={sliderMax}
             step={1}
-            value={[sliderValue]}
-            onValueChange={(vals) => {
-              const v = vals[0] || 0;
+            value={sliderValue}
+            onChange={(e) => {
+              const v = parseInt(e.target.value, 10) || 0;
               const newAmount = maxAmount > 0 ? (v / sliderMax) * maxAmount : 0;
               isDraggingRef.current = true;
               handleAmountChange(newAmount.toFixed(7));
             }}
-            onValueCommit={() => { isDraggingRef.current = false; }}
-            className="w-full"
+            onMouseDown={() => { isDraggingRef.current = true; }}
+            onTouchStart={() => { isDraggingRef.current = true; }}
+            className={`w-full stellar-slider ${
+              isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''
+            }`}
+            style={{
+              '--slider-progress': `${percentage}%`,
+              '--available-progress': `${availablePercentage}%`
+            } as React.CSSProperties}
           />
         </div>
         {/* Meta row */}
         <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Available: {availableBalance.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 7 })} {paymentData.asset}</span>
-          {fiatValue && <span className="font-medium text-primary">≈ {fiatValue}</span>}
+          <span className="font-amount">Available: {availableBalance.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 7 })} {paymentData.asset}</span>
+          {fiatValue && <span className="font-amount font-medium text-primary">≈ {fiatValue}</span>}
         </div>
       </div>
     );
@@ -872,7 +862,7 @@ export const PaymentForm = ({
                 className="flex-1 stellar-slider stellar-slider-purple"
                 style={{ '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / (5 - 0.1) * 100}%` } as React.CSSProperties}
               />
-              <span className="text-sm font-mono w-12 text-right">
+              <span className="text-sm font-amount w-12 text-right">
                 {(paymentData.slippageTolerance || 0.5).toFixed(1)}%
               </span>
             </div>
@@ -989,23 +979,16 @@ export const PaymentForm = ({
             </>
           )}
 
-          {/* Single Build Transaction Button */}
+          {/* Primary action: show only Bundle first */}
           {!showBundleActions && compactPayments.length === 0 && (
-            <Button 
-              onClick={handleBuild} 
-              disabled={isBuilding || !isFormValid()}
-              className={`w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50`}
+            <Button
+              onClick={handleBundlePayment}
+              variant="outline"
+              className="w-full border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
               size="lg"
             >
-              {isBuilding ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  Building Transaction...
-                </div>
-              ) : (
-                paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
-                  'Build Cross-Asset Payment' : 'Build Payment Transaction'
-              )}
+              <Plus className="w-4 h-4 mr-2" />
+              Bundle Payment
             </Button>
           )}
         </div>
