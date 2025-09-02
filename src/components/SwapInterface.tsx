@@ -356,7 +356,7 @@ export const SwapInterface = ({
               step="0.1"
               value={slippageTolerance}
               onChange={(e) => onSlippageToleranceChange(parseFloat(e.target.value))}
-              className="stellar-slider w-full"
+              className="stellar-slider stellar-slider-purple w-full"
               style={{'--slider-progress': `${((slippageTolerance - 0.1) / 4.9) * 100}%`} as React.CSSProperties}
             />
             <div className="flex justify-between items-center text-xs text-muted-foreground">
