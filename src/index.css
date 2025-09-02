@@ -495,4 +495,91 @@ All colors MUST be HSL.
     border-radius: 4px;
     border: none;
   }
+
+  /* Swap Interface Styles */
+  .swap-container {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.05), hsl(var(--secondary) / 0.05));
+    border-radius: 24px;
+    padding: 1rem;
+    backdrop-filter: blur(10px);
+  }
+
+  .swap-card-from {
+    background: hsl(var(--card) / 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--border) / 0.6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .swap-card-from:hover {
+    border-color: hsl(var(--border));
+    background: hsl(var(--card) / 0.7);
+  }
+
+  .swap-card-to {
+    background: hsl(var(--card) / 0.3);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--border) / 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .swap-card-to:hover {
+    border-color: hsl(var(--border) / 0.6);
+    background: hsl(var(--card) / 0.4);
+  }
+
+  .swap-amount-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+
+  .swap-amount-input:focus {
+    transform: scale(1.02);
+  }
+
+  /* Percentage buttons */
+  .percentage-button {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid hsl(var(--border) / 0.3);
+    background: hsl(var(--background) / 0.5);
+    backdrop-filter: blur(4px);
+  }
+
+  .percentage-button:hover {
+    border-color: hsl(var(--primary) / 0.5);
+    background: hsl(var(--primary) / 0.1);
+    transform: translateY(-1px);
+  }
+
+  /* Asset selector styling */
+  .asset-selector {
+    background: hsl(var(--background) / 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid hsl(var(--border) / 0.6);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .asset-selector:hover {
+    border-color: hsl(var(--border));
+    background: hsl(var(--background) / 0.9);
+  }
+
+  /* Swap direction button */
+  .swap-direction-button {
+    background: hsl(var(--background));
+    border: 2px solid hsl(var(--border) / 0.6);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px hsl(var(--primary) / 0.1);
+  }
+
+  .swap-direction-button:hover {
+    border-color: hsl(var(--primary) / 0.5);
+    background: hsl(var(--muted) / 0.5);
+    transform: rotate(180deg);
+    box-shadow: 0 6px 20px hsl(var(--primary) / 0.2);
+  }
 }

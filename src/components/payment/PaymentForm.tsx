@@ -14,6 +14,7 @@ import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
+import { SwapAmountInput } from '../SwapAmountInput';
 import { useNetwork } from '@/contexts/NetworkContext';
 import * as StellarSDK from '@stellar/stellar-sdk';
 interface PaymentData {
@@ -810,133 +811,54 @@ export const PaymentForm = ({
         </div>
 
         {/* Payment Details Row */}
-        <div className="space-y-3">
+        <div className="space-y-6">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">Amount & Assets</Label>
           </div>
           
-            <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_140px] gap-4 items-center">
-              {/* From Asset */}
-              <div className="flex items-center justify-center">
-                <Select value={paymentData.asset} onValueChange={value => {
-                const selectedAsset = availableAssets.find(asset => asset.code === value);
-                onPaymentDataChange({
-                  ...paymentData,
-                  asset: value,
-                  assetIssuer: selectedAsset?.issuer || '',
-                  amount: ''
-                });
-                setWillCloseAccount(false);
-              }}>
-                  <SelectTrigger className="h-12 border-border/60 focus:border-primary">
-                    <SelectValue>
-                      <span className="font-semibold text-sm">{paymentData.asset}</span>
-                    </SelectValue>
-                  </SelectTrigger>
-              <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
-                <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
-                  <span className="uppercase tracking-wider font-medium">Asset</span>
-                  <span className="text-right uppercase tracking-wider font-medium">Balance</span>
-                </div>
-                {availableAssets.filter(asset => asset.code && asset.code.trim() !== '').map(asset => {
-                    const balance = parseFloat(asset.balance);
-                    const formattedBalance = balance.toLocaleString('en-US', {
-                      minimumFractionDigits: 7,
-                      maximumFractionDigits: 7,
-                      useGrouping: true
-                    });
-                    return <SelectPrimitive.Item key={`${asset.code}-${asset.issuer}`} value={asset.code} className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer">
-                      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                        <SelectPrimitive.ItemIndicator>
-                          <Check className="h-4 w-4" />
-                        </SelectPrimitive.ItemIndicator>
-                      </span>
-                      <SelectPrimitive.ItemText>
-                        <div className="grid grid-cols-[80px_1fr] items-center gap-3">
-                          <span className="font-medium">{asset.code}</span>
-                          <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
-                        </div>
-                      </SelectPrimitive.ItemText>
-                    </SelectPrimitive.Item>;
-                  })}
-                 </SelectContent>
-                </Select>
-              </div>
+          <SwapAmountInput
+            fromAsset={paymentData.asset}
+            fromAssetIssuer={paymentData.assetIssuer}
+            toAsset={paymentData.receiveAsset}
+            toAssetIssuer={paymentData.receiveAssetIssuer}
+            amount={paymentData.amount}
+            availableAssets={availableAssets}
+            recipientAssets={getReceiveOptions()}
+            maxAmount={getMaxSliderValue(paymentData.asset)}
+            fiatValue={fiatValue}
+            onAmountChange={handleAmountChange}
+            onFromAssetChange={(asset, issuer) => {
+              onPaymentDataChange({
+                ...paymentData,
+                asset,
+                assetIssuer: issuer || '',
+                amount: ''
+              });
+              setWillCloseAccount(false);
+            }}
+            onToAssetChange={(asset, issuer) => {
+              onPaymentDataChange({
+                ...paymentData,
+                receiveAsset: asset,
+                receiveAssetIssuer: issuer
+              });
+            }}
+          />
 
-              {/* Amount Slider - properly centered */}
-              <div className="flex items-center justify-center">
-                <div className="w-full">
-                  <AmountSlider />
-                  {/* Merge button positioned below slider */}
-                  {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && <div className="text-center mt-3">
-                      <Button variant="outline" size="sm" onClick={handleMergeAccount} className="h-7 px-3 text-xs border-primary/30 hover:border-primary hover:bg-primary/10 whitespace-nowrap">
-                        <Merge className="h-3 w-3 mr-1" />
-                        Merge Account
-                      </Button>
-                    </div>}
-                </div>
-              </div>
-
-              {/* To Asset with recipient balances */}
-              <div className="flex items-center justify-center">
-                <Select value={paymentData.receiveAsset || "same"} onValueChange={value => {
-                const selectedAsset = recipientAssetOptions.find(asset => asset.code === value);
-                onPaymentDataChange({
-                  ...paymentData,
-                  receiveAsset: value === "same" ? undefined : value,
-                  receiveAssetIssuer: selectedAsset?.issuer || undefined
-                });
-              }}>
-                  <SelectTrigger className="h-12 border-border/60 focus:border-primary">
-                    <SelectValue placeholder="Same">
-                      <span className="font-semibold text-sm">
-                        {paymentData.receiveAsset || paymentData.asset}
-                      </span>
-                    </SelectValue>
-                  </SelectTrigger>
-              <SelectContent className="min-w-[300px] max-h-64 overflow-y-auto z-50 bg-popover border border-border shadow-lg">
-                <div className="sticky top-0 z-[100] grid grid-cols-[80px_1fr] items-center gap-3 pl-8 pr-2 py-3 text-[11px] text-muted-foreground bg-card/95 backdrop-blur-sm border-b border-border shadow-md">
-                  <span className="uppercase tracking-wider font-medium">Asset</span>
-                  <span className="text-right uppercase tracking-wider font-medium">Recipient Has</span>
-                </div>
-                <SelectPrimitive.Item value="same" className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer">
-                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                    <SelectPrimitive.ItemIndicator>
-                      <Check className="h-4 w-4" />
-                    </SelectPrimitive.ItemIndicator>
-                  </span>
-                  <SelectPrimitive.ItemText>
-                    <div className="grid grid-cols-[80px_1fr] items-center gap-3">
-                      <span className="text-muted-foreground">Same ({paymentData.asset})</span>
-                      <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
-                        {recipientHas(paymentData.asset) ? parseFloat(recipientBalance(paymentData.asset) || '0').toLocaleString('en-US', {
-                            maximumFractionDigits: 7
-                          }) : '—'}
-                      </span>
-                    </div>
-                  </SelectPrimitive.ItemText>
-                </SelectPrimitive.Item>
-                {getReceiveOptions().filter(asset => asset.code !== paymentData.asset).map(asset => <SelectPrimitive.Item key={`${asset.code}-${asset.issuer}`} value={asset.code} className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer">
-                    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                      <SelectPrimitive.ItemIndicator>
-                        <Check className="h-4 w-4" />
-                      </SelectPrimitive.ItemIndicator>
-                    </span>
-                    <SelectPrimitive.ItemText>
-                      <div className="grid grid-cols-[80px_1fr] items-center gap-3">
-                        <span className="font-medium">{asset.code}</span>
-                        <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
-                          {recipientHas(asset.code) ? parseFloat(recipientBalance(asset.code) || '0').toLocaleString('en-US', {
-                            maximumFractionDigits: 7
-                          }) : '—'}
-                        </span>
-                      </div>
-                    </SelectPrimitive.ItemText>
-                  </SelectPrimitive.Item>)}
-                 </SelectContent>
-                </Select>
-              </div>
+          {/* Merge Account Button */}
+          {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
+            <div className="text-center">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleMergeAccount} 
+                className="h-8 px-4 text-sm border-primary/30 hover:border-primary hover:bg-primary/10"
+              >
+                <Merge className="h-4 w-4 mr-2" />
+                Merge Account
+              </Button>
             </div>
+          )}
         </div>
 
         {/* Slippage Tolerance (only when cross-asset) */}
