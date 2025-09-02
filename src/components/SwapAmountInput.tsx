@@ -115,11 +115,8 @@ export const SwapAmountInput = ({
       {/* Hourglass Container */}
       <div className="relative">
         
-        {/* Top Section - Custom Shape */}
-        <div className="relative bg-card/80 backdrop-blur-sm border border-border/50 p-4 md:p-6" style={{
-          clipPath: 'polygon(0% 0%, 100% 0%, 100% 85%, 60% 85%, 50% 100%, 40% 85%, 0% 85%)',
-          borderRadius: '24px 24px 0 0'
-        }}>
+        {/* Top Section */}
+        <div className="relative bg-card/80 backdrop-blur-sm border border-border/50 rounded-3xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium text-muted-foreground">You send</span>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -257,11 +254,8 @@ export const SwapAmountInput = ({
           )}
         </div>
 
-        {/* Bottom Section - Custom Shape */}
-        <div className="relative bg-card/60 backdrop-blur-sm border border-border/40 p-4 md:p-6" style={{
-          clipPath: 'polygon(0% 15%, 40% 15%, 50% 0%, 60% 15%, 100% 15%, 100% 100%, 0% 100%)',
-          borderRadius: '0 0 24px 24px'
-        }}>
+        {/* Bottom Section */}
+        <div className="relative bg-card/60 backdrop-blur-sm border border-border/40 rounded-3xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium text-muted-foreground">They receive</span>
             {recipientAssets.length > 0 && (
