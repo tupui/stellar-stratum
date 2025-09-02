@@ -73,7 +73,7 @@ export const LandingPage = ({
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
             <Button size="lg" className="h-16 px-12 text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
-              Launch App
+              Connect wallet
             </Button>
           </div>
 
