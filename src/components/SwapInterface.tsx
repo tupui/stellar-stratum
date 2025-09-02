@@ -259,17 +259,20 @@ export const SwapInterface = ({
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
-              <SelectItem value="same" className="px-3 py-3" hideIndicator>
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-3">
-                    <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
-                    <span className="text-muted-foreground">{fromAsset}</span>
+              {/* Only show "same asset" option if recipient has trustline for it */}
+              {recipientAssets.some(asset => asset.code === fromAsset) && (
+                <SelectItem value="same" className="px-3 py-3" hideIndicator>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-3">
+                      <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
+                      <span className="text-muted-foreground">{fromAsset}</span>
+                    </div>
+                    <span className="ml-4 w-40 shrink-0 text-right font-mono tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
+                      {formatBalanceAligned(toAssetBalance)}
+                    </span>
                   </div>
-                  <span className="ml-4 w-40 shrink-0 text-right font-mono tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
-                    {formatBalanceAligned(toAssetBalance)}
-                  </span>
-                </div>
-              </SelectItem>
+                </SelectItem>
+              )}
               {recipientAssets.filter(asset => asset.code !== fromAsset).map(asset => (
                 <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
                   <div className="flex items-center justify-between w-full">
