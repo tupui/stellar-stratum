@@ -187,7 +187,7 @@ export const SignerSelector = ({
               const signer = signers.find(s => s.key === signed.signerKey);
               return (
                 <div key={index} className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     <CheckCircle className="w-4 h-4 text-green-500" />
                     <div>
                       <p className="font-address text-sm">{truncateKey(signed.signerKey)}</p>
@@ -279,7 +279,7 @@ export const SignerSelector = ({
               <div className="space-y-2">
                 {availableSigners.map((signer) => (
                   <div key={signer.key} className="flex items-center justify-between p-2 bg-secondary/30 rounded-lg">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                       <Circle className="w-4 h-4 text-muted-foreground" />
                       <div>
                         <p className="font-address text-sm">{truncateKey(signer.key)}</p>

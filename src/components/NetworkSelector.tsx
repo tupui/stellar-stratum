@@ -69,9 +69,9 @@ export const NetworkSelector = ({
           </div>}
 
         {!canSubmitToNetwork && <div className="p-4 rounded-lg border bg-warning/5 border-warning/30">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center flex-shrink-0">
-                <Key className="w-4 h-4 text-warning" />
+                <img src="/lovable-uploads/2012be0c-d57b-4b7e-86b4-5be4b759cca4.png" alt="Missing signature" className="w-4 h-4" />
               </div>
               <p className="text-sm text-warning font-medium">
                 Insufficient signatures. Transaction needs more signatures before it can be submitted to the network.
