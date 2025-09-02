@@ -852,37 +852,25 @@ export const PaymentForm = ({
                     </div>
                   )}
 
-                  {/* Asset transfer visualization - compact horizontal layout */}
-                  <div className="bg-background/50 rounded-xl p-4 space-y-4">
-                    {/* From section - single row */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">FROM</span>
-                        <div className="font-semibold text-sm">{formatDisplayAmount(payment.amount)}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm text-muted-foreground">{payment.asset}</div>
-                        <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={24} />
-                      </div>
-                    </div>
-                    
-                    {/* Arrow separator */}
-                    <div className="flex justify-center">
-                      <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
-                    </div>
-                    
-                    {/* To section - single row */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">TO</span>
-                        {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
-                          <div className="text-xs text-muted-foreground">Path</div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm font-medium">{payment.receiveAsset || payment.asset}</div>
-                        <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={24} />
-                      </div>
+                  {/* Asset transfer visualization - single row compact layout */}
+                  <div className="bg-background/50 rounded-xl p-3">
+                    <div className="flex items-center justify-center gap-2 text-sm">
+                      {/* From: Logo Currency Amount */}
+                      <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={20} />
+                      <span className="text-muted-foreground font-medium">{payment.asset}</span>
+                      <span className="font-semibold">{formatDisplayAmount(payment.amount)}</span>
+                      
+                      {/* Arrow */}
+                      <ArrowRight className="w-4 h-4 text-muted-foreground mx-1" />
+                      
+                      {/* To: Logo Currency [Value if path payment] */}
+                      <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={20} />
+                      <span className="text-muted-foreground font-medium">{payment.receiveAsset || payment.asset}</span>
+                      {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
+                        <span className="font-semibold text-primary">
+                          {calculatePathPaymentReceiveAmount(payment.amount, payment.asset, payment.receiveAsset)}
+                        </span>
+                      )}
                     </div>
                   </div>
                     
