@@ -263,24 +263,17 @@ export const WalletConnect = ({
   };
   const walletContent = <>
       {/* Network Selection */}
-      <div className="mb-6 space-y-2">
-        
+      <div className="mb-6 flex justify-end">
         <Select value={selectedNetwork} onValueChange={(value: 'mainnet' | 'testnet') => setSelectedNetwork(value)}>
-          <SelectTrigger>
+          <SelectTrigger className="w-32 h-8 rounded-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="mainnet">
-              <div className="flex items-center gap-2">
-                <Badge variant="default">Mainnet</Badge>
-                <span>horizon.stellar.org</span>
-              </div>
+              <Badge variant="default">Mainnet</Badge>
             </SelectItem>
             <SelectItem value="testnet">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">Testnet</Badge>
-                <span>horizon-testnet.stellar.org</span>
-              </div>
+              <Badge variant="secondary">Testnet</Badge>
             </SelectItem>
           </SelectContent>
         </Select>
