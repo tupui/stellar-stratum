@@ -519,17 +519,36 @@ export const PaymentForm = ({
     return paymentData.destination && paymentData.amount && paymentData.asset && (paymentData.asset === 'XLM' || paymentData.assetIssuer) && (!trustlineError || trustlineError.includes('will create a new'));
   };
   const handleBuild = () => {
-    if (willCloseAccount) {
-      // Use current destination for merge
+    if (compactPayments.length > 0 && hasActiveForm) {
+      // Build batch transaction with compact payments
+      // If current form is a merge operation, add it to the batch
+      if (willCloseAccount) {
+        const mergePayment = {
+          id: 'current-merge',
+          destination: paymentData.destination,
+          amount: paymentData.amount,
+          asset: paymentData.asset,
+          assetIssuer: paymentData.assetIssuer,
+          receiveAsset: paymentData.receiveAsset,
+          receiveAssetIssuer: paymentData.receiveAssetIssuer,
+          memo: paymentData.memo,
+          slippageTolerance: paymentData.slippageTolerance,
+          fiatValue: fiatValue,
+          isAccountClosure: true
+        };
+        const allPayments = [...compactPayments, mergePayment];
+        onBuild(undefined, false, allPayments);
+      } else {
+        // Build batch transaction with only compact payments
+        onBuild(undefined, false, compactPayments);
+      }
+    } else if (willCloseAccount) {
+      // Single merge operation
       const mergeData = {
         ...paymentData,
         destination: paymentData.destination || accountPublicKey
       };
       onBuild(mergeData, true);
-    } else if (compactPayments.length > 0 && hasActiveForm) {
-      // Build batch transaction with only compact payments
-      // All payments should be included even if one is an account closure
-      onBuild(undefined, false, compactPayments);
     } else if (compactPayments.length > 0 && !hasActiveForm) {
       // Build batch transaction with compact payments + current payment
       const currentPaymentIsAccountClosure = checkAccountClosure(paymentData.amount, paymentData.asset);
