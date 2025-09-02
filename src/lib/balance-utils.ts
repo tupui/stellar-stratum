@@ -77,6 +77,27 @@ export function formatAmount(value: string | number): string {
 }
 
 /**
+ * Validate and cap amount by available balance
+ */
+export function validateAndCapAmount(
+  amount: string | number,
+  availableBalance: number,
+  precision: number = 7
+): string {
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  
+  if (isNaN(numAmount) || numAmount <= 0) {
+    return '0';
+  }
+  
+  // Cap by available balance
+  const cappedAmount = Math.min(numAmount, availableBalance);
+  
+  // Round to specified precision to avoid floating point issues
+  return (Math.round(cappedAmount * Math.pow(10, precision)) / Math.pow(10, precision)).toString();
+}
+
+/**
  * Calculate percentage of available balance being used
  */
 export function calculateBalancePercentage(

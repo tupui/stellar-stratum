@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetIcon } from '@/components/AssetIcon';
 import { cn } from '@/lib/utils';
-import { calculateAvailableBalance, formatBalance, formatAmount, calculateBalancePercentage } from '@/lib/balance-utils';
+import { calculateAvailableBalance, formatBalance, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
 
 interface Asset {
   code: string;
@@ -74,9 +74,8 @@ export const SwapAmountInput = ({
   }, [amount, isEditingAmount]);
 
   const handleAmountSubmit = () => {
-    let numValue = parseFloat(editValue) || 0;
-    numValue = Math.round(numValue * 10000000) / 10000000; // 7 decimal places
-    onAmountChange(numValue.toString());
+    const cappedValue = validateAndCapAmount(editValue, availableAmount);
+    onAmountChange(cappedValue);
     setIsEditingAmount(false);
   };
 
@@ -91,7 +90,8 @@ export const SwapAmountInput = ({
 
   const handlePercentageClick = (percentage: number) => {
     const newAmount = availableAmount * (percentage / 100);
-    onAmountChange(newAmount.toFixed(7));
+    const cappedAmount = validateAndCapAmount(newAmount, availableAmount);
+    onAmountChange(cappedAmount);
   };
 
   // Path payment logic
@@ -216,7 +216,8 @@ export const SwapAmountInput = ({
               onChange={(e) => {
                 const percentage = parseFloat(e.target.value);
                 const newAmount = availableAmount * (percentage / 100);
-                onAmountChange(newAmount.toFixed(7));
+                const cappedAmount = validateAndCapAmount(newAmount, availableAmount);
+                onAmountChange(cappedAmount);
               }}
               className="stellar-slider w-full"
               style={{'--slider-progress': `${Math.round(currentPercentage)}%`} as React.CSSProperties}
