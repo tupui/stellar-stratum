@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpDown, ArrowDown } from 'lucide-react';
+import { ArrowUpDown, ArrowDown, Merge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetIcon } from '@/components/AssetIcon';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { calculateAvailableBalance, formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -36,6 +37,7 @@ interface SwapInterfaceProps {
   onSlippageToleranceChange?: (tolerance: number) => void;
   onSwapDirection?: () => void;
   className?: string;
+  willCloseAccount?: boolean;
 }
 export const SwapInterface = ({
   fromAsset,
@@ -56,7 +58,8 @@ export const SwapInterface = ({
   onToAssetChange,
   onSlippageToleranceChange,
   onSwapDirection,
-  className
+  className,
+  willCloseAccount = false
 }: SwapInterfaceProps) => {
   const [sliderValue, setSliderValue] = useState([0]);
   const [isEditingAmount, setIsEditingAmount] = useState(false);
@@ -116,9 +119,22 @@ export const SwapInterface = ({
   const displayReceiveAmount = isPathPayment ? receiveAmount || amount : amount;
   return <div className={cn("max-w-lg mx-auto", className)}>
       {/* From Section */}
-      <div className="bg-card border border-border rounded-2xl p-6 mb-2">
+      <div className={cn(
+        "border rounded-2xl p-6 mb-2",
+        willCloseAccount 
+          ? "bg-destructive/5 border-destructive/50" 
+          : "bg-card border-border"
+      )}>
         <div className="flex justify-between items-center mb-4">
-          <span className="text-sm text-muted-foreground">You send</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">You send</span>
+            {willCloseAccount && (
+              <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
+                <Merge className="h-3 w-3 mr-1" />
+                Account Closure
+              </Badge>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-6 px-2 text-xs bg-success/10 text-success hover:bg-success/20 hover:text-success border border-success/20" onClick={handleMaxClick}>
               MAX

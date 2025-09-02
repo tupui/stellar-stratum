@@ -767,12 +767,6 @@ export const PaymentForm = ({
 
         {/* Slider */}
         <div className="relative self-center px-2">
-          {/* Debug info */}
-          {willCloseAccount && (
-            <div className="text-xs text-destructive mb-2 text-center">
-              DEBUG: Merge mode active - slider should be red
-            </div>
-          )}
           <Slider
             value={[sliderValue]}
             onValueChange={(values) => {
@@ -787,21 +781,11 @@ export const PaymentForm = ({
             max={sliderMax}
             step={1}
             className={`stellar-slider w-full ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`}
-            data-merge-mode={willCloseAccount ? 'true' : 'false'}
             style={{
               '--slider-progress': `${percentage}%`,
-              '--available-progress': `${availablePercentage}%`,
-              ...(willCloseAccount ? {
-                background: `linear-gradient(to right, hsl(0 84% 60%) 0%, hsl(0 84% 60%) ${percentage}%, hsl(220 13% 15%) ${percentage}%, hsl(220 13% 15%) 100%) !important`
-              } : {})
+              '--available-progress': `${availablePercentage}%`
             } as React.CSSProperties}
           />
-          {/* Debug current classes */}
-          {willCloseAccount && (
-            <div className="text-xs text-destructive mt-1 text-center">
-              Classes: stellar-slider slider-merge | willCloseAccount: {willCloseAccount.toString()}
-            </div>
-          )}
         </div>
         {/* Meta row: only fiat value */}
         {fiatValue && <div className="text-right text-xs text-muted-foreground px-2">
@@ -811,13 +795,6 @@ export const PaymentForm = ({
   };
   return <div className="space-y-6">
 
-      {/* Account Merge Warning - show before payments list */}
-      {willCloseAccount && <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
-          <AlertTriangle className="h-4 w-4 text-destructive" />
-          <AlertDescription className="text-destructive font-medium">
-            <span className="font-bold">Account Closure:</span> This transaction will close your source account and send all remaining funds to the destination. This action cannot be undone.
-          </AlertDescription>
-        </Alert>}
 
       {/* Compact Transactions List */}
       {compactPayments.length > 0 && <div className="space-y-3">
@@ -1011,6 +988,7 @@ export const PaymentForm = ({
               undefined
             }
             slippageTolerance={paymentData.slippageTolerance}
+            willCloseAccount={willCloseAccount}
             onAmountChange={handleAmountChange}
             onFromAssetChange={(asset, issuer) => {
               onPaymentDataChange({
