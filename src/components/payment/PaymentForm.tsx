@@ -751,7 +751,7 @@ export const PaymentForm = ({
           if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
           setEditValue(sanitized);
         }} onBlur={handleEditSubmit} onKeyDown={handleEditKeyDown} onFocus={e => e.currentTarget.select()} className="h-10 w-48 text-2xl font-amount text-center px-3 py-2 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md mx-auto" placeholder="0.0000000" autoFocus /> : <div className="cursor-pointer rounded px-3 py-2 mx-auto w-fit" onClick={() => setIsEditing(true)}>
-              <div className="text-3xl font-amount font-semibold text-foreground">
+              <div className={`text-3xl font-amount font-semibold ${willCloseAccount ? 'text-destructive' : 'text-foreground'}`}>
                 {formatDisplayAmount(value.toString())}
               </div>
               
