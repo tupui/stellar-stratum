@@ -159,9 +159,14 @@ export const SwapInterface = ({
             <SelectContent className="bg-card border border-border shadow-lg z-50">
               {availableAssets.map((asset) => (
                 <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
-                  <div className="flex items-center gap-2">
-                    <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-                    <span>{asset.code}</span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
+                      <span>{asset.code}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {formatBalance(asset.balance)}
+                    </span>
                   </div>
                 </SelectItem>
               ))}
@@ -294,9 +299,14 @@ export const SwapInterface = ({
               </SelectItem>
               {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
                 <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
-                  <div className="flex items-center gap-2">
-                    <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-                    <span>{asset.code}</span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
+                      <span>{asset.code}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {formatBalance(asset.balance)}
+                    </span>
                   </div>
                 </SelectItem>
               ))}
