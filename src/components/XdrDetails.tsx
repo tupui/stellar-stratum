@@ -166,6 +166,45 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                             <p><span className="text-muted-foreground">Amount:</span> {(op.details as any).amount} {(op.details as any).asset?.code || 'XLM'}</p>
                           </div>
                         )}
+                        {op.type === 'pathPaymentStrictSend' && (
+                          <div className="text-sm space-y-1">
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p className="break-words"><span className="text-muted-foreground">To:</span> <span className="font-address text-xs break-all">{(op.details as any).destination}</span></p>
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p><span className="text-muted-foreground">Send:</span> {(op.details as any).sendAmount} {(op.details as any).sendAsset?.code || 'XLM'}</p>
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p><span className="text-muted-foreground">Receive (min):</span> {(op.details as any).destMin} {(op.details as any).destAsset?.code || 'XLM'}</p>
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            {(op.details as any).path && (op.details as any).path.length > 0 && (
+                              <div>
+                                <p className="text-muted-foreground">Path:</p>
+                                <div className="ml-2 text-xs">
+                                  {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                                  {(op.details as any).path.map((asset: any, i: number) => (
+                                    <span key={i} className="inline-block mr-2 mb-1 px-2 py-1 bg-background rounded">
+                                      {asset.code || 'XLM'}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            <div className="mt-2 p-2 bg-background/50 rounded text-xs text-muted-foreground">
+                              <p>Cross-asset payment: Converts {(op.details as any).sendAsset?.code || 'XLM'} to {(op.details as any).destAsset?.code || 'XLM'}</p>
+                            </div>
+                          </div>
+                        )}
+                        {op.type === 'accountMerge' && (
+                          <div className="text-sm space-y-1">
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p className="break-words"><span className="text-muted-foreground">From:</span> <span className="font-address text-xs break-all">{(op.details as any).source || details.source}</span></p>
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p className="break-words"><span className="text-muted-foreground">To:</span> <span className="font-address text-xs break-all">{(op.details as any).destination}</span></p>
+                            <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded text-xs">
+                              <p className="text-destructive font-medium">⚠️ Account Closure</p>
+                              <p className="text-muted-foreground mt-1">This operation will permanently close the source account and transfer all remaining XLM balance to the destination account. This action cannot be undone.</p>
+                            </div>
+                          </div>
+                        )}
                         {op.type === 'setOptions' && (
                           <div className="text-sm space-y-1">
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
