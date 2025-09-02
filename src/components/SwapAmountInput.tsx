@@ -123,7 +123,7 @@ export const SwapAmountInput = ({
             <span className="text-sm font-medium text-muted-foreground">You send</span>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="hidden sm:inline">Balance: {formatBalance(fromAssetBalance)}</span>
-              <span className="sm:hidden">Bal: {formatBalance(fromAssetBalance)}</span>
+              <span className="sm:hidden">Available: {formatBalance(fromAssetBalance)}</span>
               <Button
                 variant="ghost"
                 size="sm"
