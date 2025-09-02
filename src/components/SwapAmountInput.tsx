@@ -236,44 +236,22 @@ export const SwapAmountInput = ({
           </div>
         </div>
 
-        {/* Hourglass Waist - Curved Connection */}
-        <div className="relative h-16 -my-8 z-10">
-          {/* SVG Hourglass Shape */}
-          <svg 
-            className="absolute inset-0 w-full h-full" 
-            viewBox="0 0 300 64" 
-            preserveAspectRatio="none"
-          >
-            <defs>
-              <linearGradient id="hourglassGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="hsl(var(--border))" stopOpacity="0.2" />
-                <stop offset="50%" stopColor="hsl(var(--border))" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="hsl(var(--border))" stopOpacity="0.2" />
-              </linearGradient>
-            </defs>
-            <path 
-              d="M 0 0 Q 150 32 300 0 L 300 8 Q 150 24 0 8 Z M 0 56 Q 150 40 300 56 L 300 64 Q 150 32 0 64 Z" 
-              fill="url(#hourglassGradient)"
-            />
-          </svg>
-          
-          {/* Center Button */}
-          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            {!onSwapDirection ? (
-              <div className="w-12 h-12 rounded-full bg-card border-2 border-border/60 flex items-center justify-center shadow-lg backdrop-blur-sm">
-                <ArrowDown className="h-5 w-5 text-muted-foreground animate-pulse" />
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-12 h-12 rounded-full border-2 bg-card hover:bg-muted/50 hover:border-primary/50 transition-all duration-300 hover:scale-110 shadow-lg backdrop-blur-sm"
-                onClick={onSwapDirection}
-              >
-                <ArrowUpDown className="h-5 w-5" />
-              </Button>
-            )}
-          </div>
+        {/* Simple Connection */}
+        <div className="relative flex justify-center -my-4 z-10">
+          {!onSwapDirection ? (
+            <div className="w-10 h-10 rounded-full bg-card border border-border/60 flex items-center justify-center shadow-sm">
+              <ArrowDown className="h-4 w-4 text-muted-foreground" />
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-10 h-10 rounded-full border bg-card hover:bg-muted/50 hover:border-primary/50 transition-all duration-200 shadow-sm"
+              onClick={onSwapDirection}
+            >
+              <ArrowUpDown className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {/* Bottom Section */}
