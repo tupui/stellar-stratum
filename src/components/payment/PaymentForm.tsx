@@ -106,6 +106,9 @@ export const PaymentForm = ({
   // State for current payment and flow control
   const [fiatValue, setFiatValue] = useState<string>('');
   const [isTransactionBuilt, setIsTransactionBuilt] = useState(false);
+  const [domainSuggestions, setDomainSuggestions] = useState<{ domain: string; address: string }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
   type RecipientAsset = {
     code: string;
     issuer?: string;
@@ -323,40 +326,66 @@ export const PaymentForm = ({
   }, [compactPayments, quoteCurrency, assetPrices, getCurrentCurrency]);
 
   // Helper to handle destination input and domain resolution
-  const handleDestinationChange = async (inputValue: string) => {
+  const handleDestinationChange = (inputValue: string) => {
     const trimmedValue = inputValue.trim();
     
     // Update the field immediately
     onPaymentDataChange({
       ...paymentData,
-      destination: trimmedValue
+      destination: inputValue // Keep original input with spaces
     });
 
-    // If input looks like a domain and is complete, try to resolve it
-    if (isLikelySorobanDomain(trimmedValue) && isValidDomain(trimmedValue)) {
-      setResolvingDomain(true);
-      const result = await resolveSorobanDomain(trimmedValue, network);
-      
-      if (result.success) {
-        onPaymentDataChange({
-          ...paymentData,
-          destination: result.address
-        });
-        toast({
-          title: "Domain resolved",
-          description: `${trimmedValue} → ${result.address.slice(0, 8)}...${result.address.slice(-8)}`,
-          duration: 3000,
-        });
-      } else {
-        toast({
-          title: "Domain not found",
-          description: "Domain could not be resolved",
-          variant: "destructive",
-          duration: 3000,
-        });
-      }
-      setResolvingDomain(false);
+    // Clear previous timer
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
     }
+
+    // Clear suggestions if input is empty or looks like a Stellar address
+    if (!trimmedValue || isValidPublicKey(trimmedValue)) {
+      setShowSuggestions(false);
+      setDomainSuggestions([]);
+      return;
+    }
+
+    // If input looks like a domain, set up debounced resolution
+    if (isLikelySorobanDomain(trimmedValue)) {
+      const timer = setTimeout(async () => {
+        if (isValidDomain(trimmedValue)) {
+          setResolvingDomain(true);
+          const result = await resolveSorobanDomain(trimmedValue, network);
+          
+          if (result.success) {
+            setDomainSuggestions([{ domain: trimmedValue, address: result.address }]);
+            setShowSuggestions(true);
+          } else {
+            setDomainSuggestions([]);
+            setShowSuggestions(false);
+          }
+          setResolvingDomain(false);
+        }
+      }, 70);
+      
+      setDebounceTimer(timer);
+    } else {
+      setShowSuggestions(false);
+      setDomainSuggestions([]);
+    }
+  };
+
+  // Helper to select a domain suggestion
+  const selectDomainSuggestion = (suggestion: { domain: string; address: string }) => {
+    onPaymentDataChange({
+      ...paymentData,
+      destination: suggestion.address
+    });
+    setShowSuggestions(false);
+    setDomainSuggestions([]);
+    
+    toast({
+      title: "Domain resolved",
+      description: `${suggestion.domain} → ${suggestion.address.slice(0, 8)}...${suggestion.address.slice(-8)}`,
+      duration: 3000,
+    });
   };
 
   // Helper to validate destination input
@@ -364,6 +393,15 @@ export const PaymentForm = ({
     if (!destination) return true; // Empty is valid (will show as required field)
     return isValidPublicKey(destination) || isValidDomain(destination);
   };
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+    };
+  }, [debounceTimer]);
   const calculateFiatValue = async (amount: string, asset: string) => {
     const price = assetPrices[asset] || 0;
     if (price > 0) {
@@ -1019,6 +1057,15 @@ export const PaymentForm = ({
               placeholder="GABC... or mydomain" 
               value={paymentData.destination} 
               onChange={e => handleDestinationChange(e.target.value)}
+              onFocus={() => {
+                if (domainSuggestions.length > 0) {
+                  setShowSuggestions(true);
+                }
+              }}
+              onBlur={() => {
+                // Delay hiding suggestions to allow clicking
+                setTimeout(() => setShowSuggestions(false), 150);
+              }}
               className={`text-xs font-address bg-background focus:border-primary ${
                 paymentData.destination && !isValidDestination(paymentData.destination)
                   ? 'border-destructive' 
@@ -1028,6 +1075,24 @@ export const PaymentForm = ({
             {resolvingDomain && (
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
                 <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            
+            {/* Domain Suggestions Dropdown */}
+            {showSuggestions && domainSuggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 z-50 bg-card border border-border rounded-lg shadow-lg mt-1">
+                {domainSuggestions.map((suggestion, index) => (
+                  <div 
+                    key={index}
+                    className="p-3 hover:bg-secondary cursor-pointer border-b border-border/50 last:border-b-0"
+                    onClick={() => selectDomainSuggestion(suggestion)}
+                  >
+                    <div className="text-sm font-medium text-primary">{suggestion.domain}</div>
+                    <div className="text-xs text-muted-foreground font-address">
+                      {suggestion.address.slice(0, 8)}...{suggestion.address.slice(-8)}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
