@@ -270,7 +270,7 @@ export const WalletConnect = ({
             onClick={() => setSelectedNetwork('mainnet')}
             className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
               selectedNetwork === 'mainnet'
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-success text-success-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -280,7 +280,7 @@ export const WalletConnect = ({
             onClick={() => setSelectedNetwork('testnet')}
             className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
               selectedNetwork === 'testnet'
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-success text-success-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
