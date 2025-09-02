@@ -112,11 +112,11 @@ export const SwapAmountInput = ({
 
   return (
     <div className={cn("relative", className)}>
-      {/* Merged Container with Hourglass Shape */}
-      <div className="relative bg-gradient-to-b from-card/60 via-card/40 to-card/60 backdrop-blur-sm border border-border/50 rounded-3xl overflow-hidden">
+      {/* Hourglass Container */}
+      <div className="relative">
         
-        {/* From Section */}
-        <div className="p-4 md:p-6 pb-8 bg-card/50 rounded-t-3xl border-b border-border/30">
+        {/* Top Section */}
+        <div className="relative bg-card/80 backdrop-blur-sm border border-border/50 rounded-3xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium text-muted-foreground">You send</span>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -236,32 +236,48 @@ export const SwapAmountInput = ({
           </div>
         </div>
 
-        {/* Hourglass Connection - Arrow/Swap Button */}
-        <div className="relative flex justify-center -my-3 z-10">
-          {/* Hourglass visual effect */}
-          <div className="absolute left-1/2 transform -translate-x-1/2 w-32 h-6">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-border/30 to-transparent"></div>
-            <div className="absolute inset-x-4 inset-y-2 bg-gradient-to-r from-transparent via-border/20 to-transparent"></div>
-          </div>
+        {/* Hourglass Waist - Curved Connection */}
+        <div className="relative h-16 -my-8 z-10">
+          {/* SVG Hourglass Shape */}
+          <svg 
+            className="absolute inset-0 w-full h-full" 
+            viewBox="0 0 300 64" 
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id="hourglassGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="hsl(var(--border))" stopOpacity="0.2" />
+                <stop offset="50%" stopColor="hsl(var(--border))" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="hsl(var(--border))" stopOpacity="0.2" />
+              </linearGradient>
+            </defs>
+            <path 
+              d="M 0 0 Q 150 32 300 0 L 300 8 Q 150 24 0 8 Z M 0 56 Q 150 40 300 56 L 300 64 Q 150 32 0 64 Z" 
+              fill="url(#hourglassGradient)"
+            />
+          </svg>
           
-          {!onSwapDirection ? (
-            <div className="w-12 h-12 rounded-full bg-gradient-to-b from-card to-card/80 border border-border/60 flex items-center justify-center shadow-lg animate-fade-in backdrop-blur-sm">
-              <ArrowDown className="h-5 w-5 text-muted-foreground animate-pulse" />
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-12 h-12 rounded-full border-2 bg-gradient-to-b from-card to-card/80 hover:from-muted/50 hover:to-muted/30 hover:border-primary/50 transition-all duration-300 hover:scale-110 shadow-lg backdrop-blur-sm"
-              onClick={onSwapDirection}
-            >
-              <ArrowUpDown className="h-5 w-5" />
-            </Button>
-          )}
+          {/* Center Button */}
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            {!onSwapDirection ? (
+              <div className="w-12 h-12 rounded-full bg-card border-2 border-border/60 flex items-center justify-center shadow-lg backdrop-blur-sm">
+                <ArrowDown className="h-5 w-5 text-muted-foreground animate-pulse" />
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-12 h-12 rounded-full border-2 bg-card hover:bg-muted/50 hover:border-primary/50 transition-all duration-300 hover:scale-110 shadow-lg backdrop-blur-sm"
+                onClick={onSwapDirection}
+              >
+                <ArrowUpDown className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* To Section */}
-        <div className="p-4 md:p-6 pt-8 bg-card/30 rounded-b-3xl border-t border-border/30">
+        {/* Bottom Section */}
+        <div className="relative bg-card/60 backdrop-blur-sm border border-border/40 rounded-3xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium text-muted-foreground">They receive</span>
             {recipientAssets.length > 0 && (
