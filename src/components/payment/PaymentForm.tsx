@@ -671,7 +671,7 @@ export const PaymentForm = ({
             }}
             max={sliderMax}
             step={1}
-            className={`w-full ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`}
+            className={`stellar-slider w-full ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`}
             style={{
               '--slider-progress': `${percentage}%`,
               '--available-progress': `${availablePercentage}%`
