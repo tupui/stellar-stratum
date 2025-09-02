@@ -262,6 +262,47 @@ export const PaymentForm = ({
 // Removed auto-selection of receive asset to respect manual choice and explicit rules
 // per user request: no automatic adjustments.
 
+  // Helper to dynamically format fiat value based on current currency context
+  const formatDynamicFiatValue = async (amount: string, asset: string) => {
+    const price = assetPrices[asset] || 0;
+    if (price > 0) {
+      const usdValue = parseFloat(amount) * price;
+      const currency = getCurrentCurrency();
+      if (currency.code === 'USD') {
+        return `${currency.symbol}${usdValue.toFixed(2)} ${currency.code}`;
+      } else {
+        try {
+          const convertedValue = await convertFromUSD(usdValue, currency.code);
+          return `${currency.symbol}${convertedValue.toFixed(2)} ${currency.code}`;
+        } catch (error) {
+          return `$${usdValue.toFixed(2)} USD`;
+        }
+      }
+    }
+    return null;
+  };
+
+  // State to store formatted fiat values for compact payments
+  const [compactPaymentFiatValues, setCompactPaymentFiatValues] = useState<Record<string, string>>({});
+
+  // Update fiat values for compact payments when currency changes
+  useEffect(() => {
+    const updateCompactFiatValues = async () => {
+      const newValues: Record<string, string> = {};
+      for (const payment of compactPayments) {
+        const fiatValue = await formatDynamicFiatValue(payment.amount, payment.asset);
+        if (fiatValue) {
+          newValues[payment.id] = fiatValue;
+        }
+      }
+      setCompactPaymentFiatValues(newValues);
+    };
+    
+    if (compactPayments.length > 0) {
+      updateCompactFiatValues();
+    }
+  }, [compactPayments, quoteCurrency, assetPrices, getCurrentCurrency]);
+
   // Helper to calculate fiat value
   const calculateFiatValue = async (amount: string, asset: string) => {
     const price = assetPrices[asset] || 0;
@@ -775,8 +816,8 @@ export const PaymentForm = ({
                     <span className="text-sm font-semibold text-foreground">Op #{index + 1}</span>
                     
                     <div className="flex items-center gap-3">
-                      {payment.fiatValue && (
-                        <span className="text-sm font-semibold text-primary">≈ {payment.fiatValue}</span>
+                      {compactPaymentFiatValues[payment.id] && (
+                        <span className="text-sm font-semibold text-primary">≈ {compactPaymentFiatValues[payment.id]}</span>
                       )}
                       <div className="flex gap-2">
                         <Button 
