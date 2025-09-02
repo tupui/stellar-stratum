@@ -203,16 +203,53 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         }));
         
       } else if (batchPayments) {
-        // Batch payment operations
+        // Batch operations: support payments, path payments, and account merges
         for (const payment of batchPayments) {
-          if (!payment.destination || !payment.amount || !payment.asset) {
-            throw new Error('All payments must have destination, amount, and asset');
+          if (!payment.destination) {
+            throw new Error('Each operation must have a destination');
           }
-          
-          const asset = payment.asset === 'XLM' 
-            ? Asset.native() 
+
+          // Account merge
+          if (payment.isAccountClosure) {
+            const dest = String(payment.destination).trim();
+            if (!dest || dest === accountPublicKey) {
+              throw new Error('Invalid destination for account merge');
+            }
+            transaction.addOperation(Operation.accountMerge({ destination: dest }));
+            continue;
+          }
+
+          // Path payment (cross-asset)
+          if (payment.receiveAsset && payment.receiveAsset !== payment.asset) {
+            const sendAsset = payment.asset === 'XLM'
+              ? Asset.native()
+              : new Asset(payment.asset, payment.assetIssuer);
+            const destAsset = payment.receiveAsset === 'XLM'
+              ? Asset.native()
+              : new Asset(payment.receiveAsset, payment.receiveAssetIssuer);
+
+            const sendAmount = parseFloat(payment.amount);
+            const estimatedRate = 1; // TODO: fetch via pathfinding
+            const destMin = (sendAmount * estimatedRate * (1 - (payment.slippageTolerance || 0.5) / 100)).toFixed(7);
+
+            transaction.addOperation(Operation.pathPaymentStrictSend({
+              sendAsset,
+              sendAmount: payment.amount,
+              destination: payment.destination,
+              destAsset,
+              destMin,
+              path: [],
+            }));
+            continue;
+          }
+
+          // Regular payment
+          if (!payment.amount || !payment.asset) {
+            throw new Error('Payment operation missing amount or asset');
+          }
+          const asset = payment.asset === 'XLM'
+            ? Asset.native()
             : new Asset(payment.asset, payment.assetIssuer);
-          
           transaction.addOperation(Operation.payment({
             destination: payment.destination,
             asset,
@@ -355,7 +392,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       if (isAccountMerge) {
         description = "Account merge transaction ready for signing";
       } else if (batchPayments) {
-        description = `${batchPayments.length} payments ready for signing`;
+        description = `${batchPayments.length} operations ready for signing`;
       } else if (pathPayment) {
         description = "Cross-asset payment ready for signing";
       }
@@ -690,26 +727,14 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   trustlineError={trustlineError}
                   onBuild={(paymentData, isAccountMerge, batchPayments, pathPayment) => {
                     if (isAccountMerge) {
-                      // Handle account merge
                       handlePaymentBuild(paymentData, true);
                     } else if (batchPayments) {
-                      // Check if any payment in the batch is a path payment
-                      const pathPaymentInBatch = batchPayments.find(payment => 
-                        payment.receiveAsset && payment.receiveAsset !== payment.asset
-                      );
-                      
-                      if (pathPaymentInBatch) {
-                        // Handle the path payment separately
-                        handlePaymentBuild(pathPaymentInBatch, false, undefined, pathPaymentInBatch);
-                      } else {
-                        // Handle regular batch payments
-                        handlePaymentBuild(undefined, false, batchPayments);
-                      }
+                      // Always build the whole batch; mixed operations are handled inside
+                      handlePaymentBuild(undefined, false, batchPayments);
                     } else if (pathPayment) {
-                      // Handle path payment
-                      handlePaymentBuild(paymentData, false, undefined, pathPayment);
+                      // Single path payment
+                      handlePaymentBuild(undefined, false, undefined, pathPayment);
                     } else {
-                      // Handle regular payment
                       handlePaymentBuild(paymentData);
                     }
                   }}
