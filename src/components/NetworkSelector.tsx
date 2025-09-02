@@ -25,8 +25,8 @@ export const NetworkSelector = ({
   } = useNetwork();
   return <Card className="shadow-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Send className="w-5 h-5" />
+        <CardTitle className="text-base sm:text-lg whitespace-nowrap flex items-center gap-2">
+          <Send className="w-4 h-4" />
           Submit Transaction
         </CardTitle>
       </CardHeader>
