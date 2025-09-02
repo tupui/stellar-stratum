@@ -371,6 +371,18 @@ export const PaymentForm = ({
     });
     setWillCloseAccount(true);
   };
+
+  // Helper function for path payment receive amount calculation
+  const calculatePathPaymentReceiveAmount = (amount: string, fromAsset: string, toAsset: string): string => {
+    // This is a simplified calculation - in a real implementation, 
+    // this would use Stellar SDK to calculate path payment receive amounts
+    const numAmount = parseFloat(amount);
+    if (!numAmount) return '0';
+    
+    // For now, return a slightly reduced amount to simulate slippage
+    const slippageAdjustment = 1 - ((paymentData.slippageTolerance || 0.5) / 100);
+    return (numAmount * slippageAdjustment).toFixed(7);
+  };
   const handleRevertMerge = () => {
     setWillCloseAccount(false);
     const availableBalance = getAvailableBalance('XLM');
@@ -825,7 +837,13 @@ export const PaymentForm = ({
             availableAssets={availableAssets}
             recipientAssets={getReceiveOptions()}
             maxAmount={getMaxSliderValue(paymentData.asset)}
+            reserveAmount={paymentData.asset === 'XLM' ? 1 : 0} // XLM minimum balance requirement
             fiatValue={fiatValue}
+            receiveAmount={paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
+              calculatePathPaymentReceiveAmount(paymentData.amount, paymentData.asset, paymentData.receiveAsset) : 
+              undefined
+            }
+            slippageTolerance={paymentData.slippageTolerance}
             onAmountChange={handleAmountChange}
             onFromAssetChange={(asset, issuer) => {
               onPaymentDataChange({

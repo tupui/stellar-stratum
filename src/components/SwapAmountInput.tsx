@@ -21,7 +21,10 @@ interface SwapAmountInputProps {
   availableAssets: Asset[];
   recipientAssets?: Asset[];
   maxAmount: number;
+  reserveAmount?: number;
   fiatValue?: string;
+  receiveAmount?: string; // For path payments
+  slippageTolerance?: number;
   onAmountChange: (amount: string) => void;
   onFromAssetChange: (asset: string, issuer?: string) => void;
   onToAssetChange: (asset?: string, issuer?: string) => void;
@@ -38,7 +41,10 @@ export const SwapAmountInput = ({
   availableAssets,
   recipientAssets = [],
   maxAmount,
+  reserveAmount = 0,
   fiatValue,
+  receiveAmount,
+  slippageTolerance,
   onAmountChange,
   onFromAssetChange,
   onToAssetChange,
@@ -51,6 +57,9 @@ export const SwapAmountInput = ({
   const fromAssetBalance = availableAssets.find(a => a.code === fromAsset)?.balance || '0';
   const toAssetBalance = recipientAssets.find(a => a.code === toAsset)?.balance || '0';
 
+  // Calculate actual available amount considering reserves
+  const availableAmount = Math.max(0, maxAmount - reserveAmount);
+
   useEffect(() => {
     if (!isEditingAmount) {
       setEditValue(amount);
@@ -60,6 +69,7 @@ export const SwapAmountInput = ({
   const handleAmountSubmit = () => {
     let numValue = parseFloat(editValue) || 0;
     numValue = Math.round(numValue * 10000000) / 10000000; // 7 decimal places
+    numValue = Math.min(numValue, availableAmount); // Don't exceed available amount
     onAmountChange(numValue.toString());
     setIsEditingAmount(false);
   };
@@ -74,7 +84,7 @@ export const SwapAmountInput = ({
   };
 
   const handlePercentageClick = (percentage: number) => {
-    const newAmount = maxAmount * (percentage / 100);
+    const newAmount = availableAmount * (percentage / 100);
     onAmountChange(newAmount.toFixed(7));
   };
 
@@ -97,6 +107,10 @@ export const SwapAmountInput = ({
       minimumFractionDigits: 0
     });
   };
+
+  // Path payment logic
+  const isPathPayment = toAsset && toAsset !== fromAsset;
+  const displayReceiveAmount = isPathPayment ? receiveAmount || amount : amount;
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -202,21 +216,21 @@ export const SwapAmountInput = ({
           <div className="mt-6">
             <div className="flex justify-between text-xs text-muted-foreground mb-2">
               <span>Amount</span>
-              <span>{Math.round((parseFloat(amount) / maxAmount) * 100) || 0}%</span>
+              <span>{Math.round((parseFloat(amount) / availableAmount) * 100) || 0}%</span>
             </div>
             <input
               type="range"
               min="0"
               max="100"
               step="0.1"
-              value={Math.round((parseFloat(amount) / maxAmount) * 100) || 0}
+              value={Math.round((parseFloat(amount) / availableAmount) * 100) || 0}
               onChange={(e) => {
                 const percentage = parseFloat(e.target.value);
-                const newAmount = maxAmount * (percentage / 100);
+                const newAmount = availableAmount * (percentage / 100);
                 onAmountChange(newAmount.toFixed(7));
               }}
-              className="slider-glow w-full"
-              style={{'--slider-progress': `${Math.round((parseFloat(amount) / maxAmount) * 100) || 0}%`} as React.CSSProperties}
+              className="stellar-slider w-full"
+              style={{'--slider-progress': `${Math.round((parseFloat(amount) / availableAmount) * 100) || 0}%`} as React.CSSProperties}
             />
           </div>
         </div>
@@ -311,11 +325,14 @@ export const SwapAmountInput = ({
           {/* Receive Amount Display */}
           <div className="flex-1 text-right">
             <div className="text-xl md:text-2xl font-mono text-muted-foreground">
-              {amount ? formatAmount(amount) : '0.0'}
+              {isPathPayment ? 
+                (displayReceiveAmount ? formatAmount(displayReceiveAmount) : '0.0') :
+                (amount ? formatAmount(amount) : '0.0')
+              }
             </div>
-            {toAsset && toAsset !== fromAsset && (
+            {isPathPayment && (
               <div className="text-sm text-muted-foreground mt-1">
-                Path payment
+                Minimum received {slippageTolerance ? `(${slippageTolerance}% slippage)` : ''}
               </div>
             )}
           </div>
