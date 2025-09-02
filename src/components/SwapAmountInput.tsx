@@ -263,7 +263,7 @@ export const SwapAmountInput = ({
       {/* To Section */}
       <div className="bg-card/30 backdrop-blur-sm border border-border/40 rounded-2xl p-4 md:p-6 hover:border-border/60 transition-colors">
         <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-medium text-muted-foreground">You receive</span>
+          <span className="text-sm font-medium text-muted-foreground">They receive</span>
           {recipientAssets.length > 0 && (
             <div className="text-sm text-muted-foreground">
               <span className="hidden sm:inline">Recipient has: {formatBalance(toAssetBalance)}</span>
