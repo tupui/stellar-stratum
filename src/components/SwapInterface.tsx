@@ -275,19 +275,6 @@ export const SwapInterface = ({
           </div>
         </div>
 
-        {/* Slippage Tolerance Slider (only when cross-asset) */}
-        {isPathPayment && onSlippageToleranceChange && <div className="space-y-2 mt-4">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Slippage Tolerance</span>
-              <span className="font-amount">{slippageTolerance.toFixed(1)}%</span>
-            </div>
-            <input type="range" min="0.1" max="5" step="0.1" value={slippageTolerance} onChange={e => onSlippageToleranceChange(parseFloat(e.target.value))} className="stellar-slider stellar-slider-purple w-full" style={{
-          '--slider-progress': `${(slippageTolerance - 0.1) / 4.9 * 100}%`
-        } as React.CSSProperties} />
-            <div className="flex justify-between items-center text-xs text-muted-foreground">
-              
-            </div>
-          </div>}
       </div>
     </div>;
 };

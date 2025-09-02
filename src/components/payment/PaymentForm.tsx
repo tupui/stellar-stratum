@@ -936,6 +936,31 @@ export const PaymentForm = ({
           })} className="text-xs font-address bg-background border-border/60 focus:border-primary" />
         </div>
 
+        {/* Slippage Tolerance Slider (only when cross-asset) */}
+        {paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Slippage Tolerance</span>
+              <span className="font-amount">{(paymentData.slippageTolerance || 0.5).toFixed(1)}%</span>
+            </div>
+            <input 
+              type="range" 
+              min="0.1" 
+              max="5" 
+              step="0.1" 
+              value={paymentData.slippageTolerance || 0.5} 
+              onChange={e => onPaymentDataChange({
+                ...paymentData,
+                slippageTolerance: parseFloat(e.target.value)
+              })} 
+              className="stellar-slider stellar-slider-purple w-full" 
+              style={{
+                '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / 4.9 * 100}%`
+              } as React.CSSProperties} 
+            />
+          </div>
+        )}
+
         {/* Payment Details Row */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
