@@ -303,16 +303,10 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="mainnet">
-              <div className="flex items-center gap-2">
-                <Badge variant="default">Mainnet</Badge>
-                <span>horizon.stellar.org</span>
-              </div>
+              <Badge variant="default">Mainnet</Badge>
             </SelectItem>
             <SelectItem value="testnet">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">Testnet</Badge>
-                <span>horizon-testnet.stellar.org</span>
-              </div>
+              <Badge variant="secondary">Testnet</Badge>
             </SelectItem>
           </SelectContent>
         </Select>
