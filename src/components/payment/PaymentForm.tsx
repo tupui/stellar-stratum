@@ -14,7 +14,7 @@ import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
-import { SwapAmountInput } from '../SwapAmountInput';
+import { SwapInterface } from '../SwapInterface';
 import { AssetIcon } from '../AssetIcon';
 import { useNetwork } from '@/contexts/NetworkContext';
 import * as StellarSDK from '@stellar/stellar-sdk';
@@ -942,7 +942,7 @@ export const PaymentForm = ({
             <Label className="text-sm font-medium">Amount & Assets</Label>
           </div>
           
-          <SwapAmountInput
+          <SwapInterface
             fromAsset={paymentData.asset}
             fromAssetIssuer={paymentData.assetIssuer}
             toAsset={paymentData.receiveAsset}

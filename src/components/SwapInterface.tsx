@@ -1,12 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowUpDown, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetIcon } from '@/components/AssetIcon';
-import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import { formatBalance, formatAmount } from '@/lib/balance-utils';
+import { calculateAvailableBalance, formatBalance, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
+import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 
 interface Asset {
   code: string;
@@ -15,60 +15,124 @@ interface Asset {
 }
 
 interface SwapInterfaceProps {
-  fromAsset: Asset;
-  toAsset: Asset;
-  fromAmount: string;
-  toAmount: string;
+  fromAsset: string;
+  fromAssetIssuer?: string;
+  toAsset?: string;
+  toAssetIssuer?: string;
+  amount: string;
   availableAssets: Asset[];
-  onFromAssetChange: (asset: Asset) => void;
-  onToAssetChange: (asset: Asset) => void;
-  onFromAmountChange: (amount: string) => void;
-  onSwapDirection: () => void;
+  recipientAssets?: Asset[];
+  maxAmount: number;
+  reserveAmount?: number;
+  fiatValue?: string;
+  receiveAmount?: string;
+  slippageTolerance?: number;
+  previousOperations?: Array<{ asset: string; amount: string; type?: string }>;
+  onAmountChange: (amount: string) => void;
+  onFromAssetChange: (asset: string, issuer?: string) => void;
+  onToAssetChange: (asset?: string, issuer?: string) => void;
+  onSwapDirection?: () => void;
   className?: string;
 }
 
 export const SwapInterface = ({
   fromAsset,
+  fromAssetIssuer,
   toAsset,
-  fromAmount,
-  toAmount,
+  toAssetIssuer,
+  amount,
   availableAssets,
+  recipientAssets = [],
+  maxAmount,
+  reserveAmount = 1,
+  fiatValue,
+  receiveAmount,
+  slippageTolerance,
+  previousOperations = [],
+  onAmountChange,
   onFromAssetChange,
   onToAssetChange,
-  onFromAmountChange,
   onSwapDirection,
   className
 }: SwapInterfaceProps) => {
   const [sliderValue, setSliderValue] = useState([0]);
+  const [isEditingAmount, setIsEditingAmount] = useState(false);
+  const [editValue, setEditValue] = useState(amount);
+  const { getCurrentCurrency } = useFiatCurrency();
+
+  const fromAssetObject = availableAssets.find(a => a.code === fromAsset);
+  const fromAssetBalance = fromAssetObject?.balance || '0';
+  const receiveCode = toAsset || fromAsset;
+  const toAssetBalance = recipientAssets.find(a => a.code === receiveCode)?.balance || '0';
+
+  // Calculate available balance using centralized utility
+  const availableAmount = fromAssetObject 
+    ? calculateAvailableBalance(fromAssetObject, previousOperations, reserveAmount)
+    : 0;
+
+  // Calculate current percentage for slider
+  const currentPercentage = calculateBalancePercentage(amount, availableAmount);
+
+  useEffect(() => {
+    if (!isEditingAmount) {
+      setEditValue(amount);
+    }
+  }, [amount, isEditingAmount]);
+
+  useEffect(() => {
+    setSliderValue([Math.round(currentPercentage)]);
+  }, [currentPercentage]);
 
   const handleSliderChange = (value: number[]) => {
-    setSliderValue(value);
     const percentage = value[0];
-    const maxBalance = parseFloat(fromAsset.balance);
-    const newAmount = (maxBalance * percentage / 100).toFixed(7);
-    onFromAmountChange(newAmount);
+    setSliderValue([percentage]);
+    if (percentage === 100) {
+      onAmountChange(availableAmount.toString());
+    } else {
+      const newAmount = availableAmount * (percentage / 100);
+      const cappedAmount = validateAndCapAmount(newAmount, availableAmount);
+      onAmountChange(cappedAmount);
+    }
   };
 
   const handleMaxClick = () => {
-    const maxBalance = fromAsset.balance;
-    onFromAmountChange(maxBalance);
+    onAmountChange(availableAmount.toString());
     setSliderValue([100]);
   };
 
+  const handleAmountSubmit = () => {
+    const cappedValue = validateAndCapAmount(editValue, availableAmount);
+    onAmountChange(cappedValue);
+    setIsEditingAmount(false);
+  };
+
+  const handleAmountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleAmountSubmit();
+    } else if (e.key === 'Escape') {
+      setEditValue(amount);
+      setIsEditingAmount(false);
+    }
+  };
+
+  // Path payment logic
+  const isPathPayment = toAsset && toAsset !== fromAsset;
+  const displayReceiveAmount = isPathPayment ? receiveAmount || amount : amount;
+
   return (
-    <div className={cn("max-w-md mx-auto", className)}>
+    <div className={cn("max-w-lg mx-auto", className)}>
       {/* From Section */}
       <div className="bg-card border border-border rounded-2xl p-6 mb-2">
         <div className="flex justify-between items-center mb-4">
           <span className="text-sm text-muted-foreground">You send</span>
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">
-              Available: {formatBalance(fromAsset.balance)}
+              Available: {formatBalance(availableAmount)}
             </span>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="h-6 px-2 text-xs"
+              className="h-6 px-2 text-xs bg-success/10 text-success hover:bg-success/20 hover:text-success border border-success/20"
               onClick={handleMaxClick}
             >
               MAX
@@ -78,21 +142,21 @@ export const SwapInterface = ({
 
         <div className="flex items-center gap-4 mb-4">
           <Select 
-            value={fromAsset.code} 
-            onValueChange={(code) => {
-              const asset = availableAssets.find(a => a.code === code);
-              if (asset) onFromAssetChange(asset);
+            value={fromAsset} 
+            onValueChange={(value) => {
+              const selectedAsset = availableAssets.find(asset => asset.code === value);
+              onFromAssetChange(value, selectedAsset?.issuer);
             }}
           >
             <SelectTrigger className="w-32 h-12 rounded-full">
               <SelectValue>
                 <div className="flex items-center gap-2">
-                  <AssetIcon assetCode={fromAsset.code} assetIssuer={fromAsset.issuer} size={32} />
-                  <span className="font-medium">{fromAsset.code}</span>
+                  <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} />
+                  <span className="font-medium">{fromAsset}</span>
                 </div>
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-card border border-border shadow-lg z-50">
               {availableAssets.map((asset) => (
                 <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
                   <div className="flex items-center gap-2">
@@ -105,13 +169,38 @@ export const SwapInterface = ({
           </Select>
 
           <div className="flex-1">
-            <Input
-              type="text"
-              value={fromAmount}
-              onChange={(e) => onFromAmountChange(e.target.value)}
-              className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0"
-              placeholder="0.0"
-            />
+            {isEditingAmount ? (
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={editValue}
+                onChange={(e) => {
+                  let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
+                  const parts = sanitized.split('.');
+                  if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+                  if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+                  setEditValue(sanitized);
+                }}
+                onBlur={handleAmountSubmit}
+                onKeyDown={handleAmountKeyDown}
+                onFocus={(e) => e.currentTarget.select()}
+                className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0"
+                placeholder="0.0"
+                autoFocus
+              />
+            ) : (
+              <div
+                className="text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors"
+                onClick={() => setIsEditingAmount(true)}
+              >
+                {amount ? formatAmount(amount) : '0.0'}
+              </div>
+            )}
+            {fiatValue && (
+              <div className="text-sm text-muted-foreground mt-1 text-right">
+                ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '')}
+              </div>
+            )}
           </div>
         </div>
 
@@ -119,7 +208,7 @@ export const SwapInterface = ({
         <div className="space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>Amount</span>
-            <span>{sliderValue[0]}%</span>
+            <span>{Math.round(currentPercentage)}%</span>
           </div>
           <input
             type="range"
@@ -136,42 +225,64 @@ export const SwapInterface = ({
 
       {/* Swap Direction Button */}
       <div className="flex justify-center relative z-10 -my-3">
-        <Button
-          onClick={onSwapDirection}
-          className="w-12 h-12 rounded-full bg-success hover:bg-success/90 shadow-lg border-4 border-background transition-all duration-200 hover:shadow-xl"
-          size="sm"
-        >
-          <ArrowUpDown className="h-4 w-4 text-white" />
-        </Button>
+        {!onSwapDirection ? (
+          <div className="w-12 h-12 rounded-full bg-card border border-border/60 flex items-center justify-center shadow-sm">
+            <ArrowDown className="h-4 w-4 text-muted-foreground" />
+          </div>
+        ) : (
+          <Button
+            onClick={onSwapDirection}
+            className="w-12 h-12 rounded-full bg-success hover:bg-success/90 shadow-lg border-4 border-background transition-all duration-200 hover:shadow-xl"
+            size="sm"
+          >
+            <ArrowUpDown className="h-4 w-4 text-white" />
+          </Button>
+        )}
       </div>
 
       {/* To Section */}
       <div className="bg-card/60 border border-border/60 rounded-2xl p-6 mt-2">
         <div className="flex justify-between items-center mb-4">
           <span className="text-sm text-muted-foreground">They receive</span>
-          <span className="text-sm text-muted-foreground">
-            Has: {formatBalance(toAsset.balance)}
-          </span>
+          {recipientAssets.length > 0 && (
+            <div className="text-sm text-muted-foreground">
+              Has: {formatBalance(toAssetBalance)}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
           <Select 
-            value={toAsset.code} 
-            onValueChange={(code) => {
-              const asset = availableAssets.find(a => a.code === code);
-              if (asset) onToAssetChange(asset);
+            value={toAsset || "same"} 
+            onValueChange={(value) => {
+              if (value === "same") {
+                onToAssetChange();
+              } else {
+                const selectedAsset = recipientAssets.find(asset => asset.code === value);
+                onToAssetChange(value, selectedAsset?.issuer);
+              }
             }}
           >
             <SelectTrigger className="w-32 h-12 rounded-full">
               <SelectValue>
                 <div className="flex items-center gap-2">
-                  <AssetIcon assetCode={toAsset.code} assetIssuer={toAsset.issuer} size={32} />
-                  <span className="font-medium">{toAsset.code}</span>
+                  <AssetIcon 
+                    assetCode={toAsset || fromAsset} 
+                    assetIssuer={toAssetIssuer || fromAssetIssuer} 
+                    size={32} 
+                  />
+                  <span className="font-medium">{toAsset || fromAsset}</span>
                 </div>
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
-              {availableAssets.map((asset) => (
+            <SelectContent className="bg-card border border-border shadow-lg z-50">
+              <SelectItem value="same">
+                <div className="flex items-center gap-2">
+                  <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
+                  <span className="text-muted-foreground">Same ({fromAsset})</span>
+                </div>
+              </SelectItem>
+              {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
                 <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
                   <div className="flex items-center gap-2">
                     <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
@@ -184,15 +295,16 @@ export const SwapInterface = ({
 
           <div className="flex-1 text-right">
             <div className="text-xl font-mono text-muted-foreground">
-              {toAmount ? formatAmount(toAmount) : '0'}
+              {isPathPayment ? 
+                (receiveAmount ? formatAmount(receiveAmount) : '0.0') :
+                (amount ? formatAmount(amount) : '0.0')
+              }
             </div>
-          </div>
-        </div>
-
-        {/* Down Arrow Button */}
-        <div className="flex justify-center mt-4">
-          <div className="w-12 h-12 rounded-full bg-success hover:bg-success/90 shadow-lg flex items-center justify-center cursor-pointer transition-all duration-200 hover:shadow-xl">
-            <ArrowDown className="h-4 w-4 text-white" />
+            {isPathPayment && (
+              <div className="text-sm text-muted-foreground mt-1">
+                Min {receiveAmount ? formatAmount(receiveAmount) : '0.0'}
+              </div>
+            )}
           </div>
         </div>
       </div>
