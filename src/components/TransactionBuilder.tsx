@@ -672,7 +672,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   availableAssets={getAvailableAssets()}
                   assetPrices={assetPrices}
                   trustlineError={trustlineError}
-                  onBuild={(paymentData, batchPayments, isAccountMerge, pathPayment) => {
+                  onBuild={(paymentData, isAccountMerge, batchPayments, pathPayment) => {
                     if (isAccountMerge) {
                       // Handle account merge
                       handlePaymentBuild(paymentData, true);
