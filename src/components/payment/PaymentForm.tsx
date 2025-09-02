@@ -790,13 +790,16 @@ export const PaymentForm = ({
             data-merge-mode={willCloseAccount ? 'true' : 'false'}
             style={{
               '--slider-progress': `${percentage}%`,
-              '--available-progress': `${availablePercentage}%`
+              '--available-progress': `${availablePercentage}%`,
+              ...(willCloseAccount ? {
+                background: `linear-gradient(to right, hsl(0 84% 60%) 0%, hsl(0 84% 60%) ${percentage}%, hsl(220 13% 15%) ${percentage}%, hsl(220 13% 15%) 100%) !important`
+              } : {})
             } as React.CSSProperties}
           />
           {/* Debug current classes */}
           {willCloseAccount && (
             <div className="text-xs text-destructive mt-1 text-center">
-              Classes: stellar-slider slider-merge
+              Classes: stellar-slider slider-merge | willCloseAccount: {willCloseAccount.toString()}
             </div>
           )}
         </div>
