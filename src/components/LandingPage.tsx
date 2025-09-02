@@ -79,7 +79,7 @@ export const LandingPage = ({
 
           <div className="mt-20 text-sm text-muted-foreground">
             Built on <span className="text-stellar-yellow font-medium">Stellar</span> by{' '}
-            <a href="https://consulting-manao.com/" target="_blank" rel="noopener noreferrer" className="text-stellar-yellow font-medium hover:underline text-glow-yellow transition-all duration-300">
+            <a href="https://consulting-manao.com/" target="_blank" rel="noopener noreferrer" className="text-stellar-yellow font-medium hover:underline transition-all duration-300">
               Consulting Manao GmbH
             </a>
           </div>

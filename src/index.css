@@ -757,7 +757,6 @@ All colors MUST be HSL.
     0 0 20px hsl(var(--stellar-yellow)),
     0 0 40px hsl(var(--stellar-yellow)),
     0 0 80px hsl(var(--stellar-yellow));
-  animation: text-glow-pulse 2s ease-in-out infinite alternate;
 }
 
 .text-glow-yellow:hover {
@@ -768,23 +767,5 @@ All colors MUST be HSL.
     0 0 40px hsl(var(--stellar-yellow)),
     0 0 80px hsl(var(--stellar-yellow)),
     0 0 120px hsl(var(--stellar-yellow));
-}
-
-@keyframes text-glow-pulse {
-  from {
-    text-shadow: 
-      0 0 5px hsl(var(--stellar-yellow)),
-      0 0 10px hsl(var(--stellar-yellow)),
-      0 0 20px hsl(var(--stellar-yellow)),
-      0 0 40px hsl(var(--stellar-yellow));
-  }
-  to {
-    text-shadow: 
-      0 0 5px hsl(var(--stellar-yellow)),
-      0 0 10px hsl(var(--stellar-yellow)),
-      0 0 20px hsl(var(--stellar-yellow)),
-      0 0 40px hsl(var(--stellar-yellow)),
-      0 0 80px hsl(var(--stellar-yellow));
-  }
 }
 }
