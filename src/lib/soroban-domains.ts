@@ -1,0 +1,83 @@
+/**
+ * Shared utility functions for Soroban domain resolution
+ */
+
+import { isValidDomain } from './validation';
+
+interface SorobanDomainResult {
+  address: string;
+  success: true;
+}
+
+interface SorobanDomainError {
+  error: string;
+  success: false;
+}
+
+type SorobanDomainResponse = SorobanDomainResult | SorobanDomainError;
+
+/**
+ * Resolves a Soroban domain to its associated Stellar address
+ */
+export const resolveSorobanDomain = async (
+  domain: string, 
+  network: 'mainnet' | 'testnet'
+): Promise<SorobanDomainResponse> => {
+  if (!domain || !isValidDomain(domain)) {
+    return { error: 'Invalid domain format', success: false };
+  }
+
+  try {
+    // Import required modules  
+    const StellarSDK = await import('@stellar/stellar-sdk');
+    const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
+
+    // Use proper SDK structure
+    const networkPassphrase = network === 'testnet' ? StellarSDK.Networks.TESTNET : StellarSDK.Networks.PUBLIC;
+    const rpcUrl = network === 'testnet' ? 'https://soroban-testnet.stellar.org' : 'https://mainnet.sorobanrpc.com';
+    const rpcServer = new StellarSDK.rpc.Server(rpcUrl);
+    
+    const sdk = new SorobanDomainsSDK({
+      stellarSDK: StellarSDK,
+      rpc: rpcServer,
+      network: networkPassphrase,
+      vaultsContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
+      defaultFee: '100',
+      defaultTimeout: 300,
+      simulationAccount: 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV'
+    });
+
+    // Search for the domain
+    const res = await sdk.searchDomain({
+      domain: domain.trim().toLowerCase()
+    });
+
+    // Extract values
+    const v = (res && (res.value ?? res)) as any;
+    if (v && typeof v.owner === 'string') {
+      const resolvedAddress = v.address || v.owner;
+      return { address: resolvedAddress, success: true };
+    } else {
+      return { error: 'Domain not found', success: false };
+    }
+  } catch (error: any) {
+    let errorMessage = 'Failed to resolve domain';
+    if (error.name === 'Domain404Error') {
+      errorMessage = 'Domain not found';
+    }
+    return { error: errorMessage, success: false };
+  }
+};
+
+/**
+ * Checks if a string looks like a Soroban domain (not a Stellar address)
+ */
+export const isLikelySorobanDomain = (input: string): boolean => {
+  // If it starts with G or C and is 56 chars, it's likely a Stellar address
+  if ((input.startsWith('G') || input.startsWith('C')) && input.length === 56) {
+    return false;
+  }
+  
+  // If it contains dots or is a valid domain format, it's likely a domain
+  return isValidDomain(input);
+};

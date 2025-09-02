@@ -13,6 +13,9 @@ import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, Trendi
 import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { resolveSorobanDomain, isLikelySorobanDomain } from '@/lib/soroban-domains';
+import { isValidPublicKey, isValidDomain } from '@/lib/validation';
+import { useToast } from '@/hooks/use-toast';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
 import { SwapInterface } from '../SwapInterface';
 import { AssetIcon } from '../AssetIcon';
@@ -91,17 +94,14 @@ export const PaymentForm = ({
   onClearTransaction,
   onTransactionBuilt
 }: PaymentFormProps) => {
-  const {
-    quoteCurrency,
-    getCurrentCurrency
-  } = useFiatCurrency();
-  const {
-    network
-  } = useNetwork();
+  const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
+  const { network } = useNetwork();
+  const { toast } = useToast();
 
   // State for compact payments (previous payments)
   const [compactPayments, setCompactPayments] = useState<CompactPayment[]>([]);
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [resolvingDomain, setResolvingDomain] = useState(false);
 
   // State for current payment and flow control
   const [fiatValue, setFiatValue] = useState<string>('');
@@ -322,7 +322,48 @@ export const PaymentForm = ({
     }
   }, [compactPayments, quoteCurrency, assetPrices, getCurrentCurrency]);
 
-  // Helper to calculate fiat value
+  // Helper to handle destination input and domain resolution
+  const handleDestinationChange = async (inputValue: string) => {
+    const trimmedValue = inputValue.trim();
+    
+    // Update the field immediately
+    onPaymentDataChange({
+      ...paymentData,
+      destination: trimmedValue
+    });
+
+    // If input looks like a domain and is complete, try to resolve it
+    if (isLikelySorobanDomain(trimmedValue) && isValidDomain(trimmedValue)) {
+      setResolvingDomain(true);
+      const result = await resolveSorobanDomain(trimmedValue, network);
+      
+      if (result.success) {
+        onPaymentDataChange({
+          ...paymentData,
+          destination: result.address
+        });
+        toast({
+          title: "Domain resolved",
+          description: `${trimmedValue} → ${result.address.slice(0, 8)}...${result.address.slice(-8)}`,
+          duration: 3000,
+        });
+      } else {
+        toast({
+          title: "Domain not found",
+          description: "Domain could not be resolved",
+          variant: "destructive",
+          duration: 3000,
+        });
+      }
+      setResolvingDomain(false);
+    }
+  };
+
+  // Helper to validate destination input
+  const isValidDestination = (destination: string): boolean => {
+    if (!destination) return true; // Empty is valid (will show as required field)
+    return isValidPublicKey(destination) || isValidDomain(destination);
+  };
   const calculateFiatValue = async (amount: string, asset: string) => {
     const price = assetPrices[asset] || 0;
     if (price > 0) {
@@ -970,35 +1011,31 @@ export const PaymentForm = ({
         {/* Destination */}
         <div className="space-y-2">
           <Label htmlFor="destination" className="text-sm font-medium">
-            {willCloseAccount ? 'Send All Funds To' : 'Destination Address'}
+            {willCloseAccount ? 'Send All Funds To' : 'Destination Address or Domain'}
           </Label>
-          <Input 
-            id="destination" 
-            placeholder="GABC..." 
-            maxLength={56} 
-            value={paymentData.destination} 
-            onChange={e => {
-              const value = e.target.value.toUpperCase();
-              // Only allow valid Stellar address characters (base32)
-              const validChars = /^[ABCDEFGHIJKLMNOPQRSTUVWXYZ234567]*$/;
-              // Must start with G or C (if not empty)
-              const validStart = value === '' || value.startsWith('G') || value.startsWith('C');
-              
-              if (validChars.test(value) && validStart) {
-                onPaymentDataChange({
-                  ...paymentData,
-                  destination: value
-                });
-              }
-            }}
-            className={`text-xs font-address bg-background focus:border-primary ${
-              paymentData.destination && paymentData.destination.length > 0 && 
-              (paymentData.destination.length !== 56 || 
-               (!paymentData.destination.startsWith('G') && !paymentData.destination.startsWith('C')))
-                ? 'border-destructive' 
-                : 'border-border/60'
-            }`}
-          />
+          <div className="relative">
+            <Input 
+              id="destination" 
+              placeholder="GABC... or mydomain" 
+              value={paymentData.destination} 
+              onChange={e => handleDestinationChange(e.target.value)}
+              className={`text-xs font-address bg-background focus:border-primary ${
+                paymentData.destination && !isValidDestination(paymentData.destination)
+                  ? 'border-destructive' 
+                  : 'border-border/60'
+              } ${resolvingDomain ? 'pr-8' : ''}`}
+            />
+            {resolvingDomain && (
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+          {paymentData.destination && !isValidDestination(paymentData.destination) && (
+            <p className="text-xs text-destructive">
+              Please enter a valid Stellar address or domain name
+            </p>
+          )}
         </div>
 
         {/* Memo */}
