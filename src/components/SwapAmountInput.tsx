@@ -111,10 +111,12 @@ export const SwapAmountInput = ({
   }, [availableAmount, amount, onAmountChange]);
 
   return (
-    <div className={cn("space-y-1", className)}>
-      {/* From Section */}
-      <div className="relative">
-        <div className="bg-card/50 backdrop-blur-sm border border-border/60 rounded-2xl p-4 md:p-6 hover:border-border transition-colors">
+    <div className={cn("relative", className)}>
+      {/* Merged Container with Hourglass Shape */}
+      <div className="relative bg-gradient-to-b from-card/60 via-card/40 to-card/60 backdrop-blur-sm border border-border/50 rounded-3xl overflow-hidden">
+        
+        {/* From Section */}
+        <div className="p-4 md:p-6 pb-8 bg-card/50 rounded-t-3xl border-b border-border/30">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium text-muted-foreground">You send</span>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -233,118 +235,119 @@ export const SwapAmountInput = ({
             />
           </div>
         </div>
-      </div>
 
-      {/* Beautiful Arrow - Always show when no swap functionality */}
-      {!onSwapDirection && (
-        <div className="flex justify-center -my-2">
-          <div className="w-10 h-10 rounded-full bg-background/80 border border-border/60 flex items-center justify-center animate-fade-in">
-            <ArrowDown className="h-4 w-4 text-muted-foreground animate-pulse" />
+        {/* Hourglass Connection - Arrow/Swap Button */}
+        <div className="relative flex justify-center -my-3 z-10">
+          {/* Hourglass visual effect */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 w-32 h-6">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-border/30 to-transparent"></div>
+            <div className="absolute inset-x-4 inset-y-2 bg-gradient-to-r from-transparent via-border/20 to-transparent"></div>
           </div>
-        </div>
-      )}
-
-      {/* Swap Direction Button */}
-      {onSwapDirection && (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-10 h-10 rounded-full border-2 bg-background hover:bg-muted/50 hover:border-primary/50 transition-all duration-200 hover:scale-105"
-            onClick={onSwapDirection}
-          >
-            <ArrowUpDown className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
-
-      {/* To Section */}
-      <div className="bg-card/30 backdrop-blur-sm border border-border/40 rounded-2xl p-4 md:p-6 hover:border-border/60 transition-colors">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-medium text-muted-foreground">They receive</span>
-          {recipientAssets.length > 0 && (
-            <div className="text-sm text-muted-foreground">
-              <span className="hidden sm:inline">Recipient has: {formatBalance(toAssetBalance)}</span>
-              <span className="sm:hidden">Has: {formatBalance(toAssetBalance)}</span>
+          
+          {!onSwapDirection ? (
+            <div className="w-12 h-12 rounded-full bg-gradient-to-b from-card to-card/80 border border-border/60 flex items-center justify-center shadow-lg animate-fade-in backdrop-blur-sm">
+              <ArrowDown className="h-5 w-5 text-muted-foreground animate-pulse" />
             </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-12 h-12 rounded-full border-2 bg-gradient-to-b from-card to-card/80 hover:from-muted/50 hover:to-muted/30 hover:border-primary/50 transition-all duration-300 hover:scale-110 shadow-lg backdrop-blur-sm"
+              onClick={onSwapDirection}
+            >
+              <ArrowUpDown className="h-5 w-5" />
+            </Button>
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          {/* Asset Selector */}
-          <Select 
-            value={toAsset || "same"} 
-            onValueChange={(value) => {
-              if (value === "same") {
-                onToAssetChange();
-              } else {
-                const selectedAsset = recipientAssets.find(asset => asset.code === value);
-                onToAssetChange(value, selectedAsset?.issuer);
-              }
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-44 h-14 bg-background/60 border-border/40 hover:border-border/60 rounded-full pl-2 pr-4">
-                <SelectValue>
-                  <div className="flex items-center gap-2">
-                    <AssetIcon 
-                      assetCode={toAsset || fromAsset} 
-                      assetIssuer={toAssetIssuer || fromAssetIssuer} 
-                      size={40} 
-                    />
-                    <span className="font-semibold ml-1">{toAsset || fromAsset}</span>
-                  </div>
-                </SelectValue>
-            </SelectTrigger>
-              <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto bg-card border border-border shadow-lg z-50">
-                <div className="sticky top-0 bg-card border-b border-border px-3 py-2">
-                  <div className="grid grid-cols-[auto_1fr_auto] gap-3 text-xs text-muted-foreground font-medium">
-                    <span>Asset</span>
-                    <span></span>
-                    <span>Recipient Has</span>
-                  </div>
-                </div>
-                <SelectItem value="same">
-                  <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
+        {/* To Section */}
+        <div className="p-4 md:p-6 pt-8 bg-card/30 rounded-b-3xl border-t border-border/30">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-sm font-medium text-muted-foreground">They receive</span>
+            {recipientAssets.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                <span className="hidden sm:inline">Recipient has: {formatBalance(toAssetBalance)}</span>
+                <span className="sm:hidden">Has: {formatBalance(toAssetBalance)}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            {/* Asset Selector */}
+            <Select 
+              value={toAsset || "same"} 
+              onValueChange={(value) => {
+                if (value === "same") {
+                  onToAssetChange();
+                } else {
+                  const selectedAsset = recipientAssets.find(asset => asset.code === value);
+                  onToAssetChange(value, selectedAsset?.issuer);
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-44 h-14 bg-background/60 border-border/40 hover:border-border/60 rounded-full pl-2 pr-4">
+                  <SelectValue>
                     <div className="flex items-center gap-2">
-                      <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} />
-                      <span className="text-muted-foreground">Same ({fromAsset})</span>
+                      <AssetIcon 
+                        assetCode={toAsset || fromAsset} 
+                        assetIssuer={toAssetIssuer || fromAssetIssuer} 
+                        size={40} 
+                      />
+                      <span className="font-semibold ml-1">{toAsset || fromAsset}</span>
                     </div>
-                    <span></span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {formatBalance(recipientAssets.find(a => a.code === fromAsset)?.balance || '0')}
-                    </span>
+                  </SelectValue>
+              </SelectTrigger>
+                <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto bg-card border border-border shadow-lg z-50">
+                  <div className="sticky top-0 bg-card border-b border-border px-3 py-2">
+                    <div className="grid grid-cols-[auto_1fr_auto] gap-3 text-xs text-muted-foreground font-medium">
+                      <span>Asset</span>
+                      <span></span>
+                      <span>Recipient Has</span>
+                    </div>
                   </div>
-                </SelectItem>
-                {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
-                  <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                  <SelectItem value="same">
                     <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
                       <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={32} />
-                        <span className="font-medium">{asset.code}</span>
+                        <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} />
+                        <span className="text-muted-foreground">Same ({fromAsset})</span>
                       </div>
                       <span></span>
                       <span className="text-xs text-muted-foreground tabular-nums">
-                        {formatBalance(asset.balance)}
+                        {formatBalance(recipientAssets.find(a => a.code === fromAsset)?.balance || '0')}
                       </span>
                     </div>
                   </SelectItem>
-                ))}
-              </SelectContent>
-          </Select>
+                  {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
+                    <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                      <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
+                        <div className="flex items-center gap-2">
+                          <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={32} />
+                          <span className="font-medium">{asset.code}</span>
+                        </div>
+                        <span></span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {formatBalance(asset.balance)}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+            </Select>
 
-          {/* Receive Amount Display */}
-          <div className="flex-1 text-right">
-            <div className="text-xl md:text-2xl font-mono text-muted-foreground">
-              {isPathPayment ? 
-                (receiveAmount ? formatAmount(receiveAmount) : '0.0') :
-                (amount ? formatAmount(amount) : '0.0')
-              }
-            </div>
-            {isPathPayment && (
-              <div className="text-sm text-muted-foreground mt-1">
-                Min {receiveAmount ? formatAmount(receiveAmount) : '0.0'}
+            {/* Receive Amount Display */}
+            <div className="flex-1 text-right">
+              <div className="text-xl md:text-2xl font-mono text-muted-foreground">
+                {isPathPayment ? 
+                  (receiveAmount ? formatAmount(receiveAmount) : '0.0') :
+                  (amount ? formatAmount(amount) : '0.0')
+                }
               </div>
-            )}
+              {isPathPayment && (
+                <div className="text-sm text-muted-foreground mt-1">
+                  Min {receiveAmount ? formatAmount(receiveAmount) : '0.0'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
