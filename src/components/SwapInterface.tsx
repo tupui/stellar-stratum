@@ -163,7 +163,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0" style={{ 
+                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{ 
                       textAlign: 'right',
                       fontVariantNumeric: 'tabular-nums',
                       letterSpacing: '0.02em'
@@ -192,20 +192,20 @@ export const SwapInterface = ({
                 onBlur={handleAmountSubmit}
                 onKeyDown={handleAmountKeyDown}
                 onFocus={(e) => e.currentTarget.select()}
-                className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0"
+                className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount"
                 placeholder="0.0"
                 autoFocus
               />
             ) : (
               <div
-                className="text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors"
+                className="text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount"
                 onClick={() => setIsEditingAmount(true)}
               >
                 {amount ? formatAmount(amount) : '0.0'}
               </div>
             )}
             {fiatValue && (
-              <div className="text-sm text-muted-foreground mt-1 text-right">
+              <div className="text-sm text-muted-foreground mt-1 text-right font-amount">
                 ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '')}
               </div>
             )}
@@ -216,7 +216,7 @@ export const SwapInterface = ({
         <div className="space-y-2">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>Amount</span>
-            <span>{Math.round(currentPercentage)}%</span>
+            <span className="font-amount">{Math.round(currentPercentage)}%</span>
           </div>
           <input
             type="range"
@@ -229,7 +229,7 @@ export const SwapInterface = ({
             style={{'--slider-progress': `${sliderValue[0]}%`} as React.CSSProperties}
           />
           <div className="flex justify-between items-center text-xs text-muted-foreground">
-            <span>Available: {formatBalance(availableAmount)} {fromAsset}</span>
+            <span className="font-amount">Available: {formatBalance(availableAmount)} {fromAsset}</span>
           </div>
         </div>
       </div>
@@ -267,7 +267,7 @@ export const SwapInterface = ({
           <span className="text-sm text-muted-foreground">They receive</span>
           {recipientAssets.length > 0 && (
             <div className="text-sm text-muted-foreground">
-              Current: {formatBalance(toAssetBalance)}
+              Current: <span className="font-amount">{formatBalance(toAssetBalance)}</span>
             </div>
           )}
         </div>
@@ -303,7 +303,7 @@ export const SwapInterface = ({
                     <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
                     <span className="text-muted-foreground">{fromAsset}</span>
                   </div>
-                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0" style={{ 
+                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{ 
                     textAlign: 'right',
                     fontVariantNumeric: 'tabular-nums',
                     letterSpacing: '0.02em'
@@ -319,7 +319,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0" style={{ 
+                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{ 
                       textAlign: 'right',
                       fontVariantNumeric: 'tabular-nums',
                       letterSpacing: '0.02em'
@@ -333,14 +333,14 @@ export const SwapInterface = ({
           </Select>
 
           <div className="flex-1 text-right">
-            <div className="text-xl font-mono text-muted-foreground">
+            <div className="text-xl font-mono text-muted-foreground font-amount">
               {isPathPayment ? 
                 (receiveAmount ? formatAmount(receiveAmount) : '0.0') :
                 (amount ? formatAmount(amount) : '0.0')
               }
             </div>
             {isPathPayment && (
-              <div className="text-sm text-muted-foreground mt-1">
+              <div className="text-sm text-muted-foreground mt-1 font-amount">
                 Min {receiveAmount ? formatAmount(receiveAmount) : '0.0'}
               </div>
             )}
@@ -352,7 +352,7 @@ export const SwapInterface = ({
           <div className="space-y-2 mt-4">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Slippage Tolerance</span>
-              <span>{slippageTolerance.toFixed(1)}%</span>
+              <span className="font-amount">{slippageTolerance.toFixed(1)}%</span>
             </div>
             <input
               type="range"
