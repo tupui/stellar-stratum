@@ -907,9 +907,7 @@ export const PaymentForm = ({
                     Building...
                   </div> : 'Build Transaction'}
               </Button>
-               <Button onClick={() => setHasActiveForm(false)} variant="destructive" className="flex-1" size="lg">
-                 Cancel
-               </Button>
+               
             </>}
 
           {/* Form with Bundle/Cancel - Show when hasActiveForm is false and form has content */}
