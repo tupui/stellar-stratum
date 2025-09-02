@@ -853,22 +853,22 @@ export const PaymentForm = ({
                   )}
 
                   {/* Asset transfer visualization - single row compact layout */}
-                  <div className="bg-background/50 rounded-xl p-3">
-                    <div className="flex items-center justify-center gap-2 text-sm">
+                  <div className="bg-background/50 rounded-lg p-2">
+                    <div className="flex items-center justify-center gap-1.5 text-xs">
                       {/* From: Logo Currency Amount */}
-                      <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={20} />
+                      <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={16} />
                       <span className="text-muted-foreground font-medium">{payment.asset}</span>
                       <span className="font-semibold">{formatDisplayAmount(payment.amount)}</span>
                       
                       {/* Arrow */}
-                      <ArrowRight className="w-4 h-4 text-muted-foreground mx-1" />
+                      <ArrowRight className="w-3 h-3 text-muted-foreground mx-1" />
                       
                       {/* To: Logo Currency [Value if path payment] */}
-                      <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={20} />
+                      <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={16} />
                       <span className="text-muted-foreground font-medium">{payment.receiveAsset || payment.asset}</span>
                       {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
-                        <span className="font-semibold text-primary">
-                          {calculatePathPaymentReceiveAmount(payment.amount, payment.asset, payment.receiveAsset)}
+                        <span className="text-white font-semibold">
+                          &gt; {calculatePathPaymentReceiveAmount(payment.amount, payment.asset, payment.receiveAsset)}
                         </span>
                       )}
                     </div>
