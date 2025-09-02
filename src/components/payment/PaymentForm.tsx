@@ -881,11 +881,11 @@ export const PaymentForm = ({
                     <div className="sm:hidden flex flex-col items-center gap-3 text-xs">
                       {/* From: Logo Currency Amount */}
                       <div className="flex items-center gap-2 w-full justify-between">
-                        <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={32} />
                         <div className="flex items-center gap-2">
+                          <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={32} />
                           <span className="text-muted-foreground font-medium">{payment.asset}</span>
-                          <span className="font-semibold font-amount">{formatDisplayAmount(payment.amount)}</span>
                         </div>
+                        <span className="font-semibold font-amount">{formatDisplayAmount(payment.amount)}</span>
                       </div>
                       
                       {/* Arrow down */}
@@ -893,15 +893,15 @@ export const PaymentForm = ({
                       
                       {/* To: Logo Currency [Value if path payment] */}
                       <div className="flex items-center gap-2 w-full justify-between">
-                        <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={32} />
                         <div className="flex items-center gap-2">
+                          <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={32} />
                           <span className="text-muted-foreground font-medium">{payment.receiveAsset || payment.asset}</span>
-                          {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
-                            <span className="text-white font-semibold font-amount">
-                              &gt; {calculatePathPaymentReceiveAmount(payment.amount, payment.asset, payment.receiveAsset)}
-                            </span>
-                          )}
                         </div>
+                        {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
+                          <span className="text-white font-semibold font-amount">
+                            &gt; {calculatePathPaymentReceiveAmount(payment.amount, payment.asset, payment.receiveAsset)}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
