@@ -519,10 +519,19 @@ export const PaymentForm = ({
     return paymentData.destination && paymentData.amount && paymentData.asset && (paymentData.asset === 'XLM' || paymentData.assetIssuer) && (!trustlineError || trustlineError.includes('will create a new'));
   };
   const handleBuild = () => {
+    console.log('handleBuild called with:', {
+      compactPayments: compactPayments.length,
+      hasActiveForm,
+      willCloseAccount,
+      paymentData
+    });
+
     if (compactPayments.length > 0 && hasActiveForm) {
+      console.log('Taking batch path with active form');
       // Build batch transaction with compact payments
       // If current form is a merge operation, add it to the batch
       if (willCloseAccount) {
+        console.log('Adding merge operation to batch');
         const mergePayment = {
           id: 'current-merge',
           destination: paymentData.destination,
@@ -537,12 +546,15 @@ export const PaymentForm = ({
           isAccountClosure: true
         };
         const allPayments = [...compactPayments, mergePayment];
+        console.log('Building batch with payments:', allPayments);
         onBuild(undefined, false, allPayments);
       } else {
+        console.log('Building batch without merge');
         // Build batch transaction with only compact payments
         onBuild(undefined, false, compactPayments);
       }
     } else if (willCloseAccount) {
+      console.log('Taking single merge path');
       // Single merge operation
       const mergeData = {
         ...paymentData,
@@ -550,6 +562,7 @@ export const PaymentForm = ({
       };
       onBuild(mergeData, true);
     } else if (compactPayments.length > 0 && !hasActiveForm) {
+      console.log('Taking batch path without active form');
       // Build batch transaction with compact payments + current payment
       const currentPaymentIsAccountClosure = checkAccountClosure(paymentData.amount, paymentData.asset);
       
@@ -683,9 +696,9 @@ export const PaymentForm = ({
       {/* Compact Transactions List */}
       {compactPayments.length > 0 && <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-muted-foreground">List of Transactions</h3>
+            <h3 className="text-sm font-medium text-muted-foreground">List of Operations</h3>
             <Badge variant="secondary" className="text-xs">
-              {compactPayments.length} transaction{compactPayments.length > 1 ? 's' : ''}
+              {compactPayments.length} operation{compactPayments.length > 1 ? 's' : ''}
             </Badge>
           </div>
           
@@ -696,7 +709,7 @@ export const PaymentForm = ({
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="text-sm font-medium">Transaction #{index + 1}</span>
+                      <span className="text-sm font-medium">Operation #{index + 1}</span>
                       {closesAccount && <Badge variant="destructive" className="text-[10px] px-1 py-0">
                           <Merge className="h-2 w-2 mr-1" />
                           Account Closure
@@ -765,7 +778,7 @@ export const PaymentForm = ({
           {/* Only show header when we have an active form (not in bundle mode) */}
           {!hasActiveForm && <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold">
-                {compactPayments.length > 0 ? `Transaction #${compactPayments.length + 1}` : 'Transaction Details'}
+                {compactPayments.length > 0 ? `Operation #${compactPayments.length + 1}` : 'Operation Details'}
               </h3>
             </div>}
 
@@ -969,7 +982,7 @@ export const PaymentForm = ({
           {hasActiveForm && <>
               <Button onClick={addPayment} variant="outline" className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors">
               <Plus className="w-4 h-4 mr-2" />
-              Add Transaction
+              Add Operation
               </Button>
               <Button onClick={handleBuild} disabled={isBuilding || compactPayments.length === 0} className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50" size="lg">
                 {isBuilding ? <div className="flex items-center gap-2">
