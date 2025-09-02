@@ -676,7 +676,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex-1 min-w-0">
-                <CardTitle className="text-base sm:text-lg whitespace-nowrap">Build Transaction</CardTitle>
+                <CardTitle className="text-base sm:text-lg whitespace-nowrap flex items-center gap-2">
+                  <FileCode className="w-4 h-4" />
+                  Build Transaction
+                </CardTitle>
                 <CardDescription>
                   Create a payment or import existing XDR for signing
                 </CardDescription>
