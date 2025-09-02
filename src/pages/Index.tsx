@@ -99,7 +99,7 @@ const Index = () => {
       <div className="flex-1">
         {/* Loading Screen */}
         {appState === 'loading' && (
-          <LoadingScreen onComplete={handleLoadingComplete} isConnecting={loading} />
+          <LoadingScreen onComplete={handleLoadingComplete} isLoading={loading} />
         )}
 
         {/* Landing Page */}

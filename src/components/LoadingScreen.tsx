@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 
 interface LoadingScreenProps {
   onComplete: () => void;
-  isConnecting: boolean;
+  isLoading: boolean;
 }
 
-export const LoadingScreen = ({ onComplete, isConnecting }: LoadingScreenProps) => {
+export const LoadingScreen = ({ onComplete, isLoading }: LoadingScreenProps) => {
   const [loadingComplete, setLoadingComplete] = useState(false);
 
   useEffect(() => {
-    if (!isConnecting && !loadingComplete) {
+    if (!isLoading && !loadingComplete) {
       // Network loading completed, pulse Stratum yellow
       setLoadingComplete(true);
       
@@ -18,7 +18,7 @@ export const LoadingScreen = ({ onComplete, isConnecting }: LoadingScreenProps) 
         onComplete();
       }, 100);
     }
-  }, [isConnecting, loadingComplete, onComplete]);
+  }, [isLoading, loadingComplete, onComplete]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center relative overflow-hidden">
