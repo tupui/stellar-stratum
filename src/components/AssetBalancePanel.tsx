@@ -199,7 +199,7 @@ export const AssetBalancePanel = ({ balances, onRefreshBalances }: AssetBalanceP
               size="sm"
               onClick={handleRefresh}
               disabled={loading}
-              className="h-8 px-2 glow-on-hover"
+              className="h-8 px-2 glow-purple-on-hover"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin spinner-glow' : ''}`} />
             </Button>
