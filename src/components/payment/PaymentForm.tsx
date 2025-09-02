@@ -15,6 +15,7 @@ import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
 import { SwapAmountInput } from '../SwapAmountInput';
+import { AssetIcon } from '../AssetIcon';
 import { useNetwork } from '@/contexts/NetworkContext';
 import * as StellarSDK from '@stellar/stellar-sdk';
 interface PaymentData {
@@ -425,25 +426,8 @@ export const PaymentForm = ({
     // Bundle current form: convert it to compact payment and add to list
     if (!isFormValid()) return;
 
-    // Calculate fiat value for the current payment
-    let currentFiatValue = '';
-    if (paymentData.amount && paymentData.asset) {
-      const price = assetPrices[paymentData.asset] || 0;
-      if (price > 0) {
-        const usdValue = parseFloat(paymentData.amount) * price;
-        if (quoteCurrency === 'USD') {
-          currentFiatValue = `$${usdValue.toFixed(2)}`;
-        } else {
-          try {
-            const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
-            const currency = getCurrentCurrency();
-            currentFiatValue = `${currency?.symbol || ''}${convertedValue.toFixed(2)}`;
-          } catch (error) {
-            currentFiatValue = `$${usdValue.toFixed(2)}`;
-          }
-        }
-      }
-    }
+    // Calculate fiat value for the current payment using the same method as the main form
+    const currentFiatValue = await calculateFiatValue(paymentData.amount, paymentData.asset);
 
     // Check if this payment is an account closure - use willCloseAccount state for merge operations
     const isAccountClosure = willCloseAccount || checkAccountClosure(paymentData.amount, paymentData.asset);
@@ -739,72 +723,72 @@ export const PaymentForm = ({
           {compactPayments.map((payment, index) => {
         // Check if this payment will close the account using the stored flag
         const closesAccount = payment.isAccountClosure || false;
-        return <Card key={payment.id} className={`p-3 border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-muted/30'}`}>
-                <div className="flex items-start justify-between">
+        return <Card key={payment.id} className={`p-4 border border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-card/50'} hover:bg-card/70 transition-colors`}>
+                <div className="flex items-start gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">Operation #{index + 1}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-foreground">Operation #{index + 1}</span>
                         {closesAccount && (
-                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 font-medium">
-                            <Merge className="h-2.5 w-2.5 mr-1" />
+                          <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
+                            <Merge className="h-3 w-3 mr-1" />
                             Account Closure
                           </Badge>
                         )}
                       </div>
                       {payment.fiatValue && (
-                        <span className="text-sm text-primary font-semibold">≈ {payment.fiatValue}</span>
+                        <span className="text-sm font-semibold text-primary">≈ {payment.fiatValue}</span>
                       )}
                     </div>
                     
-                    {/* Transaction details with better spacing */}
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">FROM</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{formatDisplayAmount(payment.amount)}</span>
-                          <span className="font-medium text-muted-foreground">{payment.asset}</span>
-                        </div>
+                    <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-4 gap-y-3 items-center text-sm">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">FROM</span>
+                      <div className="flex items-center gap-2">
+                        <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={20} />
+                        <span className="font-semibold">{formatDisplayAmount(payment.amount)}</span>
+                        <span className="font-medium text-muted-foreground">{payment.asset}</span>
                       </div>
-                      <div className="flex items-center justify-center">
-                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">TO</span>
+                      
+                      <ArrowRight className="w-4 h-4 text-muted-foreground justify-self-center" />
+                      
+                      <div className="flex items-center gap-2">
+                        <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={20} />
                         <span className="font-medium">{payment.receiveAsset || payment.asset}</span>
                       </div>
                     </div>
                     
-                    <div className="mt-3 pt-3 border-t border-border/40 space-y-2 text-xs">
-                      <div>
-                        <span className="text-muted-foreground">Destination:</span>
-                        <p className="font-mono truncate mt-0.5">{payment.destination}</p>
+                    <div className="mt-4 pt-3 border-t border-border/40 space-y-2">
+                      <div className="text-xs">
+                        <span className="text-muted-foreground font-medium">Destination: </span>
+                        <span className="font-mono text-foreground">{payment.destination}</span>
                       </div>
                       {payment.memo && (
-                        <div>
-                          <span className="text-muted-foreground">Memo:</span>
-                          <p className="font-mono mt-0.5">{payment.memo}</p>
+                        <div className="text-xs">
+                          <span className="text-muted-foreground font-medium">Memo: </span>
+                          <span className="font-mono text-foreground">{payment.memo}</span>
                         </div>
                       )}
                     </div>
                   </div>
                   
-                  <div className="flex flex-col gap-2 ml-3 flex-shrink-0">
+                  <div className="flex gap-2 flex-shrink-0">
                     <Button 
                       variant="ghost" 
                       size="sm" 
                       onClick={() => editCompactPayment(payment)} 
-                      className="h-8 w-8 p-0 hover:bg-background/50"
+                      className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+                      title="Edit operation"
                     >
-                      <Edit2 className="h-3.5 w-3.5" />
+                      <Edit2 className="h-4 w-4" />
                     </Button>
                     <Button 
                       variant="ghost" 
                       size="sm" 
                       onClick={() => removeCompactPayment(payment.id)} 
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                      title="Remove operation"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
