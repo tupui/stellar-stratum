@@ -949,7 +949,8 @@ export const PaymentForm = ({
         </div>}
 
       {/* Current Payment Form */}
-      <div className="space-y-4">
+      {!isTransactionBuilt && (
+        <div className="space-y-4">
           {/* Only show header when we have an active form (not in bundle mode) */}
           {!hasActiveForm && <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold">
@@ -1164,37 +1165,7 @@ export const PaymentForm = ({
               Bundle Payment
             </Button>}
         </div>
-        )}
-
-        {/* Transaction Built Success State */}
-        {isTransactionBuilt && (
-          <div className="px-1">
-            <div className="flex items-center justify-center p-6 bg-success/10 border border-success/30 rounded-2xl">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <Check className="h-6 w-6 text-success" />
-                </div>
-                <h3 className="text-lg font-semibold text-success mb-2">Transaction Built Successfully</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Your transaction XDR has been generated and is ready for signing
-                </p>
-                <Button 
-                  onClick={() => {
-                    setIsTransactionBuilt(false);
-                    // Reset form state
-                    onClearTransaction?.();
-                  }} 
-                  variant="outline"
-                  size="sm"
-                  className="border-success/30 text-success hover:bg-success/10"
-                >
-                  Build Another Transaction
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };
