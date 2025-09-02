@@ -144,7 +144,7 @@ export const SwapAmountInput = ({
                 onFromAssetChange(value, selectedAsset?.issuer);
               }}
             >
-              <SelectTrigger className="w-full sm:w-40 h-12 bg-background/80 border-border/60 hover:border-border">
+              <SelectTrigger className="w-full sm:w-44 h-14 bg-background/80 border-border/60 hover:border-border rounded-full px-4">
                 <SelectValue>
                   <div className="flex items-center gap-3">
                     <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={40} />
@@ -152,8 +152,8 @@ export const SwapAmountInput = ({
                   </div>
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto">
-                <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-3 py-2">
+              <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto bg-card border border-border shadow-lg z-50">
+                <div className="sticky top-0 bg-card border-b border-border px-3 py-2">
                   <div className="grid grid-cols-[auto_1fr_auto] gap-3 text-xs text-muted-foreground font-medium">
                     <span>Asset</span>
                     <span></span>
@@ -277,7 +277,7 @@ export const SwapAmountInput = ({
               }
             }}
           >
-            <SelectTrigger className="w-full sm:w-40 h-12 bg-background/60 border-border/40 hover:border-border/60">
+            <SelectTrigger className="w-full sm:w-44 h-14 bg-background/60 border-border/40 hover:border-border/60 rounded-full px-4">
                 <SelectValue>
                   <div className="flex items-center gap-3">
                     <AssetIcon 
@@ -289,8 +289,8 @@ export const SwapAmountInput = ({
                   </div>
                 </SelectValue>
             </SelectTrigger>
-              <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto">
-                <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-3 py-2">
+              <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto bg-card border border-border shadow-lg z-50">
+                <div className="sticky top-0 bg-card border-b border-border px-3 py-2">
                   <div className="grid grid-cols-[auto_1fr_auto] gap-3 text-xs text-muted-foreground font-medium">
                     <span>Asset</span>
                     <span></span>
