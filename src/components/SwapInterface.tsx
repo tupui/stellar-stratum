@@ -117,6 +117,20 @@ export const SwapInterface = ({
   // Path payment logic
   const isPathPayment = toAsset && toAsset !== fromAsset;
   const displayReceiveAmount = isPathPayment ? receiveAmount || amount : amount;
+
+  // Render a right-aligned, decimal-point-aligned amount
+  const renderDecimalAligned = (bal: string | number) => {
+    const str = formatBalanceAligned(bal);
+    const [intPart, fracPart = ''] = str.split('.');
+    return (
+      <div className="ml-auto inline-grid grid-cols-[1fr_auto_auto] items-baseline text-muted-foreground font-amount tabular-nums">
+        <span className="text-right">{intPart}</span>
+        <span>.</span>
+        <span className="text-left">{fracPart}</span>
+      </div>
+    );
+  };
+
   return <div className={cn("max-w-lg mx-auto", className)}>
       {/* From Section */}
       <div className={cn(
@@ -162,13 +176,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{
-                  textAlign: 'right',
-                  fontVariantNumeric: 'tabular-nums',
-                  letterSpacing: '0.02em'
-                }}>
-                      {formatBalanceAligned(asset.balance)}
-                    </span>
+                    {renderDecimalAligned(asset.balance)}
                   </div>
                 </SelectItem>)}
             </SelectContent>
@@ -257,13 +265,7 @@ export const SwapInterface = ({
                     <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
                     <span className="text-muted-foreground">{fromAsset}</span>
                   </div>
-                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{
-                  textAlign: 'right',
-                  fontVariantNumeric: 'tabular-nums',
-                  letterSpacing: '0.02em'
-                }}>
-                    {formatBalanceAligned(toAssetBalance)}
-                  </span>
+                  {renderDecimalAligned(toAssetBalance)}
                 </div>
               </SelectItem>
               {recipientAssets.filter(asset => asset.code !== fromAsset).map(asset => <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
@@ -272,13 +274,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{
-                  textAlign: 'right',
-                  fontVariantNumeric: 'tabular-nums',
-                  letterSpacing: '0.02em'
-                }}>
-                      {formatBalanceAligned(asset.balance)}
-                    </span>
+                    {renderDecimalAligned(asset.balance)}
                   </div>
                 </SelectItem>)}
             </SelectContent>
