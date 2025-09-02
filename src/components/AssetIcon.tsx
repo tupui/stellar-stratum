@@ -63,7 +63,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
 
   return (
     <div
-      className={`rounded-full bg-background ring-2 ring-border/60 overflow-hidden shadow-lg ${className}`}
+      className={`rounded-full bg-white overflow-hidden shadow-sm ${className}`}
       style={{ width: size, height: size }}
       role="img"
       aria-label={`${assetInfo.name || assetCode || 'Asset'} logo`}
@@ -71,7 +71,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
       <img
         src={assetInfo.image}
         alt=""
-        className="w-full h-full object-contain p-2"
+        className="w-full h-full object-contain p-1"
         onError={handleImageError}
         referrerPolicy="no-referrer"
         aria-hidden="true"
