@@ -231,16 +231,33 @@ All colors MUST be HSL.
       hsl(var(--muted)) 100%
     );
   }
+  /* Ensure purple hover stays purple (no yellow) */
+  .stellar-slider.stellar-slider-purple:hover,
+  .stellar-slider-purple:hover {
+    background-image: linear-gradient(
+      to right,
+      hsl(var(--success)) 0%,
+      hsl(var(--success)) var(--slider-progress, 0%),
+      hsl(var(--muted)) var(--slider-progress, 0%),
+      hsl(var(--muted)) 100%
+    );
+  }
 
-  .stellar-slider:active::-webkit-slider-thumb,
-  .stellar-slider-purple:active::-webkit-slider-thumb {
+.stellar-slider:active::-webkit-slider-thumb {
     background: hsl(var(--primary-glow));
     box-shadow: 0 0 18px hsl(var(--primary) / 0.6);
   }
-  .stellar-slider:active::-moz-range-thumb,
-  .stellar-slider-purple:active::-moz-range-thumb {
+  .stellar-slider:active::-moz-range-thumb {
     background: hsl(var(--primary-glow));
     box-shadow: 0 0 18px hsl(var(--primary) / 0.6);
+  }
+  .stellar-slider-purple:active::-webkit-slider-thumb {
+    background: hsl(var(--success));
+    box-shadow: 0 0 18px hsl(var(--success) / 0.6);
+  }
+  .stellar-slider-purple:active::-moz-range-thumb {
+    background: hsl(var(--success));
+    box-shadow: 0 0 18px hsl(var(--success) / 0.6);
   }
 
   .stellar-slider::-webkit-slider-thumb {

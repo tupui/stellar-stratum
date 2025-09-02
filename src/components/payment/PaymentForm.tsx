@@ -336,8 +336,7 @@ export const PaymentForm = ({
   const recipientHas = (code: string) => recipientAssetOptions.some(a => a.code === code);
   const recipientBalance = (code: string) => recipientAssetOptions.find(a => a.code === code)?.balance;
 
-  const handleBundlePayment = async () => {
-    await addPayment();
+  const handleBundlePayment = () => {
     setShowBundleActions(true);
   };
 
@@ -580,31 +579,27 @@ export const PaymentForm = ({
           </div>
         )}
 
-        {/* Slider without currency label */}
+        {/* Slider */}
         <div className="relative">
-          <input
-            type="range"
+          <Slider
             min={0}
             max={sliderMax}
             step={1}
-            value={sliderValue}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10) || 0;
+            value={[sliderValue]}
+            onValueChange={(vals) => {
+              const v = vals[0] || 0;
               const newAmount = maxAmount > 0 ? (v / sliderMax) * maxAmount : 0;
               isDraggingRef.current = true;
               handleAmountChange(newAmount.toFixed(7));
             }}
-            onMouseDown={() => { isDraggingRef.current = true; }}
-            onTouchStart={() => { isDraggingRef.current = true; }}
-            className={`w-full stellar-slider ${
-              isOverLimit && canCloseAccount() ? 'slider-merge-warning' : 
-              isOverLimit ? 'slider-warning' : ''
-            }`}
-            style={{ 
-              '--slider-progress': `${percentage}%`,
-              '--available-progress': `${availablePercentage}%`
-            } as React.CSSProperties}
+            onValueCommit={() => { isDraggingRef.current = false; }}
+            className="w-full"
           />
+        </div>
+        {/* Meta row */}
+        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+          <span>Available: {availableBalance.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 7 })} {paymentData.asset}</span>
+          {fiatValue && <span className="font-medium text-primary">≈ {fiatValue}</span>}
         </div>
       </div>
     );
@@ -937,22 +932,12 @@ export const PaymentForm = ({
 
         {/* Action Buttons */}
         <div className="flex gap-3">
-          {!willCloseAccount && isFormValid() && !showBundleActions && compactPayments.length === 0 && (
-            <Button
-              onClick={handleBundlePayment}
-              variant="outline"
-              className="border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Bundle Payment
-            </Button>
-          )}
 
           {/* Bundle Actions - Show after clicking Bundle Payment */}
           {showBundleActions && (
             <>
               <Button
-                onClick={() => setShowBundleActions(false)}
+                onClick={addPayment}
                 variant="outline"
                 className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
               >
@@ -973,6 +958,13 @@ export const PaymentForm = ({
                 ) : (
                   'Build Transaction'
                 )}
+              </Button>
+              <Button
+                onClick={() => setShowBundleActions(false)}
+                variant="ghost"
+                className="flex-1"
+              >
+                Cancel
               </Button>
             </>
           )}
