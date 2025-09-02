@@ -57,10 +57,9 @@ export const SwapAmountInput = ({
   const fromAssetBalance = availableAssets.find(a => a.code === fromAsset)?.balance || '0';
   const toAssetBalance = recipientAssets.find(a => a.code === toAsset)?.balance || '0';
 
-  // Use the maxAmount prop passed from parent (which is already calculated per-asset)
-  // Only subtract reserve for XLM
-  const assetReserve = fromAsset === 'XLM' ? reserveAmount : 0;
-  const availableAmount = Math.max(0, maxAmount - assetReserve);
+  // Simple logic: For XLM subtract 1 for minimum balance, for others use full balance
+  const rawBalance = parseFloat(fromAssetBalance);
+  const availableAmount = fromAsset === 'XLM' ? Math.max(0, rawBalance - 1) : rawBalance;
 
   useEffect(() => {
     if (!isEditingAmount) {
@@ -238,9 +237,9 @@ export const SwapAmountInput = ({
         </div>
       </div>
 
-      {/* Mobile Arrow - Only show when no swap functionality */}
+      {/* Beautiful Arrow - Always show when no swap functionality */}
       {!onSwapDirection && (
-        <div className="flex justify-center sm:hidden -my-2">
+        <div className="flex justify-center -my-2">
           <div className="w-10 h-10 rounded-full bg-background/80 border border-border/60 flex items-center justify-center animate-fade-in">
             <ArrowDown className="h-4 w-4 text-muted-foreground animate-pulse" />
           </div>

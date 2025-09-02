@@ -154,8 +154,36 @@ export const PaymentForm = ({
     return balance;
   };
   const canCloseAccount = () => {
-    // Only allow account closure if account has only XLM (no other trustlines)
-    return accountData.balances.filter(b => b.asset_type !== 'native').length === 0;
+    // Method 1: Account has only XLM (no other trustlines) 
+    const hasOnlyXLM = accountData.balances.filter(b => b.asset_type !== 'native').length === 0;
+    if (hasOnlyXLM) return true;
+
+    // Method 2: All assets would be drained by planned transactions
+    const allAssets = accountData.balances.map(b => {
+      if (b.asset_type === 'native') return 'XLM';
+      return b.asset_code || 'UNKNOWN';
+    });
+
+    const wouldDrainAllAssets = allAssets.every(assetCode => {
+      const availableBalance = getAvailableBalance(assetCode);
+      
+      // Calculate total planned outflows for this asset
+      const compactTotal = compactPayments
+        .filter(p => p.asset === assetCode && !p.isAccountClosure)
+        .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      
+      // Add current form amount if it matches this asset
+      const currentAmount = (paymentData.asset === assetCode && paymentData.amount) 
+        ? parseFloat(paymentData.amount) : 0;
+      
+      const totalPlanned = compactTotal + currentAmount;
+      const remaining = availableBalance - totalPlanned;
+      
+      // Consider asset drained if remaining is very small (< 0.001)
+      return remaining < 0.001;
+    });
+
+    return wouldDrainAllAssets;
   };
   const checkAccountClosure = (amount: string, assetCode: string) => {
     if (assetCode !== 'XLM' || !canCloseAccount()) return false;
