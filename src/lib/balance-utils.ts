@@ -72,15 +72,11 @@ export function formatBalance(balance: string | number): string {
  */
 export function formatBalanceAligned(balance: string | number): string {
   const num = typeof balance === 'string' ? parseFloat(balance) : balance;
-  if (num === 0) return '0.00';
-  if (num < 0.001) return '<0.001';
+  if (num === 0) return '0.0000000';
+  if (num < 0.0000001) return '<0.0000001';
   
-  // Format with consistent decimal places for alignment
-  if (num >= 1) {
-    return num.toFixed(2);
-  } else {
-    return num.toFixed(7);
-  }
+  // Always format with 7 decimal places for perfect alignment
+  return num.toFixed(7);
 }
 
 /**
