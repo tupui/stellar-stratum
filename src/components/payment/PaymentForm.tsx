@@ -776,6 +776,7 @@ export const PaymentForm = ({
             max={sliderMax}
             step={1}
             className={`stellar-slider w-full ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`}
+            data-merge-mode={willCloseAccount ? 'true' : 'false'}
             style={{
               '--slider-progress': `${percentage}%`,
               '--available-progress': `${availablePercentage}%`

@@ -270,26 +270,29 @@ All colors MUST be HSL.
     );
   }
 
-  /* Account merge slider - red to indicate merge operation */  
-  .stellar-slider.slider-merge {
+  /* Account merge slider - red to indicate merge operation with stronger specificity */  
+  .stellar-slider.slider-merge,
+  .stellar-slider.slider-merge:hover,
+  .stellar-slider[data-merge-mode="true"] {
     background-image: linear-gradient(
       to right,
       hsl(0 84% 60%) 0%,
       hsl(0 84% 60%) var(--slider-progress, 0%),
       hsl(var(--muted)) var(--slider-progress, 0%),
       hsl(var(--muted)) 100%
-    );
+    ) !important;
   }
 
-  /* Account merge warning slider */  
-  .stellar-slider.slider-merge-warning {
+  /* Account merge warning slider with stronger specificity */  
+  .stellar-slider.slider-merge-warning,
+  .stellar-slider.slider-merge-warning:hover {
     background-image: linear-gradient(
       to right,
       hsl(0 84% 60%) 0%,
       hsl(0 84% 60%) var(--slider-progress, 0%),
       hsl(var(--muted)) var(--slider-progress, 0%),
       hsl(var(--muted)) 100%
-    );
+    ) !important;
   }
 
   /* Purple variant for slippage */
@@ -433,14 +436,15 @@ All colors MUST be HSL.
     );
   }
 
-  .stellar-slider.slider-merge [data-radix-slider-track] {
+  .stellar-slider.slider-merge [data-radix-slider-track],
+  .stellar-slider[data-merge-mode="true"] [data-radix-slider-track] {
     background-image: linear-gradient(
       to right,
       hsl(0 84% 60%) 0%,
       hsl(0 84% 60%) var(--slider-progress, 0%),
       hsl(var(--muted)) var(--slider-progress, 0%),
       hsl(var(--muted)) 100%
-    );
+    ) !important;
   }
 
   .stellar-slider.slider-merge-warning [data-radix-slider-track] {
@@ -479,14 +483,16 @@ All colors MUST be HSL.
   }
 
   .stellar-slider.slider-merge [data-radix-slider-thumb],
-  .stellar-slider.slider-merge-warning [data-radix-slider-thumb] {
-    background: hsl(0 84% 60%);
+  .stellar-slider.slider-merge-warning [data-radix-slider-thumb],
+  .stellar-slider[data-merge-mode="true"] [data-radix-slider-thumb] {
+    background: hsl(0 84% 60%) !important;
     box-shadow: 0 1px 4px hsl(0 84% 60% / 0.3);
   }
 
   .stellar-slider.slider-merge:hover [data-radix-slider-thumb],
-  .stellar-slider.slider-merge-warning:hover [data-radix-slider-thumb] {
-    background: hsl(0 84% 70%);
+  .stellar-slider.slider-merge-warning:hover [data-radix-slider-thumb],
+  .stellar-slider[data-merge-mode="true"]:hover [data-radix-slider-thumb] {
+    background: hsl(0 84% 70%) !important;
     transform: scale(1.1);
     box-shadow: 0 0 12px hsl(0 84% 60% / 0.5);
   }
