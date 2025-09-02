@@ -126,9 +126,6 @@ export const SwapInterface = ({
         <div className="flex justify-between items-center mb-4">
           <span className="text-sm text-muted-foreground">You send</span>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              Available: {formatBalance(availableAmount)}
-            </span>
             <Button
               variant="ghost"
               size="sm"
@@ -229,6 +226,9 @@ export const SwapInterface = ({
             className="stellar-slider w-full"
             style={{'--slider-progress': `${sliderValue[0]}%`} as React.CSSProperties}
           />
+          <div className="flex justify-between items-center text-xs text-muted-foreground">
+            <span>Available: {formatBalance(availableAmount)}</span>
+          </div>
         </div>
       </div>
 
