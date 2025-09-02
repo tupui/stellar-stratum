@@ -295,8 +295,8 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
   const walletContent = (
     <>
       {/* Network Selection */}
-      <div className="mb-6 flex items-center gap-3">
-        <Label className="text-sm font-medium whitespace-nowrap">Network</Label>
+      <div className="mb-6 flex items-center justify-between">
+        <Label className="text-sm font-medium">Network</Label>
         <Select value={selectedNetwork} onValueChange={(value: 'mainnet' | 'testnet') => setSelectedNetwork(value)}>
           <SelectTrigger className="w-auto h-8 px-3 rounded-full border-border/60 hover:border-border bg-background/80 text-sm">
             <SelectValue />
