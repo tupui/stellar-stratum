@@ -995,31 +995,31 @@ export const PaymentForm = ({
         </>}
 
         {/* Action Buttons */}
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 px-1">
           {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
           {hasActiveForm && <>
               <Button 
                 onClick={addPayment} 
                 variant="outline" 
                 size="lg" 
-                className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+                className="flex-1 min-w-0 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add Operation
+                <span className="truncate">Add Operation</span>
               </Button>
               <Button 
                 onClick={handleBuild} 
                 disabled={isBuilding || compactPayments.length === 0} 
-                className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50" 
+                className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
                 size="lg"
               >
                 {isBuilding ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                    Building...
+                    <span className="truncate">Building...</span>
                   </div>
                 ) : (
-                  'Build Transaction'
+                  <span className="truncate">Build Transaction</span>
                 )}
               </Button>
             </>}
@@ -1032,17 +1032,17 @@ export const PaymentForm = ({
                   onClick={handleSaveEdit} 
                   disabled={!isFormValid()} 
                   size="lg"
-                  className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
                 >
-                  Save Changes
+                  <span className="truncate">Save Changes</span>
                 </Button>
                 <Button 
                   onClick={cancelCurrentPayment} 
                   variant="outline" 
-                  className="flex-1" 
+                  className="flex-1 min-w-0" 
                   size="lg"
                 >
-                  Cancel Edit
+                  <span className="truncate">Cancel Edit</span>
                 </Button>
               </>
             ) : (
@@ -1052,18 +1052,18 @@ export const PaymentForm = ({
                  variant="outline" 
                  disabled={!isFormValid()} 
                  size="lg"
-                 className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                 className="flex-1 min-w-0 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                >
                  <Plus className="w-4 h-4 mr-2" />
-                 Bundle
+                 <span className="truncate">Bundle</span>
                </Button>
                <Button 
                  onClick={cancelCurrentPayment} 
                  variant="destructive" 
-                 className="flex-1" 
+                 className="flex-1 min-w-0" 
                  size="lg"
                >
-                 Cancel
+                 <span className="truncate">Cancel</span>
                </Button>
               </>
             )
