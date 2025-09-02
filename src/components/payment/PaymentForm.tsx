@@ -441,7 +441,7 @@ export const PaymentForm = ({
   };
 
   const cancelCurrentPayment = () => {
-    // Clear current form and return to bundle actions
+    // Clear current form and go to appropriate state
     onPaymentDataChange({
       destination: '',
       amount: '',
@@ -453,7 +453,7 @@ export const PaymentForm = ({
       slippageTolerance: 0.5,
     });
     setWillCloseAccount(false);
-    setHasActiveForm(true);
+    setHasActiveForm(compactPayments.length > 0);
   };
 
   const isFormValid = () => {
@@ -1002,8 +1002,8 @@ export const PaymentForm = ({
                 variant="outline"
                 className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Payment
+              <Plus className="w-4 h-4 mr-2" />
+              Add
               </Button>
               <Button 
                 onClick={handleBuild} 
@@ -1017,7 +1017,7 @@ export const PaymentForm = ({
                     Building...
                   </div>
                 ) : (
-                  'Build Transaction'
+                  'Build'
                 )}
               </Button>
               <Button
@@ -1031,7 +1031,7 @@ export const PaymentForm = ({
           )}
 
           {/* Form with Bundle/Cancel - Show when hasActiveForm is false and form has content */}
-          {!hasActiveForm && (paymentData.destination || paymentData.amount) && (
+          {!hasActiveForm && (
             <>
                <Button
                  onClick={handleBundlePayment}
@@ -1053,7 +1053,7 @@ export const PaymentForm = ({
           )}
 
           {/* Build single transaction - Show when no compact payments and form is valid */}
-          {!hasActiveForm && compactPayments.length === 0 && isFormValid() && (
+          {false && (
             <Button
               onClick={handleBuild}
               disabled={isBuilding}
@@ -1077,7 +1077,7 @@ export const PaymentForm = ({
           )}
 
           {/* Initial bundle button - Show when form is empty and no payments */}
-          {!hasActiveForm && compactPayments.length === 0 && !paymentData.destination && !paymentData.amount && (
+          {false && (
             <Button
               onClick={handleBundlePayment}
               variant="outline"
