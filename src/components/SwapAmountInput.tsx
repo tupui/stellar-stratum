@@ -70,7 +70,6 @@ export const SwapAmountInput = ({
   const handleAmountSubmit = () => {
     let numValue = parseFloat(editValue) || 0;
     numValue = Math.round(numValue * 10000000) / 10000000; // 7 decimal places
-    numValue = Math.min(numValue, availableAmount); // Don't exceed available amount
     onAmountChange(numValue.toString());
     setIsEditingAmount(false);
   };
