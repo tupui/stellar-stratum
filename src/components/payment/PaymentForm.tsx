@@ -1107,7 +1107,7 @@ export const PaymentForm = ({
                  variant="outline" 
                  disabled={!isFormValid()} 
                  size="lg"
-                 className="flex-1 min-w-0 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+                 className="flex-1 min-w-0 border-dashed border-primary hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50 disabled:border-border/60 hover:animate-[glow-pulse_1s_ease-in-out] active:animate-[glow-expand_0.3s_ease-out]"
                >
                  <Plus className="w-4 h-4 mr-2" />
                  <span className="truncate">Bundle</span>
