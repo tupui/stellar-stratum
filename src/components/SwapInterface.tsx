@@ -164,11 +164,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{
-                      textAlign: 'right',
-                      fontVariantNumeric: 'tabular-nums',
-                      letterSpacing: '0.02em'
-                    }}>
+                    <span className="ml-4 w-40 shrink-0 text-right font-mono tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
                       {formatBalanceAligned(asset.balance)}
                     </span>
                   </div>
@@ -260,11 +256,7 @@ export const SwapInterface = ({
                     <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
                     <span className="text-muted-foreground">{fromAsset}</span>
                   </div>
-                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{
-                    textAlign: 'right',
-                    fontVariantNumeric: 'tabular-nums',
-                    letterSpacing: '0.02em'
-                  }}>
+                  <span className="ml-4 w-40 shrink-0 text-right font-mono tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
                     {formatBalanceAligned(toAssetBalance)}
                   </span>
                 </div>
@@ -276,11 +268,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0 font-amount" style={{
-                      textAlign: 'right',
-                      fontVariantNumeric: 'tabular-nums',
-                      letterSpacing: '0.02em'
-                    }}>
+                    <span className="ml-4 w-40 shrink-0 text-right font-mono tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
                       {formatBalanceAligned(asset.balance)}
                     </span>
                   </div>
