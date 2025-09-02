@@ -1132,11 +1132,27 @@ export const PaymentForm = ({
             willCloseAccount={willCloseAccount}
             onAmountChange={handleAmountChange}
             onFromAssetChange={(asset, issuer) => {
+              // Check if recipient has trustline for this asset
+              const recipientHasAsset = recipientAssetOptions.some(a => 
+                a.code === asset && 
+                (asset === 'XLM' || a.issuer === issuer)
+              );
+              
+              // Check if current receive asset is still valid for recipient
+              const currentReceiveAssetValid = paymentData.receiveAsset ? 
+                recipientAssetOptions.some(a => 
+                  a.code === paymentData.receiveAsset && 
+                  (paymentData.receiveAsset === 'XLM' || a.issuer === paymentData.receiveAssetIssuer)
+                ) : true;
+              
               onPaymentDataChange({
                 ...paymentData,
                 asset,
                 assetIssuer: issuer || '',
-                amount: ''
+                amount: '',
+                // Auto-set receive asset only if recipient has trustline
+                receiveAsset: recipientHasAsset ? asset : (currentReceiveAssetValid ? paymentData.receiveAsset : undefined),
+                receiveAssetIssuer: recipientHasAsset ? (issuer || '') : (currentReceiveAssetValid ? paymentData.receiveAssetIssuer : undefined)
               });
               setWillCloseAccount(false);
             }}
