@@ -32,13 +32,6 @@ export const NetworkSelector = ({
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
-          
-          <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
-            <Badge variant={currentNetwork === 'testnet' ? 'warning' : 'success'}>
-              {currentNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}
-            </Badge>
-            <span className="text-sm">Network</span>
-          </div>
         </div>
 
         {/* Submit Buttons */}
@@ -49,7 +42,7 @@ export const NetworkSelector = ({
                 Submitting...
               </div> : <>
                 <Send className="w-4 h-4 mr-2" />
-                Submit to {currentNetwork === 'testnet' ? 'Testnet' : 'Public'}
+                Submit to {currentNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}
               </>}
           </Button>
 
@@ -70,7 +63,7 @@ export const NetworkSelector = ({
                 <img src={refractorLogo} alt="Refractor" className="w-4 h-4" />
               </div>
               <p className="text-sm text-blue font-medium">
-                <strong>Note:</strong> Refractor only supports Public network. Switch to Public to use Refractor for multisig coordination.
+                <strong>Note:</strong> Refractor only supports Mainnet. Switch to Mainnet to use Refractor for multisig coordination.
               </p>
             </div>
           </div>}
