@@ -51,6 +51,7 @@ const Index = () => {
       // Fetch real account data from Horizon
       const realAccountData = await fetchAccountData(publicKey, selectedNetwork);
       setAccountData(realAccountData);
+      setLoading(false); // This triggers the yellow flash in LoadingScreen
       
     } catch (error) {
       console.error('Failed to load account:', error);
@@ -62,7 +63,6 @@ const Index = () => {
       
       // Fall back to connection screen
       setAppState('connecting');
-    } finally {
       setLoading(false);
     }
   };

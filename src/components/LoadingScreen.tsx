@@ -11,7 +11,9 @@ export const LoadingScreen = ({ onComplete, isLoading }: LoadingScreenProps) => 
 
   // Ensure the title is gray for a minimum time so users can see it before it turns yellow
   useEffect(() => {
-    const t = setTimeout(() => setGrayHoldDone(true), 400);
+    const t = setTimeout(() => {
+      setGrayHoldDone(true);
+    }, 400);
     return () => clearTimeout(t);
   }, []);
 
