@@ -767,73 +767,95 @@ export const PaymentForm = ({
           {compactPayments.map((payment, index) => {
         // Check if this payment will close the account using the stored flag
         const closesAccount = payment.isAccountClosure || false;
-        return <Card key={payment.id} className={`p-5 md:p-6 rounded-2xl border border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-card/60'} hover:bg-card transition-colors shadow-sm`}>
-                <div className="flex items-start gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-foreground">Operation #{index + 1}</span>
-                        {closesAccount && (
-                          <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
-                            <Merge className="h-3 w-3 mr-1" />
-                            Account Closure
-                          </Badge>
-                        )}
-                      </div>
+        return <Card key={payment.id} className={`p-4 md:p-6 rounded-2xl border border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-card/60'} hover:bg-card transition-colors shadow-sm`}>
+                {/* Mobile-first responsive layout */}
+                <div className="space-y-4">
+                  {/* Header with operation number, badges, and actions */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-foreground">Operation #{index + 1}</span>
+                      {closesAccount && (
+                        <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
+                          <Merge className="h-3 w-3 mr-1" />
+                          Account Closure
+                        </Badge>
+                      )}
                       {payment.fiatValue && (
                         <span className="text-sm font-semibold text-primary">≈ {payment.fiatValue}</span>
                       )}
                     </div>
                     
-                    <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-6 md:gap-x-8 gap-y-3 items-center text-sm">
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => editCompactPayment(payment)} 
+                        className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+                        title="Edit operation"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => removeCompactPayment(payment.id)} 
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                        title="Remove operation"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Asset transfer visualization - responsive layout */}
+                  <div className="bg-background/50 rounded-xl p-4 space-y-3">
+                    {/* From section */}
+                    <div className="flex items-center justify-between">
                       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">FROM</span>
                       <div className="flex items-center gap-2">
                         <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={20} />
-                        <span className="font-semibold">{formatDisplayAmount(payment.amount)}</span>
-                        <span className="font-medium text-muted-foreground">{payment.asset}</span>
-                      </div>
-                      
-                      <ArrowRight className="w-4 h-4 text-muted-foreground justify-self-center" />
-                      
-                      <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={20} />
-                        <span className="font-medium">{payment.receiveAsset || payment.asset}</span>
+                        <div className="text-right">
+                          <div className="font-semibold text-sm">{formatDisplayAmount(payment.amount)}</div>
+                          <div className="text-xs text-muted-foreground">{payment.asset}</div>
+                        </div>
                       </div>
                     </div>
                     
-                    <div className="mt-4 pt-3 border-t border-border/40 space-y-2">
-                      <div className="text-xs">
-                        <span className="text-muted-foreground font-medium">Destination: </span>
-                        <span className="font-mono text-foreground">{payment.destination}</span>
-                      </div>
-                      {payment.memo && (
-                        <div className="text-xs">
-                          <span className="text-muted-foreground font-medium">Memo: </span>
-                          <span className="font-mono text-foreground">{payment.memo}</span>
+                    {/* Arrow separator */}
+                    <div className="flex justify-center">
+                      <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
+                    </div>
+                    
+                    {/* To section */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">TO</span>
+                      <div className="flex items-center gap-2">
+                        <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={20} />
+                        <div className="text-right">
+                          <div className="font-medium text-sm">{payment.receiveAsset || payment.asset}</div>
+                          {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
+                            <div className="text-xs text-muted-foreground">Path Payment</div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
-                  
-                  <div className="flex gap-2 flex-shrink-0">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => editCompactPayment(payment)} 
-                      className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
-                      title="Edit operation"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => removeCompactPayment(payment.id)} 
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                      title="Remove operation"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    
+                  {/* Destination info - better mobile formatting */}
+                  <div className="space-y-2">
+                    <div className="text-xs">
+                      <span className="text-muted-foreground font-medium">Destination:</span>
+                      <div className="font-mono text-foreground mt-1 break-all">
+                        <span className="sm:hidden">{payment.destination.slice(0, 20)}...{payment.destination.slice(-8)}</span>
+                        <span className="hidden sm:inline">{payment.destination}</span>
+                      </div>
+                    </div>
+                    {payment.memo && (
+                      <div className="text-xs">
+                        <span className="text-muted-foreground font-medium">Memo:</span>
+                        <div className="font-mono text-foreground mt-1 break-words">{payment.memo}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>;
