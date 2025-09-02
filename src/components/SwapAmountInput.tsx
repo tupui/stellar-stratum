@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetIcon } from '@/components/AssetIcon';
 import { cn } from '@/lib/utils';
+import { calculateAvailableBalance, formatBalance, formatAmount, calculateBalancePercentage } from '@/lib/balance-utils';
 
 interface Asset {
   code: string;
@@ -25,6 +26,7 @@ interface SwapAmountInputProps {
   fiatValue?: string;
   receiveAmount?: string; // For path payments
   slippageTolerance?: number;
+  previousOperations?: Array<{ asset: string; amount: string; type?: string }>; // For calculating available balance
   onAmountChange: (amount: string) => void;
   onFromAssetChange: (asset: string, issuer?: string) => void;
   onToAssetChange: (asset?: string, issuer?: string) => void;
@@ -41,10 +43,11 @@ export const SwapAmountInput = ({
   availableAssets,
   recipientAssets = [],
   maxAmount,
-  reserveAmount = 0,
+  reserveAmount = 1, // Default reserve amount for XLM
   fiatValue,
   receiveAmount,
   slippageTolerance,
+  previousOperations = [],
   onAmountChange,
   onFromAssetChange,
   onToAssetChange,
@@ -54,13 +57,15 @@ export const SwapAmountInput = ({
   const [isEditingAmount, setIsEditingAmount] = useState(false);
   const [editValue, setEditValue] = useState(amount);
 
-  const fromAssetBalance = availableAssets.find(a => a.code === fromAsset)?.balance || '0';
+  const fromAssetObject = availableAssets.find(a => a.code === fromAsset);
+  const fromAssetBalance = fromAssetObject?.balance || '0';
   const receiveCode = toAsset || fromAsset;
   const toAssetBalance = recipientAssets.find(a => a.code === receiveCode)?.balance || '0';
 
-  // Simple logic: For XLM subtract 1 for minimum balance, for others use full balance
-  const rawBalance = parseFloat(fromAssetBalance);
-  const availableAmount = fromAsset === 'XLM' ? Math.max(0, rawBalance - 1) : rawBalance;
+  // Calculate available balance using centralized utility
+  const availableAmount = fromAssetObject 
+    ? calculateAvailableBalance(fromAssetObject, previousOperations, reserveAmount)
+    : 0;
 
   useEffect(() => {
     if (!isEditingAmount) {
@@ -89,29 +94,12 @@ export const SwapAmountInput = ({
     onAmountChange(newAmount.toFixed(7));
   };
 
-  const formatBalance = (balance: string) => {
-    const num = parseFloat(balance);
-    if (num === 0) return '0';
-    if (num < 0.001) return '<0.001';
-    return num.toLocaleString('en-US', { 
-      maximumFractionDigits: num >= 1 ? 2 : 7,
-      minimumFractionDigits: 0
-    });
-  };
-
-  const formatAmount = (value: string) => {
-    const num = parseFloat(value);
-    if (num === 0) return '0';
-    if (num < 0.0001) return num.toFixed(7);
-    return num.toLocaleString('en-US', { 
-      maximumFractionDigits: 7,
-      minimumFractionDigits: 0
-    });
-  };
-
   // Path payment logic
   const isPathPayment = toAsset && toAsset !== fromAsset;
   const displayReceiveAmount = isPathPayment ? receiveAmount || amount : amount;
+
+  // Calculate current percentage for slider
+  const currentPercentage = calculateBalancePercentage(amount, availableAmount);
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -122,7 +110,7 @@ export const SwapAmountInput = ({
             <span className="text-sm font-medium text-muted-foreground">You send</span>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="hidden sm:inline">Balance: {formatBalance(fromAssetBalance)}</span>
-              <span className="sm:hidden">Available: {formatBalance(fromAssetBalance)}</span>
+              <span className="sm:hidden">Available: {formatBalance(availableAmount)}</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -217,21 +205,21 @@ export const SwapAmountInput = ({
           <div className="mt-6">
             <div className="flex justify-between text-xs text-muted-foreground mb-2">
               <span>Amount</span>
-              <span>{Math.round((parseFloat(amount) / availableAmount) * 100) || 0}%</span>
+              <span>{Math.round(currentPercentage)}%</span>
             </div>
             <input
               type="range"
               min="0"
               max="100"
               step="0.1"
-              value={Math.round((parseFloat(amount) / availableAmount) * 100) || 0}
+              value={currentPercentage}
               onChange={(e) => {
                 const percentage = parseFloat(e.target.value);
                 const newAmount = availableAmount * (percentage / 100);
                 onAmountChange(newAmount.toFixed(7));
               }}
               className="stellar-slider w-full"
-              style={{'--slider-progress': `${Math.round((parseFloat(amount) / availableAmount) * 100) || 0}%`} as React.CSSProperties}
+              style={{'--slider-progress': `${Math.round(currentPercentage)}%`} as React.CSSProperties}
             />
           </div>
         </div>
