@@ -538,7 +538,8 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                           <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${showMoreWallets ? 'rotate-180' : ''}`} />
                         </Button>
                       </CollapsibleTrigger>
-                      <CollapsibleContent className="space-y-3 mt-3">
+                      <CollapsibleContent className="space-y-3 mt-3 max-h-96 overflow-y-auto pr-1">
+                        <div className="space-y-3">
                         {secondaryWallets.map((wallet) => {
                           const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
                           
@@ -575,6 +576,7 @@ export const WalletConnect = ({ onConnect, isModal = false }: WalletConnectProps
                             </TooltipProvider>
                           );
                         })}
+                        </div>
                       </CollapsibleContent>
                     </Collapsible>
                   )}
