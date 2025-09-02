@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetIcon } from '@/components/AssetIcon';
 import { cn } from '@/lib/utils';
-import { calculateAvailableBalance, formatBalance, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
+import { calculateAvailableBalance, formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 
 interface Asset {
@@ -164,8 +164,12 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0" style={{ textAlignLast: 'right' }}>
-                      {formatBalance(asset.balance)}
+                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0" style={{ 
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      letterSpacing: '0.02em'
+                    }}>
+                      {formatBalanceAligned(asset.balance)}
                     </span>
                   </div>
                 </SelectItem>
@@ -297,8 +301,12 @@ export const SwapInterface = ({
                     <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
                     <span className="text-muted-foreground">Same ({fromAsset})</span>
                   </div>
-                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0" style={{ textAlignLast: 'right' }}>
-                    {formatBalance(toAssetBalance)}
+                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0" style={{ 
+                    textAlign: 'right',
+                    fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '0.02em'
+                  }}>
+                    {formatBalanceAligned(toAssetBalance)}
                   </span>
                 </div>
               </SelectItem>
@@ -309,8 +317,12 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0" style={{ textAlignLast: 'right' }}>
-                      {formatBalance(asset.balance)}
+                    <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap ml-4 w-32 shrink-0" style={{ 
+                      textAlign: 'right',
+                      fontVariantNumeric: 'tabular-nums',
+                      letterSpacing: '0.02em'
+                    }}>
+                      {formatBalanceAligned(asset.balance)}
                     </span>
                   </div>
                 </SelectItem>
