@@ -6,19 +6,24 @@ interface LoadingScreenProps {
 }
 
 export const LoadingScreen = ({ onComplete, isLoading }: LoadingScreenProps) => {
-  const [loadingComplete, setLoadingComplete] = useState(false);
+  const [grayHoldDone, setGrayHoldDone] = useState(false);
+  const [yellow, setYellow] = useState(false);
 
+  // Ensure the title is gray for a minimum time so users can see it before it turns yellow
   useEffect(() => {
-    if (!isLoading && !loadingComplete) {
-      // Network loading completed, pulse Stratum yellow
-      setLoadingComplete(true);
-      
-      // After 100ms, transition to main page
+    const t = setTimeout(() => setGrayHoldDone(true), 400);
+    return () => clearTimeout(t);
+  }, []);
+
+  // When network loading finishes AND we've shown gray long enough, flash yellow then continue
+  useEffect(() => {
+    if (!isLoading && grayHoldDone && !yellow) {
+      setYellow(true);
       setTimeout(() => {
         onComplete();
       }, 100);
     }
-  }, [isLoading, loadingComplete, onComplete]);
+  }, [isLoading, grayHoldDone, yellow, onComplete]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center relative overflow-hidden">
@@ -38,7 +43,7 @@ export const LoadingScreen = ({ onComplete, isLoading }: LoadingScreenProps) => 
       <div className="relative z-10 text-center space-y-8">
         {/* Stratum Title */}
         <h1 className={`text-6xl font-bold transition-all duration-500 ${
-          loadingComplete 
+          yellow 
             ? 'text-stellar-yellow text-glow-yellow animate-pulse' 
             : 'text-muted-foreground'
         }`}>
