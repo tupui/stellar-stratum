@@ -263,8 +263,8 @@ export const WalletConnect = ({
     }
   };
   const walletContent = <>
-      {/* Network Toggle - Centered and better integrated */}
-      <div className="mb-8 flex justify-center">
+      {/* Network Toggle - Perfectly spaced */}
+      <div className="py-6 flex justify-center">
         <div className="relative bg-muted/50 backdrop-blur-sm rounded-full p-1 flex border border-border/50">
           <button
             onClick={() => setSelectedNetwork('mainnet')}
