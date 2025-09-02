@@ -739,67 +739,72 @@ export const PaymentForm = ({
           {compactPayments.map((payment, index) => {
         // Check if this payment will close the account using the stored flag
         const closesAccount = payment.isAccountClosure || false;
-        return <Card key={payment.id} className={`p-4 border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-muted/30'}`}>
-                <div className="flex items-center justify-between">
+        return <Card key={payment.id} className={`p-3 border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-muted/30'}`}>
+                <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-sm font-medium">Operation #{index + 1}</span>
-                      {closesAccount && <Badge variant="destructive" className="text-[10px] px-1 py-0">
-                          <Merge className="h-2 w-2 mr-1" />
-                          Account Closure
-                        </Badge>}
-                      {payment.fiatValue && <span className="text-xs text-primary font-medium">≈ {payment.fiatValue}</span>}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">Operation #{index + 1}</span>
+                        {closesAccount && (
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 font-medium">
+                            <Merge className="h-2.5 w-2.5 mr-1" />
+                            Account Closure
+                          </Badge>
+                        )}
+                      </div>
+                      {payment.fiatValue && (
+                        <span className="text-sm text-primary font-semibold">≈ {payment.fiatValue}</span>
+                      )}
                     </div>
                     
-                    {/* Mobile From/To indicator */}
-                    <div className="md:hidden mb-3">
-                      <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
-                        <div className="flex flex-col items-center">
-                          <div className="text-[10px] text-muted-foreground mb-1">FROM</div>
-                          <div className="text-sm font-semibold">{formatDisplayAmount(payment.amount)} {payment.asset}</div>
-                        </div>
+                    {/* Transaction details with better spacing */}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">FROM</span>
                         <div className="flex items-center gap-2">
-                          <ArrowRight className="w-4 h-4 text-primary" />
+                          <span className="font-semibold">{formatDisplayAmount(payment.amount)}</span>
+                          <span className="font-medium text-muted-foreground">{payment.asset}</span>
                         </div>
-                        <div className="flex flex-col items-center">
-                          <div className="text-[10px] text-muted-foreground mb-1">TO</div>
-                          <div className="text-sm font-semibold">{payment.receiveAsset || payment.asset}</div>
-                        </div>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">TO</span>
+                        <span className="font-medium">{payment.receiveAsset || payment.asset}</span>
                       </div>
                     </div>
                     
-                    <div className="hidden md:grid grid-cols-3 gap-4 text-xs">
+                    <div className="mt-3 pt-3 border-t border-border/40 space-y-2 text-xs">
                       <div>
-                        <span className="text-muted-foreground">To:</span>
-                        <p className="font-mono truncate">{payment.destination}</p>
+                        <span className="text-muted-foreground">Destination:</span>
+                        <p className="font-mono truncate mt-0.5">{payment.destination}</p>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground">Amount:</span>
-                        <p className="font-semibold">{formatDisplayAmount(payment.amount)} {payment.asset}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Receive:</span>
-                        <p className="font-semibold">{payment.receiveAsset || payment.asset}</p>
-                      </div>
+                      {payment.memo && (
+                        <div>
+                          <span className="text-muted-foreground">Memo:</span>
+                          <p className="font-mono mt-0.5">{payment.memo}</p>
+                        </div>
+                      )}
                     </div>
-                    
-                    <div className="md:hidden grid grid-cols-1 gap-2 text-xs">
-                      <div>
-                        <span className="text-muted-foreground">To:</span>
-                        <p className="font-mono truncate">{payment.destination}</p>
-                      </div>
-                    </div>
-                    {payment.memo && <div className="mt-2 text-xs">
-                        <span className="text-muted-foreground">Memo:</span>
-                        <p className="font-mono">{payment.memo}</p>
-                      </div>}
                   </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <Button variant="ghost" size="sm" onClick={() => editCompactPayment(payment)} className="h-8 w-8 p-0 hover:bg-background/50">
-                      <Edit2 className="h-3 w-3" />
+                  
+                  <div className="flex flex-col gap-2 ml-3 flex-shrink-0">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => editCompactPayment(payment)} 
+                      className="h-8 w-8 p-0 hover:bg-background/50"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => removeCompactPayment(payment.id)} className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10">
-                      <X className="h-3 w-3" />
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => removeCompactPayment(payment.id)} 
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                    >
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -941,26 +946,50 @@ export const PaymentForm = ({
         <div className="flex gap-3">
           {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
           {hasActiveForm && <>
-              <Button onClick={addPayment} variant="outline" className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Operation
+              <Button 
+                onClick={addPayment} 
+                variant="outline" 
+                size="lg" 
+                className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Operation
               </Button>
-              <Button onClick={handleBuild} disabled={isBuilding || compactPayments.length === 0} className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50" size="lg">
-                {isBuilding ? <div className="flex items-center gap-2">
+              <Button 
+                onClick={handleBuild} 
+                disabled={isBuilding || compactPayments.length === 0} 
+                className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50" 
+                size="lg"
+              >
+                {isBuilding ? (
+                  <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                     Building...
-                  </div> : 'Build Transaction'}
+                  </div>
+                ) : (
+                  'Build Transaction'
+                )}
               </Button>
-               
             </>}
 
           {/* Form with Bundle/Cancel - Show when hasActiveForm is false and form has content */}
           {!hasActiveForm && <>
-               <Button onClick={handleBundlePayment} variant="outline" disabled={!isFormValid()} className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50">
+               <Button 
+                 onClick={handleBundlePayment} 
+                 variant="outline" 
+                 disabled={!isFormValid()} 
+                 size="lg"
+                 className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+               >
                  <Plus className="w-4 h-4 mr-2" />
                  Bundle
                </Button>
-               <Button onClick={cancelCurrentPayment} variant="destructive" className="flex-1" size="lg">
+               <Button 
+                 onClick={cancelCurrentPayment} 
+                 variant="destructive" 
+                 className="flex-1" 
+                 size="lg"
+               >
                  Cancel
                </Button>
             </>}

@@ -332,7 +332,7 @@ export const SwapAmountInput = ({
             </div>
             {isPathPayment && (
               <div className="text-sm text-muted-foreground mt-1">
-                Minimum received {slippageTolerance ? `(${slippageTolerance}% slippage)` : ''}
+                Min {receiveAmount ? formatAmount(receiveAmount) : '0.0'}
               </div>
             )}
           </div>
