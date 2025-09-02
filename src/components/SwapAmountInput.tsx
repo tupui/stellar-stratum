@@ -89,9 +89,14 @@ export const SwapAmountInput = ({
   };
 
   const handlePercentageClick = (percentage: number) => {
-    const newAmount = availableAmount * (percentage / 100);
-    const cappedAmount = validateAndCapAmount(newAmount, availableAmount);
-    onAmountChange(cappedAmount);
+    if (percentage === 100) {
+      // For 100%, use exact available amount to avoid rounding issues
+      onAmountChange(availableAmount.toString());
+    } else {
+      const newAmount = availableAmount * (percentage / 100);
+      const cappedAmount = validateAndCapAmount(newAmount, availableAmount);
+      onAmountChange(cappedAmount);
+    }
   };
 
   // Path payment logic
@@ -226,9 +231,14 @@ export const SwapAmountInput = ({
               value={Math.round(currentPercentage)}
               onChange={(e) => {
                 const percentage = parseInt(e.target.value);
-                const newAmount = availableAmount * (percentage / 100);
-                const cappedAmount = validateAndCapAmount(newAmount, availableAmount);
-                onAmountChange(cappedAmount);
+                if (percentage === 100) {
+                  // For 100%, use exact available amount to avoid rounding issues
+                  onAmountChange(availableAmount.toString());
+                } else {
+                  const newAmount = availableAmount * (percentage / 100);
+                  const cappedAmount = validateAndCapAmount(newAmount, availableAmount);
+                  onAmountChange(cappedAmount);
+                }
               }}
               className="stellar-slider w-full"
               style={{'--slider-progress': `${Math.round(currentPercentage)}%`} as React.CSSProperties}
