@@ -762,7 +762,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   setSuccessData(null);
                 }}
                 onTransactionBuilt={() => {
-                  // This will be called when transaction is successfully built
+                  setIsCollapsed(true);
                 }}
                 />
               </TabsContent>
