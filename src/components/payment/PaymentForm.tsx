@@ -380,12 +380,6 @@ export const PaymentForm = ({
     });
     setShowSuggestions(false);
     setDomainSuggestions([]);
-    
-    toast({
-      title: "Domain resolved",
-      description: `${suggestion.domain} → ${suggestion.address.slice(0, 8)}...${suggestion.address.slice(-8)}`,
-      duration: 3000,
-    });
   };
 
   // Helper to validate destination input
