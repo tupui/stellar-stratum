@@ -9,14 +9,12 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-
 import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, TrendingUp, Merge, Users, Edit2, X } from 'lucide-react';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
 import { useNetwork } from '@/contexts/NetworkContext';
 import * as StellarSDK from '@stellar/stellar-sdk';
-
 interface PaymentData {
   destination: string;
   amount: string;
@@ -27,7 +25,6 @@ interface PaymentData {
   receiveAssetIssuer?: string;
   slippageTolerance?: number;
 }
-
 interface Asset {
   code: string;
   issuer: string;
@@ -35,7 +32,6 @@ interface Asset {
   balance: string;
   price: number;
 }
-
 interface CompactPayment {
   id: string;
   destination: string;
@@ -48,7 +44,6 @@ interface CompactPayment {
   slippageTolerance?: number;
   fiatValue?: string;
 }
-
 interface PaymentFormProps {
   paymentData: PaymentData;
   onPaymentDataChange: (data: PaymentData) => void;
@@ -77,9 +72,8 @@ interface PaymentFormProps {
   };
   accountPublicKey: string;
 }
-
-export const PaymentForm = ({ 
-  paymentData, 
+export const PaymentForm = ({
+  paymentData,
   onPaymentDataChange,
   availableAssets,
   assetPrices,
@@ -89,16 +83,25 @@ export const PaymentForm = ({
   accountData,
   accountPublicKey
 }: PaymentFormProps) => {
-  const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
-  const { network } = useNetwork();
-  
+  const {
+    quoteCurrency,
+    getCurrentCurrency
+  } = useFiatCurrency();
+  const {
+    network
+  } = useNetwork();
+
   // State for compact payments (previous payments)
   const [compactPayments, setCompactPayments] = useState<CompactPayment[]>([]);
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
-  
+
   // State for current payment and flow control
   const [fiatValue, setFiatValue] = useState<string>('');
-  type RecipientAsset = { code: string; issuer?: string; balance: string };
+  type RecipientAsset = {
+    code: string;
+    issuer?: string;
+    balance: string;
+  };
   const [recipientAssetOptions, setRecipientAssetOptions] = useState<RecipientAsset[]>([]);
   const [recipientExists, setRecipientExists] = useState<boolean | null>(null);
   const [willCloseAccount, setWillCloseAccount] = useState(false);
@@ -111,14 +114,11 @@ export const PaymentForm = ({
     const accountEntries = 1; // Base account
     const signersCount = accountData.signers.length - 1; // Subtract master key
     const trustlinesCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
-    
     return (accountEntries + signersCount + trustlinesCount + 1) * baseReserve; // +1 for safety
   };
-
   const getAvailableBalance = (assetCode: string) => {
     const asset = availableAssets.find(a => a.code === assetCode);
     if (!asset) return 0;
-    
     const balance = parseFloat(asset.balance);
     if (assetCode === 'XLM') {
       const reserve = calculateXLMReserve();
@@ -126,11 +126,9 @@ export const PaymentForm = ({
     }
     return balance;
   };
-
   const getMaxSliderValue = (assetCode: string) => {
     const asset = availableAssets.find(a => a.code === assetCode);
     if (!asset) return 0;
-    
     const balance = parseFloat(asset.balance);
     if (assetCode === 'XLM') {
       // For XLM, allow slider to go to full balance (account merge scenario)
@@ -138,46 +136,59 @@ export const PaymentForm = ({
     }
     return balance;
   };
-
   const canCloseAccount = () => {
     // Only allow account closure if account has only XLM (no other trustlines)
     return accountData.balances.filter(b => b.asset_type !== 'native').length === 0;
   };
-
   const checkAccountClosure = (amount: string, assetCode: string) => {
     if (assetCode !== 'XLM' || !canCloseAccount()) return false;
-    
     const numAmount = parseFloat(amount);
     const availableBalance = getAvailableBalance('XLM');
-    
     return numAmount > availableBalance;
   };
 
   // Destination trustline helpers
   const isValidPublicKey = (s?: string) => !!s && s.length === 56 && s.startsWith('G');
-
-  const fetchRecipientAssets = async (
-    accountId: string
-  ): Promise<{ exists: boolean; assets: RecipientAsset[] }> => {
-    const server = new StellarSDK.Horizon.Server(
-      network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org'
-    );
+  const fetchRecipientAssets = async (accountId: string): Promise<{
+    exists: boolean;
+    assets: RecipientAsset[];
+  }> => {
+    const server = new StellarSDK.Horizon.Server(network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org');
     try {
       const account = await server.loadAccount(accountId);
       const assets: RecipientAsset[] = [];
       account.balances.forEach((b: any) => {
         if (b.asset_type === 'native') {
-          assets.push({ code: 'XLM', balance: b.balance });
+          assets.push({
+            code: 'XLM',
+            balance: b.balance
+          });
         } else if (b.asset_code) {
-          assets.push({ code: b.asset_code, issuer: b.asset_issuer, balance: b.balance });
+          assets.push({
+            code: b.asset_code,
+            issuer: b.asset_issuer,
+            balance: b.balance
+          });
         }
       });
       // Ensure XLM appears even if missing (shouldn't happen for existing accounts)
-      if (!assets.some(a => a.code === 'XLM')) assets.unshift({ code: 'XLM', balance: '0' });
-      return { exists: true, assets };
+      if (!assets.some(a => a.code === 'XLM')) assets.unshift({
+        code: 'XLM',
+        balance: '0'
+      });
+      return {
+        exists: true,
+        assets
+      };
     } catch {
       // New account: only XLM allowed
-      return { exists: false, assets: [{ code: 'XLM', balance: '0' }] };
+      return {
+        exists: false,
+        assets: [{
+          code: 'XLM',
+          balance: '0'
+        }]
+      };
     }
   };
 
@@ -189,7 +200,10 @@ export const PaymentForm = ({
       return;
     }
     let cancelled = false;
-    fetchRecipientAssets(paymentData.destination).then(({ exists, assets }) => {
+    fetchRecipientAssets(paymentData.destination).then(({
+      exists,
+      assets
+    }) => {
       if (!cancelled) {
         setRecipientExists(exists);
         setRecipientAssetOptions(assets);
@@ -242,15 +256,12 @@ export const PaymentForm = ({
       setFiatValue('');
       return;
     }
-
     const updateFiatValue = async () => {
       const fiat = await calculateFiatValue(paymentData.amount, paymentData.asset);
       setFiatValue(fiat);
     };
-
     updateFiatValue();
   }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency]);
-
   const formatDisplayAmount = (value: string | number) => {
     const s = String(value);
     if (s === '' || s === '0') return '0.0';
@@ -258,7 +269,6 @@ export const PaymentForm = ({
     const [int, dec] = s.split('.');
     return `${int}.${dec}`;
   };
-
   const handleAmountChange = (newAmount: string) => {
     // Enforce 7 decimal places max and clamp to [0, max]
     const max = getMaxSliderValue(paymentData.asset);
@@ -267,7 +277,10 @@ export const PaymentForm = ({
     const clamped = Math.min(Math.max(0, num), max);
     const fixed = clamped.toFixed(7); // Stellar supports up to 7 decimals
 
-    onPaymentDataChange({ ...paymentData, amount: fixed });
+    onPaymentDataChange({
+      ...paymentData,
+      amount: fixed
+    });
     setWillCloseAccount(checkAccountClosure(fixed, paymentData.asset));
 
     // Skip auto-adjust while user is dragging for smooth slider UX
@@ -279,27 +292,26 @@ export const PaymentForm = ({
       const compactTotal = compactPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
       const total = currentAmount + compactTotal;
       const available = getAvailableBalance(paymentData.asset);
-      
       if (total > available && compactPayments.length > 0) {
         setShowAutoAdjustWarning(true);
         // Proportionally reduce all amounts
         const ratio = available / total;
         const newCurrentAmount = (currentAmount * ratio).toFixed(7);
-        onPaymentDataChange({ ...paymentData, amount: newCurrentAmount });
-        
+        onPaymentDataChange({
+          ...paymentData,
+          amount: newCurrentAmount
+        });
+
         // Update compact payments with new amounts and recalculated fiat values
-        const updatedCompactPayments = await Promise.all(
-          compactPayments.map(async (p) => {
-            const newAmt = ((parseFloat(p.amount) || 0) * ratio).toFixed(7);
-            const newFiatValue = await calculateFiatValue(newAmt, p.asset);
-            return {
-              ...p,
-              amount: newAmt,
-              fiatValue: newFiatValue
-            };
-          })
-        );
-        
+        const updatedCompactPayments = await Promise.all(compactPayments.map(async p => {
+          const newAmt = ((parseFloat(p.amount) || 0) * ratio).toFixed(7);
+          const newFiatValue = await calculateFiatValue(newAmt, p.asset);
+          return {
+            ...p,
+            amount: newAmt,
+            fiatValue: newFiatValue
+          };
+        }));
         setCompactPayments(updatedCompactPayments);
         setTimeout(() => setShowAutoAdjustWarning(false), 4000);
       } else {
@@ -307,49 +319,49 @@ export const PaymentForm = ({
       }
     }, 100);
   };
-
   const handleMergeAccount = () => {
     if (!canCloseAccount()) return;
-    
     const fullBalance = getMaxSliderValue('XLM');
     handleAmountChange(fullBalance.toString());
-    
+
     // Use current destination if provided, otherwise require user input
     if (!paymentData.destination) {
-      onPaymentDataChange({ 
-        ...paymentData, 
+      onPaymentDataChange({
+        ...paymentData,
         destination: '',
         amount: fullBalance.toString()
       });
     }
-    
     setWillCloseAccount(true);
   };
-
   const handleRevertMerge = () => {
     setWillCloseAccount(false);
     const availableBalance = getAvailableBalance('XLM');
     handleAmountChange(availableBalance.toString());
   };
-
   const getReceiveOptions = () => {
     // If account doesn't exist, only XLM allowed
-    if (recipientExists === false) return [{ code: 'XLM', issuer: undefined, balance: '0' }];
+    if (recipientExists === false) return [{
+      code: 'XLM',
+      issuer: undefined,
+      balance: '0'
+    }];
     // Otherwise, use recipient's actual balances
     const unique = new Map<string, RecipientAsset>();
     recipientAssetOptions.forEach(a => unique.set(a.code, a));
     // Always ensure XLM is present
-    if (!unique.has('XLM')) unique.set('XLM', { code: 'XLM', balance: '0' });
+    if (!unique.has('XLM')) unique.set('XLM', {
+      code: 'XLM',
+      balance: '0'
+    });
     return Array.from(unique.values());
   };
-
   const recipientHas = (code: string) => recipientAssetOptions.some(a => a.code === code);
   const recipientBalance = (code: string) => recipientAssetOptions.find(a => a.code === code)?.balance;
-
   const handleBundlePayment = async () => {
     // Bundle current form: convert it to compact payment and add to list
     if (!isFormValid()) return;
-    
+
     // Calculate fiat value for the current payment
     let currentFiatValue = '';
     if (paymentData.amount && paymentData.asset) {
@@ -383,14 +395,14 @@ export const PaymentForm = ({
       slippageTolerance: paymentData.slippageTolerance,
       fiatValue: currentFiatValue
     };
-
     setCompactPayments([...compactPayments, compactPayment]);
 
     // Reset current payment form
     onPaymentDataChange({
       destination: '',
       amount: '',
-      asset: paymentData.asset, // Keep same asset
+      asset: paymentData.asset,
+      // Keep same asset
       assetIssuer: paymentData.assetIssuer,
       memo: '',
       receiveAsset: undefined,
@@ -400,13 +412,13 @@ export const PaymentForm = ({
     setWillCloseAccount(false);
     setHasActiveForm(true); // Show bundle actions
   };
-
   const addPayment = () => {
     // Reset form for new payment entry
     onPaymentDataChange({
       destination: '',
       amount: '',
-      asset: paymentData.asset, // Keep same asset
+      asset: paymentData.asset,
+      // Keep same asset
       assetIssuer: paymentData.assetIssuer,
       memo: '',
       receiveAsset: undefined,
@@ -416,8 +428,6 @@ export const PaymentForm = ({
     setWillCloseAccount(false);
     setHasActiveForm(false); // Show form with bundle/cancel buttons
   };
-
-
   const editCompactPayment = (payment: CompactPayment) => {
     // Move compact payment back to main form
     onPaymentDataChange({
@@ -435,11 +445,9 @@ export const PaymentForm = ({
     setCompactPayments(compactPayments.filter(p => p.id !== payment.id));
     setEditingPaymentId(null);
   };
-
   const removeCompactPayment = (id: string) => {
     setCompactPayments(compactPayments.filter(p => p.id !== id));
   };
-
   const cancelCurrentPayment = () => {
     // Clear current form and go to appropriate state
     onPaymentDataChange({
@@ -450,29 +458,21 @@ export const PaymentForm = ({
       memo: '',
       receiveAsset: undefined,
       receiveAssetIssuer: undefined,
-      slippageTolerance: 0.5,
+      slippageTolerance: 0.5
     });
     setWillCloseAccount(false);
     setHasActiveForm(compactPayments.length > 0);
   };
-
   const isFormValid = () => {
     // Prevent same source and destination addresses
     if (paymentData.destination === accountPublicKey) {
       return false;
     }
-    
     if (willCloseAccount) {
       return paymentData.destination && paymentData.destination !== accountPublicKey && canCloseAccount();
     }
-    
-    return paymentData.destination && 
-           paymentData.amount && 
-           paymentData.asset &&
-           (paymentData.asset === 'XLM' || paymentData.assetIssuer) &&
-           (!trustlineError || trustlineError.includes('will create a new'));
+    return paymentData.destination && paymentData.amount && paymentData.asset && (paymentData.asset === 'XLM' || paymentData.assetIssuer) && (!trustlineError || trustlineError.includes('will create a new'));
   };
-
   const handleBuild = () => {
     if (willCloseAccount) {
       // Use current destination for merge
@@ -486,21 +486,18 @@ export const PaymentForm = ({
       onBuild(undefined, false, compactPayments);
     } else if (compactPayments.length > 0 && !hasActiveForm) {
       // Build batch transaction with compact payments + current payment
-      const allPayments = [
-        ...compactPayments,
-        {
-          id: 'current',
-          destination: paymentData.destination,
-          amount: paymentData.amount,
-          asset: paymentData.asset,
-          assetIssuer: paymentData.assetIssuer,
-          receiveAsset: paymentData.receiveAsset,
-          receiveAssetIssuer: paymentData.receiveAssetIssuer,
-          memo: paymentData.memo,
-          slippageTolerance: paymentData.slippageTolerance,
-          fiatValue: fiatValue
-        }
-      ];
+      const allPayments = [...compactPayments, {
+        id: 'current',
+        destination: paymentData.destination,
+        amount: paymentData.amount,
+        asset: paymentData.asset,
+        assetIssuer: paymentData.assetIssuer,
+        receiveAsset: paymentData.receiveAsset,
+        receiveAssetIssuer: paymentData.receiveAssetIssuer,
+        memo: paymentData.memo,
+        slippageTolerance: paymentData.slippageTolerance,
+        fiatValue: fiatValue
+      }];
       onBuild(undefined, false, allPayments);
     } else if (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset) {
       // Single cross-asset payment
@@ -518,12 +515,11 @@ export const PaymentForm = ({
     const value = parseFloat(paymentData.amount) || 0;
     const maxAmount = getMaxSliderValue(paymentData.asset);
     const sliderMax = 1000; // integer steps for smooth drag
-    const sliderValue = maxAmount > 0 ? Math.round((value / maxAmount) * sliderMax) : 0;
-    const percentage = sliderMax > 0 ? (sliderValue / sliderMax) * 100 : 0;
+    const sliderValue = maxAmount > 0 ? Math.round(value / maxAmount * sliderMax) : 0;
+    const percentage = sliderMax > 0 ? sliderValue / sliderMax * 100 : 0;
     const availableBalance = getAvailableBalance(paymentData.asset);
     const isOverLimit = value > availableBalance;
-    const availablePercentage = maxAmount > 0 ? Math.min(100, (availableBalance / maxAmount) * 100) : 0;
-    
+    const availablePercentage = maxAmount > 0 ? Math.min(100, availableBalance / maxAmount * 100) : 0;
     const handleEditSubmit = () => {
       let numValue = parseFloat(editValue) || 0;
       // Apply decimal constraints based on asset
@@ -535,7 +531,6 @@ export const PaymentForm = ({
       handleAmountChange(numValue.toString());
       setIsEditing(false);
     };
-
     const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') {
         handleEditSubmit();
@@ -544,15 +539,15 @@ export const PaymentForm = ({
         setIsEditing(false);
       }
     };
-
     useEffect(() => {
       if (!isEditing) {
         setEditValue(paymentData.amount);
       }
     }, [paymentData.amount, isEditing]);
-
     useEffect(() => {
-      const endDrag = () => { isDraggingRef.current = false; };
+      const endDrag = () => {
+        isDraggingRef.current = false;
+      };
       window.addEventListener('mouseup', endDrag);
       window.addEventListener('touchend', endDrag);
       return () => {
@@ -560,104 +555,63 @@ export const PaymentForm = ({
         window.removeEventListener('touchend', endDrag);
       };
     }, []);
-
-    return (
-      <div className="space-y-3">
+    return <div className="space-y-3">
         {/* Centered amount display */}
         <div className="text-center">
-          {isEditing ? (
-            <Input
-              type="text"
-              inputMode="decimal"
-              value={editValue}
-              onChange={(e) => {
-                let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
-                const parts = sanitized.split('.');
-                if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-                if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
-                setEditValue(sanitized);
-              }}
-              onBlur={handleEditSubmit}
-              onKeyDown={handleEditKeyDown}
-              onFocus={(e) => e.currentTarget.select()}
-              className="h-10 w-48 text-2xl font-amount text-center px-3 py-2 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md mx-auto"
-              placeholder="0.0000000"
-              autoFocus
-            />
-          ) : (
-            <div
-              className="cursor-pointer rounded px-3 py-2 mx-auto w-fit"
-              onClick={() => setIsEditing(true)}
-            >
+          {isEditing ? <Input type="text" inputMode="decimal" value={editValue} onChange={e => {
+          let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
+          const parts = sanitized.split('.');
+          if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+          if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+          setEditValue(sanitized);
+        }} onBlur={handleEditSubmit} onKeyDown={handleEditKeyDown} onFocus={e => e.currentTarget.select()} className="h-10 w-48 text-2xl font-amount text-center px-3 py-2 bg-background/95 border border-border/60 focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-border rounded-md mx-auto" placeholder="0.0000000" autoFocus /> : <div className="cursor-pointer rounded px-3 py-2 mx-auto w-fit" onClick={() => setIsEditing(true)}>
               <div className="text-3xl font-amount font-semibold text-foreground">
                 {formatDisplayAmount(value.toString())}
               </div>
-              <div className="text-sm text-muted-foreground mt-1">
-                / {formatDisplayAmount(maxAmount.toString())}
-              </div>
-            </div>
-          )}
+              
+            </div>}
         </div>
 
         {/* Slider */}
         <div className="relative self-center px-2">
-          <input
-            type="range"
-            min={0}
-            max={sliderMax}
-            step={1}
-            value={sliderValue}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10) || 0;
-              const newAmount = maxAmount > 0 ? (v / sliderMax) * maxAmount : 0;
-              isDraggingRef.current = true;
-              handleAmountChange(newAmount.toFixed(7));
-            }}
-            onMouseDown={() => { isDraggingRef.current = true; }}
-            onTouchStart={() => { isDraggingRef.current = true; }}
-            className={`w-full stellar-slider ${
-              isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''
-            }`}
-            style={{
-              '--slider-progress': `${percentage}%`,
-              '--available-progress': `${availablePercentage}%`
-            } as React.CSSProperties}
-          />
+          <input type="range" min={0} max={sliderMax} step={1} value={sliderValue} onChange={e => {
+          const v = parseInt(e.target.value, 10) || 0;
+          const newAmount = maxAmount > 0 ? v / sliderMax * maxAmount : 0;
+          isDraggingRef.current = true;
+          handleAmountChange(newAmount.toFixed(7));
+        }} onMouseDown={() => {
+          isDraggingRef.current = true;
+        }} onTouchStart={() => {
+          isDraggingRef.current = true;
+        }} className={`w-full stellar-slider ${isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`} style={{
+          '--slider-progress': `${percentage}%`,
+          '--available-progress': `${availablePercentage}%`
+        } as React.CSSProperties} />
         </div>
         {/* Meta row: only fiat value */}
-        {fiatValue && (
-          <div className="text-right text-xs text-muted-foreground px-2">
+        {fiatValue && <div className="text-right text-xs text-muted-foreground px-2">
             <span className="font-amount font-medium text-primary">≈ {fiatValue}</span>
-          </div>
-        )}
-      </div>
-    );
+          </div>}
+      </div>;
   };
-
-  return (
-    <div className="space-y-6">
-      {showAutoAdjustWarning && (
-        <Alert variant="destructive" className="animate-fade-in">
+  return <div className="space-y-6">
+      {showAutoAdjustWarning && <Alert variant="destructive" className="animate-fade-in">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             Total amount exceeds available balance. Amounts have been automatically adjusted.
           </AlertDescription>
-        </Alert>
-      )}
+        </Alert>}
 
       {/* Account Merge Warning - show before payments list */}
-      {willCloseAccount && (
-        <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
+      {willCloseAccount && <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
           <AlertTriangle className="h-4 w-4 text-destructive" />
           <AlertDescription className="text-destructive font-medium">
             <span className="font-bold">Account Closure:</span> This transaction will close your source account and send all remaining funds to the destination. This action cannot be undone.
           </AlertDescription>
-        </Alert>
-      )}
+        </Alert>}
 
       {/* Compact Transactions List */}
-      {compactPayments.length > 0 && (
-        <div className="space-y-3">
+      {compactPayments.length > 0 && <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-muted-foreground">List of Transactions</h3>
             <Badge variant="secondary" className="text-xs">
@@ -666,26 +620,18 @@ export const PaymentForm = ({
           </div>
           
           {compactPayments.map((payment, index) => {
-            // Check if this payment will close the account
-            const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
-            
-            return (
-              <Card key={payment.id} className={`p-4 border-border/60 ${
-                closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-muted/30'
-              }`}>
+        // Check if this payment will close the account
+        const closesAccount = payment.asset === 'XLM' && canCloseAccount() && parseFloat(payment.amount) > getAvailableBalance('XLM');
+        return <Card key={payment.id} className={`p-4 border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-muted/30'}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2">
                       <span className="text-sm font-medium">Transaction #{index + 1}</span>
-                      {closesAccount && (
-                        <Badge variant="destructive" className="text-[10px] px-1 py-0">
+                      {closesAccount && <Badge variant="destructive" className="text-[10px] px-1 py-0">
                           <Merge className="h-2 w-2 mr-1" />
                           Account Closure
-                        </Badge>
-                      )}
-                      {payment.fiatValue && (
-                        <span className="text-xs text-primary font-medium">≈ {payment.fiatValue}</span>
-                      )}
+                        </Badge>}
+                      {payment.fiatValue && <span className="text-xs text-primary font-medium">≈ {payment.fiatValue}</span>}
                     </div>
                     
                     {/* Mobile From/To indicator */}
@@ -726,73 +672,51 @@ export const PaymentForm = ({
                         <p className="font-mono truncate">{payment.destination}</p>
                       </div>
                     </div>
-                    {payment.memo && (
-                      <div className="mt-2 text-xs">
+                    {payment.memo && <div className="mt-2 text-xs">
                         <span className="text-muted-foreground">Memo:</span>
                         <p className="font-mono">{payment.memo}</p>
-                      </div>
-                    )}
+                      </div>}
                   </div>
                   <div className="flex items-center gap-2 ml-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => editCompactPayment(payment)}
-                      className="h-8 w-8 p-0 hover:bg-background/50"
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => editCompactPayment(payment)} className="h-8 w-8 p-0 hover:bg-background/50">
                       <Edit2 className="h-3 w-3" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeCompactPayment(payment.id)}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => removeCompactPayment(payment.id)} className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10">
                       <X className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+              </Card>;
+      })}
+        </div>}
 
       {/* Current Payment Form */}
       <div className="space-y-4">
           {/* Only show header when we have an active form (not in bundle mode) */}
-          {!hasActiveForm && (
-            <div className="flex items-center justify-between">
+          {!hasActiveForm && <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold">
                 {compactPayments.length > 0 ? `Transaction #${compactPayments.length + 1}` : 'Transaction Details'}
               </h3>
-            </div>
-          )}
+            </div>}
 
-        {!hasActiveForm && (<>
+        {!hasActiveForm && <>
         {/* Same source and destination warning */}
-        {paymentData.destination === accountPublicKey && (
-          <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
+        {paymentData.destination === accountPublicKey && <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
             <AlertTriangle className="h-4 w-4 text-destructive" />
             <AlertDescription className="text-destructive">
               Source and destination addresses cannot be the same.
             </AlertDescription>
-          </Alert>
-        )}
+          </Alert>}
 
         {/* Destination */}
         <div className="space-y-2">
           <Label htmlFor="destination" className="text-sm font-medium">
             {willCloseAccount ? 'Send All Funds To' : 'Destination Address'}
           </Label>
-          <Input
-            id="destination"
-            placeholder="GABC..."
-            maxLength={56}
-            value={paymentData.destination}
-            onChange={(e) => onPaymentDataChange({ ...paymentData, destination: e.target.value })}
-            className="text-xs font-address bg-background border-border/60 focus:border-primary"
-          />
+          <Input id="destination" placeholder="GABC..." maxLength={56} value={paymentData.destination} onChange={e => onPaymentDataChange({
+            ...paymentData,
+            destination: e.target.value
+          })} className="text-xs font-address bg-background border-border/60 focus:border-primary" />
         </div>
 
         {/* Payment Details Row */}
@@ -804,19 +728,16 @@ export const PaymentForm = ({
             <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_140px] gap-4 items-center">
               {/* From Asset */}
               <div className="flex items-center justify-center">
-                <Select
-                  value={paymentData.asset}
-                  onValueChange={(value) => {
-                    const selectedAsset = availableAssets.find(asset => asset.code === value);
-                    onPaymentDataChange({ 
-                      ...paymentData, 
-                      asset: value,
-                      assetIssuer: selectedAsset?.issuer || '',
-                      amount: ''
-                    });
-                    setWillCloseAccount(false);
-                  }}
-                >
+                <Select value={paymentData.asset} onValueChange={value => {
+                const selectedAsset = availableAssets.find(asset => asset.code === value);
+                onPaymentDataChange({
+                  ...paymentData,
+                  asset: value,
+                  assetIssuer: selectedAsset?.issuer || '',
+                  amount: ''
+                });
+                setWillCloseAccount(false);
+              }}>
                   <SelectTrigger className="h-12 border-border/60 focus:border-primary">
                     <SelectValue>
                       <span className="font-semibold text-sm">{paymentData.asset}</span>
@@ -827,19 +748,14 @@ export const PaymentForm = ({
                   <span className="uppercase tracking-wider font-medium">Asset</span>
                   <span className="text-right uppercase tracking-wider font-medium">Balance</span>
                 </div>
-                {availableAssets.filter(asset => asset.code && asset.code.trim() !== '').map((asset) => {
-                  const balance = parseFloat(asset.balance);
-                  const formattedBalance = balance.toLocaleString('en-US', {
-                    minimumFractionDigits: 7,
-                    maximumFractionDigits: 7,
-                    useGrouping: true,
-                  });
-                  return (
-                    <SelectPrimitive.Item
-                      key={`${asset.code}-${asset.issuer}`}
-                      value={asset.code}
-                      className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer"
-                    >
+                {availableAssets.filter(asset => asset.code && asset.code.trim() !== '').map(asset => {
+                    const balance = parseFloat(asset.balance);
+                    const formattedBalance = balance.toLocaleString('en-US', {
+                      minimumFractionDigits: 7,
+                      maximumFractionDigits: 7,
+                      useGrouping: true
+                    });
+                    return <SelectPrimitive.Item key={`${asset.code}-${asset.issuer}`} value={asset.code} className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-accent/50 cursor-pointer">
                       <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                         <SelectPrimitive.ItemIndicator>
                           <Check className="h-4 w-4" />
@@ -851,9 +767,8 @@ export const PaymentForm = ({
                           <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">{formattedBalance}</span>
                         </div>
                       </SelectPrimitive.ItemText>
-                    </SelectPrimitive.Item>
-                  );
-                })}
+                    </SelectPrimitive.Item>;
+                  })}
                  </SelectContent>
                 </Select>
               </div>
@@ -863,35 +778,25 @@ export const PaymentForm = ({
                 <div className="w-full">
                   <AmountSlider />
                   {/* Merge button positioned below slider */}
-                  {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
-                    <div className="text-center mt-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleMergeAccount}
-                        className="h-7 px-3 text-xs border-primary/30 hover:border-primary hover:bg-primary/10 whitespace-nowrap"
-                      >
+                  {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && <div className="text-center mt-3">
+                      <Button variant="outline" size="sm" onClick={handleMergeAccount} className="h-7 px-3 text-xs border-primary/30 hover:border-primary hover:bg-primary/10 whitespace-nowrap">
                         <Merge className="h-3 w-3 mr-1" />
                         Merge Account
                       </Button>
-                    </div>
-                  )}
+                    </div>}
                 </div>
               </div>
 
               {/* To Asset with recipient balances */}
               <div className="flex items-center justify-center">
-                <Select
-                  value={paymentData.receiveAsset || "same"}
-                  onValueChange={(value) => {
-                    const selectedAsset = recipientAssetOptions.find(asset => asset.code === value);
-                    onPaymentDataChange({
-                      ...paymentData,
-                      receiveAsset: value === "same" ? undefined : value,
-                      receiveAssetIssuer: selectedAsset?.issuer || undefined
-                    });
-                  }}
-                >
+                <Select value={paymentData.receiveAsset || "same"} onValueChange={value => {
+                const selectedAsset = recipientAssetOptions.find(asset => asset.code === value);
+                onPaymentDataChange({
+                  ...paymentData,
+                  receiveAsset: value === "same" ? undefined : value,
+                  receiveAssetIssuer: selectedAsset?.issuer || undefined
+                });
+              }}>
                   <SelectTrigger className="h-12 border-border/60 focus:border-primary">
                     <SelectValue placeholder="Same">
                       <span className="font-semibold text-sm">
@@ -904,10 +809,7 @@ export const PaymentForm = ({
                   <span className="uppercase tracking-wider font-medium">Asset</span>
                   <span className="text-right uppercase tracking-wider font-medium">Recipient Has</span>
                 </div>
-                <SelectPrimitive.Item
-                  value="same"
-                  className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
-                >
+                <SelectPrimitive.Item value="same" className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer">
                   <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                     <SelectPrimitive.ItemIndicator>
                       <Check className="h-4 w-4" />
@@ -917,19 +819,14 @@ export const PaymentForm = ({
                     <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                       <span className="text-muted-foreground">Same ({paymentData.asset})</span>
                       <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
-                        {recipientHas(paymentData.asset)
-                          ? parseFloat(recipientBalance(paymentData.asset) || '0').toLocaleString('en-US', { maximumFractionDigits: 7 })
-                          : '—'}
+                        {recipientHas(paymentData.asset) ? parseFloat(recipientBalance(paymentData.asset) || '0').toLocaleString('en-US', {
+                            maximumFractionDigits: 7
+                          }) : '—'}
                       </span>
                     </div>
                   </SelectPrimitive.ItemText>
                 </SelectPrimitive.Item>
-                {getReceiveOptions().filter(asset => asset.code !== paymentData.asset).map((asset) => (
-                  <SelectPrimitive.Item
-                    key={`${asset.code}-${asset.issuer}`}
-                    value={asset.code}
-                    className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer"
-                  >
+                {getReceiveOptions().filter(asset => asset.code !== paymentData.asset).map(asset => <SelectPrimitive.Item key={`${asset.code}-${asset.issuer}`} value={asset.code} className="relative rounded-sm py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground cursor-pointer">
                     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                       <SelectPrimitive.ItemIndicator>
                         <Check className="h-4 w-4" />
@@ -939,14 +836,13 @@ export const PaymentForm = ({
                       <div className="grid grid-cols-[80px_1fr] items-center gap-3">
                         <span className="font-medium">{asset.code}</span>
                         <span className="font-amount tabular-nums text-right text-xs text-muted-foreground">
-                          {recipientHas(asset.code)
-                            ? parseFloat(recipientBalance(asset.code) || '0').toLocaleString('en-US', { maximumFractionDigits: 7 })
-                            : '—'}
+                          {recipientHas(asset.code) ? parseFloat(recipientBalance(asset.code) || '0').toLocaleString('en-US', {
+                            maximumFractionDigits: 7
+                          }) : '—'}
                         </span>
                       </div>
                     </SelectPrimitive.ItemText>
-                  </SelectPrimitive.Item>
-                  ))}
+                  </SelectPrimitive.Item>)}
                  </SelectContent>
                 </Select>
               </div>
@@ -954,178 +850,96 @@ export const PaymentForm = ({
         </div>
 
         {/* Slippage Tolerance (only when cross-asset) */}
-        {paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset && (
-          <div className="space-y-2">
+        {paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset && <div className="space-y-2">
             <Label className="text-sm font-medium">Slippage Tolerance</Label>
             <div className="flex items-center space-x-4">
-              <input
-                type="range"
-                min={0.1}
-                max={5}
-                step={0.1}
-                value={paymentData.slippageTolerance || 0.5}
-                onChange={(e) => onPaymentDataChange({ ...paymentData, slippageTolerance: parseFloat(e.target.value) })}
-                className="flex-1 stellar-slider stellar-slider-purple"
-                style={{ '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / (4.9) * 100}%` } as React.CSSProperties}
-              />
+              <input type="range" min={0.1} max={5} step={0.1} value={paymentData.slippageTolerance || 0.5} onChange={e => onPaymentDataChange({
+              ...paymentData,
+              slippageTolerance: parseFloat(e.target.value)
+            })} className="flex-1 stellar-slider stellar-slider-purple" style={{
+              '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / 4.9 * 100}%`
+            } as React.CSSProperties} />
               <span className="text-sm font-amount w-12 text-right">
                 {(paymentData.slippageTolerance || 0.5).toFixed(1)}%
               </span>
             </div>
-          </div>
-        )}
+          </div>}
 
         {/* Memo */}
         <div className="space-y-2">
           <Label htmlFor="memo" className="text-sm font-medium">Memo (Optional)</Label>
-          <Input
-            id="memo"
-            placeholder="Payment description"
-            className="font-mono text-xs bg-background border-border/60 focus:border-primary"
-            value={paymentData.memo}
-            onChange={(e) => onPaymentDataChange({ ...paymentData, memo: e.target.value })}
-          />
+          <Input id="memo" placeholder="Payment description" className="font-mono text-xs bg-background border-border/60 focus:border-primary" value={paymentData.memo} onChange={e => onPaymentDataChange({
+            ...paymentData,
+            memo: e.target.value
+          })} />
         </div>
 
 
         {/* Destination Account Info */}
-        {paymentData.destination && (
-          <DestinationAccountInfo destination={paymentData.destination} />
-        )}
+        {paymentData.destination && <DestinationAccountInfo destination={paymentData.destination} />}
 
         {/* Trustline Error */}
-        {trustlineError && (
-          <div className={`p-3 rounded-lg border ${
-            trustlineError.includes('will create a new') 
-              ? 'bg-muted/50 border-border' 
-              : 'bg-destructive/10 border-destructive/30'
-          }`}>
+        {trustlineError && <div className={`p-3 rounded-lg border ${trustlineError.includes('will create a new') ? 'bg-muted/50 border-border' : 'bg-destructive/10 border-destructive/30'}`}>
             <div className="flex items-center gap-3">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
-                trustlineError.includes('will create a new')
-                  ? 'bg-muted'
-                  : 'bg-destructive/10'
-              }`}>
-                {trustlineError.includes('will create a new') ? (
-                  <Info className="w-3 h-3 text-muted-foreground" />
-                ) : (
-                  <AlertTriangle className="w-3 h-3 text-destructive" />
-                )}
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${trustlineError.includes('will create a new') ? 'bg-muted' : 'bg-destructive/10'}`}>
+                {trustlineError.includes('will create a new') ? <Info className="w-3 h-3 text-muted-foreground" /> : <AlertTriangle className="w-3 h-3 text-destructive" />}
               </div>
               <div className="flex-1">
-                <p className={`text-xs font-medium ${
-                  trustlineError.includes('will create a new')
-                    ? 'text-foreground'
-                    : 'text-foreground'
-                }`}>
+                <p className={`text-xs font-medium ${trustlineError.includes('will create a new') ? 'text-foreground' : 'text-foreground'}`}>
                   {trustlineError}
                 </p>
               </div>
             </div>
-          </div>
-        )}
-        </>)}
+          </div>}
+        </>}
 
         {/* Action Buttons */}
         <div className="flex gap-3">
           {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
-          {hasActiveForm && (
-            <>
-              <Button
-                onClick={addPayment}
-                variant="outline"
-                className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
-              >
+          {hasActiveForm && <>
+              <Button onClick={addPayment} variant="outline" className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors">
               <Plus className="w-4 h-4 mr-2" />
               Add Transaction
               </Button>
-              <Button 
-                onClick={handleBuild} 
-                disabled={isBuilding || compactPayments.length === 0}
-                className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
-                size="lg"
-              >
-                {isBuilding ? (
-                  <div className="flex items-center gap-2">
+              <Button onClick={handleBuild} disabled={isBuilding || compactPayments.length === 0} className="flex-1 bg-gradient-primary hover:opacity-90 disabled:opacity-50" size="lg">
+                {isBuilding ? <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                     Building...
-                  </div>
-                ) : (
-                  'Build Transaction'
-                )}
+                  </div> : 'Build Transaction'}
               </Button>
-               <Button
-                 onClick={() => setHasActiveForm(false)}
-                 variant="destructive"
-                 className="flex-1"
-                 size="lg"
-               >
+               <Button onClick={() => setHasActiveForm(false)} variant="destructive" className="flex-1" size="lg">
                  Cancel
                </Button>
-            </>
-          )}
+            </>}
 
           {/* Form with Bundle/Cancel - Show when hasActiveForm is false and form has content */}
-          {!hasActiveForm && (
-            <>
-               <Button
-                 onClick={handleBundlePayment}
-                 variant="outline"
-                 disabled={!isFormValid()}
-                 className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-               >
+          {!hasActiveForm && <>
+               <Button onClick={handleBundlePayment} variant="outline" disabled={!isFormValid()} className="flex-1 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50">
                  <Plus className="w-4 h-4 mr-2" />
                  Bundle
                </Button>
-               <Button
-                 onClick={cancelCurrentPayment}
-                 variant="destructive"
-                 className="flex-1"
-                 size="lg"
-               >
+               <Button onClick={cancelCurrentPayment} variant="destructive" className="flex-1" size="lg">
                  Cancel
                </Button>
-            </>
-          )}
+            </>}
 
           {/* Build single transaction - Show when no compact payments and form is valid */}
-          {false && (
-            <Button
-              onClick={handleBuild}
-              disabled={isBuilding}
-              className="w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50"
-              size="lg"
-            >
-              {isBuilding ? (
-                <div className="flex items-center gap-2">
+          {false && <Button onClick={handleBuild} disabled={isBuilding} className="w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50" size="lg">
+              {isBuilding ? <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                   Building...
-                </div>
-              ) : willCloseAccount ? (
-                <>
+                </div> : willCloseAccount ? <>
                   <Merge className="w-4 h-4 mr-2" />
                   Merge Account
-                </>
-              ) : (
-                'Build Transaction'
-              )}
-            </Button>
-          )}
+                </> : 'Build Transaction'}
+            </Button>}
 
           {/* Initial bundle button - Show when form is empty and no payments */}
-          {false && (
-            <Button
-              onClick={handleBundlePayment}
-              variant="outline"
-              className="w-full border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
-              size="lg"
-            >
+          {false && <Button onClick={handleBundlePayment} variant="outline" className="w-full border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors" size="lg">
               <Plus className="w-4 h-4 mr-2" />
               Bundle Payment
-            </Button>
-          )}
+            </Button>}
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
