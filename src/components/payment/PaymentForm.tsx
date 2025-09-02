@@ -811,14 +811,14 @@ export const PaymentForm = ({
                   <div className="bg-background/50 rounded-xl p-4 space-y-3">
                     {/* From section */}
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">FROM</span>
-                      <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={20} />
-                        <div className="text-right">
+                      <div className="flex-1">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">FROM</span>
+                        <div className="mt-1">
                           <div className="font-semibold text-sm">{formatDisplayAmount(payment.amount)}</div>
                           <div className="text-xs text-muted-foreground">{payment.asset}</div>
                         </div>
                       </div>
+                      <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={24} />
                     </div>
                     
                     {/* Arrow separator */}
@@ -828,16 +828,16 @@ export const PaymentForm = ({
                     
                     {/* To section */}
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">TO</span>
-                      <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={20} />
-                        <div className="text-right">
+                      <div className="flex-1">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">TO</span>
+                        <div className="mt-1">
                           <div className="font-medium text-sm">{payment.receiveAsset || payment.asset}</div>
                           {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
                             <div className="text-xs text-muted-foreground">Path Payment</div>
                           )}
                         </div>
                       </div>
+                      <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={24} />
                     </div>
                   </div>
                     
