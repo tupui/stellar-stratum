@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -262,21 +263,19 @@ export const WalletConnect = ({
     }
   };
   const walletContent = <>
-      {/* Network Selection */}
-      <div className="mb-6 flex justify-end">
-        <Select value={selectedNetwork} onValueChange={(value: 'mainnet' | 'testnet') => setSelectedNetwork(value)}>
-          <SelectTrigger className="w-32 h-8 rounded-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="mainnet">
-              <Badge variant="default">Mainnet</Badge>
-            </SelectItem>
-            <SelectItem value="testnet">
-              <Badge variant="secondary">Testnet</Badge>
-            </SelectItem>
-          </SelectContent>
-        </Select>
+      {/* Network Toggle */}
+      <div className="mb-6 flex justify-end items-center gap-3">
+        <Label htmlFor="network-toggle" className={`text-sm font-medium ${selectedNetwork === 'mainnet' ? 'text-foreground' : 'text-muted-foreground'}`}>
+          Mainnet
+        </Label>
+        <Switch 
+          id="network-toggle"
+          checked={selectedNetwork === 'testnet'} 
+          onCheckedChange={(checked) => setSelectedNetwork(checked ? 'testnet' : 'mainnet')}
+        />
+        <Label htmlFor="network-toggle" className={`text-sm font-medium ${selectedNetwork === 'testnet' ? 'text-foreground' : 'text-muted-foreground'}`}>
+          Testnet
+        </Label>
       </div>
 
       <Separator className="mb-6" />
