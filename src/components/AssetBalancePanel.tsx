@@ -163,9 +163,10 @@ export const AssetBalancePanel = ({
   };
   const formatBalance = (balance: string): string => {
     const num = parseFloat(balance);
-    if (num === 0) return '0';
+    if (num === 0) return '0.00';
     if (num < 0.01) return num.toFixed(6);
     if (num < 1) return num.toFixed(4);
+    // Always show 2 decimal places for consistent alignment
     return num.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
@@ -273,7 +274,11 @@ export const AssetBalancePanel = ({
                   </div>
 
                   <div className="text-right">
-                    <p className="font-amount font-semibold text-foreground">
+                    <p className="font-amount font-semibold text-foreground tabular-nums" style={{
+                      fontVariantNumeric: 'tabular-nums',
+                      textAlign: 'right',
+                      minWidth: '120px'
+                    }}>
                       {formatBalance(asset.balance)}
                     </p>
                     <p className="text-sm text-muted-foreground/70">{asset.symbol}</p>
