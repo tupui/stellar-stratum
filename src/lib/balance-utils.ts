@@ -18,6 +18,7 @@ interface Operation {
 /**
  * Calculate the available balance for an asset, considering:
  * - Reserve requirements (minimum balance for XLM)
+ * - Network fee margin (additional 1 XLM for transaction fees)
  * - Previous operations in the same transaction
  * - Asset-specific constraints
  */
@@ -37,8 +38,9 @@ export function calculateAvailableBalance(
   let availableAfterReserve: number;
   
   if (asset.code === 'XLM') {
-    // XLM requires minimum balance for account existence
-    availableAfterReserve = Math.max(0, rawBalance - reserveAmount);
+    // XLM requires minimum balance for account existence + network fee margin
+    const totalReserve = reserveAmount + 1; // Add 1 XLM margin for network fees
+    availableAfterReserve = Math.max(0, rawBalance - totalReserve);
   } else {
     // Non-native assets don't have reserve requirements
     availableAfterReserve = rawBalance;

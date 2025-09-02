@@ -911,6 +911,7 @@ export const PaymentForm = ({
             recipientAssets={getReceiveOptions()}
             maxAmount={getMaxSliderValue(paymentData.asset)}
             reserveAmount={paymentData.asset === 'XLM' ? 1 : 0} // XLM minimum balance requirement
+            previousOperations={compactPayments.map(p => ({ asset: p.asset, amount: p.amount, type: 'payment' }))}
             fiatValue={fiatValue}
             receiveAmount={paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
               calculatePathPaymentReceiveAmount(paymentData.amount, paymentData.asset, paymentData.receiveAsset) : 
