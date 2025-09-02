@@ -1072,8 +1072,7 @@ export const PaymentForm = ({
         </>}
 
         {/* Action Buttons */}
-        {!isTransactionBuilt && (
-          <div className="flex flex-col sm:flex-row gap-3 px-1">
+        <div className="flex flex-col sm:flex-row gap-3 px-1">
             {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
             {hasActiveForm && <>
                 <Button 
@@ -1164,6 +1163,7 @@ export const PaymentForm = ({
               <Plus className="w-4 h-4 mr-2" />
               Bundle Payment
             </Button>}
+        </div>
         </div>
       )}
     </div>
