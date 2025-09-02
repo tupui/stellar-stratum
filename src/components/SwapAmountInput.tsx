@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpDown, ChevronDown } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -238,13 +238,22 @@ export const SwapAmountInput = ({
         </div>
       </div>
 
+      {/* Mobile Arrow - Only show when no swap functionality */}
+      {!onSwapDirection && (
+        <div className="flex justify-center sm:hidden -my-2">
+          <div className="w-10 h-10 rounded-full bg-background/80 border border-border/60 flex items-center justify-center animate-fade-in">
+            <ArrowDown className="h-4 w-4 text-muted-foreground animate-pulse" />
+          </div>
+        </div>
+      )}
+
       {/* Swap Direction Button */}
       {onSwapDirection && (
         <div className="flex justify-center">
           <Button
             variant="outline"
             size="sm"
-            className="w-10 h-10 rounded-full border-2 bg-background hover:bg-muted/50 hover:border-primary/50"
+            className="w-10 h-10 rounded-full border-2 bg-background hover:bg-muted/50 hover:border-primary/50 transition-all duration-200 hover:scale-105"
             onClick={onSwapDirection}
           >
             <ArrowUpDown className="h-4 w-4" />
