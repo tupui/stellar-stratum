@@ -102,11 +102,12 @@ export const SwapAmountInput = ({
     <div className={cn("space-y-1", className)}>
       {/* From Section */}
       <div className="relative">
-        <div className="bg-card/50 backdrop-blur-sm border border-border/60 rounded-2xl p-6 hover:border-border transition-colors">
+        <div className="bg-card/50 backdrop-blur-sm border border-border/60 rounded-2xl p-4 md:p-6 hover:border-border transition-colors">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-medium text-muted-foreground">You pay</span>
+            <span className="text-sm font-medium text-muted-foreground">You send</span>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Balance: {formatBalance(fromAssetBalance)}</span>
+              <span className="hidden sm:inline">Balance: {formatBalance(fromAssetBalance)}</span>
+              <span className="sm:hidden">Bal: {formatBalance(fromAssetBalance)}</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -118,7 +119,7 @@ export const SwapAmountInput = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             {/* Asset Selector */}
             <Select 
               value={fromAsset} 
@@ -127,12 +128,13 @@ export const SwapAmountInput = ({
                 onFromAssetChange(value, selectedAsset?.issuer);
               }}
             >
-              <SelectTrigger className="w-40 h-12 bg-background/80 border-border/60 hover:border-border">
-                <div className="flex items-center gap-3">
-                  <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
-                  <span className="font-semibold">{fromAsset}</span>
-                  <ChevronDown className="h-4 w-4 opacity-50" />
-                </div>
+              <SelectTrigger className="w-full sm:w-40 h-12 bg-background/80 border-border/60 hover:border-border">
+                <SelectValue>
+                  <div className="flex items-center gap-3">
+                    <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} />
+                    <span className="font-semibold">{fromAsset}</span>
+                  </div>
+                </SelectValue>
               </SelectTrigger>
               <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto">
                 <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-3 py-2">
@@ -146,7 +148,7 @@ export const SwapAmountInput = ({
                   <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
                     <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
                       <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={20} />
+                        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                         <span className="font-medium">{asset.code}</span>
                       </div>
                       <span></span>
@@ -176,13 +178,13 @@ export const SwapAmountInput = ({
                   onBlur={handleAmountSubmit}
                   onKeyDown={handleAmountKeyDown}
                   onFocus={(e) => e.currentTarget.select()}
-                  className="text-right text-2xl font-mono bg-transparent border-none p-0 h-auto focus-visible:ring-0 shadow-none"
+                  className="text-right text-xl md:text-2xl font-mono bg-transparent border-none p-0 h-auto focus-visible:ring-0 shadow-none"
                   placeholder="0.0"
                   autoFocus
                 />
               ) : (
                 <div
-                  className="text-2xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors"
+                  className="text-xl md:text-2xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors"
                   onClick={() => setIsEditingAmount(true)}
                 >
                   {amount ? formatAmount(amount) : '0.0'}
@@ -196,19 +198,26 @@ export const SwapAmountInput = ({
             </div>
           </div>
 
-          {/* Percentage Buttons */}
-          <div className="flex justify-end gap-2 mt-4">
-            {[25, 50, 75, 100].map((percentage) => (
-              <Button
-                key={percentage}
-                variant="outline"
-                size="sm"
-                className="h-7 px-3 text-xs hover:bg-primary/10 hover:text-primary hover:border-primary/50"
-                onClick={() => handlePercentageClick(percentage)}
-              >
-                {percentage}%
-              </Button>
-            ))}
+          {/* Percentage Slider */}
+          <div className="mt-6">
+            <div className="flex justify-between text-xs text-muted-foreground mb-2">
+              <span>Amount</span>
+              <span>{Math.round((parseFloat(amount) / maxAmount) * 100) || 0}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="0.1"
+              value={Math.round((parseFloat(amount) / maxAmount) * 100) || 0}
+              onChange={(e) => {
+                const percentage = parseFloat(e.target.value);
+                const newAmount = maxAmount * (percentage / 100);
+                onAmountChange(newAmount.toFixed(7));
+              }}
+              className="slider-glow w-full"
+              style={{'--slider-progress': `${Math.round((parseFloat(amount) / maxAmount) * 100) || 0}%`} as React.CSSProperties}
+            />
           </div>
         </div>
       </div>
@@ -228,17 +237,18 @@ export const SwapAmountInput = ({
       )}
 
       {/* To Section */}
-      <div className="bg-card/30 backdrop-blur-sm border border-border/40 rounded-2xl p-6 hover:border-border/60 transition-colors">
+      <div className="bg-card/30 backdrop-blur-sm border border-border/40 rounded-2xl p-4 md:p-6 hover:border-border/60 transition-colors">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-medium text-muted-foreground">You receive</span>
           {toAsset && recipientAssets.length > 0 && (
             <div className="text-sm text-muted-foreground">
-              Recipient has: {formatBalance(toAssetBalance)}
+              <span className="hidden sm:inline">Recipient has: {formatBalance(toAssetBalance)}</span>
+              <span className="sm:hidden">Has: {formatBalance(toAssetBalance)}</span>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           {/* Asset Selector */}
           <Select 
             value={toAsset || "same"} 
@@ -251,55 +261,56 @@ export const SwapAmountInput = ({
               }
             }}
           >
-            <SelectTrigger className="w-40 h-12 bg-background/60 border-border/40 hover:border-border/60">
-              <div className="flex items-center gap-3">
-                <AssetIcon 
-                  assetCode={toAsset || fromAsset} 
-                  assetIssuer={toAssetIssuer || fromAssetIssuer} 
-                  size={24} 
-                />
-                <span className="font-semibold">{toAsset || fromAsset}</span>
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </div>
+            <SelectTrigger className="w-full sm:w-40 h-12 bg-background/60 border-border/40 hover:border-border/60">
+              <SelectValue>
+                <div className="flex items-center gap-3">
+                  <AssetIcon 
+                    assetCode={toAsset || fromAsset} 
+                    assetIssuer={toAssetIssuer || fromAssetIssuer} 
+                    size={32} 
+                  />
+                  <span className="font-semibold">{toAsset || fromAsset}</span>
+                </div>
+              </SelectValue>
             </SelectTrigger>
-            <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto">
-              <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-3 py-2">
-                <div className="grid grid-cols-[auto_1fr_auto] gap-3 text-xs text-muted-foreground font-medium">
-                  <span>Asset</span>
-                  <span></span>
-                  <span>Recipient Has</span>
-                </div>
-              </div>
-              <SelectItem value="same">
-                <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
-                  <div className="flex items-center gap-2">
-                    <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={20} />
-                    <span className="text-muted-foreground">Same ({fromAsset})</span>
+              <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto">
+                <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-3 py-2">
+                  <div className="grid grid-cols-[auto_1fr_auto] gap-3 text-xs text-muted-foreground font-medium">
+                    <span>Asset</span>
+                    <span></span>
+                    <span>Recipient Has</span>
                   </div>
-                  <span></span>
-                  <span className="text-xs text-muted-foreground">—</span>
                 </div>
-              </SelectItem>
-              {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
-                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                <SelectItem value="same">
                   <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
                     <div className="flex items-center gap-2">
-                      <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={20} />
-                      <span className="font-medium">{asset.code}</span>
+                      <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
+                      <span className="text-muted-foreground">Same ({fromAsset})</span>
                     </div>
                     <span></span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {formatBalance(asset.balance)}
-                    </span>
+                    <span className="text-xs text-muted-foreground">—</span>
                   </div>
                 </SelectItem>
-              ))}
-            </SelectContent>
+                {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (
+                  <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
+                    <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
+                      <div className="flex items-center gap-2">
+                        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
+                        <span className="font-medium">{asset.code}</span>
+                      </div>
+                      <span></span>
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {formatBalance(asset.balance)}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
           </Select>
 
           {/* Receive Amount Display */}
           <div className="flex-1 text-right">
-            <div className="text-2xl font-mono text-muted-foreground">
+            <div className="text-xl md:text-2xl font-mono text-muted-foreground">
               {amount ? formatAmount(amount) : '0.0'}
             </div>
             {toAsset && toAsset !== fromAsset && (
