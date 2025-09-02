@@ -145,7 +145,7 @@ export const SwapAmountInput = ({
               <SelectTrigger className="w-full sm:w-40 h-12 bg-background/80 border-border/60 hover:border-border">
                 <SelectValue>
                   <div className="flex items-center gap-3">
-                    <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} />
+                    <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={40} />
                     <span className="font-semibold">{fromAsset}</span>
                   </div>
                 </SelectValue>
@@ -162,7 +162,7 @@ export const SwapAmountInput = ({
                   <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
                     <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
                       <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
+                        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={32} />
                         <span className="font-medium">{asset.code}</span>
                       </div>
                       <span></span>
@@ -276,16 +276,16 @@ export const SwapAmountInput = ({
             }}
           >
             <SelectTrigger className="w-full sm:w-40 h-12 bg-background/60 border-border/40 hover:border-border/60">
-              <SelectValue>
-                <div className="flex items-center gap-3">
-                  <AssetIcon 
-                    assetCode={toAsset || fromAsset} 
-                    assetIssuer={toAssetIssuer || fromAssetIssuer} 
-                    size={32} 
-                  />
-                  <span className="font-semibold">{toAsset || fromAsset}</span>
-                </div>
-              </SelectValue>
+                <SelectValue>
+                  <div className="flex items-center gap-3">
+                    <AssetIcon 
+                      assetCode={toAsset || fromAsset} 
+                      assetIssuer={toAssetIssuer || fromAssetIssuer} 
+                      size={40} 
+                    />
+                    <span className="font-semibold">{toAsset || fromAsset}</span>
+                  </div>
+                </SelectValue>
             </SelectTrigger>
               <SelectContent className="min-w-[280px] max-h-72 overflow-y-auto">
                 <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border px-3 py-2">
@@ -298,7 +298,7 @@ export const SwapAmountInput = ({
                 <SelectItem value="same">
                   <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
                     <div className="flex items-center gap-2">
-                      <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
+                      <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} />
                       <span className="text-muted-foreground">Same ({fromAsset})</span>
                     </div>
                     <span></span>
@@ -309,7 +309,7 @@ export const SwapAmountInput = ({
                   <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code}>
                     <div className="grid grid-cols-[auto_1fr_auto] gap-3 items-center w-full min-w-[240px]">
                       <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
+                        <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={32} />
                         <span className="font-medium">{asset.code}</span>
                       </div>
                       <span></span>
@@ -326,7 +326,7 @@ export const SwapAmountInput = ({
           <div className="flex-1 text-right">
             <div className="text-xl md:text-2xl font-mono text-muted-foreground">
               {isPathPayment ? 
-                (displayReceiveAmount ? formatAmount(displayReceiveAmount) : '0.0') :
+                (receiveAmount ? formatAmount(receiveAmount) : '0.0') :
                 (amount ? formatAmount(amount) : '0.0')
               }
             </div>

@@ -119,7 +119,9 @@ export const PaymentForm = ({
     const accountEntries = 1; // Base account
     const signersCount = accountData.signers.length - 1; // Subtract master key
     const trustlinesCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
-    return (accountEntries + signersCount + trustlinesCount + 1) * baseReserve; // +1 for safety
+    const offersCount = 0; // We don't track offers in this app, but they would add to reserves
+    
+    return (accountEntries + signersCount + trustlinesCount + offersCount) * baseReserve + 1; // +1 XLM for safety and fees
   };
   const getAvailableBalance = (assetCode: string) => {
     const asset = availableAssets.find(a => a.code === assetCode);
@@ -374,12 +376,24 @@ export const PaymentForm = ({
 
   // Helper function for path payment receive amount calculation
   const calculatePathPaymentReceiveAmount = (amount: string, fromAsset: string, toAsset: string): string => {
-    // This is a simplified calculation - in a real implementation, 
-    // this would use Stellar SDK to calculate path payment receive amounts
     const numAmount = parseFloat(amount);
     if (!numAmount) return '0';
     
-    // For now, return a slightly reduced amount to simulate slippage
+    // Get the price ratio between assets if available
+    const fromPrice = assetPrices[fromAsset] || 0;
+    const toPrice = assetPrices[toAsset] || 0;
+    
+    if (fromPrice > 0 && toPrice > 0) {
+      // Calculate conversion based on USD prices
+      const usdValue = numAmount * fromPrice;
+      const convertedAmount = usdValue / toPrice;
+      
+      // Apply slippage tolerance
+      const slippageAdjustment = 1 - ((paymentData.slippageTolerance || 0.5) / 100);
+      return (convertedAmount * slippageAdjustment).toFixed(7);
+    }
+    
+    // Fallback: assume 1:1 ratio with slippage
     const slippageAdjustment = 1 - ((paymentData.slippageTolerance || 0.5) / 100);
     return (numAmount * slippageAdjustment).toFixed(7);
   };
