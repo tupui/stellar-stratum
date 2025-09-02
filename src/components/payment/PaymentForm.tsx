@@ -770,17 +770,9 @@ export const PaymentForm = ({
         return <Card key={payment.id} className={`p-4 md:p-6 rounded-2xl border border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-card/60'} hover:bg-card transition-colors shadow-sm`}>
                 {/* Mobile-first responsive layout */}
                 <div className="space-y-4">
-                  {/* Header with operation number, badges, fiat value, and actions - all in one row */}
+                  {/* Header with operation number, fiat value, and actions - all in one row */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-foreground">Operation #{index + 1}</span>
-                      {closesAccount && (
-                        <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
-                          <Merge className="h-3 w-3 mr-1" />
-                          Account Closure
-                        </Badge>
-                      )}
-                    </div>
+                    <span className="text-sm font-semibold text-foreground">Op #{index + 1}</span>
                     
                     <div className="flex items-center gap-3">
                       {payment.fiatValue && (
@@ -808,6 +800,16 @@ export const PaymentForm = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Account Closure badge on its own row when present */}
+                  {closesAccount && (
+                    <div className="flex justify-start">
+                      <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
+                        <Merge className="h-3 w-3 mr-1" />
+                        Account Closure
+                      </Badge>
+                    </div>
+                  )}
 
                   {/* Asset transfer visualization - compact horizontal layout */}
                   <div className="bg-background/50 rounded-xl p-4 space-y-4">
