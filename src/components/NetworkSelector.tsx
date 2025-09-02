@@ -33,11 +33,10 @@ export const NetworkSelector = ({
       <CardContent className="space-y-6">
         <div className="space-y-2">
           
-          <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-            <div className="flex items-center gap-2">
-              {currentNetwork === 'testnet' ? <Badge variant="secondary">Testnet</Badge> : <Badge variant="default">Mainnet</Badge>}
-              <span>{currentNetwork === 'testnet' ? 'horizon-testnet.stellar.org' : 'horizon.stellar.org'}</span>
-            </div>
+          <div className="flex items-center rounded-md border border-border px-3 py-2">
+            <span className="text-sm font-medium">
+              Network {currentNetwork === 'testnet' ? 'Testnet' : 'Mainnet'}
+            </span>
           </div>
         </div>
 
