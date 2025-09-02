@@ -46,7 +46,7 @@ export const LandingPage = ({
       {/* Header */}
       <header className="absolute top-0 left-0 right-0 z-20 p-6">
         <div className="container mx-auto flex justify-between items-center">
-          <div className="text-2xl font-bold">Stratum</div>
+          <div className="text-2xl font-bold text-stellar-yellow glow-on-hover transition-all duration-300">Stratum</div>
           <Button variant="outline" className="border-muted-foreground/20 hover:border-stellar-yellow hover:text-stellar-yellow" asChild>
             <a href="https://x.com/PamphileRoy" target="_blank" rel="noopener noreferrer">
               Contact
@@ -79,7 +79,7 @@ export const LandingPage = ({
 
           <div className="mt-20 text-sm text-muted-foreground">
             Built on <span className="text-stellar-yellow font-medium">Stellar</span> by{' '}
-            <a href="https://consulting-manao.com/" target="_blank" rel="noopener noreferrer" className="text-stellar-yellow font-medium hover:underline">
+            <a href="https://consulting-manao.com/" target="_blank" rel="noopener noreferrer" className="text-stellar-yellow font-medium hover:underline glow-on-hover transition-all duration-300">
               Consulting Manao GmbH
             </a>
           </div>

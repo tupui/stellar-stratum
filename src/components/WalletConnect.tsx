@@ -512,7 +512,15 @@ export const WalletConnect = ({
           
           <div className="pt-4 border-t border-border">
             <div className="text-center text-xs text-muted-foreground">
-              © 2025 Consulting Manao GmbH
+              © 2025{' '}
+              <a 
+                href="https://consulting-manao.com/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-stellar-yellow font-medium hover:underline glow-on-hover transition-all duration-300"
+              >
+                Consulting Manao GmbH
+              </a>
             </div>
           </div>
         </CardContent>
