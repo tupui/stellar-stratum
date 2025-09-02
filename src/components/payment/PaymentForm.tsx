@@ -259,20 +259,8 @@ export const PaymentForm = ({
     };
   }, [paymentData.destination, network]);
 
-  // Auto-select valid receive asset if "same" isn't accepted by destination
-  useEffect(() => {
-    if (!recipientAssetOptions.length) return;
-    const recipientHasSame = paymentData.asset === 'XLM' || recipientAssetOptions.some(a => a.code === paymentData.asset);
-    if (!recipientHasSame && (!paymentData.receiveAsset || !recipientAssetOptions.some(a => a.code === paymentData.receiveAsset!))) {
-      const fallback = recipientAssetOptions.find(a => a.code === 'XLM')?.code || recipientAssetOptions[0].code;
-      const selected = recipientAssetOptions.find(a => a.code === fallback);
-      onPaymentDataChange({
-        ...paymentData,
-        receiveAsset: fallback,
-        receiveAssetIssuer: selected?.issuer
-      });
-    }
-  }, [recipientAssetOptions, paymentData.asset]);
+// Removed auto-selection of receive asset to respect manual choice and explicit rules
+// per user request: no automatic adjustments.
 
   // Helper to calculate fiat value
   const calculateFiatValue = async (amount: string, asset: string) => {
@@ -521,6 +509,11 @@ export const PaymentForm = ({
     if (paymentData.destination === accountPublicKey) {
       return false;
     }
+    // New destination accounts can ONLY receive XLM (no cross-asset)
+    if (recipientExists === false) {
+      if (paymentData.asset !== 'XLM') return false;
+      if (paymentData.receiveAsset && paymentData.receiveAsset !== 'XLM') return false;
+    }
     if (willCloseAccount) {
       return paymentData.destination && paymentData.destination !== accountPublicKey && canCloseAccount();
     }
@@ -713,10 +706,10 @@ export const PaymentForm = ({
           {compactPayments.map((payment, index) => {
         // Check if this payment will close the account using the stored flag
         const closesAccount = payment.isAccountClosure || false;
-        return <Card key={payment.id} className={`p-4 border border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-card/50'} hover:bg-card/70 transition-colors`}>
+        return <Card key={payment.id} className={`p-5 md:p-6 rounded-2xl border border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-card/60'} hover:bg-card transition-colors shadow-sm`}>
                 <div className="flex items-start gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-semibold text-foreground">Operation #{index + 1}</span>
                         {closesAccount && (
@@ -731,7 +724,7 @@ export const PaymentForm = ({
                       )}
                     </div>
                     
-                    <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-4 gap-y-3 items-center text-sm">
+                    <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-6 md:gap-x-8 gap-y-3 items-center text-sm">
                       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">FROM</span>
                       <div className="flex items-center gap-2">
                         <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={20} />
@@ -827,7 +820,7 @@ export const PaymentForm = ({
             toAsset={paymentData.receiveAsset}
             toAssetIssuer={paymentData.receiveAssetIssuer}
             amount={paymentData.amount}
-            availableAssets={availableAssets}
+            availableAssets={recipientExists === false ? availableAssets.filter(a => a.code === "XLM") : availableAssets}
             recipientAssets={getReceiveOptions()}
             maxAmount={getMaxSliderValue(paymentData.asset)}
             reserveAmount={paymentData.asset === 'XLM' ? 1 : 0} // XLM minimum balance requirement
