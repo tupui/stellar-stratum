@@ -137,11 +137,13 @@ export const PaymentForm = ({
 
   // Calculate leftover balance after all other transactions (for merge display)
   const getLeftoverBalance = (assetCode: string) => {
-    const totalBalance = getAvailableBalance(assetCode);
+    // Use FULL balance for merge (do not subtract reserves/fees)
+    const asset = availableAssets.find(a => a.code === assetCode);
+    const fullBalance = asset ? parseFloat(asset.balance) : 0;
     const compactTotal = compactPayments
       .filter(p => p.asset === assetCode && !p.isAccountClosure) // Exclude other merges
       .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-    return Math.max(0, totalBalance - compactTotal);
+    return Math.max(0, fullBalance - compactTotal);
   };
   const getMaxSliderValue = (assetCode: string) => {
     const asset = availableAssets.find(a => a.code === assetCode);
