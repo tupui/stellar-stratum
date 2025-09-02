@@ -297,13 +297,18 @@ export const SwapInterface = ({
                 </div>
               </SelectValue>
             </SelectTrigger>
-<SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
-  <SelectItem value="same" className="px-3 py-3" hideIndicator>
-    <div className="flex items-center gap-3">
-      <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
-      <span className="text-muted-foreground">Same ({fromAsset})</span>
-    </div>
-  </SelectItem>
+            <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
+              <SelectItem value="same" className="px-3 py-3" hideIndicator>
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
+                    <span className="text-muted-foreground">Same ({fromAsset})</span>
+                  </div>
+                  <span className="text-sm font-mono tabular-nums text-muted-foreground whitespace-nowrap text-right ml-4 w-28 shrink-0">
+                    {formatBalance(toAssetBalance)}
+                  </span>
+                </div>
+              </SelectItem>
   {recipientAssets.filter(asset => asset.code !== fromAsset).length > 0 && (
     <div className="px-3 py-2 border-b border-border/50">
       <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase tracking-wide">
