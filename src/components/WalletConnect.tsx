@@ -263,33 +263,31 @@ export const WalletConnect = ({
     }
   };
   const walletContent = <>
-      {/* Network Toggle */}
-      <div className="mb-6 flex justify-end">
-        <div className="relative bg-muted rounded-full p-1 flex">
+      {/* Network Toggle - Centered and better integrated */}
+      <div className="mb-8 flex justify-center">
+        <div className="relative bg-muted/50 backdrop-blur-sm rounded-full p-1 flex border border-border/50">
           <button
             onClick={() => setSelectedNetwork('mainnet')}
-            className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+            className={`px-6 py-2.5 text-sm font-medium rounded-full transition-all ${
               selectedNetwork === 'mainnet'
-                ? 'bg-success text-success-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-success text-success-foreground shadow-lg shadow-success/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
             }`}
           >
             Mainnet
           </button>
           <button
             onClick={() => setSelectedNetwork('testnet')}
-            className={`px-4 py-2 text-sm font-medium rounded-full transition-all ${
+            className={`px-6 py-2.5 text-sm font-medium rounded-full transition-all ${
               selectedNetwork === 'testnet'
-                ? 'bg-success text-success-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-success text-success-foreground shadow-lg shadow-success/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
             }`}
           >
             Testnet
           </button>
         </div>
       </div>
-
-      <Separator className="mb-6" />
       {loading && supportedWallets.length === 0 ? <div className="flex items-center justify-center py-8">
           <div className="flex items-center gap-2 text-muted-foreground">
             <RefreshCw className="w-4 h-4 animate-spin" />
