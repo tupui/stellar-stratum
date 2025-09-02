@@ -226,16 +226,21 @@ export const SwapInterface = ({
       {/* Swap Direction Button */}
       <div className="flex justify-center relative z-10 -my-3">
         {!onSwapDirection ? (
-          <div className="w-12 h-12 rounded-full bg-card border border-border/60 flex items-center justify-center shadow-sm">
-            <ArrowDown className="h-4 w-4 text-muted-foreground" />
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg border-4 border-background flex items-center justify-center">
+            <ArrowDown className="h-5 w-5 text-white" />
           </div>
         ) : (
           <Button
             onClick={onSwapDirection}
-            className="w-12 h-12 rounded-full bg-success hover:bg-success/90 shadow-lg border-4 border-background transition-all duration-200 hover:shadow-xl"
+            className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg border-4 border-background transition-all duration-200 hover:shadow-xl"
             size="sm"
           >
-            <ArrowUpDown className="h-4 w-4 text-white" />
+            <div className="flex items-center justify-center">
+              <div className="relative">
+                <ArrowDown className="h-3 w-3 text-white absolute -top-1" />
+                <ArrowDown className="h-3 w-3 text-white absolute top-1 rotate-180" />
+              </div>
+            </div>
           </Button>
         )}
       </div>
