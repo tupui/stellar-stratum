@@ -55,7 +55,8 @@ export const SwapAmountInput = ({
   const [editValue, setEditValue] = useState(amount);
 
   const fromAssetBalance = availableAssets.find(a => a.code === fromAsset)?.balance || '0';
-  const toAssetBalance = recipientAssets.find(a => a.code === toAsset)?.balance || '0';
+  const receiveCode = toAsset || fromAsset;
+  const toAssetBalance = recipientAssets.find(a => a.code === receiveCode)?.balance || '0';
 
   // Simple logic: For XLM subtract 1 for minimum balance, for others use full balance
   const rawBalance = parseFloat(fromAssetBalance);
@@ -263,7 +264,7 @@ export const SwapAmountInput = ({
       <div className="bg-card/30 backdrop-blur-sm border border-border/40 rounded-2xl p-4 md:p-6 hover:border-border/60 transition-colors">
         <div className="flex items-center justify-between mb-4">
           <span className="text-sm font-medium text-muted-foreground">You receive</span>
-          {toAsset && recipientAssets.length > 0 && (
+          {recipientAssets.length > 0 && (
             <div className="text-sm text-muted-foreground">
               <span className="hidden sm:inline">Recipient has: {formatBalance(toAssetBalance)}</span>
               <span className="sm:hidden">Has: {formatBalance(toAssetBalance)}</span>
@@ -311,7 +312,9 @@ export const SwapAmountInput = ({
                       <span className="text-muted-foreground">Same ({fromAsset})</span>
                     </div>
                     <span></span>
-                    <span className="text-xs text-muted-foreground">—</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {formatBalance(recipientAssets.find(a => a.code === fromAsset)?.balance || '0')}
+                    </span>
                   </div>
                 </SelectItem>
                 {recipientAssets.filter(asset => asset.code !== fromAsset).map((asset) => (

@@ -111,7 +111,7 @@ export const PaymentForm = ({
   const [recipientAssetOptions, setRecipientAssetOptions] = useState<RecipientAsset[]>([]);
   const [recipientExists, setRecipientExists] = useState<boolean | null>(null);
   const [willCloseAccount, setWillCloseAccount] = useState(false);
-  const [showAutoAdjustWarning, setShowAutoAdjustWarning] = useState(false);
+  
   const [hasActiveForm, setHasActiveForm] = useState(false);
   const isDraggingRef = useRef(false);
   // Calculate Stellar reserves for XLM
@@ -337,12 +337,10 @@ export const PaymentForm = ({
       return;
     }
 
-    // Enforce 7 decimal places max and clamp to [0, max]
-    const max = getMaxSliderValue(paymentData.asset);
+    // Enforce 7 decimal places max; do not auto-clamp
     let num = parseFloat(newAmount);
     if (isNaN(num)) num = 0;
-    const clamped = Math.min(Math.max(0, num), max);
-    const fixed = clamped.toFixed(7); // Stellar supports up to 7 decimals
+    const fixed = num.toFixed(7); // Stellar supports up to 7 decimals
 
     onPaymentDataChange({
       ...paymentData,
@@ -350,41 +348,7 @@ export const PaymentForm = ({
     });
     setWillCloseAccount(checkAccountClosure(fixed, paymentData.asset));
 
-    // Skip auto-adjust while user is dragging for smooth slider UX
-    if (isDraggingRef.current) return;
-
-    // Check if total across all payments exceeds available balance
-    setTimeout(async () => {
-      const currentAmount = parseFloat(fixed) || 0;
-      const compactTotal = compactPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-      const total = currentAmount + compactTotal;
-      const available = getAvailableBalance(paymentData.asset);
-      if (total > available && compactPayments.length > 0) {
-        setShowAutoAdjustWarning(true);
-        // Proportionally reduce all amounts
-        const ratio = available / total;
-        const newCurrentAmount = (currentAmount * ratio).toFixed(7);
-        onPaymentDataChange({
-          ...paymentData,
-          amount: newCurrentAmount
-        });
-
-        // Update compact payments with new amounts and recalculated fiat values
-        const updatedCompactPayments = await Promise.all(compactPayments.map(async p => {
-          const newAmt = ((parseFloat(p.amount) || 0) * ratio).toFixed(7);
-          const newFiatValue = await calculateFiatValue(newAmt, p.asset);
-          return {
-            ...p,
-            amount: newAmt,
-            fiatValue: newFiatValue
-          };
-        }));
-        setCompactPayments(updatedCompactPayments);
-        setTimeout(() => setShowAutoAdjustWarning(false), 4000);
-      } else {
-        setShowAutoAdjustWarning(false);
-      }
-    }, 100);
+    // Auto-adjust removed per user request
   };
   const handleMergeAccount = () => {
     if (!canCloseAccount()) return;
@@ -728,12 +692,6 @@ export const PaymentForm = ({
       </div>;
   };
   return <div className="space-y-6">
-      {showAutoAdjustWarning && <Alert variant="destructive" className="animate-fade-in">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Total amount exceeds available balance. Amounts have been automatically adjusted.
-          </AlertDescription>
-        </Alert>}
 
       {/* Account Merge Warning - show before payments list */}
       {willCloseAccount && <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
