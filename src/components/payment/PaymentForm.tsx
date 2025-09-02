@@ -813,7 +813,10 @@ export const PaymentForm = ({
                 <div className="space-y-4">
                   {/* Header with operation number, fiat value, and actions - all in one row */}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-foreground">Op #{index + 1}</span>
+                    <div className="text-sm font-semibold text-foreground">
+                      <span className="sm:hidden">Op #{index + 1}</span>
+                      <span className="hidden sm:inline">Operation #{index + 1}</span>
+                    </div>
                     
                     <div className="flex items-center gap-3">
                       {compactPaymentFiatValues[payment.id] && (
