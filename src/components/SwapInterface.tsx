@@ -339,11 +339,6 @@ export const SwapInterface = ({
                 (amount ? formatAmount(amount) : '0.0')
               }
             </div>
-            {isPathPayment && (
-              <div className="text-sm text-muted-foreground mt-1 font-amount">
-                Min {receiveAmount ? formatAmount(receiveAmount) : '0.0'}
-              </div>
-            )}
           </div>
         </div>
 
