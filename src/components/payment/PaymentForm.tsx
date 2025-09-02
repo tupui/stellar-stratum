@@ -600,7 +600,7 @@ export const PaymentForm = ({
         </div>
 
         {/* Slider */}
-        <div className="relative px-2">
+        <div className="relative self-center px-2">
           <input
             type="range"
             min={0}
@@ -624,11 +624,12 @@ export const PaymentForm = ({
             } as React.CSSProperties}
           />
         </div>
-        {/* Meta row */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground px-2">
-          <span className="font-amount">Available: {availableBalance.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 7 })} {paymentData.asset}</span>
-          {fiatValue && <span className="font-amount font-medium text-primary">≈ {fiatValue}</span>}
-        </div>
+        {/* Meta row: only fiat value */}
+        {fiatValue && (
+          <div className="text-right text-xs text-muted-foreground px-2">
+            <span className="font-amount font-medium text-primary">≈ {fiatValue}</span>
+          </div>
+        )}
       </div>
     );
   };
@@ -828,7 +829,7 @@ export const PaymentForm = ({
             </Select>
 
             {/* Amount Slider with proper positioning and merge button */}
-            <div className="relative md:pt-2">
+            <div className="relative self-center">
               <AmountSlider />
               {/* Merge button positioned below slider */}
               {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
