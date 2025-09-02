@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,7 +55,7 @@ interface PaymentFormProps {
   availableAssets: Asset[];
   assetPrices: Record<string, number>;
   trustlineError: string;
-  onBuild: (paymentData?: PaymentData, payments?: CompactPayment[], isAccountMerge?: boolean, pathPayment?: any) => void;
+  onBuild: (paymentData?: PaymentData, isAccountMerge?: boolean, payments?: CompactPayment[], pathPayment?: any) => void;
   isBuilding: boolean;
   accountData: {
     balances: Array<{
@@ -104,6 +104,7 @@ export const PaymentForm = ({
   const [willCloseAccount, setWillCloseAccount] = useState(false);
   const [showAutoAdjustWarning, setShowAutoAdjustWarning] = useState(false);
   const [showBundleActions, setShowBundleActions] = useState(false);
+  const isDraggingRef = useRef(false);
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
     const baseReserve = 0.5;
@@ -220,14 +221,15 @@ export const PaymentForm = ({
     if (price > 0) {
       const usdValue = parseFloat(amount) * price;
       if (quoteCurrency === 'USD') {
-        return `$${usdValue.toFixed(2)}`;
+        return `$${usdValue.toFixed(2)} USD`;
       } else {
         try {
           const convertedValue = await convertFromUSD(usdValue, quoteCurrency);
           const currency = getCurrentCurrency();
-          return `${currency?.symbol || ''}${convertedValue.toFixed(2)}`;
+          const code = currency?.code || quoteCurrency;
+          return `${currency?.symbol || ''}${convertedValue.toFixed(2)} ${code}`;
         } catch (error) {
-          return `$${usdValue.toFixed(2)}`;
+          return `$${usdValue.toFixed(2)} USD`;
         }
       }
     }
@@ -258,12 +260,22 @@ export const PaymentForm = ({
   };
 
   const handleAmountChange = (newAmount: string) => {
-    onPaymentDataChange({ ...paymentData, amount: newAmount });
-    setWillCloseAccount(checkAccountClosure(newAmount, paymentData.asset));
+    // Enforce 7 decimal places max and clamp to [0, max]
+    const max = getMaxSliderValue(paymentData.asset);
+    let num = parseFloat(newAmount);
+    if (isNaN(num)) num = 0;
+    const clamped = Math.min(Math.max(0, num), max);
+    const fixed = clamped.toFixed(7); // Stellar supports up to 7 decimals
+
+    onPaymentDataChange({ ...paymentData, amount: fixed });
+    setWillCloseAccount(checkAccountClosure(fixed, paymentData.asset));
+
+    // Skip auto-adjust while user is dragging for smooth slider UX
+    if (isDraggingRef.current) return;
 
     // Check if total across all payments exceeds available balance
     setTimeout(async () => {
-      const currentAmount = parseFloat(newAmount) || 0;
+      const currentAmount = parseFloat(fixed) || 0;
       const compactTotal = compactPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
       const total = currentAmount + compactTotal;
       const available = getAvailableBalance(paymentData.asset);
@@ -278,11 +290,11 @@ export const PaymentForm = ({
         // Update compact payments with new amounts and recalculated fiat values
         const updatedCompactPayments = await Promise.all(
           compactPayments.map(async (p) => {
-            const newAmount = ((parseFloat(p.amount) || 0) * ratio).toFixed(7);
-            const newFiatValue = await calculateFiatValue(newAmount, p.asset);
+            const newAmt = ((parseFloat(p.amount) || 0) * ratio).toFixed(7);
+            const newFiatValue = await calculateFiatValue(newAmt, p.asset);
             return {
               ...p,
-              amount: newAmount,
+              amount: newAmt,
               fiatValue: newFiatValue
             };
           })
@@ -378,7 +390,6 @@ export const PaymentForm = ({
       slippageTolerance: 0.5
     });
     setWillCloseAccount(false);
-    setShowBundleActions(false);
   };
 
   const editCompactPayment = (payment: CompactPayment) => {
@@ -432,7 +443,7 @@ export const PaymentForm = ({
 
   const handleBuild = () => {
     if (willCloseAccount) {
-      onBuild(undefined, undefined, true);
+      onBuild(paymentData, true);
     } else if (compactPayments.length > 0) {
       // Build batch transaction with compact payments + current payment
       const allPayments = [
@@ -450,10 +461,10 @@ export const PaymentForm = ({
           fiatValue: fiatValue
         }
       ];
-      onBuild(undefined, allPayments);
+      onBuild(undefined, false, allPayments);
     } else if (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset) {
       // Single cross-asset payment
-      onBuild(undefined, undefined, false, paymentData);
+      onBuild(undefined, false, undefined, paymentData);
     } else {
       // Single regular payment
       onBuild(paymentData);
@@ -499,6 +510,16 @@ export const PaymentForm = ({
         setEditValue(paymentData.amount);
       }
     }, [paymentData.amount, isEditing]);
+
+    useEffect(() => {
+      const endDrag = () => { isDraggingRef.current = false; };
+      window.addEventListener('mouseup', endDrag);
+      window.addEventListener('touchend', endDrag);
+      return () => {
+        window.removeEventListener('mouseup', endDrag);
+        window.removeEventListener('touchend', endDrag);
+      };
+    }, []);
 
     return (
       <div className="space-y-2">
@@ -565,9 +586,12 @@ export const PaymentForm = ({
             type="range"
             min={0}
             max={max}
-            step="any"
+            step={0.0000001}
             value={value}
             onChange={(e) => handleAmountChange(e.target.value)}
+            onInput={(e) => handleAmountChange((e.target as HTMLInputElement).value)}
+            onMouseDown={() => { isDraggingRef.current = true; }}
+            onTouchStart={() => { isDraggingRef.current = true; }}
             className={`w-full stellar-slider ${
               isOverLimit && canCloseAccount() ? 'slider-merge-warning' : 
               isOverLimit ? 'slider-warning' : ''
@@ -687,7 +711,7 @@ export const PaymentForm = ({
             <Label className="text-sm font-medium">Amount & Assets</Label>
           </div>
           
-          <div className="grid grid-cols-[140px_1fr_140px] gap-4 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_140px] gap-4 items-center">
             {/* From Asset */}
             <Select
               value={paymentData.asset}
@@ -747,7 +771,7 @@ export const PaymentForm = ({
               <AmountSlider />
               {/* Merge button positioned below, not overlapping */}
               {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
-                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
+                <div className="md:absolute md:-bottom-8 md:left-1/2 md:-translate-x-1/2 mt-2 md:mt-0 text-center">
                   <Button
                     variant="outline"
                     size="sm"
@@ -838,13 +862,15 @@ export const PaymentForm = ({
           <div className="space-y-2">
             <Label className="text-sm font-medium">Slippage Tolerance</Label>
             <div className="flex items-center space-x-4">
-              <Slider
-                value={[paymentData.slippageTolerance || 0.5]}
-                onValueChange={(value) => onPaymentDataChange({ ...paymentData, slippageTolerance: value[0] })}
-                max={5}
+              <input
+                type="range"
                 min={0.1}
+                max={5}
                 step={0.1}
-                className="flex-1"
+                value={paymentData.slippageTolerance || 0.5}
+                onChange={(e) => onPaymentDataChange({ ...paymentData, slippageTolerance: parseFloat(e.target.value) })}
+                className="flex-1 stellar-slider stellar-slider-purple"
+                style={{ '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / (5 - 0.1) * 100}%` } as React.CSSProperties}
               />
               <span className="text-sm font-mono w-12 text-right">
                 {(paymentData.slippageTolerance || 0.5).toFixed(1)}%

@@ -221,7 +221,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         // Calculate destination amount with slippage
         const sendAmount = parseFloat(pathPayment.amount);
         const estimatedRate = 1; // In real implementation, get this from Stellar path finding
-        const destMin = (sendAmount * estimatedRate * (1 - pathPayment.slippageTolerance / 100)).toFixed(7);
+        const destMin = (sendAmount * estimatedRate * (1 - (pathPayment.slippageTolerance || 0.5) / 100)).toFixed(7);
 
         transaction.addOperation(Operation.pathPaymentStrictSend({
           sendAsset,
