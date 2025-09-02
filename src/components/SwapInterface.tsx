@@ -185,7 +185,7 @@ export const SwapInterface = ({
                 {amount ? formatAmount(amount) : '0.0'}
               </div>}
             {fiatValue && <div className="text-sm text-muted-foreground mt-1 text-right font-amount">
-                ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '')}
+                ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '').replace(/\s[A-Z]{3}$/, '')}
               </div>}
           </div>
         </div>
