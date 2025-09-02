@@ -111,6 +111,7 @@ export const PaymentForm = ({
   const [recipientAssetOptions, setRecipientAssetOptions] = useState<RecipientAsset[]>([]);
   const [recipientExists, setRecipientExists] = useState<boolean | null>(null);
   const [willCloseAccount, setWillCloseAccount] = useState(false);
+  
   const [hasActiveForm, setHasActiveForm] = useState(false);
   const isDraggingRef = useRef(false);
   // Calculate Stellar reserves for XLM
@@ -120,7 +121,7 @@ export const PaymentForm = ({
     const signersCount = accountData.signers.length - 1; // Subtract master key
     const trustlinesCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
     const offersCount = 0; // We don't track offers in this app, but they would add to reserves
-
+    
     return (accountEntries + signersCount + trustlinesCount + offersCount) * baseReserve + 1; // +1 XLM for safety and fees
   };
   const getAvailableBalance = (assetCode: string) => {
@@ -137,8 +138,9 @@ export const PaymentForm = ({
   // Calculate leftover balance after all other transactions (for merge display)
   const getLeftoverBalance = (assetCode: string) => {
     const totalBalance = getAvailableBalance(assetCode);
-    const compactTotal = compactPayments.filter(p => p.asset === assetCode && !p.isAccountClosure) // Exclude other merges
-    .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    const compactTotal = compactPayments
+      .filter(p => p.asset === assetCode && !p.isAccountClosure) // Exclude other merges
+      .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
     return Math.max(0, totalBalance - compactTotal);
   };
   const getMaxSliderValue = (assetCode: string) => {
@@ -161,20 +163,26 @@ export const PaymentForm = ({
       if (b.asset_type === 'native') return 'XLM';
       return b.asset_code || 'UNKNOWN';
     });
+
     const wouldDrainAllAssets = allAssets.every(assetCode => {
       const availableBalance = getAvailableBalance(assetCode);
-
+      
       // Calculate total planned outflows for this asset
-      const compactTotal = compactPayments.filter(p => p.asset === assetCode && !p.isAccountClosure).reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-
+      const compactTotal = compactPayments
+        .filter(p => p.asset === assetCode && !p.isAccountClosure)
+        .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+      
       // Add current form amount if it matches this asset
-      const currentAmount = paymentData.asset === assetCode && paymentData.amount ? parseFloat(paymentData.amount) : 0;
+      const currentAmount = (paymentData.asset === assetCode && paymentData.amount) 
+        ? parseFloat(paymentData.amount) : 0;
+      
       const totalPlanned = compactTotal + currentAmount;
       const remaining = availableBalance - totalPlanned;
-
+      
       // Consider asset drained if remaining is very small (< 0.001)
       return remaining < 0.001;
     });
+
     return wouldDrainAllAssets;
   };
   const checkAccountClosure = (amount: string, assetCode: string) => {
@@ -251,8 +259,8 @@ export const PaymentForm = ({
     };
   }, [paymentData.destination, network]);
 
-  // Removed auto-selection of receive asset to respect manual choice and explicit rules
-  // per user request: no automatic adjustments.
+// Removed auto-selection of receive asset to respect manual choice and explicit rules
+// per user request: no automatic adjustments.
 
   // Helper to dynamically format fiat value based on current currency context
   const formatDynamicFiatValue = async (amount: string, asset: string) => {
@@ -289,6 +297,7 @@ export const PaymentForm = ({
       }
       setCompactPaymentFiatValues(newValues);
     };
+    
     if (compactPayments.length > 0) {
       updateCompactFiatValues();
     }
@@ -372,10 +381,10 @@ export const PaymentForm = ({
   };
   const handleMergeAccount = () => {
     if (!canCloseAccount()) return;
-
+    
     // For merge, show the leftover balance that will be transferred
     const leftoverBalance = getLeftoverBalance('XLM');
-
+    
     // Use current destination if provided, otherwise require user input
     onPaymentDataChange({
       ...paymentData,
@@ -391,22 +400,23 @@ export const PaymentForm = ({
   const calculatePathPaymentReceiveAmount = (amount: string, fromAsset: string, toAsset: string): string => {
     const numAmount = parseFloat(amount);
     if (!numAmount) return '0';
-
+    
     // Get the price ratio between assets if available
     const fromPrice = assetPrices[fromAsset] || 0;
     const toPrice = assetPrices[toAsset] || 0;
+    
     if (fromPrice > 0 && toPrice > 0) {
       // Calculate conversion based on USD prices
       const usdValue = numAmount * fromPrice;
       const convertedAmount = usdValue / toPrice;
-
+      
       // Apply slippage tolerance
-      const slippageAdjustment = 1 - (paymentData.slippageTolerance || 0.5) / 100;
+      const slippageAdjustment = 1 - ((paymentData.slippageTolerance || 0.5) / 100);
       return (convertedAmount * slippageAdjustment).toFixed(7);
     }
-
+    
     // Fallback: assume 1:1 ratio with slippage
-    const slippageAdjustment = 1 - (paymentData.slippageTolerance || 0.5) / 100;
+    const slippageAdjustment = 1 - ((paymentData.slippageTolerance || 0.5) / 100);
     return (numAmount * slippageAdjustment).toFixed(7);
   };
   const handleRevertMerge = () => {
@@ -509,6 +519,7 @@ export const PaymentForm = ({
       memo: payment.memo,
       slippageTolerance: payment.slippageTolerance
     });
+
     setEditingPaymentId(payment.id);
     setHasActiveForm(false);
     setWillCloseAccount(!!payment.isAccountClosure);
@@ -518,15 +529,18 @@ export const PaymentForm = ({
   };
   const removeCompactPayment = (id: string) => {
     setCompactPayments(compactPayments.filter(p => p.id !== id));
-
+    
     // Clear any built transaction since it's no longer valid
     onClearTransaction?.();
   };
+
   const handleSaveEdit = async () => {
     if (!editingPaymentId) return;
     if (!isFormValid()) return;
+
     const updatedFiat = await calculateFiatValue(paymentData.amount, paymentData.asset);
     const isAccountClosure = willCloseAccount || checkAccountClosure(paymentData.amount, paymentData.asset);
+
     setCompactPayments(prev => prev.map(p => p.id === editingPaymentId ? {
       ...p,
       destination: paymentData.destination,
@@ -540,6 +554,7 @@ export const PaymentForm = ({
       fiatValue: updatedFiat,
       isAccountClosure
     } : p));
+
     setEditingPaymentId(null);
     setHasActiveForm(true);
 
@@ -557,6 +572,7 @@ export const PaymentForm = ({
     setWillCloseAccount(false);
     onClearTransaction?.();
   };
+
   const cancelCurrentPayment = () => {
     // If editing, exit edit mode and keep the bundle unchanged
     if (editingPaymentId) {
@@ -612,6 +628,7 @@ export const PaymentForm = ({
       willCloseAccount,
       paymentData
     });
+
     if (compactPayments.length > 0 && hasActiveForm) {
       console.log('Taking batch path with active form');
       // Build batch transaction with compact payments
@@ -651,6 +668,7 @@ export const PaymentForm = ({
       console.log('Taking batch path without active form');
       // Build batch transaction with compact payments + current payment
       const currentPaymentIsAccountClosure = checkAccountClosure(paymentData.amount, paymentData.asset);
+      
       const allPayments = [...compactPayments, {
         id: 'current',
         destination: paymentData.destination,
@@ -664,7 +682,7 @@ export const PaymentForm = ({
         fiatValue: fiatValue,
         isAccountClosure: currentPaymentIsAccountClosure
       }];
-
+      
       // Build all payments as a batch transaction (including any account closures)
       onBuild(undefined, false, allPayments);
     } else if (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset) {
@@ -742,17 +760,25 @@ export const PaymentForm = ({
 
         {/* Slider */}
         <div className="relative self-center px-2">
-          <Slider value={[sliderValue]} onValueChange={values => {
-          const v = values[0] || 0;
-          const newAmount = maxAmount > 0 ? v / sliderMax * maxAmount : 0;
-          isDraggingRef.current = true;
-          handleAmountChange(newAmount.toFixed(7));
-        }} onPointerDown={() => {
-          isDraggingRef.current = true;
-        }} max={sliderMax} step={1} className={`stellar-slider w-full ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`} style={{
-          '--slider-progress': `${percentage}%`,
-          '--available-progress': `${availablePercentage}%`
-        } as React.CSSProperties} />
+          <Slider
+            value={[sliderValue]}
+            onValueChange={(values) => {
+              const v = values[0] || 0;
+              const newAmount = maxAmount > 0 ? v / sliderMax * maxAmount : 0;
+              isDraggingRef.current = true;
+              handleAmountChange(newAmount.toFixed(7));
+            }}
+            onPointerDown={() => {
+              isDraggingRef.current = true;
+            }}
+            max={sliderMax}
+            step={1}
+            className={`stellar-slider w-full ${willCloseAccount ? 'slider-merge' : isOverLimit && canCloseAccount() ? 'slider-merge-warning' : isOverLimit ? 'slider-warning' : ''}`}
+            style={{
+              '--slider-progress': `${percentage}%`,
+              '--available-progress': `${availablePercentage}%`
+            } as React.CSSProperties}
+          />
         </div>
         {/* Meta row: only fiat value */}
         {fiatValue && <div className="text-right text-xs text-muted-foreground px-2">
@@ -790,12 +816,26 @@ export const PaymentForm = ({
                     <span className="text-sm font-semibold text-foreground">Op #{index + 1}</span>
                     
                     <div className="flex items-center gap-3">
-                      {compactPaymentFiatValues[payment.id] && <span className="text-sm font-semibold text-primary">≈ {compactPaymentFiatValues[payment.id]}</span>}
+                      {compactPaymentFiatValues[payment.id] && (
+                        <span className="text-sm font-semibold text-primary">≈ {compactPaymentFiatValues[payment.id]}</span>
+                      )}
                       <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => editCompactPayment(payment)} className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary" title="Edit operation">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => editCompactPayment(payment)} 
+                          className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
+                          title="Edit operation"
+                        >
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => removeCompactPayment(payment.id)} className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10" title="Remove operation">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => removeCompactPayment(payment.id)} 
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
+                          title="Remove operation"
+                        >
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
@@ -803,12 +843,14 @@ export const PaymentForm = ({
                   </div>
 
                   {/* Account Closure badge on its own row when present */}
-                  {closesAccount && <div className="flex justify-start">
+                  {closesAccount && (
+                    <div className="flex justify-start">
                       <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
                         <Merge className="h-3 w-3 mr-1" />
                         Account Closure
                       </Badge>
-                    </div>}
+                    </div>
+                  )}
 
                   {/* Asset transfer visualization - compact horizontal layout */}
                   <div className="bg-background/50 rounded-xl p-4 space-y-4">
@@ -833,7 +875,9 @@ export const PaymentForm = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">TO</span>
-                        {payment.receiveAsset && payment.receiveAsset !== payment.asset && <div className="text-xs text-muted-foreground">Path</div>}
+                        {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
+                          <div className="text-xs text-muted-foreground">Path</div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-sm font-medium">{payment.receiveAsset || payment.asset}</div>
@@ -851,10 +895,12 @@ export const PaymentForm = ({
                         <span className="hidden sm:inline">{payment.destination}</span>
                       </div>
                     </div>
-                    {payment.memo && <div className="text-xs">
+                    {payment.memo && (
+                      <div className="text-xs">
                         <span className="text-muted-foreground font-medium">Memo:</span>
                         <div className="font-mono text-foreground mt-1 break-words">{payment.memo}</div>
-                      </div>}
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>;
@@ -866,7 +912,7 @@ export const PaymentForm = ({
           {/* Only show header when we have an active form (not in bundle mode) */}
           {!hasActiveForm && <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold">
-                {editingPaymentId ? 'Edit Operation' : compactPayments.length > 0 ? `Operation #${compactPayments.length + 1}` : 'Operation Details'}
+                {editingPaymentId ? 'Edit Operation' : (compactPayments.length > 0 ? `Operation #${compactPayments.length + 1}` : 'Operation Details')}
               </h3>
             </div>}
 
@@ -892,53 +938,66 @@ export const PaymentForm = ({
 
         {/* Payment Details Row */}
         <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm font-medium">Amount & Assets</Label>
+          </div>
           
-          
-          <SwapInterface fromAsset={paymentData.asset} fromAssetIssuer={paymentData.assetIssuer} toAsset={paymentData.receiveAsset} toAssetIssuer={paymentData.receiveAssetIssuer} amount={paymentData.amount} availableAssets={recipientExists === false ? availableAssets.filter(a => a.code === "XLM") : availableAssets} recipientAssets={getReceiveOptions()} maxAmount={getMaxSliderValue(paymentData.asset)} reserveAmount={paymentData.asset === 'XLM' ? 1 : 0} // XLM minimum balance requirement
-          previousOperations={compactPayments.map(p => ({
-            asset: p.asset,
-            amount: p.amount,
-            type: 'payment'
-          }))} fiatValue={fiatValue} receiveAmount={paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? calculatePathPaymentReceiveAmount(paymentData.amount, paymentData.asset, paymentData.receiveAsset) : undefined} slippageTolerance={paymentData.slippageTolerance} onAmountChange={handleAmountChange} onFromAssetChange={(asset, issuer) => {
-            onPaymentDataChange({
+          <SwapInterface
+            fromAsset={paymentData.asset}
+            fromAssetIssuer={paymentData.assetIssuer}
+            toAsset={paymentData.receiveAsset}
+            toAssetIssuer={paymentData.receiveAssetIssuer}
+            amount={paymentData.amount}
+            availableAssets={recipientExists === false ? availableAssets.filter(a => a.code === "XLM") : availableAssets}
+            recipientAssets={getReceiveOptions()}
+            maxAmount={getMaxSliderValue(paymentData.asset)}
+            reserveAmount={paymentData.asset === 'XLM' ? 1 : 0} // XLM minimum balance requirement
+            previousOperations={compactPayments.map(p => ({ asset: p.asset, amount: p.amount, type: 'payment' }))}
+            fiatValue={fiatValue}
+            receiveAmount={paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
+              calculatePathPaymentReceiveAmount(paymentData.amount, paymentData.asset, paymentData.receiveAsset) : 
+              undefined
+            }
+            slippageTolerance={paymentData.slippageTolerance}
+            onAmountChange={handleAmountChange}
+            onFromAssetChange={(asset, issuer) => {
+              onPaymentDataChange({
+                ...paymentData,
+                asset,
+                assetIssuer: issuer || '',
+                amount: ''
+              });
+              setWillCloseAccount(false);
+            }}
+            onToAssetChange={(asset, issuer) => {
+              onPaymentDataChange({
+                ...paymentData,
+                receiveAsset: asset,
+                receiveAssetIssuer: issuer
+              });
+            }}
+            onSlippageToleranceChange={(t) => onPaymentDataChange({
               ...paymentData,
-              asset,
-              assetIssuer: issuer || '',
-              amount: ''
-            });
-            setWillCloseAccount(false);
-          }} onToAssetChange={(asset, issuer) => {
-            onPaymentDataChange({
-              ...paymentData,
-              receiveAsset: asset,
-              receiveAssetIssuer: issuer
-            });
-          }} />
+              slippageTolerance: t
+            })}
+          />
 
           {/* Merge Account Button */}
-          {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && <div className="text-center">
-              <Button variant="outline" size="sm" onClick={handleMergeAccount} className="h-8 px-4 text-sm border-primary/30 hover:border-primary hover:bg-primary/10">
+          {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
+            <div className="text-center">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleMergeAccount} 
+                className="h-8 px-4 text-sm border-primary/30 hover:border-primary hover:bg-primary/10"
+              >
                 <Merge className="h-4 w-4 mr-2" />
                 Merge Account
               </Button>
-            </div>}
+            </div>
+          )}
         </div>
 
-        {/* Slippage Tolerance (only when cross-asset) */}
-        {paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset && <div className="space-y-2">
-            <Label className="text-sm font-medium">Slippage Tolerance</Label>
-            <div className="flex items-center space-x-4">
-              <input type="range" min={0.1} max={5} step={0.1} value={paymentData.slippageTolerance || 0.5} onChange={e => onPaymentDataChange({
-              ...paymentData,
-              slippageTolerance: parseFloat(e.target.value)
-            })} className="flex-1 stellar-slider stellar-slider-purple" style={{
-              '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / 4.9 * 100}%`
-            } as React.CSSProperties} />
-              <span className="text-sm font-amount w-12 text-right">
-                {(paymentData.slippageTolerance || 0.5).toFixed(1)}%
-              </span>
-            </div>
-          </div>}
 
         {/* Memo */}
         <div className="space-y-2">
@@ -972,35 +1031,76 @@ export const PaymentForm = ({
         <div className="flex flex-col sm:flex-row gap-3 px-1">
           {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
           {hasActiveForm && <>
-              <Button onClick={addPayment} variant="outline" size="lg" className="flex-1 min-w-0 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors">
+              <Button 
+                onClick={addPayment} 
+                variant="outline" 
+                size="lg" 
+                className="flex-1 min-w-0 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors"
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 <span className="truncate">Add Operation</span>
               </Button>
-              <Button onClick={handleBuild} disabled={isBuilding || compactPayments.length === 0} className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50" size="lg">
-                {isBuilding ? <div className="flex items-center gap-2">
+              <Button 
+                onClick={handleBuild} 
+                disabled={isBuilding || compactPayments.length === 0} 
+                className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
+                size="lg"
+              >
+                {isBuilding ? (
+                  <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
                     <span className="truncate">Building...</span>
-                  </div> : <span className="truncate">Build Transaction</span>}
+                  </div>
+                ) : (
+                  <span className="truncate">Build Transaction</span>
+                )}
               </Button>
             </>}
 
           {/* Form with Bundle/Cancel - Show when hasActiveForm is false and form has content */}
-          {!hasActiveForm && (editingPaymentId ? <>
-                <Button onClick={handleSaveEdit} disabled={!isFormValid()} size="lg" className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50">
+          {!hasActiveForm && (
+            editingPaymentId ? (
+              <>
+                <Button 
+                  onClick={handleSaveEdit} 
+                  disabled={!isFormValid()} 
+                  size="lg"
+                  className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
+                >
                   <span className="truncate">Save Changes</span>
                 </Button>
-                <Button onClick={cancelCurrentPayment} variant="destructive" className="flex-1 min-w-0" size="lg">
+                <Button 
+                  onClick={cancelCurrentPayment} 
+                  variant="destructive" 
+                  className="flex-1 min-w-0" 
+                  size="lg"
+                >
                   <span className="truncate">Cancel Edit</span>
                 </Button>
-              </> : <>
-               <Button onClick={handleBundlePayment} variant="outline" disabled={!isFormValid()} size="lg" className="flex-1 min-w-0 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50">
+              </>
+            ) : (
+              <>
+               <Button 
+                 onClick={handleBundlePayment} 
+                 variant="outline" 
+                 disabled={!isFormValid()} 
+                 size="lg"
+                 className="flex-1 min-w-0 border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
+               >
                  <Plus className="w-4 h-4 mr-2" />
                  <span className="truncate">Bundle</span>
                </Button>
-               <Button onClick={cancelCurrentPayment} variant="destructive" className="flex-1 min-w-0" size="lg">
+               <Button 
+                 onClick={cancelCurrentPayment} 
+                 variant="destructive" 
+                 className="flex-1 min-w-0" 
+                 size="lg"
+               >
                  <span className="truncate">Cancel</span>
                </Button>
-              </>)}
+              </>
+            )
+          )}
 
 
           {/* Build single transaction - Show when no compact payments and form is valid */}
