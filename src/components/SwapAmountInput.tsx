@@ -57,10 +57,10 @@ export const SwapAmountInput = ({
   const fromAssetBalance = availableAssets.find(a => a.code === fromAsset)?.balance || '0';
   const toAssetBalance = recipientAssets.find(a => a.code === toAsset)?.balance || '0';
 
-  // Calculate asset-specific available amount considering reserves
-  const assetBalance = parseFloat(fromAssetBalance);
-  const assetReserve = fromAsset === 'XLM' ? reserveAmount : 0; // Only XLM needs reserve
-  const availableAmount = Math.max(0, assetBalance - assetReserve);
+  // Use the maxAmount prop passed from parent (which is already calculated per-asset)
+  // Only subtract reserve for XLM
+  const assetReserve = fromAsset === 'XLM' ? reserveAmount : 0;
+  const availableAmount = Math.max(0, maxAmount - assetReserve);
 
   useEffect(() => {
     if (!isEditingAmount) {
