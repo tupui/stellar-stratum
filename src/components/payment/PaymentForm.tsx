@@ -972,10 +972,33 @@ export const PaymentForm = ({
           <Label htmlFor="destination" className="text-sm font-medium">
             {willCloseAccount ? 'Send All Funds To' : 'Destination Address'}
           </Label>
-          <Input id="destination" placeholder="GABC..." maxLength={56} value={paymentData.destination} onChange={e => onPaymentDataChange({
-            ...paymentData,
-            destination: e.target.value
-          })} className="text-xs font-address bg-background border-border/60 focus:border-primary" />
+          <Input 
+            id="destination" 
+            placeholder="GABC..." 
+            maxLength={56} 
+            value={paymentData.destination} 
+            onChange={e => {
+              const value = e.target.value.toUpperCase();
+              // Only allow valid Stellar address characters (base32)
+              const validChars = /^[ABCDEFGHIJKLMNOPQRSTUVWXYZ234567]*$/;
+              // Must start with G or C (if not empty)
+              const validStart = value === '' || value.startsWith('G') || value.startsWith('C');
+              
+              if (validChars.test(value) && validStart) {
+                onPaymentDataChange({
+                  ...paymentData,
+                  destination: value
+                });
+              }
+            }}
+            className={`text-xs font-address bg-background focus:border-primary ${
+              paymentData.destination && paymentData.destination.length > 0 && 
+              (paymentData.destination.length !== 56 || 
+               (!paymentData.destination.startsWith('G') && !paymentData.destination.startsWith('C')))
+                ? 'border-destructive' 
+                : 'border-border/60'
+            }`}
+          />
         </div>
 
         {/* Memo */}
