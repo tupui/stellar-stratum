@@ -995,40 +995,20 @@ export const PaymentForm = ({
         </div>
 
         {/* Slippage Tolerance (only when cross-asset) */}
-        {paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset && (
-          <Card className="bg-card/60 border border-border/60 rounded-2xl p-6">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Receive Settings</span>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Slippage Tolerance</span>
-                  <span className="font-amount">{(paymentData.slippageTolerance || 0.5).toFixed(1)}%</span>
-                </div>
-                <input 
-                  type="range" 
-                  min={0.1} 
-                  max={5} 
-                  step={0.1} 
-                  value={paymentData.slippageTolerance || 0.5} 
-                  onChange={e => onPaymentDataChange({
-                    ...paymentData,
-                    slippageTolerance: parseFloat(e.target.value)
-                  })} 
-                  className="stellar-slider w-full" 
-                  style={{
-                    '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / 4.9 * 100}%`
-                  } as React.CSSProperties} 
-                />
-                <div className="flex justify-between items-center text-xs text-muted-foreground">
-                  <span>Min received (after slippage)</span>
-                </div>
-              </div>
+        {paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset && <div className="space-y-2">
+            <Label className="text-sm font-medium">Slippage Tolerance</Label>
+            <div className="flex items-center space-x-4">
+              <input type="range" min={0.1} max={5} step={0.1} value={paymentData.slippageTolerance || 0.5} onChange={e => onPaymentDataChange({
+              ...paymentData,
+              slippageTolerance: parseFloat(e.target.value)
+            })} className="flex-1 stellar-slider stellar-slider-purple" style={{
+              '--slider-progress': `${((paymentData.slippageTolerance || 0.5) - 0.1) / 4.9 * 100}%`
+            } as React.CSSProperties} />
+              <span className="text-sm font-amount w-12 text-right">
+                {(paymentData.slippageTolerance || 0.5).toFixed(1)}%
+              </span>
             </div>
-          </Card>
-        )}
+          </div>}
 
         {/* Memo */}
         <div className="space-y-2">
