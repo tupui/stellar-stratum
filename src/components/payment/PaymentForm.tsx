@@ -417,8 +417,8 @@ export const PaymentForm = ({
       }
     }
 
-    // Check if this payment is an account closure
-    const isAccountClosure = checkAccountClosure(paymentData.amount, paymentData.asset);
+    // Check if this payment is an account closure - use willCloseAccount state for merge operations
+    const isAccountClosure = willCloseAccount || checkAccountClosure(paymentData.amount, paymentData.asset);
 
     // Create compact payment from current form
     const compactPayment: CompactPayment = {
