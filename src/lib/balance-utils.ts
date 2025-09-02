@@ -105,6 +105,6 @@ export function calculateBalancePercentage(
   availableBalance: number
 ): number {
   const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  if (availableBalance === 0) return 0;
+  if (availableBalance === 0 || isNaN(numAmount) || numAmount <= 0) return 0;
   return Math.min(100, Math.max(0, (numAmount / availableBalance) * 100));
 }

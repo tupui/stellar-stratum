@@ -100,6 +100,15 @@ export const SwapAmountInput = ({
 
   // Calculate current percentage for slider
   const currentPercentage = calculateBalancePercentage(amount, availableAmount);
+  
+  // Set default 10% amount when amount is empty and availableAmount > 0
+  useEffect(() => {
+    if ((!amount || amount === '0' || parseFloat(amount) === 0) && availableAmount > 0) {
+      const defaultAmount = availableAmount * 0.1; // 10% of available balance
+      const cappedAmount = validateAndCapAmount(defaultAmount, availableAmount);
+      onAmountChange(cappedAmount);
+    }
+  }, [availableAmount, amount, onAmountChange]);
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -211,10 +220,10 @@ export const SwapAmountInput = ({
               type="range"
               min="0"
               max="100"
-              step="0.1"
-              value={currentPercentage}
+              step="1"
+              value={Math.round(currentPercentage)}
               onChange={(e) => {
-                const percentage = parseFloat(e.target.value);
+                const percentage = parseInt(e.target.value);
                 const newAmount = availableAmount * (percentage / 100);
                 const cappedAmount = validateAndCapAmount(newAmount, availableAmount);
                 onAmountChange(cappedAmount);
