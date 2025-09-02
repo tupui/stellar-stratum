@@ -333,7 +333,7 @@ export const SwapInterface = ({
           </Select>
 
           <div className="flex-1 text-right">
-            <div className="text-xl font-mono text-foreground font-amount">
+            <div className="text-xl font-mono text-white font-amount">
               {isPathPayment ? 
                 `Min ${receiveAmount ? formatAmount(receiveAmount) : '0.0'}` :
                 (amount ? formatAmount(amount) : '0.0')
