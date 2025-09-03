@@ -131,59 +131,24 @@ export const SwapInterface = ({
   // Path payment logic
   const isPathPayment = toAsset && toAsset !== fromAsset;
   
-  // Price fetching logic for swap
+  // Get prices from parent - no custom fetching needed
+  const fromPrice = assetPrices[fromAsset] || 0;
+  const toPrice = assetPrices[toAsset || ''] || 0;
+  
+  // Show manual input if prices not available
+  const shouldShowManualInput = isPathPayment && (fromPrice <= 0 || toPrice <= 0);
+  
   useEffect(() => {
-    const fetchMissingPrices = async () => {
-      if (!isPathPayment || !onFetchAssetPrice) return;
-      
-      const fromPrice = assetPrices[fromAsset] || 0;
-      const toPrice = assetPrices[toAsset] || 0;
-      
-      if (fromPrice > 0 && toPrice > 0) {
-        setPriceError('');
-        setIsManualInput(false);
-        return;
-      }
-      
-      setFetchingPrices(true);
+    if (shouldShowManualInput) {
+      setPriceError(`Exchange rate not available. Please enter minimum receive amount manually.`);
+      setIsManualInput(true);
+      setFetchingPrices(false);
+    } else {
       setPriceError('');
-      
-      // If no prices available, show manual input option immediately
-      if (fromPrice <= 0 || toPrice <= 0) {
-        setPriceError(`Unable to fetch exchange rate between ${fromAsset} and ${toAsset || 'unknown'}. Please enter minimum receive amount manually.`);
-        setIsManualInput(true);
-        setFetchingPrices(false);
-        
-        // Try to fetch prices in background for next time
-        const fetchPromises = [];
-        if (fromPrice <= 0) {
-          fetchPromises.push(onFetchAssetPrice(fromAsset, fromAssetIssuer));
-        }
-        if (toPrice <= 0 && toAsset) {
-          fetchPromises.push(onFetchAssetPrice(toAsset, toAssetIssuer));
-        }
-        
-        if (fetchPromises.length > 0) {
-          Promise.allSettled(fetchPromises.map(p => 
-            Promise.race([
-              p,
-              new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Timeout')), 2000)
-              )
-            ])
-          )).catch(() => {
-            // Silently handle failures
-          });
-        }
-      } else {
-        setPriceError('');
-        setIsManualInput(false);
-        setFetchingPrices(false);
-      }
-    };
-    
-    fetchMissingPrices();
-  }, [isPathPayment, fromAsset, toAsset, fromAssetIssuer, toAssetIssuer, assetPrices, onFetchAssetPrice]);
+      setIsManualInput(false);  
+      setFetchingPrices(false);
+    }
+  }, [shouldShowManualInput]);
   
   // Calculate receive amount based on prices or manual input
   const calculateReceiveAmount = () => {
