@@ -97,17 +97,25 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     setSuccessData(null);
   }, [activeTab]);
 
-  // Function to fetch additional asset prices
+  // Function to fetch additional asset prices with timeout
   const fetchAdditionalAssetPrice = async (assetCode: string, assetIssuer?: string) => {
     const key = assetCode;
     try {
-      const price = await getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer);
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<number>((_, reject) => 
+        setTimeout(() => reject(new Error('Price fetch timeout')), 10000)
+      );
+      
+      const pricePromise = getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer);
+      const price = await Promise.race([pricePromise, timeoutPromise]);
+      
       setAssetPrices(prev => ({
         ...prev,
         [key]: price
       }));
       return price;
     } catch (error) {
+      console.warn(`Failed to fetch price for ${assetCode}:`, error);
       setAssetPrices(prev => ({
         ...prev,
         [key]: 0

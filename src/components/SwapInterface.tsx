@@ -158,7 +158,15 @@ export const SwapInterface = ({
         }
         
         if (fetchPromises.length > 0) {
-          await Promise.all(fetchPromises);
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Price fetch timeout')), 10000)
+          );
+          
+          await Promise.race([
+            Promise.all(fetchPromises),
+            timeoutPromise
+          ]);
         }
         
         // Check again after fetching - the prices should now be updated in the parent's assetPrices
