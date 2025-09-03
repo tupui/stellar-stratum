@@ -177,19 +177,26 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return trustlineRemovalOps;
   };
 
-  // Estimate expected receive amount for path payments using USD prices and slippage
+  // Calculate direct exchange rate between any two assets and apply slippage
   const estimatePathReceive = (amount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
     const send = parseFloat(amount) || 0;
+    if (send <= 0) return 0;
+    
+    // Get prices for both assets
     const fromPrice = assetPrices[fromAssetCode] || 0;
     const toPrice = assetPrices[toAssetCode] || 0;
-    if (send <= 0) return 0;
+    
     let converted = send;
     if (fromPrice > 0 && toPrice > 0) {
-      const usdValue = send * fromPrice;
-      converted = usdValue / toPrice;
+      // Calculate direct exchange rate: how much of toAsset per unit of fromAsset
+      const exchangeRate = fromPrice / toPrice;
+      converted = send * exchangeRate;
     }
-    const slippageAdj = 1 - (slippageTolerance / 100);
-    return parseFloat((converted * slippageAdj).toFixed(7));
+    // If we don't have prices, assume 1:1 (fallback for unknown assets)
+    
+    // Apply slippage tolerance to get minimum receive amount
+    const slippageAdjustment = 1 - (slippageTolerance / 100);
+    return parseFloat((converted * slippageAdjustment).toFixed(7));
   };
   
   const handlePaymentBuild = async (paymentData?: any, isAccountMerge = false, batchPayments?: any[], pathPayment?: any) => {
