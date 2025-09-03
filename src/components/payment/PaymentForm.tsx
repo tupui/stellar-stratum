@@ -54,6 +54,7 @@ interface PaymentFormProps {
   onPaymentDataChange: (data: PaymentData) => void;
   availableAssets: Asset[];
   assetPrices: Record<string, number>;
+  onFetchAssetPrice?: (assetCode: string, assetIssuer?: string) => Promise<number>;
   trustlineError: string;
   onBuild: (paymentData?: PaymentData, isAccountMerge?: boolean, payments?: CompactPayment[], pathPayment?: any) => void;
   isBuilding: boolean;
@@ -84,6 +85,7 @@ export const PaymentForm = ({
   onPaymentDataChange,
   availableAssets,
   assetPrices,
+  onFetchAssetPrice,
   trustlineError,
   onBuild,
   isBuilding,
@@ -1163,6 +1165,7 @@ export const PaymentForm = ({
               }
             }}
             assetPrices={assetPrices}
+            onFetchAssetPrice={onFetchAssetPrice}
           />
 
           {/* Merge Account Button */}

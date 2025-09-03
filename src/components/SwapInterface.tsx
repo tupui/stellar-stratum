@@ -42,6 +42,7 @@ interface SwapInterfaceProps {
   className?: string;
   willCloseAccount?: boolean;
   assetPrices?: Record<string, number>;
+  onFetchAssetPrice?: (assetCode: string, assetIssuer?: string) => Promise<number>;
 }
 export const SwapInterface = ({
   fromAsset,
@@ -65,7 +66,8 @@ export const SwapInterface = ({
   onSwapDirection,
   className,
   willCloseAccount = false,
-  assetPrices = {}
+  assetPrices = {},
+  onFetchAssetPrice
 }: SwapInterfaceProps) => {
   const [sliderValue, setSliderValue] = useState([0]);
   const [isEditingAmount, setIsEditingAmount] = useState(false);
@@ -132,7 +134,7 @@ export const SwapInterface = ({
   // Price fetching logic for swap
   useEffect(() => {
     const fetchMissingPrices = async () => {
-      if (!isPathPayment) return;
+      if (!isPathPayment || !onFetchAssetPrice) return;
       
       const fromPrice = assetPrices[fromAsset] || 0;
       const toPrice = assetPrices[toAsset] || 0;
@@ -147,23 +149,28 @@ export const SwapInterface = ({
       setPriceError('');
       
       try {
-        const missingPrices = [];
+        const fetchPromises = [];
         if (fromPrice <= 0) {
-          missingPrices.push(getAssetPrice(fromAsset === 'XLM' ? undefined : fromAsset, fromAssetIssuer));
+          fetchPromises.push(onFetchAssetPrice(fromAsset, fromAssetIssuer));
         }
         if (toPrice <= 0 && toAsset) {
-          missingPrices.push(getAssetPrice(toAsset === 'XLM' ? undefined : toAsset, toAssetIssuer));
+          fetchPromises.push(onFetchAssetPrice(toAsset, toAssetIssuer));
         }
         
-        await Promise.all(missingPrices);
+        if (fetchPromises.length > 0) {
+          await Promise.all(fetchPromises);
+        }
         
-        // Check again after fetching
+        // Check again after fetching - the prices should now be updated in the parent's assetPrices
         const updatedFromPrice = assetPrices[fromAsset] || 0;
         const updatedToPrice = assetPrices[toAsset || ''] || 0;
         
         if (updatedFromPrice <= 0 || updatedToPrice <= 0) {
           setPriceError(`Unable to fetch exchange rate between ${fromAsset} and ${toAsset}. Please enter minimum receive amount manually.`);
           setIsManualInput(true);
+        } else {
+          setPriceError('');
+          setIsManualInput(false);
         }
       } catch (error) {
         setPriceError(`Unable to fetch exchange rate between ${fromAsset} and ${toAsset}. Please enter minimum receive amount manually.`);
@@ -174,7 +181,7 @@ export const SwapInterface = ({
     };
     
     fetchMissingPrices();
-  }, [isPathPayment, fromAsset, toAsset, fromAssetIssuer, toAssetIssuer, assetPrices]);
+  }, [isPathPayment, fromAsset, toAsset, fromAssetIssuer, toAssetIssuer, assetPrices, onFetchAssetPrice]);
   
   // Calculate receive amount based on prices or manual input
   const calculateReceiveAmount = () => {

@@ -97,6 +97,25 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     setSuccessData(null);
   }, [activeTab]);
 
+  // Function to fetch additional asset prices
+  const fetchAdditionalAssetPrice = async (assetCode: string, assetIssuer?: string) => {
+    const key = assetCode;
+    try {
+      const price = await getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer);
+      setAssetPrices(prev => ({
+        ...prev,
+        [key]: price
+      }));
+      return price;
+    } catch (error) {
+      setAssetPrices(prev => ({
+        ...prev,
+        [key]: 0
+      }));
+      return 0;
+    }
+  };
+
   useEffect(() => {
     // Load asset prices for fiat conversion in parallel for better performance
     const loadPrices = async () => {
@@ -792,6 +811,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   }}
                   availableAssets={getAvailableAssets()}
                   assetPrices={assetPrices}
+                  onFetchAssetPrice={fetchAdditionalAssetPrice}
                   trustlineError={trustlineError}
                   onBuild={(paymentData, isAccountMerge, batchPayments, pathPayment) => {
                     if (isAccountMerge) {
