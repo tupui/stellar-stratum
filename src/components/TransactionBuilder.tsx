@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -87,7 +87,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' } | null>(null);
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
@@ -740,28 +739,15 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         {/* Transaction Builder */}
         <Card className="shadow-card">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <CardTitle className="text-base sm:text-lg whitespace-nowrap flex items-center gap-2">
-                  <FileCode className="w-4 h-4" />
-                  Build Transaction
-                </CardTitle>
-                <CardDescription>
-                  Create a payment or import existing XDR for signing
-                </CardDescription>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="shrink-0 ml-2"
-              >
-                {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-              </Button>
-            </div>
+            <CardTitle className="text-base sm:text-lg whitespace-nowrap flex items-center gap-2">
+              <FileCode className="w-4 h-4" />
+              Build Transaction
+            </CardTitle>
+            <CardDescription>
+              Create a payment or import existing XDR for signing
+            </CardDescription>
           </CardHeader>
-          {!isCollapsed && (
-            <CardContent>
+          <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <div className="p-2 bg-muted/50 rounded-lg">
                 <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full p-0 bg-transparent gap-2">
@@ -830,9 +816,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   setRefractorId('');
                   setSuccessData(null);
                 }}
-                onTransactionBuilt={() => {
-                  setIsCollapsed(true);
-                }}
+                onTransactionBuilt={() => {}}
                 />
               </TabsContent>
 
@@ -861,7 +845,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               </TabsContent>
             </Tabs>
           </CardContent>
-          )}
         </Card>
 
         {/* XDR Details */}
