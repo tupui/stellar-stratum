@@ -298,17 +298,6 @@ export const SignerSelector = ({
           )}
         </div>
 
-        {!hasMinimumSignatures && availableSigners.length > 0 && (
-          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Circle className="h-4 w-4 text-destructive" />
-              <p className="text-sm text-destructive">
-                Insufficient signatures. Need {requiredWeight - currentWeight} more weight to submit transaction.
-              </p>
-            </div>
-          </div>
-        )}
-
         {hasMinimumSignatures && (
           <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
             <div className="flex items-center gap-2">
