@@ -475,7 +475,7 @@ export const SwapInterface = ({
         {/* Price Error Warning */}
         {isPathPayment && priceError && (
           <Alert className="mt-4 border-warning/50 bg-warning/5">
-            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertTriangle className="h-4 w-4" style={{ color: 'hsl(var(--warning))' }} />
             <AlertDescription className="text-warning">
               {priceError}
             </AlertDescription>
