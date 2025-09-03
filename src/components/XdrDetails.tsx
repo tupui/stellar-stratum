@@ -217,7 +217,7 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                         {op.type === 'changeTrust' && (
                           <div className="text-sm space-y-1">
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            <p><span className="text-muted-foreground">Asset:</span> {(op.details as any).asset?.code || 'XLM'}</p>
+                            <p><span className="text-muted-foreground">Asset:</span> {(op.details as any).asset?.code || 'Unknown'}</p>
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
                             {(op.details as any).asset?.issuer && (
                               <p className="break-words"><span className="text-muted-foreground">Issuer:</span> <span className="font-address text-xs break-all">{(op.details as any).asset.issuer}</span></p>

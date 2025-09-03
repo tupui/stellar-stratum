@@ -177,6 +177,21 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return trustlineRemovalOps;
   };
 
+  // Estimate expected receive amount for path payments using USD prices and slippage
+  const estimatePathReceive = (amount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
+    const send = parseFloat(amount) || 0;
+    const fromPrice = assetPrices[fromAssetCode] || 0;
+    const toPrice = assetPrices[toAssetCode] || 0;
+    if (send <= 0) return 0;
+    let converted = send;
+    if (fromPrice > 0 && toPrice > 0) {
+      const usdValue = send * fromPrice;
+      converted = usdValue / toPrice;
+    }
+    const slippageAdj = 1 - (slippageTolerance / 100);
+    return parseFloat((converted * slippageAdj).toFixed(7));
+  };
+  
   const handlePaymentBuild = async (paymentData?: any, isAccountMerge = false, batchPayments?: any[], pathPayment?: any) => {
     setIsBuilding(true);
     setTrustlineError('');
@@ -276,17 +291,15 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               ? Asset.native()
               : new Asset(payment.receiveAsset, payment.receiveAssetIssuer);
 
-            const sendAmount = parseFloat(payment.amount);
-            // Use the actual expected receive amount instead of placeholder calculation
-            const expectedReceiveAmount = payment.receiveAmount ? parseFloat(payment.receiveAmount) : sendAmount;
-            const destMin = (expectedReceiveAmount * (1 - (payment.slippageTolerance || 0.5) / 100)).toFixed(7);
+            // Calculate destMin using proper exchange rates from prices when available
+            const destMin = estimatePathReceive(payment.amount, payment.asset, payment.receiveAsset, payment.slippageTolerance);
 
             transaction.addOperation(Operation.pathPaymentStrictSend({
               sendAsset,
-              sendAmount: payment.amount,
-              destination: payment.destination,
-              destAsset,
-              destMin,
+               sendAmount: payment.amount,
+               destination: payment.destination,
+               destAsset,
+               destMin: destMin.toString(),
               path: [],
             }));
             continue;
@@ -320,16 +333,15 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           ? Asset.native() 
           : new Asset(pathPayment.receiveAsset, pathPayment.receiveAssetIssuer);
 
-        // Calculate destination amount with slippage based on actual expected receive amount
-        const expectedReceiveAmount = pathPayment.receiveAmount ? parseFloat(pathPayment.receiveAmount) : parseFloat(pathPayment.amount);
-        const destMin = (expectedReceiveAmount * (1 - (pathPayment.slippageTolerance || 0.5) / 100)).toFixed(7);
+         // Calculate destination amount with slippage using proper exchange rates
+         const destMin = estimatePathReceive(pathPayment.amount, pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance);
 
         transaction.addOperation(Operation.pathPaymentStrictSend({
           sendAsset,
           sendAmount: pathPayment.amount,
-          destination: pathPayment.destination,
-          destAsset,
-          destMin,
+           destination: pathPayment.destination,
+           destAsset,
+           destMin: destMin.toString(),
           path: [], // In real implementation, find optimal path
         }));
         
