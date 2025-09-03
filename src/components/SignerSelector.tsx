@@ -300,9 +300,12 @@ export const SignerSelector = ({
 
         {hasMinimumSignatures && (
           <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-            <p className="text-sm text-green-700 dark:text-green-300">
-              ✓ Minimum signature weight reached. Transaction can be submitted.
-            </p>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <p className="text-sm text-green-700 dark:text-green-300">
+                Minimum signature weight reached. Transaction can be submitted.
+              </p>
+            </div>
           </div>
         )}
           </CardContent>
