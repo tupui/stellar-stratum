@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Download, Upload, Copy, Check } from 'lucide-react';
+import { Download, Upload, Copy, CheckCircle } from 'lucide-react';
 import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useToast } from '@/hooks/use-toast';
 
@@ -95,7 +95,7 @@ export const RefractorIntegration = ({ onPullTransaction, lastRefractorId }: Ref
                   size="sm"
                   onClick={copyRefractorId}
                 >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
               <p className="font-address text-sm text-muted-foreground">

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, Copy, ExternalLink, X } from 'lucide-react';
+import { CheckCircle, Copy, ExternalLink, X } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -55,7 +55,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
-                <Check className="w-5 h-5 text-success" />
+                <CheckCircle className="w-5 h-5 text-success" />
               </div>
               <div>
                 <CardTitle className="text-success">{title}</CardTitle>
@@ -93,7 +93,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                 onClick={() => copyToClipboard(displayValue || '', label)}
                 className="h-8 w-8 p-0"
               >
-                {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                {copied ? <CheckCircle className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
               </Button>
             </div>
             <div className="bg-secondary/50 rounded-lg p-3 border">

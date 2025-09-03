@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { Send, FileCode, Shield, Share2, Check, ExternalLink, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
