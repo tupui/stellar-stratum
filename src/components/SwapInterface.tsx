@@ -314,14 +314,14 @@ export const SwapInterface = ({
             </SelectContent>
           </Select>
 
-          <div className="flex-1">
+          <div className="flex-1 min-w-0 overflow-hidden">
             {isEditingAmount ? <Input type="text" inputMode="decimal" value={editValue} onChange={e => {
             let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
             const parts = sanitized.split('.');
             if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
             if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
             setEditValue(sanitized);
-          }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount" placeholder="0.0" autoFocus /> : <div className="text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount" onClick={() => setIsEditingAmount(true)}>
+          }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount truncate" placeholder="0.0" autoFocus /> : <div className="text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount truncate min-w-0" onClick={() => setIsEditingAmount(true)}>
                 {amount ? formatAmount(amount) : '0.0'}
               </div>}
             {fiatValue && <div className="text-sm text-muted-foreground mt-1 text-right font-amount truncate min-w-0 max-w-full">
