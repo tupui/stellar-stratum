@@ -289,11 +289,11 @@ export const SwapInterface = ({
           const selectedAsset = availableAssets.find(asset => asset.code === value);
           onFromAssetChange(value, selectedAsset?.issuer);
         }}>
-            <SelectTrigger className="w-32 h-12 rounded-full">
+            <SelectTrigger className="min-w-32 max-w-48 h-12 rounded-full">
               <SelectValue>
-                <div className="flex items-center gap-2">
-                  <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} />
-                  <span className="font-medium">{fromAsset}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} className="shrink-0" />
+                  <span className="font-medium truncate">{fromAsset}</span>
                 </div>
               </SelectValue>
             </SelectTrigger>
@@ -388,13 +388,13 @@ export const SwapInterface = ({
             disabled={willCloseAccount}
           >
             <SelectTrigger className={cn(
-              "w-32 h-12 rounded-full",
+              "min-w-32 max-w-48 h-12 rounded-full",
               willCloseAccount && "cursor-not-allowed opacity-60"
             )}>
               <SelectValue>
-                <div className="flex items-center gap-2">
-                  <AssetIcon assetCode={willCloseAccount ? "XLM" : (toAsset || fromAsset)} assetIssuer={willCloseAccount ? "" : (toAssetIssuer || fromAssetIssuer)} size={32} />
-                  <span className="font-medium">{willCloseAccount ? "XLM" : (toAsset || fromAsset)}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <AssetIcon assetCode={willCloseAccount ? "XLM" : (toAsset || fromAsset)} assetIssuer={willCloseAccount ? "" : (toAssetIssuer || fromAssetIssuer)} size={32} className="shrink-0" />
+                  <span className="font-medium truncate">{willCloseAccount ? "XLM" : (toAsset || fromAsset)}</span>
                 </div>
               </SelectValue>
             </SelectTrigger>
