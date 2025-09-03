@@ -101,13 +101,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const fetchAdditionalAssetPrice = async (assetCode: string, assetIssuer?: string) => {
     const key = assetCode;
     try {
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise<number>((_, reject) => 
-        setTimeout(() => reject(new Error('Price fetch timeout')), 10000)
-      );
-      
       const pricePromise = getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer);
-      const price = await Promise.race([pricePromise, timeoutPromise]);
+      const price = await Promise.race([
+        pricePromise,
+        new Promise<number>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 2000)
+        )
+      ]);
       
       setAssetPrices(prev => ({
         ...prev,
@@ -115,7 +115,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       }));
       return price;
     } catch (error) {
-      console.warn(`Failed to fetch price for ${assetCode}:`, error);
       setAssetPrices(prev => ({
         ...prev,
         [key]: 0

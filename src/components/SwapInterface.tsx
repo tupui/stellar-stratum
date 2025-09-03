@@ -158,15 +158,17 @@ export const SwapInterface = ({
         }
         
         if (fetchPromises.length > 0) {
-          // Add timeout to prevent hanging
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Price fetch timeout')), 10000)
-          );
-          
-          await Promise.race([
-            Promise.all(fetchPromises),
-            timeoutPromise
-          ]);
+          // Fetch prices in background without blocking UI
+          Promise.allSettled(fetchPromises.map(p => 
+            Promise.race([
+              p,
+              new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 2000)
+              )
+            ])
+          )).catch(() => {
+            // Silently handle failures - UI will show manual input option
+          });
         }
         
         // Check again after fetching - the prices should now be updated in the parent's assetPrices
