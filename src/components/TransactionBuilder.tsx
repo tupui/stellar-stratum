@@ -157,13 +157,14 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   const createTrustlineRemovalOperations = () => {
     // Create operations to remove all existing trustlines before account merge
+    // Note: XLM (native asset) cannot be closed and is automatically skipped
     const trustlineRemovalOps: any[] = [];
     
     accountData.balances.forEach(balance => {
-      // Skip native XLM balance
+      // Skip native XLM balance - it cannot be closed as it's the native asset
       if (balance.asset_type === 'native') return;
       
-      // Only remove trustlines that have a balance or are established
+      // Only remove issued asset trustlines (those with asset_code and asset_issuer)
       if (balance.asset_code && balance.asset_issuer) {
         const asset = new Asset(balance.asset_code, balance.asset_issuer);
         trustlineRemovalOps.push(Operation.changeTrust({
