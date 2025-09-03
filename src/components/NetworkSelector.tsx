@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Send, Key } from 'lucide-react';
+import { Send, Key, ShieldAlert } from 'lucide-react';
 import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useNetwork } from '@/contexts/NetworkContext';
 interface NetworkSelectorProps {
@@ -71,7 +71,7 @@ export const NetworkSelector = ({
         {!canSubmitToNetwork && <div className="p-4 rounded-lg border bg-warning/5 border-warning/30">
             <div className="flex items-center gap-4">
               <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center flex-shrink-0">
-                <img src="/lovable-uploads/2012be0c-d57b-4b7e-86b4-5be4b759cca4.png" alt="Missing signature" className="w-4 h-4" />
+                <ShieldAlert className="w-4 h-4 text-warning" />
               </div>
               <p className="text-sm text-warning font-medium">
                 Insufficient signatures. Transaction needs more signatures before it can be submitted to the network.
