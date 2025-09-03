@@ -324,7 +324,7 @@ export const SwapInterface = ({
           }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount" placeholder="0.0" autoFocus /> : <div className="text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount" onClick={() => setIsEditingAmount(true)}>
                 {amount ? formatAmount(amount) : '0.0'}
               </div>}
-            {fiatValue && <div className="text-sm text-muted-foreground mt-1 text-right font-amount">
+            {fiatValue && <div className="text-sm text-muted-foreground mt-1 text-right font-amount truncate min-w-0 max-w-full">
                 ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '').replace(/\s[A-Z]{3}$/, '')}
               </div>}
           </div>
@@ -368,7 +368,7 @@ export const SwapInterface = ({
       <div className="bg-card/60 border border-border/60 rounded-2xl p-6 mt-2">
         <div className="flex justify-between items-center mb-4">
           <span className="text-sm text-muted-foreground">They receive</span>
-          {recipientAssets.length > 0 && <div className="text-sm text-muted-foreground">
+          {recipientAssets.length > 0 && <div className="text-sm text-muted-foreground truncate min-w-0">
               Current: <span className="font-amount">{formatBalance(toAssetBalance)}</span>
             </div>}
         </div>
@@ -474,16 +474,16 @@ export const SwapInterface = ({
 
         {/* Price Error Warning */}
         {isPathPayment && priceError && (
-          <Alert className="mt-4 border-warning/50 bg-warning/5">
-            <AlertTriangle className="h-4 w-4 text-warning" />
-            <AlertDescription className="text-warning">
+          <Alert className="mt-4 border-orange-500/50 bg-orange-500/5">
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
+            <AlertDescription className="text-orange-500">
               {priceError}
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Slippage Tolerance Slider (only when cross-asset) */}
-        {isPathPayment && onSlippageToleranceChange && <div className="space-y-2 mt-4">
+        {/* Slippage Tolerance Slider (only when cross-asset and no price error) */}
+        {isPathPayment && !priceError && onSlippageToleranceChange && <div className="space-y-2 mt-4">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Slippage Tolerance</span>
               <span className="font-amount">{slippageTolerance.toFixed(1)}%</span>
