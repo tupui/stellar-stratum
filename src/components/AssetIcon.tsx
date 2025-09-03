@@ -45,7 +45,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
   if (!assetInfo?.image || imageError) {
     return (
       <div 
-        className={`bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 rounded-full flex items-center justify-center ring-2 ring-primary/30 shadow-lg ${className}`}
+        className={`bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 flex items-center justify-center ${className}`}
         style={{ width: size, height: size }}
         role="img"
         aria-label={`${assetCode || 'XLM'} asset icon`}
@@ -63,7 +63,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
 
   return (
     <div
-      className={`rounded-full bg-white overflow-hidden shadow-sm border border-border/20 p-0.5 ${className}`}
+      className={`${className}`}
       style={{ width: size, height: size }}
       role="img"
       aria-label={`${assetInfo.name || assetCode || 'Asset'} logo`}

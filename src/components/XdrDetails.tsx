@@ -28,12 +28,18 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
         hash: transaction.hash().toString('hex'),
         source: transaction.source,
         fee: transaction.fee,
-        operations: transaction.operations.map((op, index) => ({
-          index,
-          type: op.type,
-          // @ts-ignore - Stellar SDK typing issue
-          details: op
-        })),
+        operations: transaction.operations.map((op, index) => {
+          // Get the raw XDR JSON for more detailed parsing
+          const rawOperation = transaction.operations[index];
+          return {
+            index,
+            type: op.type,
+            // @ts-ignore - Stellar SDK typing issue
+            details: op,
+            // @ts-ignore - Access raw operation data for better parsing
+            raw: rawOperation
+          };
+        }),
         memo: transaction.memo,
         sequence: transaction.sequence,
         timeBounds: transaction.timeBounds,
@@ -216,23 +222,48 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                         )}
                         {op.type === 'changeTrust' && (
                           <div className="text-sm space-y-1">
-                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            <p><span className="text-muted-foreground">Asset:</span> {(op.details as any).asset?.code || 'Unknown'}</p>
-                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            {(op.details as any).asset?.issuer && (
-                              <p className="break-words"><span className="text-muted-foreground">Issuer:</span> <span className="font-address text-xs break-all">{(op.details as any).asset.issuer}</span></p>
-                            )}
-                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            <p><span className="text-muted-foreground">Limit:</span> {(op.details as any).limit || 'MAX'}</p>
-                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
-                            {(op.details as any).limit === '0' && (
-                              <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs">
-                                <div className="flex items-center gap-2">
-                                  <AlertTriangle className="h-3 w-3 text-destructive" />
-                                  <span className="text-destructive font-medium">Trustline Removal: Setting limit to 0 removes this trustline</span>
-                                </div>
-                              </div>
-                            )}
+                            {(() => {
+                              // Extract asset info from the operation details
+                              const asset = (op.details as any).asset;
+                              let assetCode = 'Unknown';
+                              let assetIssuer = '';
+                              
+                              if (asset) {
+                                if (asset.code && asset.issuer) {
+                                  // Standard Stellar SDK format
+                                  assetCode = asset.code;
+                                  assetIssuer = asset.issuer;
+                                } else if (asset.credit_alphanum4) {
+                                  // Raw XDR JSON format
+                                  assetCode = asset.credit_alphanum4.asset_code;
+                                  assetIssuer = asset.credit_alphanum4.issuer;
+                                } else if (asset.credit_alphanum12) {
+                                  // Raw XDR JSON format for longer codes
+                                  assetCode = asset.credit_alphanum12.asset_code;
+                                  assetIssuer = asset.credit_alphanum12.issuer;
+                                }
+                              }
+                              
+                              const limit = (op.details as any).limit;
+                              
+                              return (
+                                <>
+                                  <p><span className="text-muted-foreground">Asset:</span> {assetCode}</p>
+                                  {assetIssuer && (
+                                    <p className="break-words"><span className="text-muted-foreground">Issuer:</span> <span className="font-address text-xs break-all">{assetIssuer}</span></p>
+                                  )}
+                                  <p><span className="text-muted-foreground">Limit:</span> {limit || 'MAX'}</p>
+                                  {limit === '0' && (
+                                    <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs">
+                                      <div className="flex items-center gap-2">
+                                        <AlertTriangle className="h-3 w-3 text-destructive" />
+                                        <span className="text-destructive font-medium">Trustline Removal: Setting limit to 0 removes this trustline</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         )}
                         {op.type === 'setOptions' && (
