@@ -148,7 +148,13 @@ export const SwapInterface = ({
       setFetchingPrices(true);
       setPriceError('');
       
-      try {
+      // If no prices available, show manual input option immediately
+      if (fromPrice <= 0 || toPrice <= 0) {
+        setPriceError(`Unable to fetch exchange rate between ${fromAsset} and ${toAsset || 'unknown'}. Please enter minimum receive amount manually.`);
+        setIsManualInput(true);
+        setFetchingPrices(false);
+        
+        // Try to fetch prices in background for next time
         const fetchPromises = [];
         if (fromPrice <= 0) {
           fetchPromises.push(onFetchAssetPrice(fromAsset, fromAssetIssuer));
@@ -158,7 +164,6 @@ export const SwapInterface = ({
         }
         
         if (fetchPromises.length > 0) {
-          // Fetch prices in background without blocking UI
           Promise.allSettled(fetchPromises.map(p => 
             Promise.race([
               p,
@@ -167,25 +172,12 @@ export const SwapInterface = ({
               )
             ])
           )).catch(() => {
-            // Silently handle failures - UI will show manual input option
+            // Silently handle failures
           });
         }
-        
-        // Check again after fetching - the prices should now be updated in the parent's assetPrices
-        const updatedFromPrice = assetPrices[fromAsset] || 0;
-        const updatedToPrice = assetPrices[toAsset || ''] || 0;
-        
-        if (updatedFromPrice <= 0 || updatedToPrice <= 0) {
-          setPriceError(`Unable to fetch exchange rate between ${fromAsset} and ${toAsset}. Please enter minimum receive amount manually.`);
-          setIsManualInput(true);
-        } else {
-          setPriceError('');
-          setIsManualInput(false);
-        }
-      } catch (error) {
-        setPriceError(`Unable to fetch exchange rate between ${fromAsset} and ${toAsset}. Please enter minimum receive amount manually.`);
-        setIsManualInput(true);
-      } finally {
+      } else {
+        setPriceError('');
+        setIsManualInput(false);
         setFetchingPrices(false);
       }
     };
