@@ -155,6 +155,27 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
   };
 
+  const createTrustlineRemovalOperations = () => {
+    // Create operations to remove all existing trustlines before account merge
+    const trustlineRemovalOps: any[] = [];
+    
+    accountData.balances.forEach(balance => {
+      // Skip native XLM balance
+      if (balance.asset_type === 'native') return;
+      
+      // Only remove trustlines that have a balance or are established
+      if (balance.asset_code && balance.asset_issuer) {
+        const asset = new Asset(balance.asset_code, balance.asset_issuer);
+        trustlineRemovalOps.push(Operation.changeTrust({
+          asset,
+          limit: '0', // Setting limit to 0 removes the trustline
+        }));
+      }
+    });
+    
+    return trustlineRemovalOps;
+  };
+
   const handlePaymentBuild = async (paymentData?: any, isAccountMerge = false, batchPayments?: any[], pathPayment?: any) => {
     setIsBuilding(true);
     setTrustlineError('');
@@ -167,9 +188,23 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       let fee = '100000'; // Default fee
       
       if (batchPayments) {
-        fee = (100000 * batchPayments.length).toString();
+        // Calculate fee based on total operations including trustline removals for account merges
+        let totalOps = batchPayments.length;
+        
+        // Count additional trustline removal operations for account merges
+        const accountMergeCount = batchPayments.filter(p => p.isAccountClosure).length;
+        if (accountMergeCount > 0) {
+          const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
+          totalOps += (trustlineCount * accountMergeCount);
+        }
+        
+        fee = (100000 * totalOps).toString();
       } else if (pathPayment) {
         fee = '200000'; // Higher fee for path payments
+      } else if (isAccountMerge) {
+        // Account merge requires additional operations for trustline removal
+        const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
+        fee = (100000 * (1 + trustlineCount)).toString();
       }
       
       const transaction = new StellarTransactionBuilder(sourceAccount, {
@@ -199,6 +234,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           return;
         }
         
+        // First remove all trustlines to prevent op_has_sub_entries error
+        const trustlineRemovalOps = createTrustlineRemovalOperations();
+        trustlineRemovalOps.forEach(op => transaction.addOperation(op));
+        
+        // Then add the account merge operation
         transaction.addOperation(Operation.accountMerge({
           destination: dest,
         }));
@@ -216,6 +256,12 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             if (!dest || dest === accountPublicKey) {
               throw new Error('Invalid destination for account merge');
             }
+            
+            // First remove all trustlines to prevent op_has_sub_entries error
+            const trustlineRemovalOps = createTrustlineRemovalOperations();
+            trustlineRemovalOps.forEach(op => transaction.addOperation(op));
+            
+            // Then add the account merge operation
             transaction.addOperation(Operation.accountMerge({ destination: dest }));
             continue;
           }
