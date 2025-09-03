@@ -4,10 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
-import * as SelectPrimitive from '@radix-ui/react-select';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, TrendingUp, Merge, Users, Edit2, X } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
@@ -474,12 +471,8 @@ export const PaymentForm = ({
   const handleMergeAccount = () => {
     if (!canCloseAccount()) return;
     
-    console.log('Merge account clicked, willCloseAccount will be set to true');
-    
     // For merge, show the leftover balance that will be transferred
     const leftoverBalance = getLeftoverBalance('XLM');
-    
-    console.log('Leftover balance for merge:', leftoverBalance);
     
     // Use current destination if provided, otherwise require user input
     // For account merge, receiving asset must be XLM
@@ -493,7 +486,6 @@ export const PaymentForm = ({
       amount: leftoverBalance.toString()
     });
     setWillCloseAccount(true);
-    console.log('willCloseAccount state set to true');
   };
 
   // Helper function for path payment receive amount calculation
@@ -722,22 +714,13 @@ export const PaymentForm = ({
     return paymentData.destination && paymentData.amount && paymentData.asset && (paymentData.asset === 'XLM' || paymentData.assetIssuer) && (!trustlineError || trustlineError.includes('will create a new'));
   };
   const handleBuild = () => {
-    console.log('handleBuild called with:', {
-      compactPayments: compactPayments.length,
-      hasActiveForm,
-      willCloseAccount,
-      paymentData
-    });
-
     // Set transaction as built when building starts
     setIsTransactionBuilt(true);
 
     if (compactPayments.length > 0 && hasActiveForm) {
-      console.log('Taking batch path with active form');
       // Build batch transaction with compact payments
       // If current form is a merge operation, add it to the batch
       if (willCloseAccount) {
-        console.log('Adding merge operation to batch');
         const mergePayment = {
           id: 'current-merge',
           destination: paymentData.destination,
@@ -752,15 +735,12 @@ export const PaymentForm = ({
           isAccountClosure: true
         };
         const allPayments = [...compactPayments, mergePayment];
-        console.log('Building batch with payments:', allPayments);
         onBuild(undefined, false, allPayments);
       } else {
-        console.log('Building batch without merge');
         // Build batch transaction with only compact payments
         onBuild(undefined, false, compactPayments);
       }
     } else if (willCloseAccount) {
-      console.log('Taking single merge path');
       // Single merge operation
       const mergeData = {
         ...paymentData,
@@ -768,7 +748,6 @@ export const PaymentForm = ({
       };
       onBuild(mergeData, true);
     } else if (compactPayments.length > 0 && !hasActiveForm) {
-      console.log('Taking batch path without active form');
       // Build batch transaction with compact payments + current payment
       const currentPaymentIsAccountClosure = checkAccountClosure(paymentData.amount, paymentData.asset);
       
@@ -1287,22 +1266,6 @@ export const PaymentForm = ({
           )}
 
 
-          {/* Build single transaction - Show when no compact payments and form is valid */}
-          {false && <Button onClick={handleBuild} disabled={isBuilding} className="w-full bg-gradient-primary hover:opacity-90 disabled:opacity-50" size="lg">
-              {isBuilding ? <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  Building...
-                </div> : willCloseAccount ? <>
-                  <Merge className="w-4 h-4 mr-2" />
-                  Merge Account
-                </> : 'Build Transaction'}
-            </Button>}
-
-          {/* Initial bundle button - Show when form is empty and no payments */}
-          {false && <Button onClick={handleBundlePayment} variant="outline" className="w-full border-dashed border-border/60 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-primary transition-colors" size="lg">
-              <Plus className="w-4 h-4 mr-2" />
-              Bundle Payment
-            </Button>}
         </div>
         </div>
       )}
