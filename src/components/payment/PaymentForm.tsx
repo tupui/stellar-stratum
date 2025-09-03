@@ -1013,7 +1013,7 @@ export const PaymentForm = ({
           {/* Only show header when we have an active form (not in bundle mode) */}
           {!hasActiveForm && <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold">
-                {editingPaymentId ? 'Edit Operation' : (compactPayments.length > 0 ? `Operation #${compactPayments.length + 1}` : 'Operation Details')}
+                Operation #{editingPaymentId ? compactPayments.findIndex(p => p.id === editingPaymentId) + 1 : compactPayments.length + 1}
               </h3>
             </div>}
 
