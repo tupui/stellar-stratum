@@ -214,6 +214,27 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                             </div>
                           </div>
                         )}
+                        {op.type === 'changeTrust' && (
+                          <div className="text-sm space-y-1">
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p><span className="text-muted-foreground">Asset:</span> {(op.details as any).asset?.code || 'XLM'}</p>
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            {(op.details as any).asset?.issuer && (
+                              <p className="break-words"><span className="text-muted-foreground">Issuer:</span> <span className="font-address text-xs break-all">{(op.details as any).asset.issuer}</span></p>
+                            )}
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            <p><span className="text-muted-foreground">Limit:</span> {(op.details as any).limit || 'MAX'}</p>
+                            {/* @ts-ignore - Stellar SDK typing issue with operations */}
+                            {(op.details as any).limit === '0' && (
+                              <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs">
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="h-3 w-3 text-destructive" />
+                                  <span className="text-destructive font-medium">Trustline Removal: Setting limit to 0 removes this trustline</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {op.type === 'setOptions' && (
                           <div className="text-sm space-y-1">
                             {/* @ts-ignore - Stellar SDK typing issue with operations */}
@@ -238,6 +259,22 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
                             {(op.details as any).masterWeight !== undefined && (
                               <p><span className="text-muted-foreground">Master Weight:</span> {(op.details as any).masterWeight}</p>
                             )}
+                          </div>
+                        )}
+                        {/* Generic operation details for unhandled operation types */}
+                        {!['payment', 'pathPaymentStrictSend', 'accountMerge', 'changeTrust', 'setOptions'].includes(op.type) && (
+                          <div className="text-sm space-y-1">
+                            <div className="p-2 bg-secondary/50 rounded text-xs">
+                              <p className="text-muted-foreground mb-1">Operation Details:</p>
+                              <pre className="whitespace-pre-wrap font-mono text-xs overflow-x-auto">
+                                {JSON.stringify(op.details, (key, value) => {
+                                  // Filter out functions and circular references
+                                  if (typeof value === 'function') return '[Function]';
+                                  if (key === 'source' && typeof value === 'string' && value.length > 50) return value;
+                                  return value;
+                                }, 2)}
+                              </pre>
+                            </div>
                           </div>
                         )}
                       </div>
