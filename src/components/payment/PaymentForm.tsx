@@ -1206,7 +1206,7 @@ export const PaymentForm = ({
         </>}
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 px-1">
+        <div className="flex gap-3 px-1">
             {/* Bundle Actions - Show when hasActiveForm is true (after bundling payments) */}
             {hasActiveForm && <>
                 <Button 
@@ -1242,7 +1242,7 @@ export const PaymentForm = ({
                 <Button 
                   onClick={handleSaveEdit} 
                   disabled={!isFormValid()} 
-                  size="lg"
+                  size="mobile"
                   className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
                 >
                   <span className="truncate">Save Changes</span>
@@ -1251,7 +1251,7 @@ export const PaymentForm = ({
                   onClick={cancelCurrentPayment} 
                   variant="destructive" 
                   className="flex-1 min-w-0" 
-                  size="lg"
+                  size="mobile"
                 >
                   <span className="truncate">Cancel Edit</span>
                 </Button>
@@ -1262,7 +1262,7 @@ export const PaymentForm = ({
                  onClick={handleBundlePayment} 
                  variant="outline" 
                  disabled={!isFormValid()} 
-                 size="lg"
+                 size="mobile"
                  className="flex-1 min-w-0 border-dashed border-primary hover:border-primary hover:bg-primary/5 text-primary hover:text-primary transition-colors disabled:opacity-50 disabled:border-border/60 disabled:text-muted-foreground hover:animate-[glow-pulse_1s_ease-in-out] active:animate-[glow-expand_0.3s_ease-out]"
                >
                  <Plus className="w-4 h-4 mr-2" />
@@ -1272,7 +1272,7 @@ export const PaymentForm = ({
                  onClick={cancelCurrentPayment} 
                  variant="destructive" 
                  className="flex-1 min-w-0" 
-                 size="lg"
+                 size="mobile"
                >
                  <span className="truncate">Cancel</span>
                </Button>
