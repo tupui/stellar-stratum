@@ -242,19 +242,27 @@ export const SwapInterface = ({
         </div>
 
         <div className="flex items-center gap-4">
-          <Select value={toAsset || "same"} onValueChange={value => {
-          if (value === "same") {
-            onToAssetChange();
-          } else {
-            const selectedAsset = recipientAssets.find(asset => asset.code === value);
-            onToAssetChange(value, selectedAsset?.issuer);
-          }
-        }}>
-            <SelectTrigger className="w-32 h-12 rounded-full">
+          <Select 
+            value={willCloseAccount ? "XLM" : (toAsset || "same")} 
+            onValueChange={value => {
+              if (willCloseAccount) return; // Prevent changes during account merge
+              if (value === "same") {
+                onToAssetChange();
+              } else {
+                const selectedAsset = recipientAssets.find(asset => asset.code === value);
+                onToAssetChange(value, selectedAsset?.issuer);
+              }
+            }}
+            disabled={willCloseAccount}
+          >
+            <SelectTrigger className={cn(
+              "w-32 h-12 rounded-full",
+              willCloseAccount && "cursor-not-allowed opacity-60"
+            )}>
               <SelectValue>
                 <div className="flex items-center gap-2">
-                  <AssetIcon assetCode={toAsset || fromAsset} assetIssuer={toAssetIssuer || fromAssetIssuer} size={32} />
-                  <span className="font-medium">{toAsset || fromAsset}</span>
+                  <AssetIcon assetCode={willCloseAccount ? "XLM" : (toAsset || fromAsset)} assetIssuer={willCloseAccount ? "" : (toAssetIssuer || fromAssetIssuer)} size={32} />
+                  <span className="font-medium">{willCloseAccount ? "XLM" : (toAsset || fromAsset)}</span>
                 </div>
               </SelectValue>
             </SelectTrigger>

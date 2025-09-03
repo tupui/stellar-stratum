@@ -482,10 +482,13 @@ export const PaymentForm = ({
     console.log('Leftover balance for merge:', leftoverBalance);
     
     // Use current destination if provided, otherwise require user input
+    // For account merge, receiving asset must be XLM
     onPaymentDataChange({
       ...paymentData,
       asset: 'XLM',
       assetIssuer: '',
+      receiveAsset: 'XLM',
+      receiveAssetIssuer: '',
       destination: paymentData.destination || '',
       amount: leftoverBalance.toString()
     });
