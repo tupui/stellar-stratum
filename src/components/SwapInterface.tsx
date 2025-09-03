@@ -350,17 +350,35 @@ export const SwapInterface = ({
         <div className="relative">
           {/* Bending effect - inset shadow on cards */}
           <div className="absolute -top-2 -bottom-2 left-1/2 transform -translate-x-1/2 w-16 h-16 rounded-full shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] pointer-events-none"></div>
-          
-          {!onSwapDirection ? <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 shadow-[0_8px_25px_-5px_rgba(147,51,234,0.4),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] flex items-center justify-center relative">
-              <ArrowDown className="h-5 w-5 text-white drop-shadow-sm" />
-            </div> : <Button onClick={onSwapDirection} className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-[0_8px_25px_-5px_rgba(147,51,234,0.4),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] transition-all duration-200 hover:shadow-[0_12px_30px_-5px_rgba(147,51,234,0.5),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] relative" size="sm">
+          {!onSwapDirection ? (
+            <div
+              className={`w-12 h-12 rounded-full bg-gradient-to-br ${isPathPayment && priceError ? 'from-orange-500 to-orange-600' : 'from-purple-500 to-purple-600'} shadow-[0_8px_25px_-5px_rgba(147,51,234,0.4),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] flex items-center justify-center relative`}
+            >
+              {isPathPayment && priceError ? (
+                <AlertTriangle className="h-5 w-5 text-white drop-shadow-sm" />
+              ) : (
+                <ArrowDown className="h-5 w-5 text-white drop-shadow-sm" />
+              )}
+            </div>
+          ) : (
+            <Button
+              onClick={onSwapDirection}
+              className={`w-12 h-12 rounded-full bg-gradient-to-br ${isPathPayment && priceError ? 'from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700' : 'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700'} shadow-[0_8px_25px_-5px_rgba(147,51,234,0.4),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] transition-all duration-200 hover:shadow-[0_12px_30px_-5px_rgba(147,51,234,0.5),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] relative`}
+              size="sm"
+              aria-label={isPathPayment && priceError ? 'Exchange rate unavailable' : 'Swap direction'}
+            >
               <div className="flex items-center justify-center">
-                <div className="relative">
-                  <ArrowDown className="h-3 w-3 text-white absolute -top-1 drop-shadow-sm" />
-                  <ArrowDown className="h-3 w-3 text-white absolute top-1 rotate-180 drop-shadow-sm" />
-                </div>
+                {isPathPayment && priceError ? (
+                  <AlertTriangle className="h-5 w-5 text-white drop-shadow-sm" />
+                ) : (
+                  <div className="relative">
+                    <ArrowDown className="h-3 w-3 text-white absolute -top-1 drop-shadow-sm" />
+                    <ArrowDown className="h-3 w-3 text-white absolute top-1 rotate-180 drop-shadow-sm" />
+                  </div>
+                )}
               </div>
-            </Button>}
+            </Button>
+          )}
         </div>
       </div>
 
