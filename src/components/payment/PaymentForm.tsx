@@ -26,6 +26,7 @@ interface PaymentData {
   memo: string;
   receiveAsset?: string;
   receiveAssetIssuer?: string;
+  receiveAmount?: string;
   slippageTolerance?: number;
 }
 interface Asset {
@@ -507,9 +508,8 @@ export const PaymentForm = ({
       return (convertedAmount * slippageAdjustment).toFixed(7);
     }
     
-    // Fallback: assume 1:1 ratio with slippage
-    const slippageAdjustment = 1 - ((paymentData.slippageTolerance || 0.5) / 100);
-    return (numAmount * slippageAdjustment).toFixed(7);
+    // No fallback to 1:1 - return 0 when prices are unavailable
+    return '0';
   };
   const handleRevertMerge = () => {
     setWillCloseAccount(false);
@@ -1108,10 +1108,11 @@ export const PaymentForm = ({
             reserveAmount={paymentData.asset === 'XLM' ? 1 : 0} // XLM minimum balance requirement
             previousOperations={compactPayments.map(p => ({ asset: p.asset, amount: p.amount, type: 'payment' }))}
             fiatValue={fiatValue}
-            receiveAmount={paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
-              calculatePathPaymentReceiveAmount(paymentData.amount, paymentData.asset, paymentData.receiveAsset) : 
-              undefined
-            }
+            receiveAmount={paymentData.receiveAmount || (
+              paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset ? 
+                calculatePathPaymentReceiveAmount(paymentData.amount, paymentData.asset, paymentData.receiveAsset) : 
+                undefined
+            )}
             slippageTolerance={paymentData.slippageTolerance}
             willCloseAccount={willCloseAccount}
             onAmountChange={handleAmountChange}
@@ -1151,6 +1152,17 @@ export const PaymentForm = ({
               ...paymentData,
               slippageTolerance: t
             })}
+            onReceiveAmountChange={(amount) => {
+              // Handle manual receive amount input for swaps
+              if (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset) {
+                // This is a cross-asset swap, store the manual receive amount
+                onPaymentDataChange({
+                  ...paymentData,
+                  receiveAmount: amount
+                });
+              }
+            }}
+            assetPrices={assetPrices}
           />
 
           {/* Merge Account Button */}

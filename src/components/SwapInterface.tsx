@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpDown, ArrowDown, Merge } from 'lucide-react';
+import { ArrowUpDown, ArrowDown, Merge, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetIcon } from '@/components/AssetIcon';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { calculateAvailableBalance, formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { getAssetPrice } from '@/lib/reflector';
 interface Asset {
   code: string;
   issuer?: string;
@@ -35,9 +37,11 @@ interface SwapInterfaceProps {
   onFromAssetChange: (asset: string, issuer?: string) => void;
   onToAssetChange: (asset?: string, issuer?: string) => void;
   onSlippageToleranceChange?: (tolerance: number) => void;
+  onReceiveAmountChange?: (amount: string) => void;
   onSwapDirection?: () => void;
   className?: string;
   willCloseAccount?: boolean;
+  assetPrices?: Record<string, number>;
 }
 export const SwapInterface = ({
   fromAsset,
@@ -57,13 +61,21 @@ export const SwapInterface = ({
   onFromAssetChange,
   onToAssetChange,
   onSlippageToleranceChange,
+  onReceiveAmountChange,
   onSwapDirection,
   className,
-  willCloseAccount = false
+  willCloseAccount = false,
+  assetPrices = {}
 }: SwapInterfaceProps) => {
   const [sliderValue, setSliderValue] = useState([0]);
   const [isEditingAmount, setIsEditingAmount] = useState(false);
   const [editValue, setEditValue] = useState(amount);
+  const [isEditingReceiveAmount, setIsEditingReceiveAmount] = useState(false);
+  const [editReceiveValue, setEditReceiveValue] = useState(receiveAmount || '');
+  const [fetchingPrices, setFetchingPrices] = useState(false);
+  const [priceError, setPriceError] = useState<string>('');
+  const [manualReceiveAmount, setManualReceiveAmount] = useState<string>('');
+  const [isManualInput, setIsManualInput] = useState(false);
   const {
     getCurrentCurrency
   } = useFiatCurrency();
@@ -116,7 +128,113 @@ export const SwapInterface = ({
 
   // Path payment logic
   const isPathPayment = toAsset && toAsset !== fromAsset;
-  const displayReceiveAmount = isPathPayment ? receiveAmount || amount : amount;
+  
+  // Price fetching logic for swap
+  useEffect(() => {
+    const fetchMissingPrices = async () => {
+      if (!isPathPayment) return;
+      
+      const fromPrice = assetPrices[fromAsset] || 0;
+      const toPrice = assetPrices[toAsset] || 0;
+      
+      if (fromPrice > 0 && toPrice > 0) {
+        setPriceError('');
+        setIsManualInput(false);
+        return;
+      }
+      
+      setFetchingPrices(true);
+      setPriceError('');
+      
+      try {
+        const missingPrices = [];
+        if (fromPrice <= 0) {
+          missingPrices.push(getAssetPrice(fromAsset === 'XLM' ? undefined : fromAsset, fromAssetIssuer));
+        }
+        if (toPrice <= 0 && toAsset) {
+          missingPrices.push(getAssetPrice(toAsset === 'XLM' ? undefined : toAsset, toAssetIssuer));
+        }
+        
+        await Promise.all(missingPrices);
+        
+        // Check again after fetching
+        const updatedFromPrice = assetPrices[fromAsset] || 0;
+        const updatedToPrice = assetPrices[toAsset || ''] || 0;
+        
+        if (updatedFromPrice <= 0 || updatedToPrice <= 0) {
+          setPriceError(`Unable to fetch exchange rate between ${fromAsset} and ${toAsset}. Please enter minimum receive amount manually.`);
+          setIsManualInput(true);
+        }
+      } catch (error) {
+        setPriceError(`Unable to fetch exchange rate between ${fromAsset} and ${toAsset}. Please enter minimum receive amount manually.`);
+        setIsManualInput(true);
+      } finally {
+        setFetchingPrices(false);
+      }
+    };
+    
+    fetchMissingPrices();
+  }, [isPathPayment, fromAsset, toAsset, fromAssetIssuer, toAssetIssuer, assetPrices]);
+  
+  // Calculate receive amount based on prices or manual input
+  const calculateReceiveAmount = () => {
+    if (!isPathPayment) return amount;
+    if (isManualInput && manualReceiveAmount) return manualReceiveAmount;
+    if (receiveAmount) return receiveAmount;
+    
+    const numAmount = parseFloat(amount);
+    if (!numAmount) return '0';
+    
+    const fromPrice = assetPrices[fromAsset] || 0;
+    const toPrice = assetPrices[toAsset || ''] || 0;
+    
+    if (fromPrice > 0 && toPrice > 0) {
+      const usdValue = numAmount * fromPrice;
+      const convertedAmount = usdValue / toPrice;
+      const slippageAdjustment = 1 - (slippageTolerance / 100);
+      return (convertedAmount * slippageAdjustment).toFixed(7);
+    }
+    
+    return '0';
+  };
+  
+  const displayReceiveAmount = calculateReceiveAmount();
+  
+  // Handle manual receive amount input
+  const handleReceiveAmountChange = (newAmount: string) => {
+    setManualReceiveAmount(newAmount);
+    setIsManualInput(true);
+    onReceiveAmountChange?.(newAmount);
+    
+    // Adjust slippage based on manual input vs calculated amount
+    if (onSlippageToleranceChange && amount && newAmount) {
+      const numAmount = parseFloat(amount);
+      const numReceiveAmount = parseFloat(newAmount);
+      const fromPrice = assetPrices[fromAsset] || 0;
+      const toPrice = assetPrices[toAsset || ''] || 0;
+      
+      if (fromPrice > 0 && toPrice > 0 && numAmount > 0 && numReceiveAmount > 0) {
+        const expectedAmount = (numAmount * fromPrice) / toPrice;
+        const actualSlippage = ((expectedAmount - numReceiveAmount) / expectedAmount) * 100;
+        const adjustedSlippage = Math.max(0.1, Math.min(5, actualSlippage));
+        onSlippageToleranceChange(adjustedSlippage);
+      }
+    }
+  };
+  
+  const handleReceiveAmountSubmit = () => {
+    handleReceiveAmountChange(editReceiveValue);
+    setIsEditingReceiveAmount(false);
+  };
+  
+  const handleReceiveAmountKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleReceiveAmountSubmit();
+    } else if (e.key === 'Escape') {
+      setEditReceiveValue(displayReceiveAmount);
+      setIsEditingReceiveAmount(false);
+    }
+  };
 
   // Helper to build a single monospaced line with spaces so the amount is flush-right
   const getPaddedRowText = (label: string, value: string | number) => {
@@ -298,11 +416,57 @@ export const SwapInterface = ({
           </Select>
 
           <div className="flex-1 text-right">
-            <div className="text-xl font-mono text-white font-amount">
-              {isPathPayment ? `Min ${receiveAmount ? formatAmount(receiveAmount) : '0.0'}` : amount ? formatAmount(amount) : '0.0'}
-            </div>
+            {isPathPayment && isManualInput ? (
+              <div>
+                {isEditingReceiveAmount ? (
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={editReceiveValue}
+                    onChange={(e) => {
+                      let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
+                      const parts = sanitized.split('.');
+                      if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+                      if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+                      setEditReceiveValue(sanitized);
+                    }}
+                    onBlur={handleReceiveAmountSubmit}
+                    onKeyDown={handleReceiveAmountKeyDown}
+                    onFocus={e => e.currentTarget.select()}
+                    className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount"
+                    placeholder="0.0"
+                    autoFocus
+                  />
+                ) : (
+                  <div 
+                    className="text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount text-white"
+                    onClick={() => {
+                      setEditReceiveValue(displayReceiveAmount);
+                      setIsEditingReceiveAmount(true);
+                    }}
+                  >
+                    Min {manualReceiveAmount ? formatAmount(manualReceiveAmount) : '0.0'}
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground mt-1">Manual input</div>
+              </div>
+            ) : (
+              <div className="text-xl font-mono text-white font-amount">
+                {isPathPayment ? `Min ${displayReceiveAmount ? formatAmount(displayReceiveAmount) : '0.0'}` : amount ? formatAmount(amount) : '0.0'}
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Price Error Warning */}
+        {isPathPayment && priceError && (
+          <Alert className="mt-4 border-warning/50 bg-warning/5">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertDescription className="text-warning">
+              {priceError}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Slippage Tolerance Slider (only when cross-asset) */}
         {isPathPayment && onSlippageToleranceChange && <div className="space-y-2 mt-4">
@@ -314,7 +478,7 @@ export const SwapInterface = ({
           '--slider-progress': `${(slippageTolerance - 0.1) / 4.9 * 100}%`
         } as React.CSSProperties} />
             <div className="flex justify-between items-center text-xs text-muted-foreground">
-              
+              {isManualInput && <span className="text-info text-xs">Adjusted for manual input</span>}
             </div>
           </div>}
       </div>
