@@ -277,8 +277,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               : new Asset(payment.receiveAsset, payment.receiveAssetIssuer);
 
             const sendAmount = parseFloat(payment.amount);
-            const estimatedRate = 1; // TODO: fetch via pathfinding
-            const destMin = (sendAmount * estimatedRate * (1 - (payment.slippageTolerance || 0.5) / 100)).toFixed(7);
+            // Use the actual expected receive amount instead of placeholder calculation
+            const expectedReceiveAmount = payment.receiveAmount ? parseFloat(payment.receiveAmount) : sendAmount;
+            const destMin = (expectedReceiveAmount * (1 - (payment.slippageTolerance || 0.5) / 100)).toFixed(7);
 
             transaction.addOperation(Operation.pathPaymentStrictSend({
               sendAsset,
@@ -319,10 +320,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           ? Asset.native() 
           : new Asset(pathPayment.receiveAsset, pathPayment.receiveAssetIssuer);
 
-        // Calculate destination amount with slippage
-        const sendAmount = parseFloat(pathPayment.amount);
-        const estimatedRate = 1; // In real implementation, get this from Stellar path finding
-        const destMin = (sendAmount * estimatedRate * (1 - (pathPayment.slippageTolerance || 0.5) / 100)).toFixed(7);
+        // Calculate destination amount with slippage based on actual expected receive amount
+        const expectedReceiveAmount = pathPayment.receiveAmount ? parseFloat(pathPayment.receiveAmount) : parseFloat(pathPayment.amount);
+        const destMin = (expectedReceiveAmount * (1 - (pathPayment.slippageTolerance || 0.5) / 100)).toFixed(7);
 
         transaction.addOperation(Operation.pathPaymentStrictSend({
           sendAsset,
