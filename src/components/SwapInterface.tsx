@@ -373,7 +373,7 @@ export const SwapInterface = ({
             </div>}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <Select 
             value={willCloseAccount ? "XLM" : (toAsset || "same")} 
             onValueChange={value => {
@@ -429,7 +429,7 @@ export const SwapInterface = ({
             </SelectContent>
           </Select>
 
-          <div className="flex-1 text-right">
+          <div className="flex-1 sm:min-w-0">
             {isPathPayment && isManualInput ? (
               <div>
                 {isEditingReceiveAmount ? (
@@ -447,13 +447,13 @@ export const SwapInterface = ({
                     onBlur={handleReceiveAmountSubmit}
                     onKeyDown={handleReceiveAmountKeyDown}
                     onFocus={e => e.currentTarget.select()}
-                    className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount"
+                    className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount w-full"
                     placeholder="0.0"
                     autoFocus
                   />
                 ) : (
                   <div 
-                    className="text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount text-white"
+                    className="text-right sm:text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount text-white w-full"
                     onClick={() => {
                       setEditReceiveValue(displayReceiveAmount);
                       setIsEditingReceiveAmount(true);
@@ -462,10 +462,10 @@ export const SwapInterface = ({
                     Min {manualReceiveAmount ? formatAmount(manualReceiveAmount) : '0.0'}
                   </div>
                 )}
-                <div className="text-xs text-muted-foreground mt-1">Manual input</div>
+                <div className="text-xs text-muted-foreground mt-1 text-right">Manual input</div>
               </div>
             ) : (
-              <div className="text-xl font-mono text-white font-amount">
+              <div className="text-right sm:text-right text-xl font-mono text-white font-amount w-full">
                 {isPathPayment ? `Min ${displayReceiveAmount ? formatAmount(displayReceiveAmount) : '0.0'}` : amount ? formatAmount(amount) : '0.0'}
               </div>
             )}
