@@ -56,7 +56,7 @@ interface TransactionBuilderProps {
       med_threshold: number;
       high_threshold: number;
     };
-  };
+  } | null;
   initialTab?: string;
   onAccountRefresh?: () => Promise<void>;
 }
@@ -169,6 +169,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   useEffect(() => {
     // Load asset prices for fiat conversion in parallel for better performance
+    if (!accountData?.balances) return;
+    
     const loadPrices = async () => {
       const pricePromises = accountData.balances.map(async (balance) => {
         const key = balance.asset_code || 'XLM';
@@ -192,7 +194,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       setAssetPrices(prices);
     };
     loadPrices();
-  }, [accountData.balances]);
+  }, [accountData?.balances]);
   const checkAccountExists = async (destination: string) => {
     try {
       const server = createHorizonServer(currentNetwork);
@@ -227,6 +229,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     // Create operations to remove all existing trustlines before account merge
     // Note: XLM (native asset) cannot be closed and is automatically skipped
     const trustlineRemovalOps: any[] = [];
+    
+    if (!accountData?.balances) return trustlineRemovalOps;
     
     accountData.balances.forEach(balance => {
       // Skip native XLM balance - it cannot be closed as it's the native asset
@@ -284,7 +288,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         
         // Count additional trustline removal operations for account merges
         const accountMergeCount = batchPayments.filter(p => p.isAccountClosure).length;
-        if (accountMergeCount > 0) {
+        if (accountMergeCount > 0 && accountData?.balances) {
           const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
           totalOps += (trustlineCount * accountMergeCount);
         }
@@ -292,7 +296,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         fee = (100000 * totalOps).toString();
       } else if (pathPayment) {
         fee = '200000'; // Higher fee for path payments
-      } else if (isAccountMerge) {
+      } else if (isAccountMerge && accountData?.balances) {
         // Account merge requires additional operations for trustline removal
         const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
         fee = (100000 * (1 + trustlineCount)).toString();
@@ -723,7 +727,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   const getExistingSignedKeys = (): string[] => {
     const xdrToCheck = xdrData.output || xdrData.input;
-    if (!xdrToCheck) return [];
+    if (!xdrToCheck || !accountData?.signers) return [];
     try {
       const parsed: any = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork));
       const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
@@ -749,6 +753,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   };
 
   const getCurrentWeight = () => {
+    if (!accountData?.signers) return 0;
+    
     const existing = getExistingSignedKeys();
     const allSignedKeys = [...new Set([
       ...signedBy.map(s => s.signerKey),
@@ -761,6 +767,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   };
 
   const getRequiredWeight = () => {
+    if (!accountData?.thresholds) return 1;
+    
     // For multisig config changes, we need high threshold
     const isMultisigTab = activeTab === 'multisig';
     const threshold = isMultisigTab 
@@ -770,7 +778,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return threshold || 1;
   };
 
-  const canSubmitToNetwork = accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
+  const canSubmitToNetwork = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
   const canSubmitToRefractor = Boolean(xdrData.output || xdrData.input) && currentNetwork === 'mainnet';
 
   const copyXDR = async () => {
@@ -789,6 +797,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   // Get available assets from account balances with prices and balances
   const getAvailableAssets = () => {
+    if (!accountData?.balances) return [];
+    
     // Deduplicate by asset code (choose the trustline with the largest balance for that code)
     const byCode = new Map<string, { code: string; issuer: string; name: string; balance: string; price: number }>();
 
@@ -945,13 +955,15 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               </TabsContent>
 
               <TabsContent value="multisig" className="space-y-4 mt-6">
-                <MultisigConfigBuilder
-                  accountPublicKey={accountPublicKey}
-                  currentSigners={accountData.signers}
-                  currentThresholds={accountData.thresholds}
-                  onXdrGenerated={(xdr) => setXdrData(prev => ({ ...prev, output: xdr }))}
-                  onAccountRefresh={onAccountRefresh}
-                />
+                {accountData && (
+                  <MultisigConfigBuilder
+                    accountPublicKey={accountPublicKey}
+                    currentSigners={accountData.signers}
+                    currentThresholds={accountData.thresholds}
+                    onXdrGenerated={(xdr) => setXdrData(prev => ({ ...prev, output: xdr }))}
+                    onAccountRefresh={onAccountRefresh}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="refractor" className="space-y-4 mt-6">
@@ -973,7 +985,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         )}
 
         {/* Signer Selector */}
-        {(xdrData.output || xdrData.input) && (
+        {(xdrData.output || xdrData.input) && accountData && (
           <SignerSelector
             xdr={xdrData.output || xdrData.input}
             signers={accountData.signers}
