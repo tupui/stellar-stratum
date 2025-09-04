@@ -1,4 +1,4 @@
-# Stellar Multi-Signature Wallet
+# <img src="src/assets/stratum-logo.png" alt="Stratum" height="40" style="vertical-align: middle;">
 
 A dApp for managing Stellar accounts with multi-signature transaction capabilities.
 
