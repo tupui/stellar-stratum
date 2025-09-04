@@ -146,26 +146,25 @@ export const AddressAutocomplete = ({
               Resolving domain...
             </div>
           ) : resolvedAddress ? (
-            <div className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center justify-between p-2 bg-success/10 border border-success/20 rounded-lg">
               <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-green-600" />
-                <span className="text-sm text-green-800">
+                <Check className="w-4 h-4 text-success" />
+                <span className="text-sm text-success">
                   Resolves to: {formatAddress(resolvedAddress)}
                 </span>
               </div>
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={handleUseDomain}
-                className="text-green-700 border-green-300 hover:bg-green-100"
               >
-                Use Address
+                Use address
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-              <span className="text-sm text-red-800">
+            <div className="flex items-center gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <span className="text-sm text-destructive">
                 Domain not found or invalid
               </span>
             </div>
@@ -175,8 +174,8 @@ export const AddressAutocomplete = ({
 
       {/* Validation status for addresses */}
       {!isLikelySorobanDomain(value) && value && !isValidPublicKey(value) && (
-        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-          <span className="text-sm text-red-800">
+        <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <span className="text-sm text-destructive">
             Invalid Stellar address format
           </span>
         </div>

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Copy, ExternalLink, X } from 'lucide-react';
+import { CheckCircle, Copy, ExternalLink, X, Share2, Mail, MessageCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,6 +39,46 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
     }
   };
 
+  const copyShareLink = async () => {
+    if (!shareUrl) return;
+    await copyToClipboard(shareUrl, 'Share link');
+  };
+
+  const handleWebShare = async () => {
+    if (navigator.share && shareUrl) {
+      try {
+        await navigator.share({
+          title: 'Sign Transaction on Stellar Stratum',
+          text: `Please sign this transaction: ${refractorId}`,
+          url: shareUrl,
+        });
+      } catch (error) {
+        // ignore
+      }
+    } else {
+      copyShareLink();
+    }
+  };
+
+  const openEmailClient = () => {
+    if (!shareUrl) return;
+    const subject = encodeURIComponent('Sign Transaction on Stellar Stratum');
+    const body = encodeURIComponent(`Please sign this transaction using Stellar Stratum:\n\nTransaction ID: ${refractorId}\nLink: ${shareUrl}`);
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+  };
+
+  const openWhatsApp = () => {
+    if (!shareUrl) return;
+    const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const openTelegram = () => {
+    if (!shareUrl) return;
+    const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
+    window.open(`https://t.me/share/url?url=${shareUrl}&text=${text}`, '_blank');
+  };
+
   const displayValue = type === 'network' ? hash : refractorId;
   const label = type === 'network' ? 'Transaction Hash' : 'Refractor ID';
   const title = type === 'network' 
@@ -47,6 +87,9 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
   const description = type === 'network'
     ? 'Your transaction has been successfully submitted to the Stellar network'
     : 'Your transaction has been submitted to Refractor for signature collection';
+  const shareUrl = type === 'refractor' && refractorId 
+    ? `${window.location.origin}?r=${refractorId}`
+    : '';
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-4">
@@ -101,6 +144,37 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
             </div>
           </div>
           
+          {/* Share Options (Refractor) */}
+          {type === 'refractor' && refractorId && (
+            <div className="space-y-2">
+              <span className="text-sm font-medium text-muted-foreground">Share</span>
+              <div className="grid grid-cols-2 gap-2">
+                {typeof navigator !== 'undefined' && 'share' in navigator && (
+                  <Button variant="outline" onClick={handleWebShare} className="inline-flex items-center gap-2">
+                    <Share2 className="w-4 h-4" />
+                    Share
+                  </Button>
+                )}
+                <Button variant="outline" onClick={copyShareLink} className="inline-flex items-center gap-2">
+                  <Copy className="w-4 h-4" />
+                  Copy link
+                </Button>
+                <Button variant="outline" onClick={openEmailClient} className="inline-flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Email
+                </Button>
+                <Button variant="outline" onClick={openWhatsApp} className="inline-flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  WhatsApp
+                </Button>
+                <Button variant="outline" onClick={openTelegram} className="inline-flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4" />
+                  Telegram
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
             <Button 
