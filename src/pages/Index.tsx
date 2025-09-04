@@ -63,8 +63,18 @@ const Index = () => {
       
       // Check if we have deep link data and should go directly to transaction
       const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
-      if (deepLinkXdr) {
+      const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
+      if (deepLinkXdr && deepLinkRefractorId) {
+        // Clear the session storage to prevent repeated redirects
+        sessionStorage.removeItem('deeplink-xdr');
+        sessionStorage.removeItem('deeplink-refractor-id');
         setAppState('transaction');
+        
+        toast({
+          title: "Transaction Loaded from Link",
+          description: `Transaction ${deepLinkRefractorId} is ready for review and signing.`,
+          duration: 4000,
+        });
       } else {
         setAppState('dashboard');
       }
