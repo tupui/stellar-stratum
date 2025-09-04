@@ -44,11 +44,32 @@ const Index = () => {
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
 
 
-  const handleDeepLinkLoaded = () => {
-    // Mark deep link ready; only navigate if already connected
-    setDeepLinkReady(true);
-    if (publicKey) {
+  const handleDeepLinkLoaded = async (sourceAccount: string) => {
+    // Load account data from the XDR's source account
+    setPublicKey(sourceAccount);
+    setLoading(true);
+    
+    try {
+      const realAccountData = await fetchAccountData(sourceAccount, network);
+      setAccountData(realAccountData);
+      setDeepLinkReady(true);
       setAppState('transaction');
+      
+      toast({
+        title: 'Account Loaded',
+        description: 'Ready to review and sign transaction',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Failed to load source account:', error);
+      toast({
+        title: 'Failed to load source account',
+        description: error instanceof Error ? error.message : 'Could not load account data',
+        variant: 'destructive',
+      });
+      setAppState('connecting');
+    } finally {
+      setLoading(false);
     }
   };
 
