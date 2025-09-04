@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Copy, ExternalLink, X, Share2, Mail, MessageCircle } from 'lucide-react';
+import { CheckCircle, Copy, ExternalLink, X, Share2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
+import { ModernShareModal } from './ModernShareModal';
 
 interface SuccessModalProps {
   type: 'network' | 'refractor';
@@ -17,6 +18,7 @@ interface SuccessModalProps {
 export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onClose }: SuccessModalProps) => {
   const [copied, setCopied] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [showShareModal, setShowShareModal] = useState(false);
   const { toast } = useToast();
 
   const shareUrl = type === 'refractor' && refractorId 
@@ -246,7 +248,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={handleWebShare} 
+                  onClick={() => setShowShareModal(true)} 
                   className="h-8 px-3"
                 >
                   <Share2 className="w-4 h-4 mr-1" />
@@ -270,6 +272,14 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           )}
         </CardContent>
       </Card>
+      
+      {/* Modern Share Modal */}
+      {showShareModal && refractorId && (
+        <ModernShareModal 
+          refractorId={refractorId} 
+          onClose={() => setShowShareModal(false)} 
+        />
+      )}
     </div>
   );
 };

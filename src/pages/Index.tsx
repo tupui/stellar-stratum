@@ -41,10 +41,11 @@ const Index = () => {
   const [publicKey, setPublicKey] = useState<string>('');
 
   const handleDeepLinkLoaded = () => {
-    // Force transition to transaction state if we have a connected wallet
-    if (publicKey && accountData) {
+    // If wallet is already connected, go to transaction state
+    if (connectedWallet && publicKey && accountData) {
       setAppState('transaction');
     }
+    // Otherwise, wallet connection will handle the transition
   };
 
   const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
