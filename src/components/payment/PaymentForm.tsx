@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, TrendingUp, Merge, Users, Edit2, X } from 'lucide-react';
+import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, TrendingUp, Merge, Users, Edit2, X, QrCode } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -17,6 +17,9 @@ import { DestinationAccountInfo } from './DestinationAccountInfo';
 import { SwapInterface } from '../SwapInterface';
 import { AssetIcon } from '../AssetIcon';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { AddressAutocomplete } from '../AddressAutocomplete';
+import { QRScanner } from '../QRScanner';
+import { useAddressBook } from '@/hooks/useAddressBook';
 import * as StellarSDK from '@stellar/stellar-sdk';
 interface PaymentData {
   destination: string;
@@ -109,6 +112,7 @@ export const PaymentForm = ({
   const [domainSuggestions, setDomainSuggestions] = useState<{ domain: string; address: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   type RecipientAsset = {
     code: string;
     issuer?: string;
@@ -1032,11 +1036,12 @@ export const PaymentForm = ({
             {willCloseAccount ? 'Send All Funds To' : 'Destination Address or Domain'}
           </Label>
           <div className="relative">
-            <Input 
-              id="destination" 
-              placeholder="GABC... or mydomain" 
+            <AddressAutocomplete
               value={paymentData.destination} 
-              onChange={e => handleDestinationChange(e.target.value)}
+              onChange={handleDestinationChange}
+              accountPublicKey={accountPublicKey}
+              network={network}
+              onQRScan={() => setShowQRScanner(true)}
               onFocus={() => {
                 if (domainSuggestions.length > 0) {
                   setShowSuggestions(true);
@@ -1050,13 +1055,8 @@ export const PaymentForm = ({
                 paymentData.destination && !isValidDestination(paymentData.destination)
                   ? 'border-destructive' 
                   : 'border-border/60'
-              } ${resolvingDomain ? 'pr-8' : ''}`}
+              }`}
             />
-            {resolvingDomain && (
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
             
             {/* Domain Suggestions Dropdown */}
             {showSuggestions && domainSuggestions.length > 0 && (
@@ -1284,6 +1284,32 @@ export const PaymentForm = ({
         </div>
         </div>
       )}
+      
+      {/* QR Scanner */}
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={(data: string) => {
+          // Handle QR code data - could be an address or deep link
+          try {
+            const url = new URL(data);
+            const destination = url.searchParams.get('destination');
+            if (destination) {
+              onPaymentDataChange({
+                ...paymentData,
+                destination
+              });
+              return;
+            }
+          } catch {
+            // Not a URL, assume it's a Stellar address
+            onPaymentDataChange({
+              ...paymentData,
+              destination: data
+            });
+          }
+        }}
+      />
     </div>
   );
 };

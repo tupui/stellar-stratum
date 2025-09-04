@@ -16,7 +16,8 @@ import {
   Operation,
   Asset,
   Memo,
-  Horizon
+  Horizon,
+  StrKey
 } from '@stellar/stellar-sdk';
 import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
 import { signWithWallet } from '@/lib/walletKit';
@@ -55,7 +56,7 @@ interface TransactionBuilderProps {
       med_threshold: number;
       high_threshold: number;
     };
-  };
+  } | null;
   initialTab?: string;
   onAccountRefresh?: () => Promise<void>;
 }
@@ -89,13 +90,56 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
-    setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
     setTrustlineError('');
-    setXdrData({ input: '', output: '' });
     setSignedBy([]);
     setRefractorId('');
     setSuccessData(null);
+
+    if (activeTab === 'xdr') {
+      // Switching to XDR view: clear payment-only state, keep XDR intact
+      setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
+    } else if (activeTab === 'payment' || activeTab === 'path' || activeTab === 'batch' || activeTab === 'account') {
+      // Switching to payment-related tabs: clear XDR state
+      setXdrData({ input: '', output: '' });
+    }
   }, [activeTab]);
+
+  // Check for deep link data on mount
+  useEffect(() => {
+    const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
+    const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
+    
+    if (deepLinkXdr) {
+      // Use the same processing as XDR tab
+      handleXdrInputChange(deepLinkXdr);
+      setActiveTab('xdr');
+      if (deepLinkRefractorId) setRefractorId(deepLinkRefractorId);
+      // Clear the deep link data to prevent reprocessing
+      sessionStorage.removeItem('deeplink-xdr');
+      sessionStorage.removeItem('deeplink-refractor-id');
+      toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
+    }
+  }, []);
+
+  // Also handle deep link events when already on the builder
+  useEffect(() => {
+    const handleDeepLinkEvent = () => {
+      const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
+      const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
+      if (deepLinkXdr) {
+        handleXdrInputChange(deepLinkXdr);
+        setActiveTab('xdr');
+        if (deepLinkRefractorId) setRefractorId(deepLinkRefractorId);
+        sessionStorage.removeItem('deeplink-xdr');
+        sessionStorage.removeItem('deeplink-refractor-id');
+        toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
+      }
+    };
+    // Use 'as any' to avoid TS custom event typing friction
+    window.addEventListener('deeplink:xdr-loaded', handleDeepLinkEvent as any);
+    return () => window.removeEventListener('deeplink:xdr-loaded', handleDeepLinkEvent as any);
+  }, []);
+
 
   // Function to fetch additional asset prices with timeout
   const fetchAdditionalAssetPrice = async (assetCode: string, assetIssuer?: string) => {
@@ -125,6 +169,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   useEffect(() => {
     // Load asset prices for fiat conversion in parallel for better performance
+    if (!accountData?.balances) return;
+    
     const loadPrices = async () => {
       const pricePromises = accountData.balances.map(async (balance) => {
         const key = balance.asset_code || 'XLM';
@@ -148,7 +194,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       setAssetPrices(prices);
     };
     loadPrices();
-  }, [accountData.balances]);
+  }, [accountData?.balances]);
   const checkAccountExists = async (destination: string) => {
     try {
       const server = createHorizonServer(currentNetwork);
@@ -183,6 +229,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     // Create operations to remove all existing trustlines before account merge
     // Note: XLM (native asset) cannot be closed and is automatically skipped
     const trustlineRemovalOps: any[] = [];
+    
+    if (!accountData?.balances) return trustlineRemovalOps;
     
     accountData.balances.forEach(balance => {
       // Skip native XLM balance - it cannot be closed as it's the native asset
@@ -240,7 +288,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         
         // Count additional trustline removal operations for account merges
         const accountMergeCount = batchPayments.filter(p => p.isAccountClosure).length;
-        if (accountMergeCount > 0) {
+        if (accountMergeCount > 0 && accountData?.balances) {
           const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
           totalOps += (trustlineCount * accountMergeCount);
         }
@@ -248,7 +296,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         fee = (100000 * totalOps).toString();
       } else if (pathPayment) {
         fee = '200000'; // Higher fee for path payments
-      } else if (isAccountMerge) {
+      } else if (isAccountMerge && accountData?.balances) {
         // Account merge requires additional operations for trustline removal
         const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
         fee = (100000 * (1 + trustlineCount)).toString();
@@ -662,14 +710,65 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
   };
 
+  const handleSubmitForSignature = async (): Promise<string> => {
+    if (!xdrData.output) {
+      throw new Error("No transaction to submit");
+    }
+
+    const id = await submitToRefractor(xdrData.output, currentNetwork);
+    setRefractorId(id);
+    toast({
+      title: "Transaction submitted for signature",
+      description: "Share the link with other signers",
+      duration: 5000,
+    });
+    return id;
+  };
+
+  const getExistingSignedKeys = (): string[] => {
+    const xdrToCheck = xdrData.output || xdrData.input;
+    if (!xdrToCheck || !accountData?.signers) return [];
+    try {
+      const parsed: any = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork));
+      const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
+      const hints: Buffer[] = parsed?.innerTransaction
+        ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
+        : collectHints(parsed);
+      const set = new Set<string>();
+      hints.forEach((hint) => {
+        accountData.signers.forEach((signer) => {
+          try {
+            const raw = Buffer.from(StrKey.decodeEd25519PublicKey(signer.key));
+            const signerHint = raw.subarray(raw.length - 4);
+            if (Buffer.compare(hint, signerHint) === 0) {
+              set.add(signer.key);
+            }
+          } catch {}
+        });
+      });
+      return Array.from(set);
+    } catch {
+      return [];
+    }
+  };
+
   const getCurrentWeight = () => {
-    return signedBy.reduce((total, signed) => {
-      const signer = accountData.signers.find(s => s.key === signed.signerKey);
+    if (!accountData?.signers) return 0;
+    
+    const existing = getExistingSignedKeys();
+    const allSignedKeys = [...new Set([
+      ...signedBy.map(s => s.signerKey),
+      ...existing
+    ])];
+    return allSignedKeys.reduce((total, signerKey) => {
+      const signer = accountData.signers.find(s => s.key === signerKey);
       return total + (signer?.weight || 0);
     }, 0);
   };
 
   const getRequiredWeight = () => {
+    if (!accountData?.thresholds) return 1;
+    
     // For multisig config changes, we need high threshold
     const isMultisigTab = activeTab === 'multisig';
     const threshold = isMultisigTab 
@@ -679,7 +778,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return threshold || 1;
   };
 
-  const canSubmitToNetwork = accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
+  const canSubmitToNetwork = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
   const canSubmitToRefractor = Boolean(xdrData.output || xdrData.input) && currentNetwork === 'mainnet';
 
   const copyXDR = async () => {
@@ -698,6 +797,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   // Get available assets from account balances with prices and balances
   const getAvailableAssets = () => {
+    if (!accountData?.balances) return [];
+    
     // Deduplicate by asset code (choose the trustline with the largest balance for that code)
     const byCode = new Map<string, { code: string; issuer: string; name: string; balance: string; price: number }>();
 
@@ -740,7 +841,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             onClick={onBack}
             className="self-start bg-success hover:bg-success/90 text-success-foreground"
           >
-            Back to Wallet
+            {accountPublicKey ? 'Back to Wallet' : 'Connect Wallet'}
           </Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg sm:text-xl md:text-2xl font-bold whitespace-nowrap">Transaction Builder</h1>
@@ -748,18 +849,20 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           </div>
         </div>
 
-        {/* Source Account Info */}
-        <Card className="shadow-card">
-          <CardContent className="pt-4 sm:pt-6">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="min-w-0 flex-1">
-                <Label className="text-sm text-muted-foreground">Source Account</Label>
-                <p className="font-address text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
+        {/* Source Account Info - Only show when account is connected */}
+        {accountPublicKey && accountData && (
+          <Card className="shadow-card">
+            <CardContent className="pt-4 sm:pt-6">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="min-w-0 flex-1">
+                  <Label className="text-sm text-muted-foreground">Source Account</Label>
+                  <p className="font-address text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
+                </div>
+                <Badge variant="outline" className="shrink-0">Connected</Badge>
               </div>
-              <Badge variant="outline" className="shrink-0">Connected</Badge>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Transaction Builder */}
         <Card className="shadow-card">
@@ -802,7 +905,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Share2 className="w-4 h-4" />
-                    <span>Refractor</span>
+                    <span>Pull Transaction</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -854,20 +957,23 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               </TabsContent>
 
               <TabsContent value="multisig" className="space-y-4 mt-6">
-                <MultisigConfigBuilder
-                  accountPublicKey={accountPublicKey}
-                  currentSigners={accountData.signers}
-                  currentThresholds={accountData.thresholds}
-                  onXdrGenerated={(xdr) => setXdrData(prev => ({ ...prev, output: xdr }))}
-                  onAccountRefresh={onAccountRefresh}
-                />
+                {accountData && (
+                  <MultisigConfigBuilder
+                    accountPublicKey={accountPublicKey}
+                    currentSigners={accountData.signers}
+                    currentThresholds={accountData.thresholds}
+                    onXdrGenerated={(xdr) => setXdrData(prev => ({ ...prev, output: xdr }))}
+                    onAccountRefresh={onAccountRefresh}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="refractor" className="space-y-4 mt-6">
-                <RefractorIntegration
-                  onPullTransaction={handlePullFromRefractor}
-                  lastRefractorId={refractorId}
-                />
+          <RefractorIntegration
+            onPullTransaction={handlePullFromRefractor}
+            lastRefractorId={refractorId}
+            network={currentNetwork}
+          />
               </TabsContent>
             </Tabs>
           </CardContent>
@@ -881,7 +987,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         )}
 
         {/* Signer Selector */}
-        {(xdrData.output || xdrData.input) && (
+        {(xdrData.output || xdrData.input) && accountData && (
           <SignerSelector
             xdr={xdrData.output || xdrData.input}
             signers={accountData.signers}

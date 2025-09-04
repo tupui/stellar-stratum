@@ -52,7 +52,7 @@ export const NetworkSelector = ({
                 Submitting...
               </div> : <>
                 <img src={refractorLogo} alt="Refractor" className="w-4 h-4 mr-2" />
-                Share via Refractor
+                Send for Signature
               </>}
           </Button>
         </div>

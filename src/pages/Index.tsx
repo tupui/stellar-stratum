@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LandingPage } from '@/components/LandingPage';
 import { AccountOverview } from '@/components/AccountOverview';
 import { TransactionBuilder } from '@/components/TransactionBuilder';
 import { Footer } from '@/components/Footer';
+import { DeepLinkHandler } from '@/components/DeepLinkHandler';
 import { fetchAccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
@@ -38,6 +39,39 @@ const Index = () => {
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>('');
+  const [deepLinkReady, setDeepLinkReady] = useState(false);
+
+  // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
+
+
+  const handleDeepLinkLoaded = async (sourceAccount: string) => {
+    // Load account data from the XDR's source account
+    setPublicKey(sourceAccount);
+    setLoading(true);
+    
+    try {
+      const realAccountData = await fetchAccountData(sourceAccount, network);
+      setAccountData(realAccountData);
+      setDeepLinkReady(true);
+      setAppState('transaction');
+      
+      toast({
+        title: 'Account Loaded',
+        description: 'Ready to review and sign transaction',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Failed to load source account:', error);
+      toast({
+        title: 'Failed to load source account',
+        description: error instanceof Error ? error.message : 'Could not load account data',
+        variant: 'destructive',
+      });
+      setAppState('connecting');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
     setConnectedWallet(walletType);
@@ -50,7 +84,16 @@ const Index = () => {
       const realAccountData = await fetchAccountData(publicKey, selectedNetwork);
       setAccountData(realAccountData);
       setLoading(false);
-      setAppState('dashboard');
+      
+      // Check if we have deep link data and should go directly to transaction
+      const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
+      if (deepLinkXdr) {
+        setDeepLinkReady(true);
+        setAppState('transaction');
+      } else {
+        setDeepLinkReady(false);
+        setAppState('dashboard');
+      }
       
     } catch (error) {
       console.error('Failed to load account:', error);
@@ -80,6 +123,7 @@ const Index = () => {
   };
 
   const handleBackToDashboard = () => {
+    setDeepLinkReady(false);
     setAppState('dashboard');
   };
 
@@ -87,11 +131,13 @@ const Index = () => {
     setConnectedWallet('');
     setPublicKey('');
     setAccountData(null);
+    setDeepLinkReady(false);
     setAppState('connecting');
   };
 
   return (
     <FiatCurrencyProvider>
+      <DeepLinkHandler onDeepLinkLoaded={handleDeepLinkLoaded} />
       <div className="min-h-screen bg-background flex flex-col">
         <div className="flex-1">
           {/* Landing Page */}
@@ -100,13 +146,13 @@ const Index = () => {
           )}
 
           {/* Transaction Builder */}
-          {(appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
+          {(appState === 'transaction' || appState === 'multisig-config') && (
             <TransactionBuilder
               key={`${appState}-${publicKey}`}
               onBack={handleBackToDashboard}
-              accountPublicKey={publicKey}
+              accountPublicKey={publicKey || ''}
               accountData={accountData}
-              initialTab={appState === 'multisig-config' ? 'multisig' : 'payment'}
+              initialTab={appState === 'multisig-config' ? 'multisig' : (deepLinkReady ? 'xdr' : 'payment')}
               onAccountRefresh={async () => {
                 if (!publicKey) return;
                 const realAccountData = await fetchAccountData(publicKey, network);
