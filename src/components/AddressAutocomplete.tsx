@@ -135,10 +135,10 @@ export const AddressAutocomplete = ({
             onFocus={onFocus}
             onBlur={onBlur}
             placeholder={placeholder}
-            className={cn("font-mono pr-3", className)}
+            className={cn("font-mono", isResolving ? "pr-10" : "pr-3", className)}
           />
           {isResolving && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10">
               <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           )}

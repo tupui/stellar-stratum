@@ -117,23 +117,22 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
       <Card className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border/60 bg-card/40 supports-[backdrop-filter]:bg-card/30 backdrop-blur-xl shadow-card ring-1 ring-primary/10">
         {/* Subtle top gradient sheen */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/15 via-transparent to-transparent" />
-        <CardHeader className="pb-4 relative">
-
+        <CardHeader className="pb-6 relative">
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-success" />
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-success/20 to-success/10 border border-success/20 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-success" />
               </div>
               <div>
-                <CardTitle className="text-success text-lg">{title}</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">{description}</p>
+                <CardTitle className="text-success text-xl font-semibold">{title}</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
               </div>
             </div>
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={onClose}
-              className="h-8 w-8 p-0 shrink-0"
+              className="h-8 w-8 p-0 shrink-0 hover:bg-destructive/10 hover:text-destructive"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -209,38 +208,63 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           
           {/* Share Options (Refractor) */}
           {type === 'refractor' && refractorId && (
-            <div className="space-y-3">
-              <span className="text-sm font-medium text-muted-foreground">Share for signatures</span>
-              <div className="rounded-xl border border-border/60 bg-card/30 supports-[backdrop-filter]:bg-card/20 backdrop-blur-md p-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <Button variant="secondary" onClick={handleWebShare} className="h-10 hover-scale" aria-label="Share for signatures">
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Share
-                  </Button>
-                  <Button variant="outline" onClick={copyShareLink} className="h-10 hover-scale" aria-label="Copy share link">
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy link
+            <div className="space-y-4">
+              <div className="text-center">
+                <h3 className="text-sm font-medium text-foreground mb-2">Share for signatures</h3>
+                <p className="text-xs text-muted-foreground">Send this link to collect signatures</p>
+              </div>
+              
+              <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-card/60 to-card/40 supports-[backdrop-filter]:from-card/40 supports-[backdrop-filter]:to-card/20 backdrop-blur-xl p-4 shadow-lg">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Share2 className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <Button 
+                      onClick={handleWebShare} 
+                      className="w-full justify-start h-auto p-3 bg-primary/5 hover:bg-primary/10 border border-primary/20 text-foreground"
+                      variant="ghost"
+                    >
+                      <span className="font-medium">Share Link</span>
+                    </Button>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={copyShareLink}
+                    className="h-8 w-8 p-0 hover:bg-primary/10"
+                  >
+                    {copied ? <CheckCircle className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
                   </Button>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <Button variant="ghost" size="sm" onClick={openEmailClient} className="h-9" aria-label="Share via Email">
-                    <Mail className="w-4 h-4 mr-2" />
-                    Email
+                
+                <div className="grid grid-cols-3 gap-2">
+                  <Button 
+                    variant="ghost" 
+                    onClick={openEmailClient} 
+                    className="flex-col h-auto p-3 hover:bg-accent/50 gap-1"
+                  >
+                    <Mail className="w-5 h-5" />
+                    <span className="text-xs">Email</span>
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={openWhatsApp} className="h-9" aria-label="Share via WhatsApp">
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    WhatsApp
+                  <Button 
+                    variant="ghost" 
+                    onClick={openWhatsApp} 
+                    className="flex-col h-auto p-3 hover:bg-accent/50 gap-1"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    <span className="text-xs">WhatsApp</span>
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={openTelegram} className="h-9" aria-label="Share via Telegram">
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Telegram
+                  <Button 
+                    variant="ghost" 
+                    onClick={openTelegram} 
+                    className="flex-col h-auto p-3 hover:bg-accent/50 gap-1"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                    <span className="text-xs">Telegram</span>
                   </Button>
                 </div>
               </div>
-              <Button onClick={openExplorer} className="w-full" aria-label="View on Refractor">
-                <ExternalLink className="w-4 h-4 mr-2" />
-                View on Refractor
-              </Button>
             </div>
           )}
 
