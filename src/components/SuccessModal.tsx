@@ -81,15 +81,22 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
 
   const handleWebShare = async () => {
     if (!shareUrl) return;
-    if (navigator.share) {
+    const shareData = {
+      title: 'Sign Transaction on Stellar Stratum',
+      text: refractorId ? `Please sign this transaction: ${refractorId}` : 'Please sign this transaction',
+      url: shareUrl,
+    };
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
       try {
-        await navigator.share({
-          title: 'Sign Transaction on Stellar Stratum',
-          text: refractorId ? `Please sign this transaction: ${refractorId}` : 'Please sign this transaction',
-          url: shareUrl,
-        });
-      } catch {
-        // Ignore if user cancels
+        // If canShare exists and returns false, fallback to copy
+        if (typeof (navigator as any).canShare === 'function' && (navigator as any).canShare && !(navigator as any).canShare(shareData)) {
+          await copyShareLink();
+          return;
+        }
+        await (navigator as any).share(shareData);
+      } catch (err) {
+        // Fallback to copy if share fails or is cancelled
+        await copyShareLink();
       }
     } else {
       await copyShareLink();
