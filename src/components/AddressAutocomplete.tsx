@@ -37,8 +37,15 @@ export const AddressAutocomplete = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  const { entries, searchAddresses } = useAddressBook(accountPublicKey, network);
+  const { entries, searchAddresses, syncAddressBook } = useAddressBook(accountPublicKey, network);
   const suggestions = value.trim() ? searchAddresses(value) : entries;
+
+  // Sync address book when account changes
+  useEffect(() => {
+    if (accountPublicKey) {
+      syncAddressBook();
+    }
+  }, [accountPublicKey, network]);
 
   // Handle clicks outside to close dropdown
   useEffect(() => {
