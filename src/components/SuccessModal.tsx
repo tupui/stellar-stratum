@@ -185,12 +185,14 @@ export const SuccessModal = ({
                   <Button variant="ghost" size="sm" onClick={openExplorer} className="h-6 w-6 p-0">
                     <ExternalLink className="w-3 h-3" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(displayValue || '', label)} className="h-6 w-6 p-0">
-                    {copied ? <CheckCircle className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
-                  </Button>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm p-2">
-                  <p className="font-mono text-xs text-center break-all text-foreground/80">{displayValue}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-mono text-xs break-all text-foreground/80 flex-1">{displayValue}</p>
+                    <Button variant="ghost" size="sm" onClick={() => copyToClipboard(displayValue || '', label)} className="h-6 w-6 p-0 ml-2 shrink-0">
+                      {copied ? <CheckCircle className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>}
