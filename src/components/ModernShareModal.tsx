@@ -4,30 +4,30 @@ import { CheckCircle, Copy, X, Mail, MessageCircle, Send } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
-
 interface ModernShareModalProps {
   refractorId: string;
   onClose: () => void;
 }
-
-export const ModernShareModal = ({ refractorId, onClose }: ModernShareModalProps) => {
+export const ModernShareModal = ({
+  refractorId,
+  onClose
+}: ModernShareModalProps) => {
   const [copied, setCopied] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   const shareUrl = `${window.location.origin}?r=${refractorId}`;
-
   useEffect(() => {
     QRCode.toDataURL(shareUrl, {
       width: 200,
       margin: 2,
       color: {
         dark: '#000000',
-        light: '#ffffff',
-      },
+        light: '#ffffff'
+      }
     }).then(setQrCodeDataUrl);
   }, [shareUrl]);
-
   const copyToClipboard = async () => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
@@ -48,31 +48,30 @@ export const ModernShareModal = ({ refractorId, onClose }: ModernShareModalProps
       toast({
         title: 'Copied to clipboard',
         description: 'Share link has been copied',
-        duration: 2500,
+        duration: 2500
       });
     } catch (e) {
-      toast({ title: 'Could not copy', description: 'Please copy manually.', duration: 3000 });
+      toast({
+        title: 'Could not copy',
+        description: 'Please copy manually.',
+        duration: 3000
+      });
     }
   };
-
   const openEmailClient = () => {
     const subject = encodeURIComponent('Sign Transaction on Stellar Stratum');
     const body = encodeURIComponent(`Please sign this transaction using Stellar Stratum:\n\nTransaction ID: ${refractorId}\nLink: ${shareUrl}`);
     window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
   };
-
   const openWhatsApp = () => {
     const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
-
   const openTelegram = () => {
     const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
     window.open(`https://t.me/share/url?url=${shareUrl}&text=${text}`, '_blank');
   };
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+  return <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-background/40 supports-[backdrop-filter]:bg-background/30 backdrop-blur-2xl" />
       {/* Glows */}
@@ -83,13 +82,9 @@ export const ModernShareModal = ({ refractorId, onClose }: ModernShareModalProps
         
         <CardHeader className="pb-4 relative">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-primary text-lg font-semibold">Share Transaction</CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onClose}
-              className="h-8 w-8 p-0 shrink-0 hover:bg-destructive/10 hover:text-destructive"
-            >
+            <CardTitle className="text-primary text-lg font-semibold">Send for Signature
+          </CardTitle>
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 shrink-0 hover:bg-destructive/10 hover:text-destructive">
               <X className="w-4 h-4" />
             </Button>
           </div>
@@ -100,9 +95,7 @@ export const ModernShareModal = ({ refractorId, onClose }: ModernShareModalProps
           {/* QR Code */}
           <div className="flex justify-center">
             <div className="p-3 rounded-xl border border-border/60 bg-background">
-              {qrCodeDataUrl && (
-                <img src={qrCodeDataUrl} alt="Transaction QR code" className="w-40 h-40" loading="lazy" />
-              )}
+              {qrCodeDataUrl && <img src={qrCodeDataUrl} alt="Transaction QR code" className="w-40 h-40" loading="lazy" />}
             </div>
           </div>
 
@@ -119,40 +112,24 @@ export const ModernShareModal = ({ refractorId, onClose }: ModernShareModalProps
           {/* Share Options */}
           <div className="space-y-4">
             {/* Copy Link */}
-            <Button 
-              variant="outline" 
-              className="w-full h-12 bg-background/50 hover:bg-background/80 border-primary/20"
-              onClick={copyToClipboard}
-            >
+            <Button variant="outline" className="w-full h-12 bg-background/50 hover:bg-background/80 border-primary/20" onClick={copyToClipboard}>
               {copied ? <CheckCircle className="w-4 h-4 mr-2 text-success" /> : <Copy className="w-4 h-4 mr-2" />}
               {copied ? 'Copied!' : 'Copy Link'}
             </Button>
 
             {/* Share Options Grid */}
             <div className="grid grid-cols-3 gap-3">
-              <Button 
-                variant="outline" 
-                className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20"
-                onClick={openEmailClient}
-              >
+              <Button variant="outline" className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openEmailClient}>
                 <Mail className="w-5 h-5" />
                 <span className="text-xs">Email</span>
               </Button>
               
-              <Button 
-                variant="outline" 
-                className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20"
-                onClick={openWhatsApp}
-              >
+              <Button variant="outline" className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openWhatsApp}>
                 <MessageCircle className="w-5 h-5" />
                 <span className="text-xs">WhatsApp</span>
               </Button>
               
-              <Button 
-                variant="outline" 
-                className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20"
-                onClick={openTelegram}
-              >
+              <Button variant="outline" className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openTelegram}>
                 <Send className="w-5 h-5" />
                 <span className="text-xs">Telegram</span>
               </Button>
@@ -160,11 +137,8 @@ export const ModernShareModal = ({ refractorId, onClose }: ModernShareModalProps
           </div>
 
           {/* Instructions */}
-          <div className="text-center text-xs text-muted-foreground bg-muted/20 rounded-lg p-3">
-            Share this link with other signers. They can scan the QR code or click the link to review and sign the transaction.
-          </div>
+          
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>;
 };
