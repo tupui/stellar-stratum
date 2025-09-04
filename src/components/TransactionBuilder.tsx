@@ -817,7 +817,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Share2 className="w-4 h-4" />
-                    <span>Refractor</span>
+                    <span>Pull Transaction</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -881,9 +881,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               <TabsContent value="refractor" className="space-y-4 mt-6">
           <RefractorIntegration
             onPullTransaction={handlePullFromRefractor}
-            onSubmitForSignature={handleSubmitForSignature}
             lastRefractorId={refractorId}
-            hasBuiltTransaction={Boolean(xdrData.output)}
             network={currentNetwork}
           />
               </TabsContent>

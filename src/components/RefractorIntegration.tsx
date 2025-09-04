@@ -13,22 +13,17 @@ import { QRScanner } from './QRScanner';
 
 interface RefractorIntegrationProps {
   onPullTransaction: (refractorId: string) => Promise<void>;
-  onSubmitForSignature?: (xdr: string) => Promise<string>;
   lastRefractorId?: string;
-  hasBuiltTransaction?: boolean;
   network: 'mainnet' | 'testnet';
 }
 
 export const RefractorIntegration = ({ 
   onPullTransaction, 
-  onSubmitForSignature,
   lastRefractorId, 
-  hasBuiltTransaction = false, 
   network 
 }: RefractorIntegrationProps) => {
   const [refractorId, setRefractorId] = useState('');
   const [isPulling, setIsPulling] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -69,19 +64,6 @@ export const RefractorIntegration = ({
     }
   };
 
-  const handleSubmitForSignature = async () => {
-    if (!onSubmitForSignature) return;
-    
-    setIsSubmitting(true);
-    try {
-      const newRefractorId = await onSubmitForSignature('');
-      setShowShareModal(true);
-    } catch (error) {
-      // Error handling is done in parent component
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleQRScan = (data: string) => {
     // Check if it's a Stellar Stratum deep link
@@ -111,52 +93,22 @@ export const RefractorIntegration = ({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <img src={refractorLogo} alt="Refractor" className="w-5 h-5 shrink-0" />
-          Refractor Integration
+          Pull Transaction
         </CardTitle>
         <CardDescription>
-          Use{' '}
+          Retrieve existing transactions from{' '}
           <a 
             href="https://refractor.space/" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="text-yellow-500 hover:text-yellow-400"
+            className="text-primary hover:text-primary/80"
           >
             Refractor.space
           </a>{' '}
-          to collect signatures from multiple parties
+          using an ID or QR code
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Send for Signature Button */}
-        {hasBuiltTransaction && onSubmitForSignature && (
-          <>
-            <div className="space-y-3">
-              <Button 
-                onClick={handleSubmitForSignature}
-                disabled={isSubmitting}
-                size="lg"
-                className="w-full inline-flex items-center gap-2"
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Submitting to Refractor...
-                  </div>
-                ) : (
-                  <>
-                    <Share2 className="w-4 h-4" />
-                    Send for Signature
-                  </>
-                )}
-              </Button>
-              <p className="text-xs text-muted-foreground text-center">
-                Submit your transaction to Refractor and share with other signers
-              </p>
-            </div>
-            <Separator />
-          </>
-        )}
-
         {/* Last Submitted Transaction */}
         {lastRefractorId && (
           <>
@@ -246,10 +198,9 @@ export const RefractorIntegration = ({
         </div>
 
         {/* Info */}
-        <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
-          <p className="text-sm text-primary">
-            <strong>How it works:</strong> Submit your transaction to Refractor to collect signatures from multiple parties. 
-            Share the link with other signers who can sign and resubmit the transaction.
+        <div className="p-3 bg-secondary/50 border border-border rounded-lg">
+          <p className="text-sm text-foreground">
+            <strong>How it works:</strong> Enter a Refractor transaction ID or scan a QR code to retrieve existing transactions that need signatures.
           </p>
         </div>
       </CardContent>
