@@ -16,7 +16,8 @@ import {
   Operation,
   Asset,
   Memo,
-  Horizon
+  Horizon,
+  StrKey
 } from '@stellar/stellar-sdk';
 import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
 import { signWithWallet } from '@/lib/walletKit';
@@ -89,12 +90,18 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
-    setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
     setTrustlineError('');
-    setXdrData({ input: '', output: '' });
     setSignedBy([]);
     setRefractorId('');
     setSuccessData(null);
+
+    if (activeTab === 'xdr') {
+      // Switching to XDR view: clear payment-only state, keep XDR intact
+      setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
+    } else if (activeTab === 'payment' || activeTab === 'path' || activeTab === 'batch' || activeTab === 'account') {
+      // Switching to payment-related tabs: clear XDR state
+      setXdrData({ input: '', output: '' });
+    }
   }, [activeTab]);
 
   // Check for deep link data on mount
@@ -738,9 +745,41 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return id;
   };
 
+  const getExistingSignedKeys = (): string[] => {
+    const xdrToCheck = xdrData.output || xdrData.input;
+    if (!xdrToCheck) return [];
+    try {
+      const parsed: any = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork));
+      const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
+      const hints: Buffer[] = parsed?.innerTransaction
+        ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
+        : collectHints(parsed);
+      const set = new Set<string>();
+      hints.forEach((hint) => {
+        accountData.signers.forEach((signer) => {
+          try {
+            const raw = Buffer.from(StrKey.decodeEd25519PublicKey(signer.key));
+            const signerHint = raw.subarray(raw.length - 4);
+            if (Buffer.compare(hint, signerHint) === 0) {
+              set.add(signer.key);
+            }
+          } catch {}
+        });
+      });
+      return Array.from(set);
+    } catch {
+      return [];
+    }
+  };
+
   const getCurrentWeight = () => {
-    return signedBy.reduce((total, signed) => {
-      const signer = accountData.signers.find(s => s.key === signed.signerKey);
+    const existing = getExistingSignedKeys();
+    const allSignedKeys = [...new Set([
+      ...signedBy.map(s => s.signerKey),
+      ...existing
+    ])];
+    return allSignedKeys.reduce((total, signerKey) => {
+      const signer = accountData.signers.find(s => s.key === signerKey);
       return total + (signer?.weight || 0);
     }, 0);
   };

@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Users, CheckCircle, Circle, Plus, ChevronDown, ChevronUp } from 'lucide-react';
-import { Transaction } from '@stellar/stellar-sdk';
+import { Transaction, TransactionBuilder as StellarTransactionBuilder, StrKey } from '@stellar/stellar-sdk';
 import { getSupportedWallets, getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
@@ -63,22 +63,27 @@ export const SignerSelector = ({
   useEffect(() => {
     try {
       const networkPassphrase = getNetworkPassphrase(network);
-      const transaction = new Transaction(xdr, networkPassphrase);
-      
-      // Get public keys of existing signatures by checking which signers match the signature hints
-      const existingSigs: string[] = [];
-      transaction.signatures.forEach((sig) => {
-        const hint = sig.hint();
-        // Check if any of our known signers match this signature hint
+      const parsed: any = StellarTransactionBuilder.fromXDR(xdr, networkPassphrase);
+
+      const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
+      const hints: Buffer[] = parsed?.innerTransaction
+        ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
+        : collectHints(parsed);
+
+      const existingSigs = new Set<string>();
+      hints.forEach((hint) => {
         signers.forEach((signer) => {
-          const signerHint = Buffer.from(signer.key.slice(-8), 'hex');
-          if (hint.equals(signerHint)) {
-            existingSigs.push(signer.key);
-          }
+          try {
+            const raw = Buffer.from(StrKey.decodeEd25519PublicKey(signer.key));
+            const signerHint = raw.subarray(raw.length - 4);
+            if (Buffer.compare(hint, signerHint) === 0) {
+              existingSigs.add(signer.key);
+            }
+          } catch {}
         });
       });
-      
-      setExistingSignatures(existingSigs);
+
+      setExistingSignatures(Array.from(existingSigs));
     } catch (error) {
       console.error('Error parsing XDR for signatures:', error);
       setExistingSignatures([]);
