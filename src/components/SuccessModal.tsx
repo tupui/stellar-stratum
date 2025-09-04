@@ -245,15 +245,6 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                   <Share2 className="w-4 h-4 mr-1" />
                   Share
                 </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={openExplorer} 
-                  className="h-8 px-3"
-                >
-                  <ExternalLink className="w-4 h-4 mr-1" />
-                  Open
-                </Button>
               </div>
             </div>
           )}

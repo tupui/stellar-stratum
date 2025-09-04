@@ -3,6 +3,7 @@ import { LandingPage } from '@/components/LandingPage';
 import { AccountOverview } from '@/components/AccountOverview';
 import { TransactionBuilder } from '@/components/TransactionBuilder';
 import { Footer } from '@/components/Footer';
+import { DeepLinkHandler } from '@/components/DeepLinkHandler';
 import { fetchAccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
@@ -39,15 +40,12 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>('');
 
-  // Check for deep link data on mount
-  useEffect(() => {
-    const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
-    if (deepLinkXdr) {
-      // If we have deep link data, we need to skip to transaction state
-      // but we need a connected wallet first
-      setAppState('connecting');
+  const handleDeepLinkLoaded = () => {
+    // Force transition to transaction state if we have a connected wallet
+    if (publicKey && accountData) {
+      setAppState('transaction');
     }
-  }, []);
+  };
 
   const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
     setConnectedWallet(walletType);
@@ -109,6 +107,7 @@ const Index = () => {
 
   return (
     <FiatCurrencyProvider>
+      <DeepLinkHandler onDeepLinkLoaded={handleDeepLinkLoaded} />
       <div className="min-h-screen bg-background flex flex-col">
         <div className="flex-1">
           {/* Landing Page */}

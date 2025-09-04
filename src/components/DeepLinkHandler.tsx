@@ -1,10 +1,15 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { pullFromRefractor } from '@/lib/stellar';
 
-export const DeepLinkHandler = () => {
+interface DeepLinkHandlerProps {
+  onDeepLinkLoaded?: () => void;
+}
+
+export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -31,6 +36,9 @@ export const DeepLinkHandler = () => {
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('r');
           window.history.replaceState({}, '', newUrl.toString());
+          
+          // Notify parent component that deep link was loaded
+          onDeepLinkLoaded?.();
           
         } catch (error) {
           toast({
