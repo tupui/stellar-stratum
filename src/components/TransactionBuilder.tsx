@@ -662,6 +662,21 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
   };
 
+  const handleSubmitForSignature = async (): Promise<string> => {
+    if (!xdrData.output) {
+      throw new Error("No transaction to submit");
+    }
+
+    const id = await submitToRefractor(xdrData.output, currentNetwork);
+    setRefractorId(id);
+    toast({
+      title: "Transaction submitted for signature",
+      description: "Share the link with other signers",
+      duration: 5000,
+    });
+    return id;
+  };
+
   const getCurrentWeight = () => {
     return signedBy.reduce((total, signed) => {
       const signer = accountData.signers.find(s => s.key === signed.signerKey);
@@ -864,10 +879,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               </TabsContent>
 
               <TabsContent value="refractor" className="space-y-4 mt-6">
-                <RefractorIntegration
-                  onPullTransaction={handlePullFromRefractor}
-                  lastRefractorId={refractorId}
-                />
+          <RefractorIntegration
+            onPullTransaction={handlePullFromRefractor}
+            onSubmitForSignature={handleSubmitForSignature}
+            lastRefractorId={refractorId}
+            hasBuiltTransaction={Boolean(xdrData.output)}
+            network={currentNetwork}
+          />
               </TabsContent>
             </Tabs>
           </CardContent>

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, TrendingUp, Merge, Users, Edit2, X } from 'lucide-react';
+import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, TrendingUp, Merge, Users, Edit2, X, QrCode } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -17,6 +17,9 @@ import { DestinationAccountInfo } from './DestinationAccountInfo';
 import { SwapInterface } from '../SwapInterface';
 import { AssetIcon } from '../AssetIcon';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { AddressAutocomplete } from '../AddressAutocomplete';
+import { QRScanner } from '../QRScanner';
+import { useAddressBook } from '@/hooks/useAddressBook';
 import * as StellarSDK from '@stellar/stellar-sdk';
 interface PaymentData {
   destination: string;
