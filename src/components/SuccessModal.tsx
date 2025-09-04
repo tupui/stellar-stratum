@@ -146,9 +146,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
         <CardHeader className="pb-6 relative">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-success/20 to-success/10 border border-success/20 flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-success" />
-              </div>
+              <CheckCircle className="w-8 h-8 text-success" />
               <div>
                 <CardTitle className={`${type === 'refractor' ? 'text-primary' : 'text-success'} text-xl font-semibold`}>Send for Signature</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
