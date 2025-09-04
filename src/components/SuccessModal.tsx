@@ -108,10 +108,17 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
     : 'Your transaction has been submitted to Refractor for signature collection';
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/20 backdrop-blur-xl flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-success/5"></div>
-      <Card className="w-full max-w-md shadow-2xl border border-primary/20 relative backdrop-blur-sm bg-card/95">
-        <CardHeader className="pb-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      {/* Full-screen liquid blur backdrop that reaches the very top */}
+      <div className="absolute inset-0 bg-background/40 supports-[backdrop-filter]:bg-background/30 backdrop-blur-2xl" />
+      {/* Soft radial glows */}
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(1200px_600px_at_50%_-10%,hsl(var(--primary)/0.25),transparent_60%)]" />
+      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(800px_400px_at_80%_100%,hsl(var(--success)/0.20),transparent_60%)]" />
+      <Card className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border/60 bg-card/40 supports-[backdrop-filter]:bg-card/30 backdrop-blur-xl shadow-card ring-1 ring-primary/10">
+        {/* Subtle top gradient sheen */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/15 via-transparent to-transparent" />
+        <CardHeader className="pb-4 relative">
+
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
@@ -147,8 +154,8 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           {type === 'refractor' && qrCodeDataUrl && (
             <div className="space-y-3">
               <div className="flex justify-center">
-                <div className="p-4 bg-white rounded-lg border">
-                  <img src={qrCodeDataUrl} alt="QR Code" className="w-40 h-40" />
+                <div className="p-3 rounded-xl border border-border/60 bg-background">
+                  <img src={qrCodeDataUrl} alt="QR code for signature request" className="w-44 h-44" loading="lazy" />
                 </div>
               </div>
               
@@ -173,8 +180,8 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                     {copied ? <CheckCircle className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
                   </Button>
                 </div>
-                <div className="bg-secondary/50 rounded-lg p-2 border">
-                  <p className="font-mono text-xs text-center break-all text-muted-foreground">{displayValue}</p>
+                <div className="rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm p-2">
+                  <p className="font-mono text-xs text-center break-all text-foreground/80">{displayValue}</p>
                 </div>
               </div>
             </div>
@@ -194,7 +201,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                   {copied ? <CheckCircle className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
-              <div className="bg-secondary/50 rounded-lg p-3 border">
+              <div className="rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm p-3">
                 <p className="font-mono text-sm break-all text-foreground">{displayValue}</p>
               </div>
             </div>
@@ -204,32 +211,36 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           {type === 'refractor' && refractorId && (
             <div className="space-y-3">
               <span className="text-sm font-medium text-muted-foreground">Share for signatures</span>
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" onClick={handleWebShare} className="text-sm h-9">
+              <div className="rounded-xl border border-border/60 bg-card/30 supports-[backdrop-filter]:bg-card/20 backdrop-blur-md p-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Button variant="secondary" onClick={handleWebShare} className="h-10 hover-scale" aria-label="Share for signatures">
                     <Share2 className="w-4 h-4 mr-2" />
                     Share
                   </Button>
-                  <Button variant="outline" onClick={copyShareLink} className="text-sm h-9">
+                  <Button variant="outline" onClick={copyShareLink} className="h-10 hover-scale" aria-label="Copy share link">
                     <Copy className="w-4 h-4 mr-2" />
                     Copy link
                   </Button>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button variant="ghost" size="sm" onClick={openEmailClient} className="text-xs h-8">
-                    <Mail className="w-3 h-3 mr-1" />
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <Button variant="ghost" size="sm" onClick={openEmailClient} className="h-9" aria-label="Share via Email">
+                    <Mail className="w-4 h-4 mr-2" />
                     Email
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={openWhatsApp} className="text-xs h-8">
-                    <MessageCircle className="w-3 h-3 mr-1" />
+                  <Button variant="ghost" size="sm" onClick={openWhatsApp} className="h-9" aria-label="Share via WhatsApp">
+                    <MessageCircle className="w-4 h-4 mr-2" />
                     WhatsApp
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={openTelegram} className="text-xs h-8">
-                    <MessageCircle className="w-3 h-3 mr-1" />
+                  <Button variant="ghost" size="sm" onClick={openTelegram} className="h-9" aria-label="Share via Telegram">
+                    <MessageCircle className="w-4 h-4 mr-2" />
                     Telegram
                   </Button>
                 </div>
               </div>
+              <Button onClick={openExplorer} className="w-full" aria-label="View on Refractor">
+                <ExternalLink className="w-4 h-4 mr-2" />
+                View on Refractor
+              </Button>
             </div>
           )}
 
