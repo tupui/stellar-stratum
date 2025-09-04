@@ -101,8 +101,11 @@ export const AddressAutocomplete = ({
   };
 
   const toggleAddressBook = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) {
+    const next = !isOpen;
+    setIsOpen(next);
+    if (next) {
+      // Ensure address book is fresh when opening
+      syncAddressBook();
       inputRef.current?.focus();
     }
   };

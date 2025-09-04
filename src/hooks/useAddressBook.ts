@@ -27,15 +27,17 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        const entriesWithDates = parsed.map((entry: any) => ({
-          ...entry,
-          lastUsed: new Date(entry.lastUsed),
-          firstUsed: new Date(entry.firstUsed),
-        }));
-        setEntries(entriesWithDates);
-        if (parsed.lastSync) {
-          setLastSync(new Date(parsed.lastSync));
+        const rawEntries = Array.isArray(parsed) ? parsed : parsed.entries;
+        if (Array.isArray(rawEntries)) {
+          const entriesWithDates = rawEntries.map((entry: any) => ({
+            ...entry,
+            lastUsed: new Date(entry.lastUsed),
+            firstUsed: new Date(entry.firstUsed),
+          }));
+          setEntries(entriesWithDates);
         }
+        const sync = Array.isArray(parsed) ? null : parsed.lastSync;
+        if (sync) setLastSync(new Date(sync));
       } catch (error) {
         console.error('Failed to parse cached address book:', error);
       }
@@ -91,61 +93,61 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
         firstUsed: Date;
       }>();
 
-      // Fetch transaction history (last 200 transactions)
-      const transactions = await server
-        .transactions()
+      // Fetch recent payments and account creation operations (last 200)
+      const paymentsPage = await server
+        .payments()
         .forAccount(accountPublicKey)
         .order('desc')
         .limit(200)
         .call();
 
-      for (const tx of transactions.records) {
+      for (const op of paymentsPage.records) {
         try {
-          const operations = await tx.operations();
-          
-          for (const op of operations.records) {
-            if (op.type === 'payment' || op.type === 'create_account') {
-              const txDate = new Date(tx.created_at);
-              let counterparty: string | null = null;
-              let amount = 0;
-              
-              // Handle outgoing transactions (we are the source)
-              if (op.type === 'payment' && (op as any).from === accountPublicKey) {
-                counterparty = (op as any).to;
-                amount = parseFloat((op as any).amount || '0');
-              }
-              // Handle incoming transactions (we are the destination)
-              else if (op.type === 'payment' && (op as any).to === accountPublicKey) {
-                counterparty = (op as any).from;
-                amount = parseFloat((op as any).amount || '0');
-              }
-              // Handle account creation (we created an account)
-              else if (op.type === 'create_account' && (op as any).funder === accountPublicKey) {
-                counterparty = (op as any).account;
-                amount = parseFloat((op as any).starting_balance || '0');
-              }
-              
-              // Filter out small transactions and self-transactions
-              if (counterparty && amount >= MIN_TRANSACTION_AMOUNT && counterparty !== accountPublicKey) {
-                const existing = addressMap.get(counterparty);
-                if (existing) {
-                  existing.transactionCount++;
-                  existing.totalAmount += amount;
-                  existing.lastUsed = new Date(Math.max(existing.lastUsed.getTime(), txDate.getTime()));
-                  existing.firstUsed = new Date(Math.min(existing.firstUsed.getTime(), txDate.getTime()));
-                } else {
-                  addressMap.set(counterparty, {
-                    transactionCount: 1,
-                    totalAmount: amount,
-                    lastUsed: txDate,
-                    firstUsed: txDate,
-                  });
-                }
-              }
+          const opDate = new Date((op as any).created_at);
+          let counterparty: string | null = null;
+          let amount = 0;
+
+          if (op.type === 'payment') {
+            const from = (op as any).from;
+            const to = (op as any).to;
+            if (from === accountPublicKey) {
+              counterparty = to;
+            } else if (to === accountPublicKey) {
+              counterparty = from;
+            }
+            amount = parseFloat((op as any).amount || '0');
+          } else if (op.type === 'create_account') {
+            const funder = (op as any).funder;
+            const account = (op as any).account;
+            if (funder === accountPublicKey) {
+              counterparty = account;
+            } else if (account === accountPublicKey) {
+              counterparty = funder;
+            }
+            amount = parseFloat((op as any).starting_balance || '0');
+          } else {
+            continue;
+          }
+
+          // Filter out small transactions and self-transactions
+          if (counterparty && amount >= MIN_TRANSACTION_AMOUNT && counterparty !== accountPublicKey) {
+            const existing = addressMap.get(counterparty);
+            if (existing) {
+              existing.transactionCount++;
+              existing.totalAmount += amount;
+              existing.lastUsed = new Date(Math.max(existing.lastUsed.getTime(), opDate.getTime()));
+              existing.firstUsed = new Date(Math.min(existing.firstUsed.getTime(), opDate.getTime()));
+            } else {
+              addressMap.set(counterparty, {
+                transactionCount: 1,
+                totalAmount: amount,
+                lastUsed: opDate,
+                firstUsed: opDate,
+              });
             }
           }
         } catch (error) {
-          // Skip transactions that fail to load operations
+          // Skip operations that fail to parse
           continue;
         }
       }
