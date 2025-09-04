@@ -39,25 +39,17 @@ const Index = () => {
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>('');
+  const [deepLinkReady, setDeepLinkReady] = useState(false);
 
-  // Check for deep link on component mount
-  useEffect(() => {
-    const checkDeepLink = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const refractorId = urlParams.get('r');
-      
-      if (refractorId) {
-        // Deep link detected - go directly to transaction state
-        setAppState('transaction');
-      }
-    };
-    
-    checkDeepLink();
-  }, []);
+  // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
+
 
   const handleDeepLinkLoaded = () => {
-    // Deep link loaded - ensure we're in transaction state
-    setAppState('transaction');
+    // Mark deep link ready; only navigate if already connected
+    setDeepLinkReady(true);
+    if (publicKey) {
+      setAppState('transaction');
+    }
   };
 
   const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
@@ -75,8 +67,10 @@ const Index = () => {
       // Check if we have deep link data and should go directly to transaction
       const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
       if (deepLinkXdr) {
+        setDeepLinkReady(true);
         setAppState('transaction');
       } else {
+        setDeepLinkReady(false);
         setAppState('dashboard');
       }
       
@@ -108,6 +102,7 @@ const Index = () => {
   };
 
   const handleBackToDashboard = () => {
+    setDeepLinkReady(false);
     setAppState('dashboard');
   };
 
@@ -115,6 +110,7 @@ const Index = () => {
     setConnectedWallet('');
     setPublicKey('');
     setAccountData(null);
+    setDeepLinkReady(false);
     setAppState('connecting');
   };
 
@@ -135,7 +131,7 @@ const Index = () => {
               onBack={handleBackToDashboard}
               accountPublicKey={publicKey || ''}
               accountData={accountData}
-              initialTab={appState === 'multisig-config' ? 'multisig' : 'xdr'}
+              initialTab={appState === 'multisig-config' ? 'multisig' : (deepLinkReady ? 'xdr' : 'payment')}
               onAccountRefresh={async () => {
                 if (!publicKey) return;
                 const realAccountData = await fetchAccountData(publicKey, network);
