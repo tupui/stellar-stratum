@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, Clock, Users, QrCode } from 'lucide-react';
+import { Check, Clock, Users, QrCode, BookOpen } from 'lucide-react';
 import { useAddressBook, type AddressBookEntry } from '@/hooks/useAddressBook';
 import { resolveSorobanDomain, isLikelySorobanDomain } from '@/lib/soroban-domains';
 import { isValidPublicKey } from '@/lib/validation';
@@ -38,7 +38,7 @@ export const AddressAutocomplete = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const { entries, searchAddresses } = useAddressBook(accountPublicKey, network);
-  const suggestions = searchAddresses(value);
+  const suggestions = value.trim() ? searchAddresses(value) : entries.slice(0, 10);
 
   // Handle clicks outside to close dropdown
   useEffect(() => {
@@ -125,52 +125,28 @@ export const AddressAutocomplete = ({
           placeholder={placeholder}
           className={cn("font-mono", className)}
         />
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => { setIsOpen(true); inputRef.current?.focus(); }}
+          aria-label="Open address book"
+        >
+          <BookOpen className="w-4 h-4" />
+        </Button>
         {onQRScan && (
           <Button
             type="button"
             variant="outline"
             size="icon"
             onClick={onQRScan}
+            aria-label="Scan QR"
           >
             <QrCode className="w-4 h-4" />
           </Button>
         )}
       </div>
 
-      {/* Domain resolution status */}
-      {isLikelySorobanDomain(value) && (
-        <div className="mt-2">
-          {isResolving ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              Resolving domain...
-            </div>
-          ) : resolvedAddress ? (
-            <div className="flex items-center justify-between p-2 bg-success/10 border border-success/20 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                <span className="text-sm text-success">
-                  Resolves to: {formatAddress(resolvedAddress)}
-                </span>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={handleUseDomain}
-              >
-                Use address
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg">
-              <span className="text-sm text-destructive">
-                Domain not found or invalid
-              </span>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Validation status for addresses */}
       {!isLikelySorobanDomain(value) && value && !isValidPublicKey(value) && (
@@ -185,7 +161,7 @@ export const AddressAutocomplete = ({
       {isOpen && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute z-10 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
           <div className="p-2 border-b border-border">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">

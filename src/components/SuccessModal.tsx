@@ -92,8 +92,8 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
     : '';
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-lg shadow-xl border-success/50 bg-success/5">
+    <div className="fixed inset-0 z-[100] bg-background/80 supports-[backdrop-filter]:bg-background/60 backdrop-blur-md flex items-center justify-center p-4">
+      <Card className="w-full max-w-lg shadow-xl">
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
@@ -116,11 +116,11 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           </div>
         </CardHeader>
         
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 max-h-[80dvh] overflow-y-auto">
           {/* Network Badge */}
           {type === 'network' && (
             <div className="flex justify-center">
-              <Badge variant={network === 'mainnet' ? 'default' : 'secondary'} className="px-3">
+              <Badge variant={network === 'mainnet' ? 'default' : 'secondary'} className="px-3" aria-label={network === 'mainnet' ? 'Mainnet' : 'Testnet'}>
                 {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
               </Badge>
             </div>
