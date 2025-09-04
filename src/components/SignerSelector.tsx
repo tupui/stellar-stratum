@@ -304,7 +304,7 @@ export const SignerSelector = ({
           <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-green-500" />
-              <p className="text-sm text-green-700 dark:text-green-300">
+              <p className="text-sm text-foreground">
                 Minimum signature weight reached. Transaction can be submitted.
               </p>
             </div>
