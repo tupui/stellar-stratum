@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Check, Clock, Users, QrCode, BookOpen, RefreshCw } from 'lucide-react';
+import { Check, Clock, Users, QrCode, BookOpen } from 'lucide-react';
 import { useAddressBook, type AddressBookEntry } from '@/hooks/useAddressBook';
 import { resolveSorobanDomain, isLikelySorobanDomain } from '@/lib/soroban-domains';
 import { isValidPublicKey } from '@/lib/validation';
@@ -99,13 +99,11 @@ export const AddressAutocomplete = ({
     const next = !isOpen;
     setIsOpen(next);
     if (next) {
+      // Trigger sync when opening address book
+      if (accountPublicKey) {
+        syncAddressBook();
+      }
       inputRef.current?.focus();
-    }
-  };
-
-  const handleRefresh = async () => {
-    if (accountPublicKey) {
-      await syncAddressBook(true); // Force refresh
     }
   };
 
@@ -151,19 +149,6 @@ export const AddressAutocomplete = ({
         >
           <BookOpen className="w-4 h-4" />
         </Button>
-        {accountPublicKey && (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={isAddressBookLoading}
-            aria-label="Refresh address book"
-            title={needsSync ? "Address book needs refresh" : "Address book is up to date"}
-          >
-            <RefreshCw className={cn("w-4 h-4", isAddressBookLoading && "animate-spin", needsSync && "text-orange-500")} />
-          </Button>
-        )}
         {onQRScan && (
           <Button
             type="button"
@@ -196,16 +181,9 @@ export const AddressAutocomplete = ({
           {suggestions.length > 0 ? (
             <>
               <div className="p-2 border-b border-border">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    {value.trim() ? 'Search results' : 'Recent transactions'}
-                  </div>
-                  {needsSync && (
-                    <div className="text-xs text-orange-500">
-                      Stale data - click refresh
-                    </div>
-                  )}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  {value.trim() ? 'Search results' : 'Recent transactions'}
                 </div>
               </div>
               {suggestions.map((entry) => (
