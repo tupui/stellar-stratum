@@ -123,7 +123,7 @@ export const SuccessModal = ({
   const displayValue = type === 'network' ? hash : refractorId;
   const label = type === 'network' ? 'Transaction Hash' : 'Transaction ID';
   const title = type === 'network' ? 'Transaction Submitted Successfully' : 'Submitted to Refractor Successfully';
-  const description = type === 'network' ? 'Your transaction has been successfully submitted to the Stellar network' : 'Your transaction has been submitted to Refractor for signature collection';
+  const description = type === 'network' ? 'Your transaction has been successfully submitted to the Stellar network' : 'Send this transaction to other signers for approval';
   return <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Full-screen liquid blur backdrop that reaches the very top */}
       <div className="absolute inset-0 bg-background/40 supports-[backdrop-filter]:bg-background/30 backdrop-blur-2xl" />
