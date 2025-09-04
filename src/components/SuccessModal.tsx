@@ -124,12 +124,15 @@ export const SuccessModal = ({
   const label = type === 'network' ? 'Transaction Hash' : 'Transaction ID';
   const title = type === 'network' ? 'Transaction Submitted Successfully' : 'Submitted to Refractor Successfully';
   const description = type === 'network' ? 'Your transaction has been successfully submitted to the Stellar network' : 'Send this transaction to other signers for approval';
-  return <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      {/* Full-screen liquid blur backdrop that reaches the very top */}
-      <div className="absolute inset-0 bg-background/40 supports-[backdrop-filter]:bg-background/30 backdrop-blur-2xl" />
-      {/* Soft radial glows */}
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(1200px_600px_at_50%_-10%,hsl(var(--primary)/0.25),transparent_60%)]" />
-      <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(800px_400px_at_80%_100%,hsl(var(--success)/0.20),transparent_60%)]" />
+  return <>
+    {/* Full-screen backdrop that extends to all edges */}
+    <div className="fixed inset-0 z-[9999] bg-background/40 supports-[backdrop-filter]:bg-background/30 backdrop-blur-2xl" />
+    {/* Soft radial glows */}
+    <div className="fixed inset-0 z-[9999] pointer-events-none bg-[radial-gradient(1200px_600px_at_50%_-10%,hsl(var(--primary)/0.25),transparent_60%)]" />
+    <div className="fixed inset-0 z-[9999] pointer-events-none bg-[radial-gradient(800px_400px_at_80%_100%,hsl(var(--success)/0.20),transparent_60%)]" />
+    
+    {/* Modal container */}
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <Card className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-primary/20 bg-card/30 supports-[backdrop-filter]:bg-card/20 backdrop-blur-2xl shadow-xl shadow-primary/10 ring-1 ring-primary/15">
         {/* Subtle top gradient sheen */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/15 via-transparent to-transparent" />
@@ -236,5 +239,6 @@ export const SuccessModal = ({
       
       {/* Modern Share Modal */}
       {showShareModal && refractorId && <ModernShareModal refractorId={refractorId} onClose={() => setShowShareModal(false)} />}
-    </div>;
+    </div>
+  </>;
 };
