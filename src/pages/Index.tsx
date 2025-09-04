@@ -40,12 +40,24 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>('');
 
+  // Check for deep link on component mount
+  useEffect(() => {
+    const checkDeepLink = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const refractorId = urlParams.get('r');
+      
+      if (refractorId) {
+        // Deep link detected - go directly to transaction state
+        setAppState('transaction');
+      }
+    };
+    
+    checkDeepLink();
+  }, []);
+
   const handleDeepLinkLoaded = () => {
-    // If wallet is already connected, go to transaction state
-    if (connectedWallet && publicKey && accountData) {
-      setAppState('transaction');
-    }
-    // Otherwise, wallet connection will handle the transition
+    // Deep link loaded - ensure we're in transaction state
+    setAppState('transaction');
   };
 
   const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
@@ -117,13 +129,13 @@ const Index = () => {
           )}
 
           {/* Transaction Builder */}
-          {(appState === 'transaction' || appState === 'multisig-config') && publicKey && accountData && (
+          {(appState === 'transaction' || appState === 'multisig-config') && (
             <TransactionBuilder
               key={`${appState}-${publicKey}`}
               onBack={handleBackToDashboard}
-              accountPublicKey={publicKey}
+              accountPublicKey={publicKey || ''}
               accountData={accountData}
-              initialTab={appState === 'multisig-config' ? 'multisig' : 'payment'}
+              initialTab={appState === 'multisig-config' ? 'multisig' : 'xdr'}
               onAccountRefresh={async () => {
                 if (!publicKey) return;
                 const realAccountData = await fetchAccountData(publicKey, network);
