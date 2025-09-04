@@ -2,8 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, Copy, ExternalLink, X, Share2, Mail, MessageCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import QRCode from 'qrcode';
 
 interface SuccessModalProps {
   type: 'network' | 'refractor';
@@ -15,7 +16,25 @@ interface SuccessModalProps {
 
 export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onClose }: SuccessModalProps) => {
   const [copied, setCopied] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const { toast } = useToast();
+
+  const shareUrl = type === 'refractor' && refractorId 
+    ? `${window.location.origin}?r=${refractorId}`
+    : '';
+
+  useEffect(() => {
+    if (type === 'refractor' && shareUrl) {
+      QRCode.toDataURL(shareUrl, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      }).then(setQrCodeDataUrl);
+    }
+  }, [type, shareUrl]);
 
   const copyToClipboard = async (text: string, label: string) => {
     await navigator.clipboard.writeText(text);
@@ -80,20 +99,17 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
   };
 
   const displayValue = type === 'network' ? hash : refractorId;
-  const label = type === 'network' ? 'Transaction Hash' : 'Refractor ID';
+  const label = type === 'network' ? 'Transaction Hash' : 'Transaction ID';
   const title = type === 'network' 
     ? 'Transaction Submitted Successfully'
     : 'Submitted to Refractor Successfully';
   const description = type === 'network'
     ? 'Your transaction has been successfully submitted to the Stellar network'
     : 'Your transaction has been submitted to Refractor for signature collection';
-  const shareUrl = type === 'refractor' && refractorId 
-    ? `${window.location.origin}?r=${refractorId}`
-    : '';
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center p-6">
-      <Card className="w-full max-w-lg shadow-xl border">
+    <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-xl border">
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
@@ -101,7 +117,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                 <CheckCircle className="w-5 h-5 text-success" />
               </div>
               <div>
-                <CardTitle className="text-success">{title}</CardTitle>
+                <CardTitle className="text-success text-lg">{title}</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">{description}</p>
               </div>
             </div>
@@ -109,54 +125,88 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
               variant="ghost" 
               size="sm" 
               onClick={onClose}
-              className="h-8 w-8 p-0"
+              className="h-8 w-8 p-0 shrink-0"
             >
               <X className="w-4 h-4" />
             </Button>
           </div>
         </CardHeader>
         
-        <CardContent className="space-y-4 max-h-[80dvh] overflow-y-auto">
+        <CardContent className="space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Network Badge */}
           {type === 'network' && (
             <div className="flex justify-center">
-              <Badge variant={network === 'mainnet' ? 'default' : 'secondary'} className="px-3" aria-label={network === 'mainnet' ? 'Mainnet' : 'Testnet'}>
+              <Badge variant={network === 'mainnet' ? 'default' : 'secondary'} className="px-3">
                 {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
               </Badge>
             </div>
           )}
 
-          {/* Hash/ID Display */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">{label}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => copyToClipboard(displayValue || '', label)}
-                className="h-8 w-8 p-0"
-              >
-                {copied ? <CheckCircle className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
-              </Button>
+          {/* QR Code for Refractor */}
+          {type === 'refractor' && qrCodeDataUrl && (
+            <div className="space-y-3">
+              <div className="flex justify-center">
+                <div className="p-4 bg-white rounded-lg border">
+                  <img src={qrCodeDataUrl} alt="QR Code" className="w-40 h-40" />
+                </div>
+              </div>
+              
+              {/* Refractor ID below QR */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">{label}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={openExplorer}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                  </Button>
+                </div>
+                <div 
+                  className="bg-secondary/50 rounded-lg p-2 border cursor-pointer hover:bg-secondary/70 transition-colors"
+                  onClick={() => copyToClipboard(displayValue || '', label)}
+                >
+                  <p className="font-mono text-xs text-center break-all text-muted-foreground">{displayValue}</p>
+                </div>
+              </div>
             </div>
-            <div className="bg-secondary/50 rounded-lg p-3 border">
-              <p className="font-address text-sm break-all text-foreground">{displayValue}</p>
+          )}
+
+          {/* Hash Display for Network */}
+          {type === 'network' && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">{label}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(displayValue || '', label)}
+                  className="h-8 w-8 p-0"
+                >
+                  {copied ? <CheckCircle className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+              <div className="bg-secondary/50 rounded-lg p-3 border">
+                <p className="font-mono text-sm break-all text-foreground">{displayValue}</p>
+              </div>
             </div>
-          </div>
+          )}
           
           {/* Share Options (Refractor) */}
           {type === 'refractor' && refractorId && (
             <div className="space-y-3">
               <span className="text-sm font-medium text-muted-foreground">Share for signatures</span>
               <div className="space-y-2">
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {typeof navigator !== 'undefined' && 'share' in navigator && (
-                    <Button variant="secondary" onClick={handleWebShare} className="flex-1 text-sm h-9">
+                    <Button variant="outline" onClick={handleWebShare} className="text-sm h-9">
                       <Share2 className="w-4 h-4 mr-2" />
                       Share
                     </Button>
                   )}
-                  <Button variant="secondary" onClick={copyShareLink} className="flex-1 text-sm h-9">
+                  <Button variant="outline" onClick={copyShareLink} className="text-sm h-9">
                     <Copy className="w-4 h-4 mr-2" />
                     Copy link
                   </Button>
@@ -179,16 +229,18 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-2">
-            <Button 
-              onClick={openExplorer}
-              className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
-            >
-              <ExternalLink className="w-4 h-4 mr-2" />
-              {type === 'network' ? 'View on Stellar Expert' : 'View on Refractor'}
-            </Button>
-          </div>
+          {/* Action Button for Network only */}
+          {type === 'network' && (
+            <div className="flex gap-3 pt-2">
+              <Button 
+                onClick={openExplorer}
+                className="flex-1 bg-success hover:bg-success/90 text-success-foreground"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                View on Stellar Expert
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
