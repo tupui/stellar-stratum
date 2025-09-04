@@ -200,9 +200,6 @@ export const SignerSelector = ({
                         {signed.signerKey === currentAccountKey && (
                           <Badge variant="outline" className="text-xs">Current Account</Badge>
                         )}
-                        {signed.isExisting && (
-                          <Badge variant="outline" className="text-xs bg-info/10 text-info border-info/30">Pre-signed</Badge>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -306,7 +303,7 @@ export const SignerSelector = ({
         {hasMinimumSignatures && (
           <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <CheckCircle className="h-4 w-4 text-green-500" />
               <p className="text-sm text-green-700 dark:text-green-300">
                 Minimum signature weight reached. Transaction can be submitted.
               </p>
