@@ -37,14 +37,30 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
   }, [type, shareUrl]);
 
   const copyToClipboard = async (text: string, label: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast({
-      title: "Copied to clipboard",
-      description: `${label} has been copied`,
-      duration: 3000,
-    });
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: 'Copied to clipboard',
+        description: `${label} has been copied`,
+        duration: 2500,
+      });
+    } catch (e) {
+      toast({ title: 'Could not copy', description: 'Please copy manually.', duration: 3000 });
+    }
   };
 
   const openExplorer = () => {
@@ -64,18 +80,19 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
   };
 
   const handleWebShare = async () => {
-    if (navigator.share && shareUrl) {
+    if (!shareUrl) return;
+    if (navigator.share) {
       try {
         await navigator.share({
           title: 'Sign Transaction on Stellar Stratum',
-          text: `Please sign this transaction: ${refractorId}`,
+          text: refractorId ? `Please sign this transaction: ${refractorId}` : 'Please sign this transaction',
           url: shareUrl,
         });
-      } catch (error) {
-        // ignore
+      } catch {
+        // Ignore if user cancels
       }
     } else {
-      copyShareLink();
+      await copyShareLink();
     }
   };
 
@@ -114,7 +131,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
       {/* Soft radial glows */}
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(1200px_600px_at_50%_-10%,hsl(var(--primary)/0.25),transparent_60%)]" />
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(800px_400px_at_80%_100%,hsl(var(--success)/0.20),transparent_60%)]" />
-      <Card className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border/60 bg-card/40 supports-[backdrop-filter]:bg-card/30 backdrop-blur-xl shadow-card ring-1 ring-primary/10">
+      <Card className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-primary/20 bg-card/30 supports-[backdrop-filter]:bg-card/20 backdrop-blur-2xl shadow-xl shadow-primary/10 ring-1 ring-primary/15">
         {/* Subtle top gradient sheen */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/15 via-transparent to-transparent" />
         <CardHeader className="pb-6 relative">
@@ -124,7 +141,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                 <CheckCircle className="w-6 h-6 text-success" />
               </div>
               <div>
-                <CardTitle className="text-success text-xl font-semibold">{title}</CardTitle>
+                <CardTitle className={`${type === 'refractor' ? 'text-primary' : 'text-success'} text-xl font-semibold`}>{title}</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
               </div>
             </div>
@@ -209,57 +226,34 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           {/* Share Options (Refractor) */}
           {type === 'refractor' && refractorId && (
             <div className="space-y-3">
-              <div className="text-center">
-                <h3 className="text-base font-medium text-foreground">Share for signatures</h3>
-                <p className="text-sm text-muted-foreground mt-1">Send this link to collect signatures</p>
-              </div>
-              
-              <div className="rounded-xl border border-border/60 bg-card/20 backdrop-blur-sm p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Button 
-                    onClick={handleWebShare} 
-                    className="flex-1 h-11 font-medium"
-                    variant="default"
-                  >
-                    <Share2 className="w-4 h-4 mr-2" />
-                    Share
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={copyShareLink}
-                    className="h-11 px-3"
-                  >
-                    {copied ? <CheckCircle className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
-                    <span className="ml-2">Copy link</span>
-                  </Button>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <Button 
-                    variant="ghost" 
-                    onClick={openEmailClient} 
-                    className="h-9 text-xs"
-                  >
-                    <Mail className="w-4 h-4 mr-1.5" />
-                    Email
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    onClick={openWhatsApp} 
-                    className="h-9 text-xs"
-                  >
-                    <MessageCircle className="w-4 h-4 mr-1.5" />
-                    WhatsApp
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    onClick={openTelegram} 
-                    className="h-9 text-xs"
-                  >
-                    <MessageCircle className="w-4 h-4 mr-1.5" />
-                    Telegram
-                  </Button>
-                </div>
+              <div className="flex items-center justify-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={copyShareLink} 
+                  className="h-8 px-3"
+                >
+                  {copied ? <CheckCircle className="w-4 h-4 mr-1 text-success" /> : <Copy className="w-4 h-4 mr-1" />}
+                  Copy link
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleWebShare} 
+                  className="h-8 px-3"
+                >
+                  <Share2 className="w-4 h-4 mr-1" />
+                  Share
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={openExplorer} 
+                  className="h-8 px-3"
+                >
+                  <ExternalLink className="w-4 h-4 mr-1" />
+                  Open
+                </Button>
               </div>
             </div>
           )}

@@ -1055,13 +1055,8 @@ export const PaymentForm = ({
                 paymentData.destination && !isValidDestination(paymentData.destination)
                   ? 'border-destructive' 
                   : 'border-border/60'
-              } ${resolvingDomain ? 'pr-8' : ''}`}
+              }`}
             />
-            {resolvingDomain && (
-              <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              </div>
-            )}
             
             {/* Domain Suggestions Dropdown */}
             {showSuggestions && domainSuggestions.length > 0 && (
