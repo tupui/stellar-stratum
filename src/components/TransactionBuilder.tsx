@@ -841,7 +841,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             onClick={onBack}
             className="self-start bg-success hover:bg-success/90 text-success-foreground"
           >
-            Back to Wallet
+            {accountPublicKey ? 'Back to Wallet' : 'Connect Wallet'}
           </Button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg sm:text-xl md:text-2xl font-bold whitespace-nowrap">Transaction Builder</h1>
@@ -849,18 +849,20 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           </div>
         </div>
 
-        {/* Source Account Info */}
-        <Card className="shadow-card">
-          <CardContent className="pt-4 sm:pt-6">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="min-w-0 flex-1">
-                <Label className="text-sm text-muted-foreground">Source Account</Label>
-                <p className="font-address text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
+        {/* Source Account Info - Only show when account is connected */}
+        {accountPublicKey && accountData && (
+          <Card className="shadow-card">
+            <CardContent className="pt-4 sm:pt-6">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="min-w-0 flex-1">
+                  <Label className="text-sm text-muted-foreground">Source Account</Label>
+                  <p className="font-address text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
+                </div>
+                <Badge variant="outline" className="shrink-0">Connected</Badge>
               </div>
-              <Badge variant="outline" className="shrink-0">Connected</Badge>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Transaction Builder */}
         <Card className="shadow-card">
