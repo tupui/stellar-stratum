@@ -167,7 +167,21 @@ export const SuccessModal = ({
               {/* Refractor ID below QR */}
               <div className="space-y-2">
                 <div className="flex items-center justify-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">{label}</span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {type === 'refractor' ? (
+                      <>
+                        <a 
+                          href="https://refractor.space" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors"
+                        >
+                          Refractor.Space
+                        </a>
+                        {" ID"}
+                      </>
+                    ) : label}
+                  </span>
                   <Button variant="ghost" size="sm" onClick={openExplorer} className="h-6 w-6 p-0">
                     <ExternalLink className="w-3 h-3" />
                   </Button>
