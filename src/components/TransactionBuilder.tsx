@@ -103,18 +103,60 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
     
     if (deepLinkXdr) {
-      setXdrData({ input: deepLinkXdr, output: '' });
-      setActiveTab('xdr');
-      
-      if (deepLinkRefractorId) {
-        setRefractorId(deepLinkRefractorId);
+      try {
+        // Parse the XDR to extract payment information
+        const transaction = new Transaction(deepLinkXdr, getNetworkPassphrase(currentNetwork));
+        const operations = transaction.operations;
+        
+        // Check if it's a payment operation
+        if (operations.length > 0 && operations[0].type === 'payment') {
+          const paymentOp = operations[0] as any;
+          const asset = paymentOp.asset.isNative() ? 'XLM' : paymentOp.asset.code;
+          const assetIssuer = paymentOp.asset.isNative() ? '' : paymentOp.asset.issuer;
+          
+          // Populate payment form with transaction data
+          setPaymentData({
+            destination: paymentOp.destination,
+            amount: paymentOp.amount,
+            asset: asset,
+            assetIssuer: assetIssuer,
+            memo: transaction.memo && transaction.memo.type !== 'none' ? transaction.memo.value?.toString() || '' : '',
+          });
+          
+          // Keep the initial tab (payment)
+          setActiveTab(initialTab);
+          
+          toast({
+            title: "Transaction Loaded",
+            description: "Payment details loaded from deep link.",
+            duration: 3000,
+          });
+        } else {
+          // For non-payment transactions, show in XDR tab
+          setXdrData({ input: deepLinkXdr, output: '' });
+          setActiveTab('xdr');
+        }
+        
+        if (deepLinkRefractorId) {
+          setRefractorId(deepLinkRefractorId);
+        }
+        
+      } catch (error) {
+        // If parsing fails, fall back to XDR tab
+        setXdrData({ input: deepLinkXdr, output: '' });
+        setActiveTab('xdr');
+        toast({
+          title: "Transaction Loaded",
+          description: "Transaction loaded in XDR tab for review.",
+          duration: 3000,
+        });
       }
       
       // Clear the deep link data to prevent reprocessing
       sessionStorage.removeItem('deeplink-xdr');
       sessionStorage.removeItem('deeplink-refractor-id');
     }
-  }, []);
+  }, [currentNetwork, initialTab]);
 
   // Function to fetch additional asset prices with timeout
   const fetchAdditionalAssetPrice = async (assetCode: string, assetIssuer?: string) => {
