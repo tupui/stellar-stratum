@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { pullFromRefractor } from '@/lib/stellar';
-import { Transaction } from '@stellar/stellar-sdk';
+import { Transaction, Networks } from '@stellar/stellar-sdk';
 
 interface DeepLinkHandlerProps {
   onDeepLinkLoaded?: (sourceAccount: string) => void;
@@ -10,7 +10,7 @@ interface DeepLinkHandlerProps {
 
 export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
   const location = useLocation();
-  const navigate = useNavigate();
+  
   const { toast } = useToast();
 
   useEffect(() => {
@@ -23,9 +23,19 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
           // Pull the transaction from Refractor
           const xdr = await pullFromRefractor(refractorId);
           
-          // Extract source account from XDR
-          const transaction = new Transaction(xdr, undefined);
-          const sourceAccount = transaction.source;
+          // Extract source account from XDR (try both networks)
+          let sourceAccount = '';
+          try {
+            const tx = new Transaction(xdr, Networks.PUBLIC);
+            sourceAccount = tx.source;
+          } catch (e1) {
+            try {
+              const tx = new Transaction(xdr, Networks.TESTNET);
+              sourceAccount = tx.source;
+            } catch (e2) {
+              throw new Error('Could not parse XDR to extract source account');
+            }
+          }
           
           sessionStorage.setItem('deeplink-xdr', xdr);
           sessionStorage.setItem('deeplink-refractor-id', refractorId);
