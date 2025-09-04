@@ -100,6 +100,13 @@ export const AddressAutocomplete = ({
     }
   };
 
+  const toggleAddressBook = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen) {
+      inputRef.current?.focus();
+    }
+  };
+
   const formatAmount = (amount: number): string => {
     if (amount >= 1000000) {
       return `${(amount / 1000000).toFixed(1)}M XLM`;
@@ -120,14 +127,8 @@ export const AddressAutocomplete = ({
         <Input
           ref={inputRef}
           value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => {
-            setIsOpen(true);
-            onFocus?.();
-          }}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
           onBlur={onBlur}
           placeholder={placeholder}
           className={cn("font-mono", className)}
@@ -136,8 +137,8 @@ export const AddressAutocomplete = ({
           type="button"
           variant="outline"
           size="icon"
-          onClick={() => { setIsOpen(true); inputRef.current?.focus(); }}
-          aria-label="Open address book"
+          onClick={toggleAddressBook}
+          aria-label="Toggle address book"
         >
           <BookOpen className="w-4 h-4" />
         </Button>
@@ -221,7 +222,7 @@ export const AddressAutocomplete = ({
                 {value.trim() ? 'No matching addresses found' : 'No addresses in your address book yet'}
               </p>
               <p className="text-xs mt-1 opacity-75">
-                Addresses are automatically added when you send transactions
+                Addresses are automatically added from your transaction history
               </p>
             </div>
           )}

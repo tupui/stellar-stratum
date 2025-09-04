@@ -105,21 +105,36 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
           
           for (const op of operations.records) {
             if (op.type === 'payment' || op.type === 'create_account') {
-              const destination = (op as any).to || (op as any).account;
-              const amount = parseFloat((op as any).amount || (op as any).starting_balance || '0');
+              const txDate = new Date(tx.created_at);
+              let counterparty: string | null = null;
+              let amount = 0;
+              
+              // Handle outgoing transactions (we are the source)
+              if (op.type === 'payment' && (op as any).from === accountPublicKey) {
+                counterparty = (op as any).to;
+                amount = parseFloat((op as any).amount || '0');
+              }
+              // Handle incoming transactions (we are the destination)
+              else if (op.type === 'payment' && (op as any).to === accountPublicKey) {
+                counterparty = (op as any).from;
+                amount = parseFloat((op as any).amount || '0');
+              }
+              // Handle account creation (we created an account)
+              else if (op.type === 'create_account' && (op as any).funder === accountPublicKey) {
+                counterparty = (op as any).account;
+                amount = parseFloat((op as any).starting_balance || '0');
+              }
               
               // Filter out small transactions and self-transactions
-              if (amount >= MIN_TRANSACTION_AMOUNT && destination !== accountPublicKey) {
-                const txDate = new Date(tx.created_at);
-                
-                const existing = addressMap.get(destination);
+              if (counterparty && amount >= MIN_TRANSACTION_AMOUNT && counterparty !== accountPublicKey) {
+                const existing = addressMap.get(counterparty);
                 if (existing) {
                   existing.transactionCount++;
                   existing.totalAmount += amount;
                   existing.lastUsed = new Date(Math.max(existing.lastUsed.getTime(), txDate.getTime()));
                   existing.firstUsed = new Date(Math.min(existing.firstUsed.getTime(), txDate.getTime()));
                 } else {
-                  addressMap.set(destination, {
+                  addressMap.set(counterparty, {
                     transactionCount: 1,
                     totalAmount: amount,
                     lastUsed: txDate,
