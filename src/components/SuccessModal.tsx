@@ -208,33 +208,29 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           
           {/* Share Options (Refractor) */}
           {type === 'refractor' && refractorId && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="text-center">
-                <h3 className="text-sm font-medium text-foreground mb-2">Share for signatures</h3>
-                <p className="text-xs text-muted-foreground">Send this link to collect signatures</p>
+                <h3 className="text-base font-medium text-foreground">Share for signatures</h3>
+                <p className="text-sm text-muted-foreground mt-1">Send this link to collect signatures</p>
               </div>
               
-              <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-card/60 to-card/40 supports-[backdrop-filter]:from-card/40 supports-[backdrop-filter]:to-card/20 backdrop-blur-xl p-4 shadow-lg">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Share2 className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <Button 
-                      onClick={handleWebShare} 
-                      className="w-full justify-start h-auto p-3 bg-primary/5 hover:bg-primary/10 border border-primary/20 text-foreground"
-                      variant="ghost"
-                    >
-                      <span className="font-medium">Share Link</span>
-                    </Button>
-                  </div>
+              <div className="rounded-xl border border-border/60 bg-card/20 backdrop-blur-sm p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Button 
+                    onClick={handleWebShare} 
+                    className="flex-1 h-11 font-medium"
+                    variant="default"
+                  >
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Share
+                  </Button>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant="outline"
                     onClick={copyShareLink}
-                    className="h-8 w-8 p-0 hover:bg-primary/10"
+                    className="h-11 px-3"
                   >
                     {copied ? <CheckCircle className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+                    <span className="ml-2">Copy link</span>
                   </Button>
                 </div>
                 
@@ -242,26 +238,26 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                   <Button 
                     variant="ghost" 
                     onClick={openEmailClient} 
-                    className="flex-col h-auto p-3 hover:bg-accent/50 gap-1"
+                    className="h-9 text-xs"
                   >
-                    <Mail className="w-5 h-5" />
-                    <span className="text-xs">Email</span>
+                    <Mail className="w-4 h-4 mr-1.5" />
+                    Email
                   </Button>
                   <Button 
                     variant="ghost" 
                     onClick={openWhatsApp} 
-                    className="flex-col h-auto p-3 hover:bg-accent/50 gap-1"
+                    className="h-9 text-xs"
                   >
-                    <MessageCircle className="w-5 h-5" />
-                    <span className="text-xs">WhatsApp</span>
+                    <MessageCircle className="w-4 h-4 mr-1.5" />
+                    WhatsApp
                   </Button>
                   <Button 
                     variant="ghost" 
                     onClick={openTelegram} 
-                    className="flex-col h-auto p-3 hover:bg-accent/50 gap-1"
+                    className="h-9 text-xs"
                   >
-                    <MessageCircle className="w-5 h-5" />
-                    <span className="text-xs">Telegram</span>
+                    <MessageCircle className="w-4 h-4 mr-1.5" />
+                    Telegram
                   </Button>
                 </div>
               </div>
