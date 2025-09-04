@@ -38,7 +38,7 @@ export const AddressAutocomplete = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const { entries, searchAddresses } = useAddressBook(accountPublicKey, network);
-  const suggestions = value.trim() ? searchAddresses(value) : entries.slice(0, 10);
+  const suggestions = value.trim() ? searchAddresses(value) : entries;
 
   // Handle clicks outside to close dropdown
   useEffect(() => {
@@ -158,52 +158,66 @@ export const AddressAutocomplete = ({
       )}
 
       {/* Dropdown with suggestions */}
-      {isOpen && suggestions.length > 0 && (
+      {isOpen && (
         <div
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
-          <div className="p-2 border-b border-border">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Clock className="w-3 h-3" />
-              Recent transactions
-            </div>
-          </div>
-          {suggestions.map((entry) => (
-            <div
-              key={entry.address}
-              className="p-3 hover:bg-accent cursor-pointer border-b border-border last:border-b-0"
-              onClick={() => handleSelect(entry)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-sm truncate">
-                      {entry.sorobanDomain || formatAddress(entry.address)}
-                    </span>
-                    {entry.sorobanDomain && (
-                      <Badge variant="secondary" className="text-xs">
-                        Domain
-                      </Badge>
-                    )}
-                  </div>
-                  {entry.sorobanDomain && (
-                    <div className="font-mono text-xs text-muted-foreground truncate">
-                      {formatAddress(entry.address)}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                    <div className="flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {entry.transactionCount} tx
-                    </div>
-                    <span>{formatAmount(entry.totalAmount)}</span>
-                    <span>{entry.lastUsed.toLocaleDateString()}</span>
-                  </div>
+          {suggestions.length > 0 ? (
+            <>
+              <div className="p-2 border-b border-border">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3" />
+                  {value.trim() ? 'Search results' : 'Recent transactions'}
                 </div>
               </div>
+              {suggestions.map((entry) => (
+                <div
+                  key={entry.address}
+                  className="p-3 hover:bg-accent cursor-pointer border-b border-border last:border-b-0"
+                  onClick={() => handleSelect(entry)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-sm truncate">
+                          {entry.sorobanDomain || formatAddress(entry.address)}
+                        </span>
+                        {entry.sorobanDomain && (
+                          <Badge variant="secondary" className="text-xs">
+                            Domain
+                          </Badge>
+                        )}
+                      </div>
+                      {entry.sorobanDomain && (
+                        <div className="font-mono text-xs text-muted-foreground truncate">
+                          {formatAddress(entry.address)}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                        <div className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {entry.transactionCount} tx
+                        </div>
+                        <span>{formatAmount(entry.totalAmount)}</span>
+                        <span>{entry.lastUsed.toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : (
+            <div className="p-4 text-center text-muted-foreground">
+              <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">
+                {value.trim() ? 'No matching addresses found' : 'No addresses in your address book yet'}
+              </p>
+              <p className="text-xs mt-1 opacity-75">
+                Addresses are automatically added when you send transactions
+              </p>
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
