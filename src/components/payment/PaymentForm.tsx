@@ -112,6 +112,7 @@ export const PaymentForm = ({
   const [domainSuggestions, setDomainSuggestions] = useState<{ domain: string; address: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   type RecipientAsset = {
     code: string;
     issuer?: string;
@@ -1035,11 +1036,12 @@ export const PaymentForm = ({
             {willCloseAccount ? 'Send All Funds To' : 'Destination Address or Domain'}
           </Label>
           <div className="relative">
-            <Input 
-              id="destination" 
-              placeholder="GABC... or mydomain" 
+            <AddressAutocomplete
               value={paymentData.destination} 
-              onChange={e => handleDestinationChange(e.target.value)}
+              onChange={handleDestinationChange}
+              accountPublicKey={accountPublicKey}
+              network={network}
+              onQRScan={() => setShowQRScanner(true)}
               onFocus={() => {
                 if (domainSuggestions.length > 0) {
                   setShowSuggestions(true);
@@ -1287,6 +1289,32 @@ export const PaymentForm = ({
         </div>
         </div>
       )}
+      
+      {/* QR Scanner */}
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={(data: string) => {
+          // Handle QR code data - could be an address or deep link
+          try {
+            const url = new URL(data);
+            const destination = url.searchParams.get('destination');
+            if (destination) {
+              onPaymentDataChange({
+                ...paymentData,
+                destination
+              });
+              return;
+            }
+          } catch {
+            // Not a URL, assume it's a Stellar address
+            onPaymentDataChange({
+              ...paymentData,
+              destination: data
+            });
+          }
+        }}
+      />
     </div>
   );
 };

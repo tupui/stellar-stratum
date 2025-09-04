@@ -16,6 +16,8 @@ interface AddressAutocompleteProps {
   accountPublicKey?: string;
   network?: 'mainnet' | 'testnet';
   onQRScan?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 export const AddressAutocomplete = ({
@@ -26,6 +28,8 @@ export const AddressAutocomplete = ({
   accountPublicKey,
   network = 'mainnet',
   onQRScan,
+  onFocus,
+  onBlur,
 }: AddressAutocompleteProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
@@ -113,7 +117,11 @@ export const AddressAutocomplete = ({
             onChange(e.target.value);
             setIsOpen(true);
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            setIsOpen(true);
+            onFocus?.();
+          }}
+          onBlur={onBlur}
           placeholder={placeholder}
           className={cn("font-mono", className)}
         />
