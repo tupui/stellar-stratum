@@ -150,7 +150,7 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                 <CheckCircle className="w-6 h-6 text-success" />
               </div>
               <div>
-                <CardTitle className={`${type === 'refractor' ? 'text-primary' : 'text-success'} text-xl font-semibold`}>{title}</CardTitle>
+                <CardTitle className={`${type === 'refractor' ? 'text-primary' : 'text-success'} text-xl font-semibold`}>send for signature</CardTitle>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
               </div>
             </div>
