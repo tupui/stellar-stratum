@@ -108,8 +108,9 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
     : 'Your transaction has been submitted to Refractor for signature collection';
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-xl border">
+    <div className="fixed inset-0 z-[100] bg-background/20 backdrop-blur-xl flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-success/5"></div>
+      <Card className="w-full max-w-md shadow-2xl border border-primary/20 relative backdrop-blur-sm bg-card/95">
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
@@ -163,11 +164,16 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
                   >
                     <ExternalLink className="w-3 h-3" />
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(displayValue || '', label)}
+                    className="h-6 w-6 p-0"
+                  >
+                    {copied ? <CheckCircle className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+                  </Button>
                 </div>
-                <div 
-                  className="bg-secondary/50 rounded-lg p-2 border cursor-pointer hover:bg-secondary/70 transition-colors"
-                  onClick={() => copyToClipboard(displayValue || '', label)}
-                >
+                <div className="bg-secondary/50 rounded-lg p-2 border">
                   <p className="font-mono text-xs text-center break-all text-muted-foreground">{displayValue}</p>
                 </div>
               </div>
@@ -200,12 +206,10 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
               <span className="text-sm font-medium text-muted-foreground">Share for signatures</span>
               <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-2">
-                  {typeof navigator !== 'undefined' && 'share' in navigator && (
-                    <Button variant="outline" onClick={handleWebShare} className="text-sm h-9">
-                      <Share2 className="w-4 h-4 mr-2" />
-                      Share
-                    </Button>
-                  )}
+                  <Button variant="outline" onClick={handleWebShare} className="text-sm h-9">
+                    <Share2 className="w-4 h-4 mr-2" />
+                    Share
+                  </Button>
                   <Button variant="outline" onClick={copyShareLink} className="text-sm h-9">
                     <Copy className="w-4 h-4 mr-2" />
                     Copy link

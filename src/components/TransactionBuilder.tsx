@@ -97,6 +97,25 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     setSuccessData(null);
   }, [activeTab]);
 
+  // Check for deep link data on mount
+  useEffect(() => {
+    const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
+    const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
+    
+    if (deepLinkXdr) {
+      setXdrData({ input: deepLinkXdr, output: '' });
+      setActiveTab('xdr');
+      
+      if (deepLinkRefractorId) {
+        setRefractorId(deepLinkRefractorId);
+      }
+      
+      // Clear the deep link data to prevent reprocessing
+      sessionStorage.removeItem('deeplink-xdr');
+      sessionStorage.removeItem('deeplink-refractor-id');
+    }
+  }, []);
+
   // Function to fetch additional asset prices with timeout
   const fetchAdditionalAssetPrice = async (assetCode: string, assetIssuer?: string) => {
     const key = assetCode;

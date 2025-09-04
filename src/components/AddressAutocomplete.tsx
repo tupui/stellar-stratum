@@ -127,15 +127,22 @@ export const AddressAutocomplete = ({
   return (
     <div className="relative">
       <div className="flex gap-2">
-        <Input
-          ref={inputRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          placeholder={placeholder}
-          className={cn("font-mono", className)}
-        />
+        <div className="relative flex-1">
+          <Input
+            ref={inputRef}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            placeholder={placeholder}
+            className={cn("font-mono pr-8", className)}
+          />
+          {isResolving && (
+            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
         <Button
           type="button"
           variant="outline"

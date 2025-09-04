@@ -115,7 +115,32 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
             } else if (to === accountPublicKey) {
               counterparty = from;
             }
-            amount = parseFloat((op as any).amount || '0');
+            amount = Math.abs(parseFloat((op as any).amount || '0'));
+            
+            // Convert to XLM equivalent if it's not native XLM
+            const assetType = (op as any).asset_type;
+            if (assetType !== 'native') {
+              const assetCode = (op as any).asset_code;
+              const assetIssuer = (op as any).asset_issuer;
+              
+              try {
+                // Use the asset price conversion logic from useAssetPrices
+                const { getAssetPrice } = await import('@/lib/reflector');
+                const assetPrice = await getAssetPrice(assetCode, assetIssuer);
+                const xlmPrice = await getAssetPrice('XLM');
+                
+                if (assetPrice > 0 && xlmPrice > 0) {
+                  // Convert: asset_amount * asset_price_usd / xlm_price_usd = xlm_equivalent
+                  amount = amount * (assetPrice / xlmPrice);
+                } else {
+                  // Skip if we can't get price data
+                  continue;
+                }
+              } catch {
+                // Skip if price conversion fails
+                continue;
+              }
+            }
           } else if (op.type === 'create_account') {
             const funder = (op as any).funder;
             const account = (op as any).account;
@@ -124,7 +149,7 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
             } else if (account === accountPublicKey) {
               counterparty = funder;
             }
-            amount = parseFloat((op as any).starting_balance || '0');
+            amount = Math.abs(parseFloat((op as any).starting_balance || '0'));
           } else {
             continue;
           }
