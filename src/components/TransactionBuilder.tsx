@@ -110,8 +110,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
     
     if (deepLinkXdr) {
-      // Always load into XDR tab exactly like manual XDR input
-      setXdrData({ input: deepLinkXdr, output: '' });
+      // Use the same processing as XDR tab
+      handleXdrInputChange(deepLinkXdr);
       setActiveTab('xdr');
       if (deepLinkRefractorId) setRefractorId(deepLinkRefractorId);
       // Clear the deep link data to prevent reprocessing
@@ -127,7 +127,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
       const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
       if (deepLinkXdr) {
-        setXdrData({ input: deepLinkXdr, output: '' });
+        handleXdrInputChange(deepLinkXdr);
         setActiveTab('xdr');
         if (deepLinkRefractorId) setRefractorId(deepLinkRefractorId);
         sessionStorage.removeItem('deeplink-xdr');
