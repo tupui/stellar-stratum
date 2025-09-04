@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LandingPage } from '@/components/LandingPage';
 import { AccountOverview } from '@/components/AccountOverview';
 import { TransactionBuilder } from '@/components/TransactionBuilder';
@@ -39,6 +39,16 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>('');
 
+  // Check for deep link data on mount
+  useEffect(() => {
+    const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
+    if (deepLinkXdr) {
+      // If we have deep link data, we need to skip to transaction state
+      // but we need a connected wallet first
+      setAppState('connecting');
+    }
+  }, []);
+
   const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
     setConnectedWallet(walletType);
     setPublicKey(publicKey);
@@ -50,7 +60,14 @@ const Index = () => {
       const realAccountData = await fetchAccountData(publicKey, selectedNetwork);
       setAccountData(realAccountData);
       setLoading(false);
-      setAppState('dashboard');
+      
+      // Check if we have deep link data and should go directly to transaction
+      const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
+      if (deepLinkXdr) {
+        setAppState('transaction');
+      } else {
+        setAppState('dashboard');
+      }
       
     } catch (error) {
       console.error('Failed to load account:', error);

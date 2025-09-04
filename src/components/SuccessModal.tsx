@@ -92,8 +92,8 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
     : '';
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background/80 supports-[backdrop-filter]:bg-background/60 backdrop-blur-md flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg shadow-xl">
+    <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center p-6">
+      <Card className="w-full max-w-lg shadow-xl border">
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
@@ -146,31 +146,35 @@ export const SuccessModal = ({ type, hash, refractorId, network = 'mainnet', onC
           
           {/* Share Options (Refractor) */}
           {type === 'refractor' && refractorId && (
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-muted-foreground">Share</span>
-              <div className="grid grid-cols-2 gap-2">
-                {typeof navigator !== 'undefined' && 'share' in navigator && (
-                  <Button variant="outline" onClick={handleWebShare} className="inline-flex items-center gap-2">
-                    <Share2 className="w-4 h-4" />
-                    Share
+            <div className="space-y-3">
+              <span className="text-sm font-medium text-muted-foreground">Share for signatures</span>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  {typeof navigator !== 'undefined' && 'share' in navigator && (
+                    <Button variant="secondary" onClick={handleWebShare} className="flex-1 text-sm h-9">
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share
+                    </Button>
+                  )}
+                  <Button variant="secondary" onClick={copyShareLink} className="flex-1 text-sm h-9">
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy link
                   </Button>
-                )}
-                <Button variant="outline" onClick={copyShareLink} className="inline-flex items-center gap-2">
-                  <Copy className="w-4 h-4" />
-                  Copy link
-                </Button>
-                <Button variant="outline" onClick={openEmailClient} className="inline-flex items-center gap-2">
-                  <Mail className="w-4 h-4" />
-                  Email
-                </Button>
-                <Button variant="outline" onClick={openWhatsApp} className="inline-flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4" />
-                  WhatsApp
-                </Button>
-                <Button variant="outline" onClick={openTelegram} className="inline-flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4" />
-                  Telegram
-                </Button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button variant="ghost" size="sm" onClick={openEmailClient} className="text-xs h-8">
+                    <Mail className="w-3 h-3 mr-1" />
+                    Email
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={openWhatsApp} className="text-xs h-8">
+                    <MessageCircle className="w-3 h-3 mr-1" />
+                    WhatsApp
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={openTelegram} className="text-xs h-8">
+                    <MessageCircle className="w-3 h-3 mr-1" />
+                    Telegram
+                  </Button>
+                </div>
               </div>
             </div>
           )}
