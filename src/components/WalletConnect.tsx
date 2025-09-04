@@ -240,30 +240,32 @@ export const WalletConnect = ({
   const walletContent = (
     <div className="space-y-4">
       {/* Network Selector */}
-      <div className="flex justify-center">
-        <div className="bg-muted p-1 rounded-lg flex">
-          <button
-            onClick={() => setSelectedNetwork('mainnet')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              selectedNetwork === 'mainnet'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Mainnet
-          </button>
-          <button
-            onClick={() => setSelectedNetwork('testnet')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              selectedNetwork === 'testnet'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Testnet
-          </button>
+      {!isModal && (
+        <div className="flex justify-center">
+          <div className="bg-muted p-1 rounded-lg flex">
+            <button
+              onClick={() => setSelectedNetwork('mainnet')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                selectedNetwork === 'mainnet'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Mainnet
+            </button>
+            <button
+              onClick={() => setSelectedNetwork('testnet')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                selectedNetwork === 'testnet'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Testnet
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {loading && supportedWallets.length === 0 ? (
         <div className="flex items-center justify-center py-8">
