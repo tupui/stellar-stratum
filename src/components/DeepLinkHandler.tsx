@@ -22,9 +22,11 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
           // Pull the transaction from Refractor
           const xdr = await pullFromRefractor(refractorId);
           
-          // Store the XDR and refractor ID for the app to use
           sessionStorage.setItem('deeplink-xdr', xdr);
           sessionStorage.setItem('deeplink-refractor-id', refractorId);
+
+          // Notify any listeners (e.g., TransactionBuilder already mounted)
+          window.dispatchEvent(new CustomEvent('deeplink:xdr-loaded', { detail: { refractorId } }));
           
           toast({
             title: "Transaction Loaded",
