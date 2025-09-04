@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -14,17 +15,17 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
-
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
   isModal?: boolean;
 }
-
 export const WalletConnect = ({
   onConnect,
   isModal = false
 }: WalletConnectProps) => {
-  const { toast } = useToast();
+  const {
+    toast
+  } = useToast();
   const [connecting, setConnecting] = useState<string | null>(null);
   const [supportedWallets, setSupportedWallets] = useState<ISupportedWallet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,8 +35,10 @@ export const WalletConnect = ({
   const [showSorobanInput, setShowSorobanInput] = useState(false);
   const [resolvingDomain, setResolvingDomain] = useState(false);
   const [showMoreWallets, setShowMoreWallets] = useState(false);
-  const { network: selectedNetwork, setNetwork: setSelectedNetwork } = useNetwork();
-
+  const {
+    network: selectedNetwork,
+    setNetwork: setSelectedNetwork
+  } = useNetwork();
   const loadWallets = async () => {
     try {
       setLoading(true);
@@ -53,11 +56,9 @@ export const WalletConnect = ({
       setLoading(false);
     }
   };
-
   useEffect(() => {
     let interval: NodeJS.Timeout;
     let timeout: NodeJS.Timeout;
-
     const checkWallets = async () => {
       await loadWallets();
       const wallets = await getSupportedWallets(selectedNetwork);
@@ -69,7 +70,6 @@ export const WalletConnect = ({
         setLoading(false);
       }
     };
-
     checkWallets();
 
     // Check for wallet availability every 2 seconds for max 10 seconds
@@ -79,7 +79,6 @@ export const WalletConnect = ({
       clearTimeout(timeout);
       setLoading(false);
     }, 10000);
-
     return () => {
       clearInterval(interval);
       clearTimeout(timeout);
@@ -89,20 +88,28 @@ export const WalletConnect = ({
   const getWalletIcon = (wallet: ISupportedWallet) => {
     const isLedger = wallet.id.toLowerCase().includes('ledger');
     const isHardware = isLedger || wallet.id.toLowerCase().includes('trezor');
-    
     if (isLedger) {
-      return <img src="/ledger-logo.png" alt="Ledger logo" className="w-8 h-8" />;
+      return <img src="/ledger-logo.png" alt="Ledger logo" className="w-8 h-8" onError={e => {
+        // Fallback to USB icon if SVG fails to load
+        const target = e.target as HTMLImageElement;
+        target.style.display = 'none';
+        const fallback = target.nextElementSibling as HTMLElement;
+        if (fallback) fallback.style.display = 'flex';
+      }} />;
     }
     if (isHardware) {
       return <Usb className="w-8 h-8 text-primary" />;
     }
-    return wallet.icon ? 
-      <img src={wallet.icon} alt={wallet.name} className="w-8 h-8 rounded" /> : 
-      <div className="w-8 h-8 bg-primary/10 rounded flex items-center justify-center text-sm font-bold text-primary">
+    return wallet.icon ? <img src={wallet.icon} alt={wallet.name} className="w-8 h-8 rounded" onError={e => {
+      // Fallback to text icon if image fails to load
+      const target = e.target as HTMLImageElement;
+      target.style.display = 'none';
+      const fallback = target.nextElementSibling as HTMLElement;
+      if (fallback) fallback.style.display = 'flex';
+    }} /> : <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground">
         {wallet.name.charAt(0)}
       </div>;
   };
-
   const getWalletDescription = (wallet: ISupportedWallet) => {
     const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
     if (isHardware) {
@@ -111,9 +118,25 @@ export const WalletConnect = ({
     if (wallet.isAvailable) {
       return 'Available';
     }
+
+    // Check if it's a browser extension
+    if (wallet.id.toLowerCase().includes('freighter') || wallet.id.toLowerCase().includes('rabet') || wallet.id.toLowerCase().includes('xbull')) {
+      return 'Extension required';
+    }
     return 'Install required';
   };
-
+  const getWalletTooltip = (wallet: ISupportedWallet) => {
+    if (wallet.id.toLowerCase().includes('ledger')) {
+      return 'Hardware wallet setup: 1) Connect via USB 2) Unlock device 3) Open Stellar app 4) Select account from device modal';
+    }
+    if (wallet.id.toLowerCase().includes('trezor')) {
+      return 'Hardware wallet setup: 1) Install Trezor Bridge 2) Connect device 3) Approve connection 4) Select account from device modal';
+    }
+    if (!wallet.isAvailable) {
+      return `Install the ${wallet.name} browser extension to connect`;
+    }
+    return `Connect with ${wallet.name}`;
+  };
   const handleManualConnect = () => {
     if (!manualAddress.trim()) {
       toast({
@@ -125,6 +148,7 @@ export const WalletConnect = ({
       return;
     }
 
+    // Basic validation for Stellar address format
     if (!isValidPublicKey(manualAddress)) {
       toast({
         title: "Invalid address",
@@ -134,10 +158,8 @@ export const WalletConnect = ({
       });
       return;
     }
-
     onConnect("Manual Address", manualAddress.trim(), selectedNetwork);
   };
-
   const handleSorobanConnect = async () => {
     if (!sorobanDomain.trim()) {
       toast({
@@ -148,7 +170,6 @@ export const WalletConnect = ({
       });
       return;
     }
-
     if (!isValidDomain(sorobanDomain.trim())) {
       toast({
         title: "Invalid domain",
@@ -158,16 +179,18 @@ export const WalletConnect = ({
       });
       return;
     }
-
     setResolvingDomain(true);
     try {
+      // Import required modules  
       const StellarSDK = await import('@stellar/stellar-sdk');
-      const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
+      const {
+        SorobanDomainsSDK
+      } = await import('@creit.tech/sorobandomains-sdk');
 
+      // Use proper SDK structure from working example
       const networkPassphrase = selectedNetwork === 'testnet' ? StellarSDK.Networks.TESTNET : StellarSDK.Networks.PUBLIC;
       const rpcUrl = selectedNetwork === 'testnet' ? 'https://soroban-testnet.stellar.org' : 'https://mainnet.sorobanrpc.com';
       const rpcServer = new StellarSDK.rpc.Server(rpcUrl);
-      
       const sdk = new SorobanDomainsSDK({
         stellarSDK: StellarSDK,
         rpc: rpcServer,
@@ -178,10 +201,12 @@ export const WalletConnect = ({
         simulationAccount: 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV'
       });
 
+      // Search for the domain using working pattern
       const res = await sdk.searchDomain({
         domain: sorobanDomain.trim().toLowerCase()
       });
 
+      // Extract values using working pattern
       const v = (res && (res.value ?? res)) as any;
       if (v && typeof v.owner === 'string') {
         const resolvedAddress = v.address || v.owner;
@@ -195,13 +220,14 @@ export const WalletConnect = ({
         });
       }
     } catch (error: any) {
-      const { userMessage } = sanitizeError(error);
+      const {
+        userMessage,
+        fullError
+      } = sanitizeError(error);
       let errorMessage = userMessage;
-      
       if (error.name === 'Domain404Error') {
         errorMessage = `Domain "${sorobanDomain}" not found`;
       }
-      
       toast({
         title: "Domain resolution failed",
         description: errorMessage,
@@ -212,228 +238,292 @@ export const WalletConnect = ({
       setResolvingDomain(false);
     }
   };
-
   const handleConnect = async (walletId: string, walletName: string) => {
     setConnecting(walletId);
     try {
-      const { publicKey } = await connectWallet(walletId, selectedNetwork);
+      const {
+        publicKey
+      } = await connectWallet(walletId, selectedNetwork);
       onConnect(walletName, publicKey, selectedNetwork);
     } catch (error) {
-      const { userMessage, fullError } = sanitizeError(error);
+      const {
+        userMessage,
+        fullError
+      } = sanitizeError(error);
       console.error('Failed to connect wallet:', fullError);
-      
       const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
       toast({
         title: "Connection failed",
         description: userMessage,
         variant: "destructive",
-        duration: isHardware ? 6000 : 3000
+        duration: isHardware ? 6000 : 3000 // Longer duration for hardware wallet errors
       });
     } finally {
       setConnecting(null);
     }
   };
-
-  const availableWallets = supportedWallets.filter(w => w.isAvailable);
-  const unavailableWallets = supportedWallets.filter(w => !w.isAvailable);
-
-  const walletContent = (
-    <div className="space-y-4">
-      {/* Network Selector */}
-      {!isModal && (
-        <div className="flex justify-center">
-          <div className="bg-muted p-1 rounded-lg flex">
-            <button
-              onClick={() => setSelectedNetwork('mainnet')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                selectedNetwork === 'mainnet'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Mainnet
-            </button>
-            <button
-              onClick={() => setSelectedNetwork('testnet')}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                selectedNetwork === 'testnet'
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Testnet
-            </button>
-          </div>
+  const walletContent = <>
+      {/* Network Toggle - Perfectly spaced */}
+      <div className="py-6 flex justify-center">
+        <div className="relative bg-muted/50 backdrop-blur-sm rounded-full p-1 flex border border-border/50">
+          <button
+            onClick={() => setSelectedNetwork('mainnet')}
+            className={`px-6 py-2.5 text-sm font-medium rounded-full transition-all ${
+              selectedNetwork === 'mainnet'
+                ? 'bg-success text-success-foreground shadow-lg shadow-success/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+            }`}
+          >
+            Mainnet
+          </button>
+          <button
+            onClick={() => setSelectedNetwork('testnet')}
+            className={`px-6 py-2.5 text-sm font-medium rounded-full transition-all ${
+              selectedNetwork === 'testnet'
+                ? 'bg-success text-success-foreground shadow-lg shadow-success/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+            }`}
+          >
+            Testnet
+          </button>
         </div>
-      )}
-
-      {loading && supportedWallets.length === 0 ? (
-        <div className="flex items-center justify-center py-8">
+      </div>
+      {loading && supportedWallets.length === 0 ? <div className="flex items-center justify-center py-8">
           <div className="flex items-center gap-2 text-muted-foreground">
             <RefreshCw className="w-4 h-4 animate-spin" />
             <span>Loading wallets...</span>
           </div>
-        </div>
-      ) : supportedWallets.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center">
+        </div> : supportedWallets.length === 0 ? <div className="flex flex-col items-center justify-center py-8 text-center">
           <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">No wallets found</p>
           <Button variant="outline" size="sm" onClick={loadWallets} className="mt-2">
             Try Again
           </Button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {/* Available Wallets */}
-          {availableWallets.map(wallet => (
-            <Button
-              key={wallet.id}
-              variant="outline"
-              className="w-full justify-between h-auto p-4"
-              onClick={() => handleConnect(wallet.id, wallet.name)}
-              disabled={connecting !== null}
-            >
-              <div className="flex items-center gap-3">
-                {getWalletIcon(wallet)}
-                <div className="text-left">
-                  <div className="font-medium">{wallet.name}</div>
-                  <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
-                </div>
+        </div> : <div className="space-y-3">
+          {/* Manual Address as a card option */}
+          <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => setShowManualInput(!showManualInput)}>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center">
+                <KeyRound className="w-4 h-4 text-primary-foreground" />
               </div>
-              <div className="flex items-center gap-2">
-                {wallet.isAvailable && <Badge variant="secondary" className="text-xs">Ready</Badge>}
-                {connecting === wallet.id ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ArrowRight className="w-4 h-4" />
-                )}
+              <div className="text-left">
+                <div className="font-medium">Enter address manually</div>
+                <div className="text-sm text-muted-foreground">View any account by public key</div>
               </div>
-            </Button>
-          ))}
+            </div>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
 
-          {/* Manual Address Input */}
-          <Collapsible open={showManualInput} onOpenChange={setShowManualInput}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" className="w-full justify-between h-auto p-4">
-                <div className="flex items-center gap-3">
-                  <KeyRound className="w-8 h-8 text-primary" />
-                  <div className="text-left">
-                    <div className="font-medium">Manual Address</div>
-                    <div className="text-sm text-muted-foreground">Enter any public key</div>
-                  </div>
+          {showManualInput && <div className="p-4 border border-border rounded-lg bg-secondary/20">
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="manual-address" className="text-sm font-medium">Stellar Public Key</Label>
+                  <p className="text-xs text-muted-foreground mt-1">Enter a Stellar address to view account details (no signing required)</p>
                 </div>
-                <ChevronDown className={`w-4 h-4 transition-transform ${showManualInput ? 'rotate-180' : ''}`} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              <div className="p-3 border rounded-lg space-y-3">
-                <Label>Stellar Public Key</Label>
                 <div className="flex gap-2">
-                  <Input
-                    placeholder="GABC...XYZ"
-                    value={manualAddress}
-                    onChange={(e) => setManualAddress(e.target.value)}
-                    className="font-mono text-sm"
-                    maxLength={56}
-                  />
-                  <Button onClick={handleManualConnect} disabled={!manualAddress.trim()}>
+                  <Input id="manual-address" placeholder="GABC...XYZ" value={manualAddress} onChange={e => setManualAddress(e.target.value)} className="font-address text-sm" maxLength={56} />
+                  <Button onClick={handleManualConnect} disabled={!manualAddress.trim()} size="sm">
+                    <Plus className="w-4 h-4 mr-1" />
                     Connect
                   </Button>
                 </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+            </div>}
 
-          {/* Soroban Domains */}
-          <Collapsible open={showSorobanInput} onOpenChange={setShowSorobanInput}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" className="w-full justify-between h-auto p-4">
-                <div className="flex items-center gap-3">
-                  <Globe className="w-8 h-8 text-primary" />
-                  <div className="text-left">
-                    <div className="font-medium">Soroban Domain</div>
-                    <div className="text-sm text-muted-foreground">Resolve domain to address</div>
-                  </div>
+          {/* Soroban Domains Option */}
+          <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => setShowSorobanInput(!showSorobanInput)}>
+            <div className="flex items-center gap-3">
+              <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-8 h-8 rounded" />
+              <div className="text-left">
+                <div className="font-medium">Soroban Domains</div>
+                <div className="text-sm text-muted-foreground">Resolve domain to address</div>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+
+          {showSorobanInput && <div className="p-4 border border-border rounded-lg bg-secondary/20">
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="soroban-domain" className="text-sm font-medium">Soroban Domain</Label>
+                  <p className="text-xs text-muted-foreground mt-1">Enter a domain name to resolve to Stellar address</p>
                 </div>
-                <ChevronDown className={`w-4 h-4 transition-transform ${showSorobanInput ? 'rotate-180' : ''}`} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              <div className="p-3 border rounded-lg space-y-3">
-                <Label>Domain Name</Label>
                 <div className="flex gap-2">
-                  <Input
-                    placeholder="mydomain"
-                    value={sorobanDomain}
-                    onChange={(e) => setSorobanDomain(e.target.value)}
-                  />
-                  <Button onClick={handleSorobanConnect} disabled={!sorobanDomain.trim() || resolvingDomain}>
-                    {resolvingDomain ? (
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                    ) : (
-                      'Resolve'
-                    )}
+                  <Input id="soroban-domain" placeholder="mydomain" value={sorobanDomain} onChange={e => setSorobanDomain(e.target.value)} className="text-sm" />
+                  <Button onClick={handleSorobanConnect} disabled={!sorobanDomain.trim() || resolvingDomain} size="sm">
+                    {resolvingDomain ? <RefreshCw className="w-4 h-4 mr-1 animate-spin spinner-glow" /> : <Plus className="w-4 h-4 mr-1" />}
+                    Resolve
                   </Button>
                 </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
+            </div>}
 
-          {/* Unavailable Wallets */}
-          {unavailableWallets.length > 0 && (
-            <Collapsible open={showMoreWallets} onOpenChange={setShowMoreWallets}>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-center text-sm text-muted-foreground">
-                  <ChevronDown className={`w-4 h-4 mr-2 transition-transform ${showMoreWallets ? 'rotate-180' : ''}`} />
-                  Show more wallets ({unavailableWallets.length})
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2 pt-2">
-                {unavailableWallets.map(wallet => (
-                  <Button
-                    key={wallet.id}
-                    variant="outline"
-                    className="w-full justify-between h-auto p-4 opacity-50"
-                    disabled
-                  >
-                    <div className="flex items-center gap-3">
-                      {getWalletIcon(wallet)}
-                      <div className="text-left">
-                        <div className="font-medium">{wallet.name}</div>
-                        <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="text-xs">Not Available</Badge>
-                  </Button>
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-        </div>
-      )}
-    </div>
-  );
+          {(() => {
+        const isMobile = window.innerWidth < 768;
 
+        // Define wallet order based on user requirements
+        const mobileOrder = ['xbull', 'hot', 'albedo'];
+        const desktopOrder = ['freighter', 'xbull', 'ledger', 'lobstr', 'hot', 'albedo'];
+
+        // Order and filter wallets to match exactly the requested list
+        const orderAndFilter = (wallets: typeof supportedWallets, order: string[]) => {
+          const added = new Set<string>();
+          const result: ISupportedWallet[] = [];
+          const matches = (w: ISupportedWallet, token: string) => w.id.toLowerCase().includes(token) || w.name.toLowerCase().includes(token);
+          for (const token of order) {
+            for (const w of wallets) {
+              if (added.has(w.id)) continue;
+              if (matches(w, token)) {
+                result.push(w);
+                added.add(w.id);
+              }
+            }
+          }
+          return result;
+        };
+        if (isMobile) {
+          const orderedWallets = orderAndFilter(supportedWallets, mobileOrder);
+          return <>
+                  {orderedWallets.map(wallet => {
+              const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+              return <TooltipProvider key={wallet.id}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => handleConnect(wallet.id, wallet.name)} disabled={connecting !== null || !wallet.isAvailable}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 flex items-center justify-center">
+                                  {getWalletIcon(wallet)}
+                                  <Usb className="w-8 h-8 text-primary hidden" />
+                                </div>
+                                <div className="text-left">
+                                  <div className="font-medium">{wallet.name}</div>
+                                  <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin spinner-glow" />}
+                                <ArrowRight className="w-4 h-4" />
+                              </div>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{getWalletTooltip(wallet)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>;
+            })}
+                </>;
+        } else {
+          // Desktop: First 3 visible (since Manual + Soroban are the first two), rest in collapsible
+          const orderedWallets = orderAndFilter(supportedWallets, desktopOrder);
+          const primaryWallets = orderedWallets.slice(0, 3);
+          const secondaryWallets = orderedWallets.slice(3);
+          return <>
+                  {primaryWallets.map(wallet => {
+              const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+              return <TooltipProvider key={wallet.id}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => handleConnect(wallet.id, wallet.name)} disabled={connecting !== null || !wallet.isAvailable}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 flex items-center justify-center">
+                                  {getWalletIcon(wallet)}
+                                  <Usb className="w-8 h-8 text-primary hidden" />
+                                </div>
+                                <div className="text-left">
+                                  <div className="font-medium">{wallet.name}</div>
+                                  <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin" />}
+                                <ArrowRight className="w-4 h-4" />
+                              </div>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{getWalletTooltip(wallet)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>;
+            })}
+                  
+                  {secondaryWallets.length > 0 && <Collapsible open={showMoreWallets} onOpenChange={setShowMoreWallets}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="link" className="justify-start px-0 text-sm">
+                          <span>See more wallets ({secondaryWallets.length})</span>
+                          <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${showMoreWallets ? 'rotate-180' : ''}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 mt-3">
+                        {secondaryWallets.map(wallet => {
+                  const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
+                  return <TooltipProvider key={wallet.id}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => handleConnect(wallet.id, wallet.name)} disabled={connecting !== null || !wallet.isAvailable}>
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 flex items-center justify-center">
+                                        {getWalletIcon(wallet)}
+                                        <Usb className="w-8 h-8 text-primary hidden" />
+                                      </div>
+                                      <div className="text-left">
+                                        <div className="font-medium">{wallet.name}</div>
+                                        <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin" />}
+                                      <ArrowRight className="w-4 h-4" />
+                                    </div>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{getWalletTooltip(wallet)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>;
+                })}
+                      </CollapsibleContent>
+                    </Collapsible>}
+                </>;
+        }
+      })()}
+        </div>}
+    </>;
   if (isModal) {
-    return walletContent;
+    return <div className="space-y-3">
+        {walletContent}
+      </div>;
   }
-
-  return (
-    <div className="container max-w-md mx-auto p-6">
-      <Card>
+  return <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-card">
         <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2">
-            <Wallet className="w-6 h-6" />
-            Connect Wallet
-          </CardTitle>
+          <div className="mx-auto mb-4 w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center shadow-glow">
+            <Shield className="w-8 h-8 text-primary-foreground" />
+          </div>
+          <CardTitle className="text-2xl font-bold">Stellar Multisig Wallet</CardTitle>
           <CardDescription>
-            Choose how you'd like to connect to Stellar
+            A powerful tool for managing Stellar multisig accounts. Build transactions, configure signers, and coordinate signatures across multiple parties with ease.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           {walletContent}
+          
+          <div className="pt-4 border-t border-border">
+            <div className="text-center text-xs text-muted-foreground">
+              © 2025{' '}
+              <a 
+                href="https://consulting-manao.com/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-stellar-yellow font-medium hover:underline transition-all duration-300"
+              >
+                Consulting Manao GmbH
+              </a>
+            </div>
+          </div>
         </CardContent>
       </Card>
-    </div>
-  );
+    </div>;
 };
