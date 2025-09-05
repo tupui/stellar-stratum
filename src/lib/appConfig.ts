@@ -13,7 +13,7 @@ export const appConfig = {
   TESTNET_SOROBAN_RPC: 'https://soroban-rpc.testnet.stellar.gateway.fm',
   
   // API endpoints
-  REFRACTOR_API_BASE: 'https://api.reflector.network/v1/txs',
+  REFRACTOR_API_BASE: 'https://api.refractor.space/tx',
   LAB_BASE: 'https://laboratory.stellar.org/#xdr-viewer?input=',
   
   // Soroban Domains
