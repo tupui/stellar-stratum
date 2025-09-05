@@ -117,6 +117,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
 
   const scanFrame = useCallback(() => {
     if (!isScanning || !videoRef.current || !canvasRef.current) {
+      console.log('Scan frame skipped - missing refs or not scanning');
       return;
     }
 
@@ -124,36 +125,48 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     const canvas = canvasRef.current;
     
     try {
-      // Check if video has data and dimensions
+      // Check if video is ready and has dimensions
       if (video.readyState >= video.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
-        // Set canvas size to video size
+        console.log('Scanning frame...', { width: video.videoWidth, height: video.videoHeight, readyState: video.readyState });
+        
+        // Set canvas size to match video
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         
         const context = canvas.getContext('2d');
         if (context) {
-          // Draw current video frame to canvas
+          // Draw the video frame to canvas
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
           
-          // Get image data and scan for QR codes
+          // Get image data for QR detection
           const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          console.log('Got image data:', { width: imageData.width, height: imageData.height });
           
-          // Use jsQR to detect QR codes
+          // Try to detect QR code with multiple inversion attempts for better detection
           const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'dontInvert',
+            inversionAttempts: 'attemptBoth',
           });
 
           if (qrCode && qrCode.data) {
-            console.log('QR Code detected:', qrCode.data);
-            // QR code detected - stop scanning and return data
+            console.log('🎉 QR Code detected successfully:', qrCode.data);
+            // Stop scanning and return the detected data
             stopScanner();
             onScan(qrCode.data);
             onClose();
             return;
           }
+        } else {
+          console.error('Failed to get canvas context');
         }
       } else {
-        console.log('Video not ready:', video.readyState, video.videoWidth, video.videoHeight);
+        // Only log occasionally to avoid spam
+        if (Math.random() < 0.1) {
+          console.log('Video not ready for scanning:', { 
+            readyState: video.readyState, 
+            width: video.videoWidth, 
+            height: video.videoHeight 
+          });
+        }
       }
     } catch (error) {
       console.error('QR scanning error:', error);
