@@ -123,7 +123,7 @@ export const SuccessModal = ({
   };
   const displayValue = type === 'network' ? hash : refractorId;
   const label = type === 'network' ? 'Transaction Hash' : 'Transaction ID';
-  const title = type === 'network' ? 'Transaction Submitted Successfully' : 'Submitted to Refractor Successfully';
+  const title = type === 'network' ? 'Transaction Submitted Successfully' : 'Send for Signature';
   const description = type === 'network' ? 'Your transaction has been successfully submitted to the Stellar network' : 'Send this transaction to other signers for approval';
   return createPortal(
     <>
