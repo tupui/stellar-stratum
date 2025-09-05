@@ -119,17 +119,17 @@ export const ModernShareModal = ({
 
             {/* Share Options Grid */}
             <div className="grid grid-cols-3 gap-3">
-              <Button variant="outline" className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openEmailClient}>
+              <Button variant="outline" className="h-18 flex flex-col gap-2 px-4 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openEmailClient}>
                 <Mail className="w-5 h-5" />
                 <span className="text-xs">Email</span>
               </Button>
               
-              <Button variant="outline" className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openWhatsApp}>
+              <Button variant="outline" className="h-18 flex flex-col gap-2 px-4 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openWhatsApp}>
                 <MessageCircle className="w-5 h-5" />
                 <span className="text-xs">WhatsApp</span>
               </Button>
               
-              <Button variant="outline" className="h-16 flex flex-col gap-1 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openTelegram}>
+              <Button variant="outline" className="h-18 flex flex-col gap-2 px-4 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openTelegram}>
                 <Send className="w-5 h-5" />
                 <span className="text-xs">Telegram</span>
               </Button>
