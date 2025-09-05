@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { QrCode, X } from 'lucide-react';
@@ -14,7 +14,7 @@ interface QRScannerProps {
 export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const scanIntervalRef = useRef<number | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const { toast } = useToast();
@@ -29,9 +29,9 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     };
   }, [isOpen]);
 
-  const startScanner = async () => {
+  const startScanner = useCallback(async () => {
+    console.log('Starting QR scanner...');
     try {
-      // Check if camera API is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera API not available');
       }
@@ -42,25 +42,42 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: 'environment' },
-            width: { ideal: 640 },
-            height: { ideal: 480 }
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
           }
         });
+        console.log('Got back camera stream');
       } catch (e) {
-        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        console.log('Back camera failed, trying any camera');
+        mediaStream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 } 
+          } 
+        });
+        console.log('Got camera stream');
       }
       
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        videoRef.current.muted = true;
         setStream(mediaStream);
         setIsScanning(true);
         
-        // Start scanning once video is ready
+        // Wait for video to be ready and start scanning
+        const startScanning = () => {
+          console.log('Video ready, starting scan loop');
+          scanIntervalRef.current = window.setInterval(scanFrame, 100); // Scan every 100ms
+        };
+        
         videoRef.current.onloadedmetadata = () => {
+          console.log('Video metadata loaded');
           videoRef.current?.play().then(() => {
-            scanFrame();
-          }).catch(console.error);
+            console.log('Video playing');
+            startScanning();
+          }).catch((error) => {
+            console.error('Play failed:', error);
+            startScanning(); // Try scanning anyway
+          });
         };
       }
     } catch (error) {
@@ -72,13 +89,15 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       });
       onClose();
     }
-  };
+  }, [toast, onClose]);
 
-  const stopScanner = () => {
-    // Cancel animation frame
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
+  const stopScanner = useCallback(() => {
+    console.log('Stopping QR scanner...');
+    
+    // Clear scan interval
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
     }
     
     // Stop video stream
@@ -94,9 +113,9 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     }
     
     setIsScanning(false);
-  };
+  }, [stream]);
 
-  const scanFrame = () => {
+  const scanFrame = useCallback(() => {
     if (!isScanning || !videoRef.current || !canvasRef.current) {
       return;
     }
@@ -105,21 +124,27 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     const canvas = canvasRef.current;
     
     try {
-      if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
+      // Check if video has data and dimensions
+      if (video.readyState >= video.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
         // Set canvas size to video size
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         
-        const context = canvas.getContext('2d') as CanvasRenderingContext2D;
+        const context = canvas.getContext('2d');
         if (context) {
           // Draw current video frame to canvas
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
           
           // Get image data and scan for QR codes
           const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+          
+          // Use jsQR to detect QR codes
+          const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert',
+          });
 
           if (qrCode && qrCode.data) {
+            console.log('QR Code detected:', qrCode.data);
             // QR code detected - stop scanning and return data
             stopScanner();
             onScan(qrCode.data);
@@ -127,16 +152,13 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             return;
           }
         }
+      } else {
+        console.log('Video not ready:', video.readyState, video.videoWidth, video.videoHeight);
       }
     } catch (error) {
       console.error('QR scanning error:', error);
     }
-
-    // Continue scanning if still active
-    if (isScanning) {
-      animationFrameRef.current = requestAnimationFrame(scanFrame);
-    }
-  };
+  }, [isScanning, stopScanner, onScan, onClose]);
 
   const handleClose = () => {
     stopScanner();
