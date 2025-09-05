@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Copy, X, Mail, MessageCircle, Send } from 'lucide-react';
+import { CheckCircle, Copy, X, Mail, MessageCircle, Send, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
@@ -28,7 +28,7 @@ export const ModernShareModal = ({
       }
     }).then(setQrCodeDataUrl);
   }, [shareUrl]);
-  const copyToClipboard = async () => {
+  const copyShareUrl = async () => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareUrl);
@@ -48,6 +48,37 @@ export const ModernShareModal = ({
       toast({
         title: 'Copied to clipboard',
         description: 'Share link has been copied',
+        duration: 2500
+      });
+    } catch (e) {
+      toast({
+        title: 'Could not copy',
+        description: 'Please copy manually.',
+        duration: 3000
+      });
+    }
+  };
+
+  const copyRefractorId = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(refractorId);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = refractorId;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: 'Copied to clipboard',
+        description: 'Transaction ID has been copied',
         duration: 2500
       });
     } catch (e) {
@@ -101,18 +132,36 @@ export const ModernShareModal = ({
 
           {/* Transaction ID */}
           <div className="space-y-2">
-            <div className="text-center">
-              <span className="text-xs font-medium text-muted-foreground">Transaction ID</span>
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                <a 
+                  href="https://refractor.space" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-primary transition-colors"
+                >
+                  Refractor.Space
+                </a>
+                {" ID"}
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => window.open(`https://api.refractor.space/tx/${refractorId}`, '_blank')} className="h-6 w-6 p-0">
+                <ExternalLink className="w-3 h-3" />
+              </Button>
             </div>
             <div className="rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm p-2">
-              <p className="font-mono text-xs text-center break-all text-foreground/80">{refractorId}</p>
+              <div className="flex items-center justify-between">
+                <p className="font-mono text-xs break-all text-foreground/80 flex-1">{refractorId}</p>
+                <Button variant="ghost" size="sm" onClick={() => copyRefractorId()} className="h-6 w-6 p-0 ml-2 shrink-0">
+                  {copied ? <CheckCircle className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* Share Options */}
           <div className="space-y-4">
             {/* Copy Link */}
-            <Button variant="outline" className="w-full h-12 bg-background/50 hover:bg-background/80 border-primary/20" onClick={copyToClipboard}>
+            <Button variant="outline" className="w-full h-12 bg-background/50 hover:bg-background/80 border-primary/20" onClick={copyShareUrl}>
               {copied ? <CheckCircle className="w-4 h-4 mr-2 text-success" /> : <Copy className="w-4 h-4 mr-2" />}
               {copied ? 'Copied!' : 'Copy Link'}
             </Button>
