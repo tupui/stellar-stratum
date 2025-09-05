@@ -60,13 +60,26 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
+        // Ensure inline autoplay for iOS
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.muted = true;
+
         setStream(mediaStream);
         setIsScanning(true);
+
+        // Try enabling continuous autofocus if supported
+        try {
+          const [track] = mediaStream.getVideoTracks();
+          if (track && 'applyConstraints' in track) {
+            // @ts-expect-error - browser specific advanced constraints
+            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+          }
+        } catch {}
         
         // Wait for video to be ready and start scanning
         const startScanning = () => {
           console.log('Video ready, starting scan loop');
-          scanIntervalRef.current = window.setInterval(scanFrame, 100); // Scan every 100ms
+          scanIntervalRef.current = window.setInterval(scanFrame, 120); // Scan every ~120ms
         };
         
         videoRef.current.onloadedmetadata = () => {
@@ -117,7 +130,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
 
   const scanFrame = useCallback(() => {
     if (!isScanning || !videoRef.current || !canvasRef.current) {
-      console.log('Scan frame skipped - missing refs or not scanning');
       return;
     }
 
@@ -125,47 +137,38 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     const canvas = canvasRef.current;
     
     try {
-      // Check if video is ready and has dimensions
+      // Check if video has data and dimensions
       if (video.readyState >= video.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
-        console.log('Scanning frame...', { width: video.videoWidth, height: video.videoHeight, readyState: video.readyState });
-        
-        // Set canvas size to match video
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        const context = canvas.getContext('2d');
-        if (context) {
-          // Draw the video frame to canvas
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          
-          // Get image data for QR detection
-          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          console.log('Got image data:', { width: imageData.width, height: imageData.height });
-          
-          // Try to detect QR code with multiple inversion attempts for better detection
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+
+        // Crop to a centered square ROI (matches the visual frame area)
+        const side = Math.floor(Math.min(vw, vh) * 0.7); // 70% of the smallest dimension
+        const sx = Math.floor((vw - side) / 2);
+        const sy = Math.floor((vh - side) / 2);
+
+        // Downscale to improve detection speed and contrast
+        const target = Math.min(600, side); // cap at ~600px
+        canvas.width = target;
+        canvas.height = target;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
+
+          const imageData = ctx.getImageData(0, 0, target, target);
           const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
             inversionAttempts: 'attemptBoth',
           });
 
           if (qrCode && qrCode.data) {
-            console.log('🎉 QR Code detected successfully:', qrCode.data);
-            // Stop scanning and return the detected data
+            console.log('QR detected:', qrCode.data);
             stopScanner();
             onScan(qrCode.data);
             onClose();
             return;
           }
-        } else {
-          console.error('Failed to get canvas context');
-        }
-      } else {
-        // Only log occasionally to avoid spam
-        if (Math.random() < 0.1) {
-          console.log('Video not ready for scanning:', { 
-            readyState: video.readyState, 
-            width: video.videoWidth, 
-            height: video.videoHeight 
-          });
         }
       }
     } catch (error) {
