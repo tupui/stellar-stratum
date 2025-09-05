@@ -52,7 +52,7 @@ const loadCacheFromStorage = () => {
       }
     });
   } catch (error) {
-    console.warn('Failed to load asset cache from localStorage:', error);
+    if (import.meta.env.DEV) console.warn('Failed to load asset cache from localStorage:', error);
   }
 };
 
@@ -61,7 +61,7 @@ const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
   try {
     localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(entry));
   } catch (error) {
-    console.warn('Failed to save asset cache to localStorage:', error);
+    if (import.meta.env.DEV) console.warn('Failed to save asset cache to localStorage:', error);
   }
 };
 
@@ -95,6 +95,11 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
     if (cachedToml && cachedToml.expiresAt > Date.now()) {
       assets = cachedToml.data;
     } else {
+      // Skip TOML fetching on testnet to avoid unnecessary API calls
+      if (assetIssuer.includes('testnet')) {
+        throw new Error('Skip TOML for testnet');
+      }
+      
       // Fetch from Stellar account
       const response = await fetch(`${getHorizonUrl('mainnet')}/accounts/${assetIssuer}`);
       if (!response.ok) throw new Error('Failed to fetch account data');
@@ -151,7 +156,7 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
     
     throw new Error('Asset not found in TOML');
   } catch (error) {
-    console.warn(`Failed to fetch asset info for ${assetCode}:${assetIssuer}`, error);
+    if (import.meta.env.DEV) console.warn(`Failed to fetch asset info for ${assetCode}:${assetIssuer}`, error);
     
     // Return default asset info and cache it briefly
     const defaultAssetInfo: AssetInfo = {

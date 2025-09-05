@@ -8,13 +8,14 @@ import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.mod
 import { WalletConnectModule, WalletConnectAllowedMethods } from '@creit.tech/stellar-wallets-kit/modules/walletconnect.module';
 import { TrezorModule } from '@creit.tech/stellar-wallets-kit/modules/trezor.module';
 import { walletConnectConfig, trezorConfig } from './walletConfig';
+import { appConfig } from './appConfig';
 
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
-// Network configuration
+// Network configuration using centralized config
 const getNetworkConfig = (network: 'mainnet' | 'testnet') => ({
-  passphrase: network === 'testnet' ? 'Test SDF Network ; September 2015' : 'Public Global Stellar Network ; September 2015',
-  horizonUrl: network === 'testnet' ? 'https://horizon-testnet.stellar.org' : 'https://horizon.stellar.org'
+  passphrase: network === 'testnet' ? appConfig.TESTNET_PASSPHRASE : appConfig.MAINNET_PASSPHRASE,
+  horizonUrl: network === 'testnet' ? appConfig.TESTNET_HORIZON : appConfig.MAINNET_HORIZON
 });
 
 // Export network configuration getter for reuse
@@ -42,7 +43,7 @@ export const createStellarKit = (network: 'mainnet' | 'testnet' = 'mainnet') => 
       );
     }
   } catch (e) {
-    console.warn('WalletConnect module not initialized:', e);
+    if (import.meta.env.DEV) console.warn('WalletConnect module not initialized:', e);
   }
 
   // Trezor (optional)
@@ -51,7 +52,7 @@ export const createStellarKit = (network: 'mainnet' | 'testnet' = 'mainnet') => 
       modules.push(new TrezorModule({ appUrl: trezorConfig.url, email: trezorConfig.email, appName: 'Stellar Multisig' }));
     }
   } catch (e) {
-    console.warn('Trezor module not initialized:', e);
+    if (import.meta.env.DEV) console.warn('Trezor module not initialized:', e);
   }
 
   return new StellarWalletsKit({
@@ -121,7 +122,7 @@ export const connectWallet = async (walletId: string, network: 'mainnet' | 'test
       walletName: walletInfo?.name || walletId,
     };
   } catch (error) {
-    console.error('Wallet connection failed:', error);
+    if (import.meta.env.DEV) console.error('Wallet connection failed:', error);
 
     const errorMsg = String(error || '').toLowerCase();
     const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
@@ -174,7 +175,7 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
       }))
     };
   } catch (error: any) {
-    console.error('Failed to fetch account data:', error);
+    if (import.meta.env.DEV) console.error('Failed to fetch account data:', error);
     
     // Check if it's a NotFoundError (account doesn't exist)
     if (error?.name === 'NotFoundError' || 
@@ -213,7 +214,7 @@ export const getSupportedWallets = async (network: 'mainnet' | 'testnet' = 'main
         return a.name.localeCompare(b.name);
       });
   } catch (error) {
-    console.error('Failed to get supported wallets:', error);
+    if (import.meta.env.DEV) console.error('Failed to get supported wallets:', error);
     throw error;
   }
 };
@@ -223,7 +224,7 @@ export const signTransaction = async (xdr: string): Promise<string> => {
     const { signedTxXdr } = await stellarKit.signTransaction(xdr);
     return signedTxXdr;
   } catch (error) {
-    console.error('Failed to sign transaction:', error);
+    if (import.meta.env.DEV) console.error('Failed to sign transaction:', error);
     throw new Error('Failed to sign transaction');
   }
 };
@@ -236,7 +237,7 @@ export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 
     const result = await server.submitTransaction(transaction);
     return result;
   } catch (error) {
-    console.error('Failed to submit transaction:', error);
+    if (import.meta.env.DEV) console.error('Failed to submit transaction:', error);
     throw new Error('Failed to submit transaction');
   }
 };
@@ -247,7 +248,7 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
     const apiNetwork = network === 'testnet' ? 'testnet' : 'public';
     
     
-    const response = await fetch('https://api.refractor.space/tx', {
+    const response = await fetch(`${appConfig.REFRACTOR_API_BASE}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -261,7 +262,7 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Refractor API error:', response.status, errorText);
+      if (import.meta.env.DEV) console.error('Refractor API error:', response.status, errorText);
       throw new Error(`Refractor API error: ${response.status} - ${errorText}`);
     }
 
@@ -272,14 +273,14 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
     
     return txHash;
   } catch (error) {
-    console.error('Failed to submit to Refractor:', error);
+    if (import.meta.env.DEV) console.error('Failed to submit to Refractor:', error);
     throw new Error(`Failed to submit to Refractor: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
 export const pullFromRefractor = async (refractorId: string): Promise<string> => {
   try {
-    const response = await fetch(`https://api.refractor.space/tx/${refractorId}`);
+    const response = await fetch(`${appConfig.REFRACTOR_API_BASE}/${refractorId}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch from Refractor');
@@ -288,7 +289,7 @@ export const pullFromRefractor = async (refractorId: string): Promise<string> =>
     const result = await response.json();
     return result.xdr;
   } catch (error) {
-    console.error('Failed to pull from Refractor:', error);
+    if (import.meta.env.DEV) console.error('Failed to pull from Refractor:', error);
     throw new Error('Failed to fetch transaction from Refractor');
   }
 };

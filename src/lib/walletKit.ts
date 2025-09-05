@@ -3,19 +3,15 @@ import {
   allowAllModules
 } from '@creit.tech/stellar-wallets-kit';
 import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
-
-// Map app network to Stellar passphrase string (aligns with working dApp pattern)
-const getPassphrase = (network: 'mainnet' | 'testnet') =>
-  network === 'testnet'
-    ? 'Test SDF Network ; September 2015'
-    : 'Public Global Stellar Network ; September 2015';
+import { appConfig } from './appConfig';
+import { getNetworkPassphrase } from './stellar';
 
 export const createWalletKit = (walletId?: string, network: 'mainnet' | 'testnet' = 'mainnet') => {
   const kit = new StellarWalletsKit({
     modules: [...allowAllModules(), new LedgerModule()],
     // Use passphrase string for compatibility with various wallets (e.g., Freighter)
     // @ts-ignore - library accepts both enum and passphrase string
-    network: getPassphrase(network),
+    network: getNetworkPassphrase(network),
     
   });
   if (walletId) kit.setWallet(walletId);

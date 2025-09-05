@@ -1,6 +1,7 @@
 // Price fetching using Reflector Oracles
 import { OracleClient, type OracleConfig, AssetType, type Asset } from './reflector-client';
 import { xdr, Asset as StellarAsset, hash, StrKey, Networks } from '@stellar/stellar-sdk';
+import { appConfig } from './appConfig';
 
 // Reflector Oracle Contracts
 // Helper: compute SAC (contract) ID for classic assets on PUBLIC network
@@ -16,7 +17,7 @@ const computeStellarAssetContractId = (assetCode: string, assetIssuer: string): 
     const cid = StrKey.encodeContract(hash(envelope.toXDR()));
     return cid;
   } catch (e) {
-    console.warn('computeStellarAssetContractId failed', { assetCode, assetIssuer, error: e });
+    if (import.meta.env.DEV) console.warn('computeStellarAssetContractId failed', { assetCode, assetIssuer, error: e });
     return '';
   }
 };
@@ -33,7 +34,7 @@ const REFLECTOR_ORACLES = {
     decimals: 14
   },
   FX: {
-    contract: 'CBKGPWGKSKZF52CFHMTRR23TBWTPMRDIYZ4O2P5VS65BMHYH4DXMCJZC',
+    contract: appConfig.ORACLE_CONTRACT,
     base: 'USD',
     decimals: 14
   }
@@ -61,7 +62,7 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
     return getCachedPrice(assetKey);
 
   } catch (error) {
-    console.warn(`Failed to get price for ${assetCode}:`, error);
+    if (import.meta.env.DEV) console.warn(`Failed to get price for ${assetCode}:`, error);
     return getCachedPrice(assetKey);
   }
 };
@@ -141,7 +142,7 @@ const initializeAssetMapping = async (): Promise<void> => {
       
       mappingInitialized = true;
     } catch (error) {
-      console.error('Failed to initialize asset mapping:', error);
+      if (import.meta.env.DEV) console.error('Failed to initialize asset mapping:', error);
       mappingPromise = null; // Reset to allow retry
       throw error;
     }
@@ -242,10 +243,10 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
       
       // If no assets but still have more attempts, continue immediately
       if (attempt < maxRetries - 1) {
-        console.warn(`No assets returned from ${oracle.contract}, attempt ${attempt + 1}/${maxRetries}`);
+        if (import.meta.env.DEV) console.warn(`No assets returned from ${oracle.contract}, attempt ${attempt + 1}/${maxRetries}`);
       }
     } catch (error) {
-      console.warn(`Attempt ${attempt + 1} failed to fetch assets from ${oracle.contract}:`, error);
+      if (import.meta.env.DEV) console.warn(`Attempt ${attempt + 1} failed to fetch assets from ${oracle.contract}:`, error);
       
       // Continue to next attempt immediately without delay
     }
@@ -336,10 +337,10 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
       
       // If no price but still have attempts, continue immediately
       if (attempt < maxRetries - 1 && rawPrice === 0) {
-        console.warn(`No price returned for ${asset.code}, attempt ${attempt + 1}/${maxRetries}`);
+        if (import.meta.env.DEV) console.warn(`No price returned for ${asset.code}, attempt ${attempt + 1}/${maxRetries}`);
       }
     } catch (error) {
-      console.warn(`Attempt ${attempt + 1} failed for ${asset.code} from ${oracle.contract}:`, error);
+      if (import.meta.env.DEV) console.warn(`Attempt ${attempt + 1} failed for ${asset.code} from ${oracle.contract}:`, error);
       
       // Continue to next attempt immediately without delay
     }
@@ -395,7 +396,7 @@ const loadPriceCache = (): PriceCache => {
       return JSON.parse(cached);
     }
   } catch (error) {
-    console.warn('Failed to load price cache from localStorage:', error);
+    if (import.meta.env.DEV) console.warn('Failed to load price cache from localStorage:', error);
   }
   return {};
 };
@@ -404,7 +405,7 @@ const savePriceCache = (cache: PriceCache): void => {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
   } catch (error) {
-    console.warn('Failed to save price cache to localStorage:', error);
+    if (import.meta.env.DEV) console.warn('Failed to save price cache to localStorage:', error);
   }
 };
 
@@ -448,7 +449,7 @@ export const getLastPriceUpdate = (): Date | null => {
     const latestTimestamp = Math.max(...timestamps);
     return new Date(latestTimestamp);
   } catch (error) {
-    console.warn('Failed to get last price update:', error);
+    if (import.meta.env.DEV) console.warn('Failed to get last price update:', error);
     return null;
   }
 };
@@ -469,6 +470,6 @@ export const clearPriceCache = (): void => {
     loadedOracles.clear();
     
   } catch (error) {
-    console.warn('Failed to clear price cache:', error);
+    if (import.meta.env.DEV) console.warn('Failed to clear price cache:', error);
   }
 };

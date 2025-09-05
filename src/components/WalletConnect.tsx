@@ -14,6 +14,8 @@ import { getSupportedWallets, connectWallet, getNetworkPassphrase } from '@/lib/
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
+import { appConfig } from '@/lib/appConfig';
+import { SorobanDomainsSDK } from '@creit.tech/sorobandomains-sdk';
 import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
@@ -45,7 +47,7 @@ export const WalletConnect = ({
       const wallets = await getSupportedWallets(selectedNetwork);
       setSupportedWallets(wallets);
     } catch (error) {
-      console.error('Failed to load wallets:', error);
+      if (import.meta.env.DEV) console.error('Failed to load wallets:', error);
       toast({
         title: "Failed to load wallets",
         description: "Could not load supported wallets",
@@ -61,10 +63,9 @@ export const WalletConnect = ({
     let timeout: NodeJS.Timeout;
     const checkWallets = async () => {
       await loadWallets();
-      const wallets = await getSupportedWallets(selectedNetwork);
-
+      
       // Stop scanning if we found available wallets
-      if (wallets.some(wallet => wallet.isAvailable)) {
+      if (supportedWallets.some(wallet => wallet.isAvailable)) {
         clearInterval(interval);
         clearTimeout(timeout);
         setLoading(false);
@@ -72,13 +73,13 @@ export const WalletConnect = ({
     };
     checkWallets();
 
-    // Check for wallet availability every 2 seconds for max 10 seconds
-    interval = setInterval(checkWallets, 2000);
+    // Check for wallet availability using config values
+    interval = setInterval(checkWallets, appConfig.WALLET_CHECK_INTERVAL);
     timeout = setTimeout(() => {
       clearInterval(interval);
       clearTimeout(timeout);
       setLoading(false);
-    }, 10000);
+    }, appConfig.WALLET_TIMEOUT);
     return () => {
       clearInterval(interval);
       clearTimeout(timeout);
@@ -189,15 +190,15 @@ export const WalletConnect = ({
 
       // Use proper SDK structure from working example
       const networkPassphrase = selectedNetwork === 'testnet' ? StellarSDK.Networks.TESTNET : StellarSDK.Networks.PUBLIC;
-      const rpcUrl = selectedNetwork === 'testnet' ? 'https://soroban-testnet.stellar.org' : 'https://mainnet.sorobanrpc.com';
+      const rpcUrl = selectedNetwork === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC;
       const rpcServer = new StellarSDK.rpc.Server(rpcUrl);
       const sdk = new SorobanDomainsSDK({
         stellarSDK: StellarSDK,
         rpc: rpcServer,
         network: networkPassphrase,
-        vaultsContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
-        defaultFee: '100',
-        defaultTimeout: 300,
+        vaultsContractId: appConfig.SOROBAN_DOMAINS[selectedNetwork],
+        defaultFee: appConfig.DEFAULT_BASE_FEE.toString(),
+        defaultTimeout: appConfig.DEFAULT_TX_TIMEOUT_SECONDS,
         simulationAccount: 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV'
       });
 
@@ -250,7 +251,7 @@ export const WalletConnect = ({
         userMessage,
         fullError
       } = sanitizeError(error);
-      console.error('Failed to connect wallet:', fullError);
+      if (import.meta.env.DEV) console.error('Failed to connect wallet:', fullError);
       const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
       toast({
         title: "Connection failed",

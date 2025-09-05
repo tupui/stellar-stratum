@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,7 +54,7 @@ export const AssetBalancePanel = ({
       }
       await refetch();
     } catch (e) {
-      console.error('Failed to refresh balances:', e);
+      if (import.meta.env.DEV) console.error('Failed to refresh balances:', e);
     } finally {
       // Always update timestamp after any operation
       setLastUpdateTime(new Date());
@@ -71,8 +71,11 @@ export const AssetBalancePanel = ({
     return date.toLocaleDateString();
   };
 
-  // Filter assets based on hide small balances toggle
-  const filteredAssets = hideSmallBalances ? assetsWithPrices.filter(asset => asset.valueUSD >= 1) : assetsWithPrices;
+  // Filter assets based on hide small balances toggle (memoized for performance)
+  const filteredAssets = useMemo(() => 
+    hideSmallBalances ? assetsWithPrices.filter(asset => asset.valueUSD >= 1) : assetsWithPrices,
+    [hideSmallBalances, assetsWithPrices]
+  );
 
   // Update converted values when currency changes
   useEffect(() => {
@@ -90,7 +93,7 @@ export const AssetBalancePanel = ({
           const convertedTotal = await convertFromUSD(totalValueUSD, quoteCurrency);
           setConvertedTotalValue(convertedTotal);
         } catch (error) {
-          console.warn('Failed to convert total value:', error);
+          if (import.meta.env.DEV) console.warn('Failed to convert total value:', error);
           setConvertedTotalValue(totalValueUSD);
         }
       }
@@ -105,7 +108,7 @@ export const AssetBalancePanel = ({
             const convertedValue = await convertFromUSD(asset.valueUSD, quoteCurrency);
             newConvertedValues[i] = convertedValue;
           } catch (error) {
-            console.warn(`Failed to convert value for asset ${asset.symbol}:`, error);
+            if (import.meta.env.DEV) console.warn(`Failed to convert value for asset ${asset.symbol}:`, error);
           }
         }
         if (asset.priceUSD > 0) {
@@ -113,7 +116,7 @@ export const AssetBalancePanel = ({
             const convertedPrice = await convertFromUSD(asset.priceUSD, quoteCurrency);
             newConvertedPrices[i] = convertedPrice;
           } catch (error) {
-            console.warn(`Failed to convert price for asset ${asset.symbol}:`, error);
+            if (import.meta.env.DEV) console.warn(`Failed to convert price for asset ${asset.symbol}:`, error);
           }
         }
       }
