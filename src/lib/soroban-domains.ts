@@ -3,6 +3,7 @@
  */
 
 import { isValidDomain } from './validation';
+import { appConfig } from './appConfig';
 
 interface SorobanDomainResult {
   address: string;
@@ -32,18 +33,18 @@ export const resolveSorobanDomain = async (
     const StellarSDK = await import('@stellar/stellar-sdk');
     const { SorobanDomainsSDK } = await import('@creit.tech/sorobandomains-sdk');
 
-    // Use proper SDK structure
+    // Use proper SDK structure with consistent config
     const networkPassphrase = network === 'testnet' ? StellarSDK.Networks.TESTNET : StellarSDK.Networks.PUBLIC;
-    const rpcUrl = network === 'testnet' ? 'https://soroban-testnet.stellar.org' : 'https://mainnet.sorobanrpc.com';
+    const rpcUrl = network === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC;
     const rpcServer = new StellarSDK.rpc.Server(rpcUrl);
     
     const sdk = new SorobanDomainsSDK({
       stellarSDK: StellarSDK,
       rpc: rpcServer,
       network: networkPassphrase,
-      vaultsContractId: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
-      defaultFee: '100',
-      defaultTimeout: 300,
+      vaultsContractId: appConfig.SOROBAN_DOMAINS[network],
+      defaultFee: appConfig.DEFAULT_BASE_FEE.toString(),
+      defaultTimeout: appConfig.DEFAULT_TX_TIMEOUT_SECONDS,
       simulationAccount: 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV'
     });
 
