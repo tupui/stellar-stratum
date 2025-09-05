@@ -15,6 +15,9 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const scanTimeoutRef = useRef<number | null>(null);
+  const detectorRef = useRef<any>(null);
+  const hasStartedRef = useRef(false);
   const [isScanning, setIsScanning] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,13 +29,27 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
+    // Clear scanning timeout
+    if (scanTimeoutRef.current) {
+      window.clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = null;
+    }
     
     // Stop all video tracks
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
+
+    // Reset video element
+    if (videoRef.current) {
+      try { videoRef.current.pause(); } catch {}
+      videoRef.current.srcObject = null;
+      videoRef.current.onloadedmetadata = null;
+    }
     
+    hasStartedRef.current = false;
+    detectorRef.current = null;
     setIsScanning(false);
     setError(null);
   }, [stream]);
@@ -46,23 +63,49 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         throw new Error('Camera API not available');
       }
 
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment', // Use back camera on mobile
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+      // Prefer back camera but allow fallback
+      let mediaStream: MediaStream | null = null;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+      } catch (e) {
+        // Fallback to any available camera
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
+      if (videoRef.current && mediaStream) {
+        // Setup native detector if available
+        const BD = (window as any).BarcodeDetector;
+        if (BD) {
+          try {
+            detectorRef.current = new BD({ formats: ['qr_code'] });
+          } catch {}
         }
-      });
-      
-      if (videoRef.current) {
+
         videoRef.current.srcObject = mediaStream;
+        videoRef.current.muted = true; // Required for autoplay on iOS
+        videoRef.current.setAttribute('muted', '');
         setStream(mediaStream);
         setIsScanning(true);
         
-        // Wait for video to be ready before starting scan
-        videoRef.current.onloadedmetadata = () => {
-          scanFrame();
+        // Ensure playback begins
+        const startIfReady = () => {
+          if (!hasStartedRef.current) {
+            hasStartedRef.current = true;
+            scanFrame();
+          }
         };
+
+        videoRef.current.onloadedmetadata = async () => {
+          try { await videoRef.current?.play(); } catch {}
+          startIfReady();
+        };
+        videoRef.current.addEventListener('canplay', startIfReady, { once: true });
       }
     } catch (error) {
       console.error('Camera access error:', error);
@@ -80,23 +123,54 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     }
   }, [toast, onClose]);
 
-  const scanFrame = useCallback(() => {
+  function scanFrame() {
     if (!isScanning || !videoRef.current || !canvasRef.current) {
       return;
     }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    const detector = detectorRef.current;
     
+    // Try native BarcodeDetector first if available
+    if (detector) {
+      detector
+        .detect(video)
+        .then((codes: any[]) => {
+          const value = codes && codes.length > 0 ? (codes[0].rawValue || codes[0].raw || codes[0].data) : undefined;
+          if (value) {
+            stopScanner();
+            onScan(String(value));
+            onClose();
+            return;
+          }
+        })
+        .catch((err: any) => {
+          console.error('Native detector error:', err);
+        })
+        .finally(() => {
+          if (isScanning) {
+            scanTimeoutRef.current = window.setTimeout(scanFrame, 80);
+          }
+        });
+      return;
+    }
+
     try {
       if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // Downscale for faster decoding
+        const maxW = 640;
+        const scale = Math.min(1, maxW / video.videoWidth);
+        const targetW = Math.floor(video.videoWidth * scale);
+        const targetH = Math.floor(video.videoHeight * scale);
+        canvas.width = targetW;
+        canvas.height = targetH;
         
-        const context = canvas.getContext('2d');
+        const context = canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D | null;
         if (context) {
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          context.imageSmoothingEnabled = false;
+          context.drawImage(video, 0, 0, targetW, targetH);
+          const imageData = context.getImageData(0, 0, targetW, targetH);
           const code = jsQR(imageData.data, imageData.width, imageData.height);
 
           if (code && code.data) {
@@ -114,9 +188,9 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
 
     // Continue scanning
     if (isScanning) {
-      animationFrameRef.current = requestAnimationFrame(scanFrame);
+      scanTimeoutRef.current = window.setTimeout(scanFrame, 80);
     }
-  }, [isScanning, onScan, onClose, stopScanner]);
+  }
 
   useEffect(() => {
     if (isOpen && !isScanning && !stream) {
@@ -153,6 +227,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             <video
               ref={videoRef}
               autoPlay
+              muted
               playsInline
               className="w-full h-64 bg-black rounded-lg object-cover"
             />
