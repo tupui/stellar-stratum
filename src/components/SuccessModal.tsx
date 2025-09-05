@@ -1,12 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Copy, ExternalLink, X, Share2 } from 'lucide-react';
+import { CheckCircle, Copy, ExternalLink, X, Mail, MessageCircle, Send } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
 import { createPortal } from 'react-dom';
-import { ModernShareModal } from './ModernShareModal';
 interface SuccessModalProps {
   type: 'network' | 'refractor';
   hash?: string;
@@ -23,7 +22,7 @@ export const SuccessModal = ({
 }: SuccessModalProps) => {
   const [copied, setCopied] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  const [showShareModal, setShowShareModal] = useState(false);
+  const [showExpandedShare, setShowExpandedShare] = useState(false);
   const {
     toast
   } = useToast();
@@ -134,8 +133,8 @@ export const SuccessModal = ({
       <div className="fixed inset-0 z-[10001] pointer-events-none bg-[radial-gradient(800px_400px_at_80%_100%,hsl(var(--success)/0.20),transparent_60%)]" />
       
       {/* Modal container */}
-      <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4">
-        <Card className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-primary/20 bg-card/30 supports-[backdrop-filter]:bg-card/20 backdrop-blur-2xl shadow-xl shadow-primary/10 ring-1 ring-primary/15">
+      <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4" onClick={onClose}>
+        <Card className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-primary/20 bg-card/30 supports-[backdrop-filter]:bg-card/20 backdrop-blur-2xl shadow-xl shadow-primary/10 ring-1 ring-primary/15" onClick={(e) => e.stopPropagation()}>
           {/* Subtle top gradient sheen */}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/15 via-transparent to-transparent" />
           <CardHeader className="pb-6 relative">
@@ -216,15 +215,28 @@ export const SuccessModal = ({
               </div>}
             
             {/* Share Options (Refractor) */}
-            {type === 'refractor' && refractorId && <div className="space-y-3">
-                <div className="flex items-center justify-center gap-2">
-                  <Button variant="outline" size="sm" onClick={copyShareLink} className="h-8 px-3">
-                    {copied ? <CheckCircle className="w-4 h-4 mr-1 text-success" /> : <Copy className="w-4 h-4 mr-1" />}
-                    Copy link
+            {type === 'refractor' && refractorId && <div className="space-y-4">
+                {/* Copy Link */}
+                <Button variant="outline" className="w-full h-12 bg-background/50 hover:bg-background/80 border-primary/20" onClick={copyShareLink}>
+                  {copied ? <CheckCircle className="w-4 h-4 mr-2 text-success" /> : <Copy className="w-4 h-4 mr-2" />}
+                  {copied ? 'Copied!' : 'Copy Link'}
+                </Button>
+
+                {/* Share Options Grid */}
+                <div className="grid grid-cols-3 gap-3">
+                  <Button variant="outline" className="h-18 flex flex-col gap-2 px-4 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openEmailClient}>
+                    <Mail className="w-5 h-5" />
+                    <span className="text-xs">Email</span>
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setShowShareModal(true)} className="h-8 px-3">
-                    <Share2 className="w-4 h-4 mr-1" />
-                    Share
+                  
+                  <Button variant="outline" className="h-18 flex flex-col gap-2 px-4 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openWhatsApp}>
+                    <MessageCircle className="w-5 h-5" />
+                    <span className="text-xs">WhatsApp</span>
+                  </Button>
+                  
+                  <Button variant="outline" className="h-18 flex flex-col gap-2 px-4 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openTelegram}>
+                    <Send className="w-5 h-5" />
+                    <span className="text-xs">Telegram</span>
                   </Button>
                 </div>
               </div>}
@@ -238,9 +250,6 @@ export const SuccessModal = ({
               </div>}
           </CardContent>
         </Card>
-        
-        {/* Modern Share Modal */}
-        {showShareModal && refractorId && <ModernShareModal refractorId={refractorId} onClose={() => setShowShareModal(false)} />}
       </div>
     </>,
     document.body
