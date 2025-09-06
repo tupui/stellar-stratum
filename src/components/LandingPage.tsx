@@ -75,6 +75,14 @@ export const LandingPage = ({
             <Button size="lg" className="h-16 px-12 text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
               Connect wallet
             </Button>
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="h-16 px-12 text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105"
+              onClick={() => window.open('/sign', '_blank')}
+            >
+              Air-gapped Signer
+            </Button>
           </div>
 
           <div className="mt-20 text-sm text-muted-foreground">

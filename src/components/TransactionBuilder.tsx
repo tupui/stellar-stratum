@@ -27,7 +27,6 @@ import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
 import { SuccessModal } from './SuccessModal';
-import { AirgapMode } from './airgap/AirgapMode';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -88,7 +87,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [refractorId, setRefractorId] = useState<string>('');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' } | null>(null);
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
-  const [coordinationMode, setCoordinationMode] = useState<'refractor' | 'airgap'>('refractor');
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
@@ -991,58 +989,25 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           />
         )}
 
-        {/* Coordination Mode & Signing */}
+        {/* Signing */}
         {(xdrData.output || xdrData.input) && accountData && (
           <Card className="shadow-card">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base sm:text-lg">Transaction Coordination</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={coordinationMode === 'refractor' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCoordinationMode('refractor')}
-                  >
-                    Refractor
-                  </Button>
-                  <Button
-                    variant={coordinationMode === 'airgap' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setCoordinationMode('airgap')}
-                  >
-                    Air-Gapped
-                  </Button>
-                </div>
-              </div>
+              <CardTitle className="text-base sm:text-lg">Sign Transaction</CardTitle>
               <CardDescription>
-                {coordinationMode === 'refractor' 
-                  ? 'Use Refractor.space for online coordination' 
-                  : 'Use QR codes for offline coordination'}
+                Connect your wallet to add signatures to this transaction
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {coordinationMode === 'refractor' ? (
-                <SignerSelector
-                  xdr={xdrData.output || xdrData.input}
-                  signers={accountData.signers}
-                  currentAccountKey={accountPublicKey}
-                  signedBy={signedBy}
-                  requiredWeight={getRequiredWeight()}
-                  onSignWithSigner={handleSignWithSigner}
-                  isSigning={isSigning}
-                />
-              ) : (
-                <AirgapMode
-                  xdr={xdrData.output || xdrData.input}
-                  requiredWeight={getRequiredWeight()}
-                  signers={accountData.signers}
-                  onSignatureReceived={(signedXdr) => {
-                    setXdrData(prev => ({ ...prev, output: signedXdr }));
-                    setSignedBy(prev => [...prev, { signerKey: 'Air-gapped', signedAt: new Date() }]);
-                  }}
-                  signedBy={signedBy}
-                />
-              )}
+              <SignerSelector
+                xdr={xdrData.output || xdrData.input}
+                signers={accountData.signers}
+                currentAccountKey={accountPublicKey}
+                signedBy={signedBy}
+                requiredWeight={getRequiredWeight()}
+                onSignWithSigner={handleSignWithSigner}
+                isSigning={isSigning}
+              />
             </CardContent>
           </Card>
         )}

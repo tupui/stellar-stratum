@@ -30,6 +30,30 @@ export const AirgapSigner = () => {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [step, setStep] = useState<'scan' | 'review' | 'sign' | 'share'>('scan');
 
+  // Disable network features for true air-gapped operation
+  useEffect(() => {
+    // Disable service workers
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(registration => registration.unregister());
+      });
+    }
+    
+    // Block network requests for security
+    const originalFetch = window.fetch;
+    const originalXHR = window.XMLHttpRequest;
+    
+    window.fetch = () => Promise.reject(new Error('Network requests disabled in air-gapped mode'));
+    window.XMLHttpRequest = function() {
+      throw new Error('Network requests disabled in air-gapped mode');
+    } as any;
+    
+    return () => {
+      window.fetch = originalFetch;
+      window.XMLHttpRequest = originalXHR;
+    };
+  }, []);
+
   // Monitor online/offline status
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
