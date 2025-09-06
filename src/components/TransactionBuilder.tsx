@@ -1048,6 +1048,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           onCopyXdr={handleCopyXdr}
           onSubmitToNetwork={handleSubmitToNetwork}
           onSubmitToRefractor={handleSubmitToRefractor}
+          onShowOfflineModal={() => setSuccessData({ 
+            type: 'refractor', 
+            hash: 'offline-qr', 
+            network: currentNetwork 
+          })}
           copied={copied}
         />
 

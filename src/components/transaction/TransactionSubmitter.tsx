@@ -4,11 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Copy, ExternalLink, Wifi, WifiOff, Send } from 'lucide-react';
-import { NetworkSelector } from '@/components/NetworkSelector';
-import { XdrDetails } from '@/components/XdrDetails';
-import { AnimatedQR } from '@/components/airgap/AnimatedQR';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 
@@ -25,6 +21,7 @@ interface TransactionSubmitterProps {
   onCopyXdr: () => void;
   onSubmitToNetwork: () => Promise<void>;
   onSubmitToRefractor: () => Promise<void>;
+  onShowOfflineModal: () => void;
   copied: boolean;
 }
 
@@ -41,6 +38,7 @@ export const TransactionSubmitter = ({
   onCopyXdr,
   onSubmitToNetwork,
   onSubmitToRefractor,
+  onShowOfflineModal,
   copied
 }: TransactionSubmitterProps) => {
   const { network: currentNetwork } = useNetwork();
@@ -109,39 +107,16 @@ export const TransactionSubmitter = ({
               </CardContent>
             </Card>
 
-            {/* Send for Signature Button with Modal */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="w-full" size="lg">
-                  <Send className="w-4 h-4 mr-2" />
-                  Send for Signature
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>
-                    {isAirgappedMode ? 'Air-gapped Signing' : 'Send for Signature'}
-                  </DialogTitle>
-                </DialogHeader>
-                {isAirgappedMode ? (
-                  <AnimatedQR
-                    data={xdrOutput}
-                    type="xdr"
-                    title="Transaction for Signing"
-                    description="Scan with your air-gapped signing device"
-                  />
-                ) : (
-                  <NetworkSelector
-                    isSubmittingToNetwork={isSubmittingToNetwork}
-                    isSubmittingToRefractor={isSubmittingToRefractor}
-                    onSubmitToNetwork={onSubmitToNetwork}
-                    onSubmitToRefractor={onSubmitToRefractor}
-                    canSubmitToNetwork={canSubmitToNetwork}
-                    canSubmitToRefractor={canSubmitToRefractor}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
+            {/* Send for Signature Button */}
+            <Button 
+              className="w-full" 
+              size="lg"
+              onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor}
+              disabled={isSubmittingToRefractor}
+            >
+              <Send className="w-4 h-4 mr-2" />
+              {isSubmittingToRefractor ? 'Sending...' : 'Send for Signature'}
+            </Button>
           </>
         )
       )}
