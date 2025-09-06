@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Camera, Upload, X } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import jsQR from 'jsqr';
+import { useToast } from '@/hooks/use-toast';
 
 interface QRScannerProps {
   isOpen: boolean;
@@ -15,8 +17,10 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen) {
@@ -61,21 +65,30 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       await reader.decodeFromVideoDevice(
         selectedDevice.deviceId,
         videoRef.current!,
-        (result, error) => {
-          if (result) {
-            console.log('QR code detected:', result.getText());
-            onScan(result.getText());
-            stopScanner();
-            onClose();
+          (result, error) => {
+            if (result) {
+              console.log('QR code detected:', result.getText());
+              onScan(result.getText());
+              stopScanner();
+              onClose();
+              toast({
+                title: 'QR Code Scanned',
+                description: 'Successfully scanned QR code',
+              });
+            }
+            // Don't log errors as they're expected while scanning
           }
-          // Don't log errors as they're expected while scanning
-        }
       );
       
       console.log('Scanner started successfully');
     } catch (error) {
       console.error('Error starting scanner:', error);
       setIsScanning(false);
+      toast({
+        title: 'Camera Error',
+        description: 'Could not access camera for scanning',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -109,12 +122,10 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     const file = event.target.files?.[0];
     if (!file) return;
     
+    setIsProcessingImage(true);
+    
     try {
       console.log('Processing uploaded image...');
-      
-      if (!readerRef.current) {
-        readerRef.current = new BrowserMultiFormatReader();
-      }
       
       // Create an image element and wait for it to load
       const img = new Image();
@@ -122,26 +133,79 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       
       img.onload = async () => {
         try {
-          const result = await readerRef.current!.decodeFromImageElement(img);
-          console.log('QR code detected from image:', result.getText());
-          onScan(result.getText());
-          onClose();
+          let result = null;
+          
+          // Try ZXing first
+          if (!readerRef.current) {
+            readerRef.current = new BrowserMultiFormatReader();
+          }
+          
+          try {
+            result = await readerRef.current!.decodeFromImageElement(img);
+          } catch (zxingError) {
+            console.log('ZXing failed, trying jsQR fallback...');
+            
+            // Try jsQR as fallback
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d')!;
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const jsQRResult = jsQR(imageData.data, imageData.width, imageData.height);
+            
+            if (jsQRResult) {
+              result = { getText: () => jsQRResult.data };
+            }
+          }
+          
+          if (result) {
+            console.log('QR code detected from image:', result.getText());
+            onScan(result.getText());
+            onClose();
+            toast({
+              title: 'QR Code Scanned',
+              description: 'Successfully read QR code from image',
+            });
+          } else {
+            throw new Error('No QR code found in image');
+          }
+          
           URL.revokeObjectURL(imageUrl);
         } catch (error) {
           console.error('Error reading QR code from image:', error);
           URL.revokeObjectURL(imageUrl);
-          // Could show a toast here for user feedback
+          toast({
+            title: 'Scan Failed',
+            description: 'No valid QR code found in the uploaded image',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsProcessingImage(false);
         }
       };
       
       img.onerror = () => {
         console.error('Error loading image');
         URL.revokeObjectURL(imageUrl);
+        setIsProcessingImage(false);
+        toast({
+          title: 'Upload Failed',
+          description: 'Could not load the uploaded image',
+          variant: 'destructive',
+        });
       };
       
       img.src = imageUrl;
     } catch (error) {
       console.error('Error processing image upload:', error);
+      setIsProcessingImage(false);
+      toast({
+        title: 'Upload Failed',
+        description: 'Error processing the uploaded image',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -197,9 +261,10 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               variant="outline" 
               className="w-full"
               onClick={() => fileInputRef.current?.click()}
+              disabled={isProcessingImage}
             >
               <Upload className="w-4 h-4 mr-2" />
-              Upload Image
+              {isProcessingImage ? 'Processing...' : 'Upload Image'}
             </Button>
           </div>
           

@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { buildSEP7TxUri } from '@/lib/sep7';
+import { useNetwork } from '@/contexts/NetworkContext';
+import { getNetworkPassphrase } from '@/lib/stellar';
 
 interface AnimatedQRProps {
   data: string;
@@ -16,6 +19,13 @@ interface AnimatedQRProps {
 export const AnimatedQR = ({ data, type, title, description, embedded = false }: AnimatedQRProps) => {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const { network } = useNetwork();
+
+  // Generate proper SEP-7 URI for XDR data, raw data for signatures
+  const qrData = type === 'xdr' ? buildSEP7TxUri({
+    xdr: data,
+    network: network === 'testnet' ? 'testnet' : 'public'
+  }) : data;
 
   const handleCopyData = async () => {
     await navigator.clipboard.writeText(data);
@@ -37,7 +47,7 @@ export const AnimatedQR = ({ data, type, title, description, embedded = false }:
         {/* QR Code Display */}
         <div className="flex justify-center p-4 bg-white rounded-lg border">
           <QRCodeSVG
-            value={data}
+            value={qrData}
             size={200}
             level="M"
             includeMargin={true}
@@ -71,7 +81,7 @@ export const AnimatedQR = ({ data, type, title, description, embedded = false }:
         {/* QR Code Display */}
         <div className="flex justify-center p-4 bg-white rounded-lg">
           <QRCodeSVG
-            value={data}
+            value={qrData}
             size={200}
             level="M"
             includeMargin={true}
