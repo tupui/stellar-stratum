@@ -33,7 +33,7 @@ import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { PaymentForm } from './payment/PaymentForm';
-import { XdrProcessor } from './transaction/XdrProcessor';
+import { ImportTab } from './ImportTab';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 
 
@@ -96,10 +96,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     setRefractorId('');
     setSuccessData(null);
 
-    if (activeTab === 'xdr') {
-      // Switching to XDR view: clear payment-only state, keep XDR intact
+    if (activeTab === 'import') {
+      // Switching to Import view: clear payment-only state, keep XDR intact
       setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
-    } else if (activeTab === 'payment' || activeTab === 'path' || activeTab === 'batch' || activeTab === 'account') {
+    } else if (activeTab === 'payment') {
       // Switching to payment-related tabs: clear XDR state
       setXdrData({ input: '', output: '' });
     }
@@ -111,9 +111,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
     
     if (deepLinkXdr) {
-      // Use the same processing as XDR tab
+      // Use the same processing as Import tab
       handleXdrInputChange(deepLinkXdr);
-      setActiveTab('xdr');
+      setActiveTab('import');
       if (deepLinkRefractorId) setRefractorId(deepLinkRefractorId);
       // Clear the deep link data to prevent reprocessing
       sessionStorage.removeItem('deeplink-xdr');
@@ -129,7 +129,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
       if (deepLinkXdr) {
         handleXdrInputChange(deepLinkXdr);
-        setActiveTab('xdr');
+        setActiveTab('import');
         if (deepLinkRefractorId) setRefractorId(deepLinkRefractorId);
         sessionStorage.removeItem('deeplink-xdr');
         sessionStorage.removeItem('deeplink-refractor-id');
@@ -898,13 +898,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               Build Transaction
             </CardTitle>
             <CardDescription>
-              Create a payment or import existing XDR for signing
+              Create a payment or import XDR/Refractor transactions for signing
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <div className="p-2 bg-muted/50 rounded-lg">
-                <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full p-0 bg-transparent gap-2">
+                <TabsList className="grid grid-cols-2 sm:grid-cols-3 w-full p-0 bg-transparent gap-2">
                   <TabsTrigger 
                     value="payment" 
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
@@ -920,18 +920,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                     <span>Multisig</span>
                   </TabsTrigger>
                   <TabsTrigger 
-                    value="xdr"
+                    value="import"
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <FileCode className="w-4 h-4" />
-                    <span>XDR</span>
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="refractor"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    <span>Pull Transaction</span>
+                    <span>Import</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -975,10 +968,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                 />
               </TabsContent>
 
-              <TabsContent value="xdr" className="space-y-4 mt-6">
-                <XdrProcessor
+              <TabsContent value="import" className="space-y-4 mt-6">
+                <ImportTab
                   xdrInput={xdrData.input}
                   onXdrInputChange={handleXdrInputChange}
+                  onPullTransaction={handlePullFromRefractor}
+                  lastRefractorId={refractorId}
+                  network={currentNetwork}
                 />
               </TabsContent>
 
@@ -992,14 +988,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                     onAccountRefresh={onAccountRefresh}
                   />
                 )}
-              </TabsContent>
-
-              <TabsContent value="refractor" className="space-y-4 mt-6">
-          <RefractorIntegration
-            onPullTransaction={handlePullFromRefractor}
-            lastRefractorId={refractorId}
-            network={currentNetwork}
-          />
               </TabsContent>
             </Tabs>
           </CardContent>

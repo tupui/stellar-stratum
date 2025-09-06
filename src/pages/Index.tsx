@@ -152,7 +152,7 @@ const Index = () => {
               onBack={handleBackToDashboard}
               accountPublicKey={publicKey || ''}
               accountData={accountData}
-              initialTab={appState === 'multisig-config' ? 'multisig' : (deepLinkReady ? 'xdr' : 'payment')}
+              initialTab={appState === 'multisig-config' ? 'multisig' : (deepLinkReady ? 'import' : 'payment')}
               onAccountRefresh={async () => {
                 if (!publicKey) return;
                 const realAccountData = await fetchAccountData(publicKey, network);

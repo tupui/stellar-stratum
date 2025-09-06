@@ -5,11 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { QrCode, Check, X, RotateCcw } from 'lucide-react';
 import { QRScanner } from '@/components/QRScanner';
-import { 
-  decodeChunk, 
-  reassembleChunks, 
-  type QRChunk 
-} from '@/lib/xdr/chunking';
 
 interface AnimatedQRScannerProps {
   onDataReceived: (data: string, type: 'xdr' | 'signature') => void;
@@ -20,34 +15,16 @@ interface AnimatedQRScannerProps {
 
 export const AnimatedQRScanner = ({ 
   onDataReceived, 
-  expectedType,
+  expectedType = 'xdr',
   title, 
   description 
 }: AnimatedQRScannerProps) => {
   const [isScanning, setIsScanning] = useState(false);
-  const [chunks, setChunks] = useState<Map<string, QRChunk[]>>(new Map());
-  const [currentSession, setCurrentSession] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [completedSessions, setCompletedSessions] = useState<string[]>([]);
 
   const handleQRScan = (data: string) => {
-    const chunk = decodeChunk(data);
-    
-    if (!chunk) {
-      console.warn('Invalid QR chunk format');
-      return;
-    }
-
-    // Filter by expected type if specified
-    if (expectedType && chunk.type !== expectedType) {
-      console.warn(`Expected ${expectedType} but got ${chunk.type}`);
-      return;
-    }
-
-    // Update chunks for this session
-    setChunks(prev => {
-      const sessionChunks = prev.get(chunk.id) || [];
-      
+    onDataReceived(data, expectedType);
+    setIsScanning(false);
+  };
       // Check if this part already exists
       const existingIndex = sessionChunks.findIndex(c => c.part === chunk.part);
       if (existingIndex >= 0) {

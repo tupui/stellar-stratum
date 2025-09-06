@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { QrCode, X } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import jsQR from 'jsqr';
+import { Input } from '@/components/ui/input';
+import { Camera, Upload, X } from 'lucide-react';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 interface QRScannerProps {
   isOpen: boolean;
@@ -13,15 +13,16 @@ interface QRScannerProps {
 
 export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const scanIntervalRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const { toast } = useToast();
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
 
   useEffect(() => {
-    if (isOpen && !isScanning) {
+    if (isOpen) {
       startScanner();
+    } else {
+      stopScanner();
     }
     
     return () => {
@@ -29,240 +30,183 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     };
   }, [isOpen]);
 
-  const startScanner = useCallback(async () => {
-    if (import.meta.env.DEV) console.log('Starting QR scanner...');
+  const startScanner = async () => {
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera API not available');
+      console.log('Starting QR scanner...');
+      setIsScanning(true);
+      
+      if (!readerRef.current) {
+        readerRef.current = new BrowserMultiFormatReader();
       }
 
-      // Try back camera first, fallback to any camera
-      let mediaStream: MediaStream;
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        });
-        if (import.meta.env.DEV) console.log('Got back camera stream');
-      } catch (e) {
-        if (import.meta.env.DEV) console.log('Back camera failed, trying any camera');
-        mediaStream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 } 
-          } 
-        });
-        if (import.meta.env.DEV) console.log('Got camera stream');
+      const reader = readerRef.current;
+      
+      // Get available video devices
+      const videoDevices = await BrowserMultiFormatReader.listVideoInputDevices();
+      console.log(`Found ${videoDevices.length} video devices`);
+      
+      // Prefer back camera
+      const selectedDevice = videoDevices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('rear')
+      ) || videoDevices[0];
+      
+      if (!selectedDevice) {
+        throw new Error('No camera found');
       }
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        // Ensure inline autoplay for iOS
-        videoRef.current.setAttribute('playsinline', 'true');
-        videoRef.current.muted = true;
-
-        setStream(mediaStream);
-        setIsScanning(true);
-
-        // Try enabling continuous autofocus if supported
-        try {
-          const [track] = mediaStream.getVideoTracks();
-          if (track && 'applyConstraints' in track) {
-            // @ts-expect-error - browser specific advanced constraints
-            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {
-              // Continuous focus not supported, ignore
-            });
+      console.log(`Using device: ${selectedDevice.label}`);
+      
+      // Start decoding from video device
+      await reader.decodeFromVideoDevice(
+        selectedDevice.deviceId,
+        videoRef.current!,
+        (result, error) => {
+          if (result) {
+            console.log('QR code detected:', result.getText());
+            onScan(result.getText());
+            stopScanner();
+            onClose();
           }
-        } catch {
-          // Advanced camera constraints not supported
+          // Don't log errors as they're expected while scanning
         }
-        
-        // Wait for video to be ready and start scanning
-        const startScanning = () => {
-          if (import.meta.env.DEV) console.log('Video ready, starting scan loop');
-          scanIntervalRef.current = window.setInterval(scanFrame, 120); // Scan every ~120ms
-        };
-        
-        videoRef.current.onloadedmetadata = () => {
-          if (import.meta.env.DEV) console.log('Video metadata loaded');
-          videoRef.current?.play().then(() => {
-            if (import.meta.env.DEV) console.log('Video playing');
-            startScanning();
-          }).catch((error) => {
-            console.error('Play failed:', error);
-            startScanning(); // Try scanning anyway
-          });
-        };
-      }
+      );
+      
+      console.log('Scanner started successfully');
     } catch (error) {
-      console.error('Camera access error:', error);
-      toast({
-        title: "Camera Access Error",
-        description: "Please allow camera access to scan QR codes",
-        variant: "destructive",
-      });
-      onClose();
+      console.error('Error starting scanner:', error);
+      setIsScanning(false);
     }
-  }, [toast, onClose]);
+  };
 
-  const stopScanner = useCallback(() => {
-    if (import.meta.env.DEV) console.log('Stopping QR scanner...');
+  const stopScanner = () => {
+    console.log('Stopping QR scanner...');
     
-    // Clear scan interval
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
+    if (readerRef.current) {
+      try {
+        // ZXing doesn't have a reset method, just set to null to clean up
+        readerRef.current = null;
+      } catch (error) {
+        console.warn('Error cleaning up reader:', error);
+      }
     }
     
-    // Stop video stream
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach(track => {
+        track.stop();
+      });
       setStream(null);
     }
     
-    // Reset video element
     if (videoRef.current) {
       videoRef.current.srcObject = null;
-      videoRef.current.onloadedmetadata = null;
     }
     
     setIsScanning(false);
-  }, [stream]);
+  };
 
-  const scanFrame = useCallback(async () => {
-    if (!isScanning || !videoRef.current || !canvasRef.current) {
-      return;
-    }
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
     try {
-      if (video.readyState >= video.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
-        // Prefer native BarcodeDetector when available (much better on mobile)
-        // @ts-ignore - BarcodeDetector is experimental
-        const canUseNative = typeof window !== 'undefined' && 'BarcodeDetector' in window;
-        if (canUseNative) {
-          try {
-            // @ts-ignore
-            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-            // Some browsers support detecting directly on a video element
-            const barcodes = await detector.detect(video as any);
-            const qr = barcodes?.find((b: any) => (b.format || b.type) === 'qr_code');
-            const value = qr?.rawValue || qr?.rawValue || qr?.data;
-            if (value) {
-              if (import.meta.env.DEV) console.log('QR detected via BarcodeDetector');
-              stopScanner();
-              onScan(value);
-              onClose();
-              return;
-            }
-          } catch (_) {
-            // Fallback to jsQR below
-          }
-        }
-
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-        const side = Math.floor(Math.min(vw, vh) * 0.9); // scan 90% of the shorter side
-        const sx = Math.floor((vw - side) / 2);
-        const sy = Math.floor((vh - side) / 2);
-
-        // Scale canvas for device pixel ratio to improve sharpness
-        const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-        const target = Math.min(1024, Math.floor(side * dpr));
-        canvas.width = target;
-        canvas.height = target;
-
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
-
-          const imageData = ctx.getImageData(0, 0, target, target);
-          const configs = [
-            { inversionAttempts: 'attemptBoth' as const },
-            { inversionAttempts: 'dontInvert' as const },
-            { inversionAttempts: 'onlyInvert' as const },
-          ];
-          for (const config of configs) {
-            const qrCode = jsQR(imageData.data, imageData.width, imageData.height, config);
-            if (qrCode && qrCode.data) {
-              if (import.meta.env.DEV) console.log('QR detected with jsQR', config);
-              stopScanner();
-              onScan(qrCode.data);
-              onClose();
-              return;
-            }
-          }
-        }
+      console.log('Processing uploaded image...');
+      
+      if (!readerRef.current) {
+        readerRef.current = new BrowserMultiFormatReader();
       }
+      
+      // Create an image element and wait for it to load
+      const img = new Image();
+      const imageUrl = URL.createObjectURL(file);
+      
+      img.onload = async () => {
+        try {
+          const result = await readerRef.current!.decodeFromImageElement(img);
+          console.log('QR code detected from image:', result.getText());
+          onScan(result.getText());
+          onClose();
+          URL.revokeObjectURL(imageUrl);
+        } catch (error) {
+          console.error('Error reading QR code from image:', error);
+          URL.revokeObjectURL(imageUrl);
+          // Could show a toast here for user feedback
+        }
+      };
+      
+      img.onerror = () => {
+        console.error('Error loading image');
+        URL.revokeObjectURL(imageUrl);
+      };
+      
+      img.src = imageUrl;
     } catch (error) {
-      console.error('QR scanning error:', error);
+      console.error('Error processing image upload:', error);
     }
-  }, [isScanning, stopScanner, onScan, onClose]);
-
-  const handleClose = () => {
-    stopScanner();
-    onClose();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <QrCode className="w-5 h-5" />
+            <Camera className="w-5 h-5" />
             Scan QR Code
           </DialogTitle>
           <DialogDescription>
-            Scan a QR code to import a transaction from Refractor
+            Position the QR code within the camera frame to scan it
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
-          <div className="relative">
+          {/* Video Container */}
+          <div className="relative aspect-square bg-muted rounded-lg overflow-hidden">
             <video
               ref={videoRef}
+              className="w-full h-full object-cover"
               autoPlay
               muted
               playsInline
-              className="w-full h-56 sm:h-64 bg-black rounded-lg object-cover"
-            />
-            <canvas
-              ref={canvasRef}
-              className="hidden"
             />
             
-            {/* Scanning overlay with QR code frame */}
-            <div className="absolute inset-0 border-2 border-primary rounded-lg">
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <div className="w-48 h-48 border-2 border-primary border-dashed rounded-lg animate-pulse">
-                  <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-primary"></div>
-                  <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-primary"></div>
-                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-primary"></div>
-                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-primary"></div>
-                </div>
+            {/* Scanning overlay */}
+            <div className="absolute inset-4 border-2 border-dashed border-primary/50 rounded-lg pointer-events-none">
+              <div className="absolute inset-0 flex items-center justify-center">
+                {isScanning && (
+                  <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                    Scanning...
+                  </div>
+                )}
               </div>
             </div>
           </div>
-
+          
+          {/* Upload Alternative */}
           <div className="text-center">
-            <p className="text-sm text-muted-foreground">
-              Position the QR code within the frame to scan
+            <p className="text-sm text-muted-foreground mb-2">
+              Or upload an image containing a QR code
             </p>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              className="flex-1"
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => fileInputRef.current?.click()}
             >
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Image
+            </Button>
+          </div>
+          
+          {/* Actions */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={onClose}>
+              <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
           </div>

@@ -18,7 +18,6 @@ import { AnimatedQRScanner } from '@/components/airgap/AnimatedQRScanner';
 import { XdrDetails } from '@/components/XdrDetails';
 import { SignerSelector } from '@/components/SignerSelector';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { createSignaturePayload } from '@/lib/xdr/chunking';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -233,10 +232,7 @@ export const AirgapSigner = () => {
   };
 
   const renderShareStep = () => {
-    const signaturePayload = signedXdr ? JSON.stringify(createSignaturePayload(
-      'SIGNER_KEY', // Would be actual signer key
-      signedXdr
-    )) : '';
+    const signaturePayload = signedXdr || '';
 
     return (
       <div className="space-y-6">
@@ -256,9 +252,9 @@ export const AirgapSigner = () => {
 
         <AnimatedQR
           data={signaturePayload}
-          type="signature"
+          type="xdr"
           title="Signed Transaction"
-          description="Scan this QR to add signature to coordinator"
+          description="Scan this QR to import signed XDR"
         />
 
         <div className="text-center space-y-6">
@@ -312,20 +308,6 @@ export const AirgapSigner = () => {
                 {isOffline ? <WifiOff className="w-3 h-3 mr-1" /> : <Wifi className="w-3 h-3 mr-1" />}
                 {isOffline ? 'Offline' : 'Online'}
               </Badge>
-              <div className="relative bg-muted/50 backdrop-blur-sm rounded-full p-0.5 flex border border-border/50">
-                <button
-                  onClick={() => setNetwork('mainnet')}
-                  className={`px-4 py-1.5 text-xs font-medium rounded-full transition-all ${network === 'mainnet' ? 'bg-success text-success-foreground shadow-lg shadow-success/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'}`}
-                >
-                  Mainnet
-                </button>
-                <button
-                  onClick={() => setNetwork('testnet')}
-                  className={`px-4 py-1.5 text-xs font-medium rounded-full transition-all ${network === 'testnet' ? 'bg-success text-success-foreground shadow-lg shadow-success/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'}`}
-                >
-                  Testnet
-                </button>
-              </div>
             </div>
           </div>
         </header>

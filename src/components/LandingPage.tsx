@@ -72,13 +72,13 @@ export const LandingPage = ({
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 justify-center items-center w-full max-w-md sm:max-w-none mx-auto">
-            <Button size="lg" className="w-full sm:w-auto h-16 px-12 text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
+            <Button size="lg" className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-base sm:text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
               Connect wallet
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
-              className="w-full sm:w-auto h-16 px-12 text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105"
+              className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-base sm:text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105"
               onClick={() => window.open('/sign', '_blank')}
             >
               Air-gapped Signer

@@ -61,9 +61,36 @@ export const RefractorIntegration = ({
     }
   };
   const handleQRScan = (data: string) => {
-    // Check if it's a Stellar Stratum deep link
+    // Check if it's a SEP-7 URI or Stellar Stratum deep link
     try {
       const url = new URL(data);
+      
+      // Check for SEP-7 tx URI
+      if (url.protocol === 'web+stellar:' && url.pathname === 'tx') {
+        const xdr = url.searchParams.get('xdr');
+        if (xdr) {
+          // This is XDR data, let the parent handle it directly
+          // For now, just extract refractor ID if present
+          const callback = url.searchParams.get('callback');
+          if (callback) {
+            try {
+              const callbackUrl = new URL(callback);
+              if (callbackUrl.hostname === 'refractor.space') {
+                const refractorParam = callbackUrl.searchParams.get('r');
+                if (refractorParam) {
+                  setRefractorId(refractorParam);
+                  handlePullTransaction();
+                  return;
+                }
+              }
+            } catch {
+              // Invalid callback URL
+            }
+          }
+        }
+      }
+      
+      // Check for Stratum deep link
       const refractorParam = url.searchParams.get('r');
       if (refractorParam) {
         setRefractorId(refractorParam);
@@ -74,7 +101,11 @@ export const RefractorIntegration = ({
       // Not a valid URL, might be just the refractor ID
     }
 
-    // Assume it's a refractor ID
+    // Assume it's a refractor ID or XDR
+    if (data.length > 50) {
+      // Likely XDR data - could be handled by parent component
+      // For now, just treat as refractor ID
+    }
     setRefractorId(data);
   };
   const openRefractor = () => {
@@ -83,17 +114,17 @@ export const RefractorIntegration = ({
   };
   return <Card className="shadow-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <img src={refractorLogo} alt="Refractor" className="w-5 h-5 shrink-0" />
-          Pull Transaction
-        </CardTitle>
-        <CardDescription>
-          Retrieve existing transactions from{' '}
-          <a href="https://refractor.space/" target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
-            Refractor.space
-          </a>{' '}
-          using an ID or QR code
-        </CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <img src={refractorLogo} alt="Refractor" className="w-5 h-5 shrink-0" />
+            Import Transaction
+          </CardTitle>
+          <CardDescription>
+            Paste XDR directly or retrieve transactions from{' '}
+            <a href="https://refractor.space/" target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+              Refractor.space
+            </a>{' '}
+            using an ID or QR code
+          </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Last Submitted Transaction */}
@@ -127,7 +158,7 @@ export const RefractorIntegration = ({
         {/* Pull Transaction from Refractor */}
         <div className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="refractor-id">Pull Transaction from Refractor</Label>
+            <Label htmlFor="refractor-id">Refractor Transaction ID</Label>
             <div className="flex gap-2">
               <Input id="refractor-id" placeholder="Enter Refractor transaction ID" value={refractorId} onChange={e => setRefractorId(e.target.value)} onKeyDown={e => {
               if (e.key === 'Enter') {
