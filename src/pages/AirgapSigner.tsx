@@ -167,7 +167,7 @@ export const AirgapSigner = () => {
           <Shield className="w-4 h-4" />
           <AlertDescription>
             <div className="space-y-1">
-              <p><strong>Transaction Fingerprint:</strong> <code>{fingerprint.shortFingerprint}</code></p>
+              <p><strong>Transaction Hash:</strong> <code>{fingerprint.hash}</code></p>
               <p><strong>Operations:</strong> {fingerprint.operationSummary}</p>
               <p><strong>Source:</strong> {fingerprint.sourceAccount}</p>
             </div>

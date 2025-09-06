@@ -19,6 +19,7 @@ import {
   Horizon,
   StrKey
 } from '@stellar/stellar-sdk';
+import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
 import { signWithWallet } from '@/lib/walletKit';
 import { XdrDetails } from './XdrDetails';
@@ -85,7 +86,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [copied, setCopied] = useState(false);
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
-  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' } | null>(null);
+  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' | 'offline' } | null>(null);
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -1048,11 +1049,15 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           onCopyXdr={handleCopyXdr}
           onSubmitToNetwork={handleSubmitToNetwork}
           onSubmitToRefractor={handleSubmitToRefractor}
-          onShowOfflineModal={() => setSuccessData({ 
-            type: 'refractor', 
-            hash: 'offline-qr', 
-            network: currentNetwork 
-          })}
+          onShowOfflineModal={() => {
+            const xdrOutput = xdrData.output || xdrData.input || '';
+            const fingerprint = generateDetailedFingerprint(xdrOutput, currentNetwork);
+            setSuccessData({ 
+              type: 'offline', 
+              hash: fingerprint.hash, 
+              network: currentNetwork 
+            });
+          }}
           copied={copied}
         />
 
@@ -1061,7 +1066,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         {successData && (
           <SuccessModal
             type={successData.type}
-            hash={successData.type === 'network' ? successData.hash : undefined}
+            hash={successData.type === 'network' || successData.type === 'offline' ? successData.hash : undefined}
             refractorId={successData.type === 'refractor' ? successData.hash : undefined}
             network={successData.network}
             onClose={() => setSuccessData(null)}

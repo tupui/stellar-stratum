@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
 import { createPortal } from 'react-dom';
 interface SuccessModalProps {
-  type: 'network' | 'refractor';
+  type: 'network' | 'refractor' | 'offline';
   hash?: string;
   refractorId?: string;
   network?: 'mainnet' | 'testnet';
@@ -28,8 +28,9 @@ export const SuccessModal = ({
   } = useToast();
   const shareUrl = type === 'refractor' && refractorId ? `${window.location.origin}?r=${refractorId}` : '';
   useEffect(() => {
-    if (type === 'refractor' && shareUrl) {
-      QRCode.toDataURL(shareUrl, {
+    if ((type === 'refractor' || type === 'offline') && (shareUrl || hash)) {
+      const qrData = type === 'offline' ? hash : shareUrl;
+      QRCode.toDataURL(qrData || '', {
         width: 200,
         margin: 2,
         color: {
@@ -38,7 +39,7 @@ export const SuccessModal = ({
         }
       }).then(setQrCodeDataUrl);
     }
-  }, [type, shareUrl]);
+  }, [type, shareUrl, hash]);
   const copyToClipboard = async (text: string, label: string) => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
@@ -120,10 +121,10 @@ export const SuccessModal = ({
     const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
     window.open(`https://t.me/share/url?url=${shareUrl}&text=${text}`, '_blank');
   };
-  const displayValue = type === 'network' ? hash : refractorId;
-  const label = type === 'network' ? 'Transaction Hash' : 'Transaction ID';
-  const title = type === 'network' ? 'Transaction Submitted Successfully' : 'Send for Signature';
-  const description = type === 'network' ? 'Your transaction has been successfully submitted to the Stellar network' : 'Send this transaction to other signers for approval';
+  const displayValue = type === 'network' || type === 'offline' ? hash : refractorId;
+  const label = type === 'network' || type === 'offline' ? 'Transaction Hash' : 'Transaction ID';
+  const title = type === 'network' ? 'Transaction Submitted Successfully' : type === 'offline' ? 'Air-gapped Signing' : 'Send for Signature';
+  const description = type === 'network' ? 'Your transaction has been successfully submitted to the Stellar network' : type === 'offline' ? 'Scan this QR code with your air-gapped signing device' : 'Send this transaction to other signers for approval';
   return createPortal(
     <>
       {/* Full-screen backdrop that extends to all edges (rendered at document.body) */}
@@ -160,15 +161,15 @@ export const SuccessModal = ({
                 </Badge>
               </div>}
 
-            {/* QR Code for Refractor */}
-            {type === 'refractor' && qrCodeDataUrl && <div className="space-y-3">
+            {/* QR Code for Refractor and Offline */}
+            {(type === 'refractor' || type === 'offline') && qrCodeDataUrl && <div className="space-y-3">
                 <div className="flex justify-center">
                   <div className="p-3 rounded-xl border border-border/60 bg-background">
                     <img src={qrCodeDataUrl} alt="QR code for signature request" className="w-44 h-44" loading="lazy" />
                   </div>
                 </div>
                 
-                {/* Refractor ID below QR */}
+                {/* ID/Hash below QR */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-center gap-2">
                     <span className="text-xs font-medium text-muted-foreground">
@@ -186,9 +187,11 @@ export const SuccessModal = ({
                         </>
                       ) : label}
                     </span>
-                    <Button variant="ghost" size="sm" onClick={openExplorer} className="h-6 w-6 p-0">
-                      <ExternalLink className="w-3 h-3" />
-                    </Button>
+                    {type === 'refractor' && (
+                      <Button variant="ghost" size="sm" onClick={openExplorer} className="h-6 w-6 p-0">
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    )}
                   </div>
                   <div className="rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm p-2">
                     <div className="flex items-center justify-between">
@@ -214,7 +217,7 @@ export const SuccessModal = ({
                 </div>
               </div>}
             
-            {/* Share Options (Refractor) */}
+            {/* Share Options (Refractor only, not offline) */}
             {type === 'refractor' && refractorId && <div className="space-y-4">
                 {/* Copy Link */}
                 <Button variant="outline" className="w-full h-12 bg-background/50 hover:bg-background/80 border-primary/20" onClick={copyShareLink}>
