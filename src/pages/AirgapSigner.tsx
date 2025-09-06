@@ -11,7 +11,8 @@ import {
   AlertCircle, 
   Wifi,
   WifiOff,
-  ArrowLeft
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import { AnimatedQR } from '@/components/airgap/AnimatedQR';
 import { AnimatedQRScanner } from '@/components/airgap/AnimatedQRScanner';
@@ -20,6 +21,7 @@ import { SignerSelector } from '@/components/SignerSelector';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
+import { extractXdrFromData } from '@/lib/sep7';
 
 export const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
@@ -74,8 +76,11 @@ export const AirgapSigner = () => {
     const networkParam = urlParams.get('network') as 'mainnet' | 'testnet';
     
     if (xdrParam) {
-      setXdr(decodeURIComponent(xdrParam));
-      setStep('review');
+      const extractedXdr = extractXdrFromData(decodeURIComponent(xdrParam));
+      if (extractedXdr) {
+        setXdr(extractedXdr);
+        setStep('review');
+      }
     }
     
     if (networkParam) {
@@ -118,63 +123,36 @@ export const AirgapSigner = () => {
 
   const renderScanStep = () => (
     <div className="space-y-6">
-      <div className="text-center space-y-4">
-        <div className="flex justify-center">
-          <div className="p-4 bg-stellar-yellow/10 rounded-full border border-stellar-yellow/20">
-            <QrCode className="w-12 h-12 text-stellar-yellow" />
-          </div>
-        </div>
-        
-        <div className="space-y-2">
-          <h2 className="text-xl md:text-2xl font-bold">Ready to Scan</h2>
-          <p className="text-muted-foreground text-lg">
-            Point your camera at the transaction QR code
-          </p>
-        </div>
-      </div>
-
       <AnimatedQRScanner
         onDataReceived={handleXdrReceived}
         expectedType="xdr"
-        title="Scan Transaction QR"
-        description="Position QR code within the frame"
+        embedded
       />
+      <div className="text-sm text-muted-foreground text-center">
+        Scan a transaction QR code to begin
+      </div>
     </div>
   );
 
   const renderReviewStep = () => (
     <div className="space-y-6">
-      <div className="text-center space-y-4">
-        <div className="flex justify-center">
-          <div className="p-4 bg-stellar-yellow/10 rounded-full border border-stellar-yellow/20">
-            <Shield className="w-12 h-12 text-stellar-yellow" />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-xl md:text-2xl font-bold">Review Transaction</h2>
-          <p className="text-muted-foreground text-lg">
-            Verify all details before proceeding to sign
-          </p>
-        </div>
-      </div>
-
       <XdrDetails xdr={xdr} />
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Button 
           variant="outline" 
           onClick={() => setStep('scan')}
-          className="flex-1 py-3 border-stellar-yellow/30 text-stellar-yellow hover:bg-stellar-yellow/10"
+          className="flex-1"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Scan
+          Back
         </Button>
         <Button 
           onClick={() => setStep('sign')}
-          className="flex-1 py-3 bg-stellar-yellow text-black hover:bg-stellar-yellow/90"
+          className="flex-1"
         >
-          Proceed to Sign
-          <Shield className="w-4 h-4 ml-2" />
+          Sign Transaction
+          <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </div>
     </div>
@@ -193,20 +171,6 @@ export const AirgapSigner = () => {
 
     return (
       <div className="space-y-6">
-        <div className="text-center space-y-4">
-          <div className="flex justify-center">
-            <div className="p-4 bg-stellar-yellow/10 rounded-full border border-stellar-yellow/20">
-              <Smartphone className="w-12 h-12 text-stellar-yellow" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-xl md:text-2xl font-bold">Sign Transaction</h2>
-            <p className="text-muted-foreground text-lg">
-              Connect your wallet to complete the signing process
-            </p>
-          </div>
-        </div>
-
         <SignerSelector
           xdr={xdr}
           signers={mockAccountData.signers}
@@ -221,10 +185,10 @@ export const AirgapSigner = () => {
           <Button 
             variant="outline" 
             onClick={() => setStep('review')}
-            className="px-6 py-3 border-stellar-yellow/30 text-stellar-yellow hover:bg-stellar-yellow/10"
+            className="px-6"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Review
+            Back
           </Button>
         </div>
       </div>
@@ -236,42 +200,31 @@ export const AirgapSigner = () => {
 
     return (
       <div className="space-y-6">
-        <div className="text-center space-y-4">
-          <div className="flex justify-center">
-            <div className="p-4 bg-stellar-yellow/10 rounded-full border border-stellar-yellow/20">
-              <CheckCircle2 className="w-16 h-16 text-stellar-yellow" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-xl md:text-2xl font-bold">Transaction Signed!</h2>
-            <p className="text-muted-foreground text-lg">
-              Share this QR code with the transaction coordinator
-            </p>
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full text-sm font-medium mb-4">
+            <CheckCircle2 className="w-4 h-4" />
+            Transaction Signed Successfully
           </div>
         </div>
 
         <AnimatedQR
           data={signaturePayload}
           type="xdr"
-          title="Signed Transaction"
-          description="Scan this QR to import signed XDR"
+          embedded
         />
 
-        <div className="text-center space-y-6">
-          <div className="bg-stellar-yellow/10 border border-stellar-yellow/20 rounded-xl p-4">
-            <div className="flex items-center justify-center gap-2 text-stellar-yellow">
-              <CheckCircle2 className="w-5 h-5" />
-              <span className="font-medium">Ready to share with coordinator</span>
-            </div>
-          </div>
+        <div className="text-sm text-muted-foreground text-center">
+          Share this QR code with the transaction coordinator
+        </div>
 
+        <div className="flex justify-center">
           <Button 
             onClick={() => {
               setXdr('');
               setSignedXdr('');
               setStep('scan');
             }}
-            className="px-8 py-3 bg-stellar-yellow text-black hover:bg-stellar-yellow/90"
+            className="px-8"
           >
             Sign Another Transaction
           </Button>
@@ -299,7 +252,12 @@ export const AirgapSigner = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold">Air-Gapped Signer</h1>
-                <p className="text-sm text-muted-foreground">Secure offline transaction signing</p>
+                <p className="text-sm text-muted-foreground">
+                  {step === 'scan' && 'Ready to scan transaction'}
+                  {step === 'review' && 'Review transaction details'}
+                  {step === 'sign' && 'Sign with your wallet'}
+                  {step === 'share' && 'Share signed transaction'}
+                </p>
               </div>
             </div>
             

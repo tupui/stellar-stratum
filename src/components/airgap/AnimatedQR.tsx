@@ -8,11 +8,12 @@ import { useToast } from '@/hooks/use-toast';
 interface AnimatedQRProps {
   data: string;
   type: 'xdr' | 'signature';
-  title: string;
+  title?: string;
   description?: string;
+  embedded?: boolean;
 }
 
-export const AnimatedQR = ({ data, type, title, description }: AnimatedQRProps) => {
+export const AnimatedQR = ({ data, type, title, description, embedded = false }: AnimatedQRProps) => {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
@@ -28,6 +29,33 @@ export const AnimatedQR = ({ data, type, title, description }: AnimatedQRProps) 
 
   if (!data) {
     return null;
+  }
+
+  if (embedded) {
+    return (
+      <div className="space-y-4">
+        {/* QR Code Display */}
+        <div className="flex justify-center p-4 bg-white rounded-lg border">
+          <QRCodeSVG
+            value={data}
+            size={200}
+            level="M"
+            includeMargin={true}
+          />
+        </div>
+
+        {/* Copy Original Data */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={handleCopyData}
+        >
+          {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+          Copy Original Data
+        </Button>
+      </div>
+    );
   }
 
   return (
