@@ -118,7 +118,7 @@ export const AirgapSigner = () => {
   const fingerprint = xdr ? generateDetailedFingerprint(xdr, network) : null;
 
   const renderScanStep = () => (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="text-center space-y-4">
         <div className="flex justify-center">
           <div className="p-4 bg-stellar-yellow/10 rounded-full border border-stellar-yellow/20">
@@ -127,37 +127,24 @@ export const AirgapSigner = () => {
         </div>
         
         <div className="space-y-2">
-          <h2 className="text-2xl md:text-3xl font-bold">Ready to Scan</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Ready to Scan</h2>
           <p className="text-muted-foreground text-lg">
             Point your camera at the transaction QR code
           </p>
         </div>
       </div>
 
-      <div className="bg-stellar-yellow/5 rounded-xl border border-stellar-yellow/20 p-6">
-        <AnimatedQRScanner
-          onDataReceived={handleXdrReceived}
-          expectedType="xdr"
-          title="Scan Transaction QR"
-          description="Position QR code within the frame"
-        />
-      </div>
-
-      <div className="flex justify-center">
-        <Button
-          variant="outline"
-          onClick={() => window.history.back()}
-          className="px-6 py-3 border-stellar-yellow/30 text-stellar-yellow hover:bg-stellar-yellow/10"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Go Back
-        </Button>
-      </div>
+      <AnimatedQRScanner
+        onDataReceived={handleXdrReceived}
+        expectedType="xdr"
+        title="Scan Transaction QR"
+        description="Position QR code within the frame"
+      />
     </div>
   );
 
   const renderReviewStep = () => (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="text-center space-y-4">
         <div className="flex justify-center">
           <div className="p-4 bg-stellar-yellow/10 rounded-full border border-stellar-yellow/20">
@@ -165,16 +152,14 @@ export const AirgapSigner = () => {
           </div>
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl md:text-3xl font-bold">Review Transaction</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Review Transaction</h2>
           <p className="text-muted-foreground text-lg">
             Verify all details before proceeding to sign
           </p>
         </div>
       </div>
 
-      <div className="bg-stellar-yellow/5 rounded-xl border border-stellar-yellow/20 p-6">
-        <XdrDetails xdr={xdr} />
-      </div>
+      <XdrDetails xdr={xdr} />
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Button 
@@ -208,7 +193,7 @@ export const AirgapSigner = () => {
     };
 
     return (
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <div className="p-4 bg-stellar-yellow/10 rounded-full border border-stellar-yellow/20">
@@ -216,24 +201,22 @@ export const AirgapSigner = () => {
             </div>
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl md:text-3xl font-bold">Sign Transaction</h2>
+            <h2 className="text-xl md:text-2xl font-bold">Sign Transaction</h2>
             <p className="text-muted-foreground text-lg">
               Connect your wallet to complete the signing process
             </p>
           </div>
         </div>
 
-        <div className="bg-stellar-yellow/5 rounded-xl border border-stellar-yellow/20 p-6">
-          <SignerSelector
-            xdr={xdr}
-            signers={mockAccountData.signers}
-            currentAccountKey="MOCK_ACCOUNT_KEY"
-            signedBy={[]}
-            requiredWeight={1}
-            onSignWithSigner={handleSignWithSigner}
-            isSigning={false}
-          />
-        </div>
+        <SignerSelector
+          xdr={xdr}
+          signers={mockAccountData.signers}
+          currentAccountKey="MOCK_ACCOUNT_KEY"
+          signedBy={[]}
+          requiredWeight={1}
+          onSignWithSigner={handleSignWithSigner}
+          isSigning={false}
+        />
 
         <div className="flex justify-center">
           <Button 
@@ -256,7 +239,7 @@ export const AirgapSigner = () => {
     )) : '';
 
     return (
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
             <div className="p-4 bg-stellar-yellow/10 rounded-full border border-stellar-yellow/20">
@@ -264,21 +247,19 @@ export const AirgapSigner = () => {
             </div>
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl md:text-3xl font-bold">Transaction Signed!</h2>
+            <h2 className="text-xl md:text-2xl font-bold">Transaction Signed!</h2>
             <p className="text-muted-foreground text-lg">
               Share this QR code with the transaction coordinator
             </p>
           </div>
         </div>
 
-        <div className="bg-stellar-yellow/5 rounded-xl border border-stellar-yellow/20 p-6">
-          <AnimatedQR
-            data={signaturePayload}
-            type="signature"
-            title="Signed Transaction"
-            description="Scan this QR to add signature to coordinator"
-          />
-        </div>
+        <AnimatedQR
+          data={signaturePayload}
+          type="signature"
+          title="Signed Transaction"
+          description="Scan this QR to add signature to coordinator"
+        />
 
         <div className="text-center space-y-6">
           <div className="bg-stellar-yellow/10 border border-stellar-yellow/20 rounded-xl p-4">
@@ -326,17 +307,25 @@ export const AirgapSigner = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge 
-                variant={isOffline ? "default" : "outline"} 
-                className="bg-stellar-yellow/10 text-stellar-yellow border-stellar-yellow/30"
-              >
+            <div className="flex items-center gap-3 flex-wrap">
+              <Badge className="bg-stellar-yellow/10 text-stellar-yellow border-stellar-yellow/30">
                 {isOffline ? <WifiOff className="w-3 h-3 mr-1" /> : <Wifi className="w-3 h-3 mr-1" />}
                 {isOffline ? 'Offline' : 'Online'}
               </Badge>
-              <Badge variant="secondary" className="bg-background/50">
-                {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
-              </Badge>
+              <div className="relative bg-muted/50 backdrop-blur-sm rounded-full p-0.5 flex border border-border/50">
+                <button
+                  onClick={() => setNetwork('mainnet')}
+                  className={`px-4 py-1.5 text-xs font-medium rounded-full transition-all ${network === 'mainnet' ? 'bg-success text-success-foreground shadow-lg shadow-success/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'}`}
+                >
+                  Mainnet
+                </button>
+                <button
+                  onClick={() => setNetwork('testnet')}
+                  className={`px-4 py-1.5 text-xs font-medium rounded-full transition-all ${network === 'testnet' ? 'bg-success text-success-foreground shadow-lg shadow-success/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'}`}
+                >
+                  Testnet
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -345,7 +334,7 @@ export const AirgapSigner = () => {
         <main className="flex-1 p-4 md:p-6">
           <div className="max-w-2xl mx-auto">
             <div className="bg-background/80 backdrop-blur-sm border border-border/50 rounded-2xl shadow-xl">
-              <div className="p-6 md:p-8">
+                <div className="p-4 md:p-6">
                 {step === 'scan' && renderScanStep()}
                 {step === 'review' && renderReviewStep()}
                 {step === 'sign' && renderSignStep()}

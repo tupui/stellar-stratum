@@ -132,65 +132,73 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     setIsScanning(false);
   }, [stream]);
 
-  const scanFrame = useCallback(() => {
+  const scanFrame = useCallback(async () => {
     if (!isScanning || !videoRef.current || !canvasRef.current) {
       return;
     }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
+
     try {
-      // Check if video has data and dimensions
       if (video.readyState >= video.HAVE_CURRENT_DATA && video.videoWidth > 0 && video.videoHeight > 0) {
+        // Prefer native BarcodeDetector when available (much better on mobile)
+        // @ts-ignore - BarcodeDetector is experimental
+        const canUseNative = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+        if (canUseNative) {
+          try {
+            // @ts-ignore
+            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+            // Some browsers support detecting directly on a video element
+            const barcodes = await detector.detect(video as any);
+            const qr = barcodes?.find((b: any) => (b.format || b.type) === 'qr_code');
+            const value = qr?.rawValue || qr?.rawValue || qr?.data;
+            if (value) {
+              if (import.meta.env.DEV) console.log('QR detected via BarcodeDetector');
+              stopScanner();
+              onScan(value);
+              onClose();
+              return;
+            }
+          } catch (_) {
+            // Fallback to jsQR below
+          }
+        }
+
         const vw = video.videoWidth;
         const vh = video.videoHeight;
-
-        // Use a more aggressive scan area - full center region
-        const side = Math.floor(Math.min(vw, vh) * 0.8); // Increased to 80%
+        const side = Math.floor(Math.min(vw, vh) * 0.9); // scan 90% of the shorter side
         const sx = Math.floor((vw - side) / 2);
         const sy = Math.floor((vh - side) / 2);
 
-        // Use higher resolution for better detection
-        const target = Math.min(800, side); // Increased to 800px
+        // Scale canvas for device pixel ratio to improve sharpness
+        const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        const target = Math.min(1024, Math.floor(side * dpr));
         canvas.width = target;
         canvas.height = target;
 
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          // Enable smoothing for better image quality
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
 
           const imageData = ctx.getImageData(0, 0, target, target);
-          
-          // Try multiple detection configurations
           const configs = [
             { inversionAttempts: 'attemptBoth' as const },
+            { inversionAttempts: 'dontInvert' as const },
             { inversionAttempts: 'onlyInvert' as const },
-            { inversionAttempts: 'dontInvert' as const }
           ];
-
           for (const config of configs) {
             const qrCode = jsQR(imageData.data, imageData.width, imageData.height, config);
             if (qrCode && qrCode.data) {
-              if (import.meta.env.DEV) console.log('QR detected with config:', config, 'Data:', qrCode.data);
+              if (import.meta.env.DEV) console.log('QR detected with jsQR', config);
               stopScanner();
               onScan(qrCode.data);
               onClose();
               return;
             }
           }
-        }
-      } else {
-        // Occasional debug log when video not ready
-        if (Math.random() < 0.01) { // ~1% chance
-          if (import.meta.env.DEV) console.log('Video not ready:', {
-            readyState: video.readyState,
-            videoWidth: video.videoWidth,
-            videoHeight: video.videoHeight
-          });
         }
       }
     } catch (error) {
@@ -223,7 +231,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               autoPlay
               muted
               playsInline
-              className="w-full h-64 bg-black rounded-lg object-cover"
+              className="w-full h-56 sm:h-64 bg-black rounded-lg object-cover"
             />
             <canvas
               ref={canvasRef}
