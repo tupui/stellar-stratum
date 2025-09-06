@@ -40,7 +40,16 @@ export const AddressAutocomplete = ({
   const { entries, searchAddresses, syncAddressBook, isLoading: isAddressBookLoading, needsSync } = useAddressBook(accountPublicKey, network);
   const suggestions = value.trim() ? searchAddresses(value) : entries.slice(0, 10);
 
-  // No automatic sync - only load from cache on mount
+  // Auto-sync address book on mount or when account/network changes
+  useEffect(() => {
+    if (!accountPublicKey) return;
+    // Sync if cache is stale or empty
+    if (entries.length === 0 || needsSync) {
+      syncAddressBook();
+    }
+    // We intentionally avoid exhaustive deps to prevent repeated sync loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountPublicKey, network]);
 
   // Handle clicks outside to close dropdown
   useEffect(() => {
