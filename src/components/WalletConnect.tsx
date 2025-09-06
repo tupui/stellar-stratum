@@ -336,7 +336,7 @@ export const WalletConnect = ({
         const isMobile = window.innerWidth < 768;
 
         // Define wallet order based on user requirements
-        const mobileOrder = ['xbull', 'lobstr', 'hot', 'albedo'];
+        const mobileOrder = ['xbull', 'hot', 'albedo'];
         const desktopOrder = ['freighter', 'xbull', 'ledger', 'lobstr', 'hot', 'albedo'];
 
         // Order and filter wallets to match exactly the requested list
