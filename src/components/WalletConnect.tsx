@@ -15,7 +15,7 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 import { appConfig } from '@/lib/appConfig';
-import { SorobanDomainsSDK } from '@creit.tech/sorobandomains-sdk';
+import { resolveSorobanDomain } from '@/lib/soroban-domains';
 import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
@@ -182,37 +182,10 @@ export const WalletConnect = ({
     }
     setResolvingDomain(true);
     try {
-      // Import required modules  
-      const StellarSDK = await import('@stellar/stellar-sdk');
-      const {
-        SorobanDomainsSDK
-      } = await import('@creit.tech/sorobandomains-sdk');
-
-      // Use proper SDK structure from working example
-      const networkPassphrase = selectedNetwork === 'testnet' ? StellarSDK.Networks.TESTNET : StellarSDK.Networks.PUBLIC;
-      const rpcUrl = selectedNetwork === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC;
-      const rpcServer = new StellarSDK.rpc.Server(rpcUrl);
-      const sdk = new SorobanDomainsSDK({
-        stellarSDK: StellarSDK,
-        rpc: rpcServer,
-        network: networkPassphrase,
-        vaultsContractId: appConfig.SOROBAN_DOMAINS[selectedNetwork],
-        defaultFee: appConfig.DEFAULT_BASE_FEE.toString(),
-        defaultTimeout: appConfig.DEFAULT_TX_TIMEOUT_SECONDS,
-        simulationAccount: 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV'
-      });
-
-      // Search for the domain using working pattern
-      const res = await sdk.searchDomain({
-        domain: sorobanDomain.trim().toLowerCase()
-      });
-
-      // Extract values using working pattern
-      const v = (res && (res.value ?? res)) as any;
-      if (v && typeof v.owner === 'string') {
-        const resolvedAddress = v.address || v.owner;
+      const result = await resolveSorobanDomain(sorobanDomain.trim(), selectedNetwork);
+      if (result.success) {
         setSorobanDomain('');
-        onConnect("Soroban Domain", resolvedAddress, selectedNetwork);
+        onConnect("Soroban Domain", result.address, selectedNetwork);
       } else {
         toast({
           title: "Domain Not Found",

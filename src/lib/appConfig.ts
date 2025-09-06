@@ -9,8 +9,8 @@ export const appConfig = {
   TESTNET_HORIZON: 'https://horizon-testnet.stellar.org',
   
   // Soroban RPC URLs
-  MAINNET_SOROBAN_RPC: 'https://soroban-rpc.mainnet.stellar.gateway.fm',
-  TESTNET_SOROBAN_RPC: 'https://soroban-rpc.testnet.stellar.gateway.fm',
+  MAINNET_SOROBAN_RPC: 'https://mainnet.sorobanrpc.com',
+  TESTNET_SOROBAN_RPC: 'https://testnet.sorobanrpc.com',
   
   // API endpoints
   REFRACTOR_API_BASE: 'https://api.refractor.space/tx',
