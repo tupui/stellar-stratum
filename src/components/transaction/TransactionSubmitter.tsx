@@ -54,120 +54,96 @@ export const TransactionSubmitter = ({
     ? generateDetailedFingerprint(xdrOutput, currentNetwork)
     : null;
 
+  // Determine if transaction is ready for network submission
+  const isReadyForSubmission = canSubmitToNetwork && currentWeight >= requiredWeight;
+
   return (
     <div className="space-y-6">
-      {/* Coordination Mode Toggle */}
-      {xdrOutput && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg">Coordination Mode</CardTitle>
-            <CardDescription>
-              Choose how to coordinate transaction signatures
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2">
-              <Wifi className="w-4 h-4 text-muted-foreground" />
-              <Label htmlFor="airgapped-mode">Refractor (Online)</Label>
-              <Switch
-                id="airgapped-mode"
-                checked={isAirgappedMode}
-                onCheckedChange={setIsAirgappedMode}
-              />
-              <Label htmlFor="airgapped-mode">Air-gapped (Offline)</Label>
-              <WifiOff className="w-4 h-4 text-muted-foreground" />
-            </div>
-            {fingerprint && (
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium mb-1">Transaction Fingerprint</p>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <span className="font-mono font-bold text-foreground">{fingerprint.shortFingerprint}</span>
-                  <span>{fingerprint.operationSummary}</span>
-                  <span>{fingerprint.sourceAccount}</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Transaction Fingerprint */}
+      {xdrOutput && fingerprint && (
+        <div className="p-3 bg-muted/50 rounded-lg">
+          <p className="text-sm font-medium mb-1">Transaction Fingerprint</p>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span className="font-mono font-bold text-foreground">{fingerprint.shortFingerprint}</span>
+            <span>{fingerprint.operationSummary}</span>
+            <span>{fingerprint.sourceAccount}</span>
+          </div>
+        </div>
       )}
 
-      {/* Air-gapped QR or Online Submit Options */}
-      {isAirgappedMode && xdrOutput ? (
-        <AnimatedQR
-          data={xdrOutput}
-          type="xdr"
-          title="Transaction for Signing"
-          description="Scan with your air-gapped signing device"
-        />
+      {/* If ready for submission, show direct submit button */}
+      {isReadyForSubmission ? (
+        <Button
+          onClick={onSubmitToNetwork}
+          disabled={isSubmittingToNetwork}
+          className="w-full"
+          size="lg"
+        >
+          <Send className="w-4 h-4 mr-2" />
+          {isSubmittingToNetwork ? 'Submitting...' : `Send Transaction to ${currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}`}
+        </Button>
       ) : (
-        // Show submit modal trigger when in online mode and have XDR
+        // If not ready, show coordination options
         xdrOutput && (
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button className="w-full" size="lg">
-                <Send className="w-4 h-4 mr-2" />
-                Submit Transaction
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Submit Transaction</DialogTitle>
-              </DialogHeader>
-              <NetworkSelector
-                isSubmittingToNetwork={isSubmittingToNetwork}
-                isSubmittingToRefractor={isSubmittingToRefractor}
-                onSubmitToNetwork={onSubmitToNetwork}
-                onSubmitToRefractor={onSubmitToRefractor}
-                canSubmitToNetwork={canSubmitToNetwork}
-                canSubmitToRefractor={canSubmitToRefractor}
-              />
-            </DialogContent>
-          </Dialog>
-        )
-      )}
-
-      {/* Success Message */}
-      {successData && (
-        <Card className="border-success">
-          <CardHeader>
-            <CardTitle className="text-success">Transaction Submitted Successfully</CardTitle>
-            <CardDescription>
-              Your transaction has been broadcast to the {successData.network} network
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="p-4 bg-success/10 rounded-lg">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">Transaction Hash</p>
-                    <p className="font-address text-xs break-all">{successData.hash}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigator.clipboard.writeText(successData.hash)}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
+          <>
+            {/* Coordination Mode Toggle */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base sm:text-lg">Coordination Mode</CardTitle>
+                <CardDescription>
+                  Choose how to coordinate transaction signatures
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-2">
+                  <Wifi className="w-4 h-4 text-muted-foreground" />
+                  <Label htmlFor="airgapped-mode">Refractor (Online)</Label>
+                  <Switch
+                    id="airgapped-mode"
+                    checked={isAirgappedMode}
+                    onCheckedChange={setIsAirgappedMode}
+                  />
+                  <Label htmlFor="airgapped-mode">Air-gapped (Offline)</Label>
+                  <WifiOff className="w-4 h-4 text-muted-foreground" />
                 </div>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  const baseUrl = successData.network === 'testnet' 
-                    ? 'https://laboratory.stellar.org/#explorer?resource=transactions&endpoint=single&network=test'
-                    : 'https://laboratory.stellar.org/#explorer?resource=transactions&endpoint=single&network=public';
-                  window.open(`${baseUrl}&values=${encodeURIComponent(`{"transaction":"${successData.hash}"}`)}`);
-                }}
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                View on Stellar Laboratory
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+
+            {/* Send for Signature Button with Modal */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button className="w-full" size="lg">
+                  <Send className="w-4 h-4 mr-2" />
+                  Send for Signature
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>
+                    {isAirgappedMode ? 'Air-gapped Signing' : 'Send for Signature'}
+                  </DialogTitle>
+                </DialogHeader>
+                {isAirgappedMode ? (
+                  <AnimatedQR
+                    data={xdrOutput}
+                    type="xdr"
+                    title="Transaction for Signing"
+                    description="Scan with your air-gapped signing device"
+                  />
+                ) : (
+                  <NetworkSelector
+                    isSubmittingToNetwork={isSubmittingToNetwork}
+                    isSubmittingToRefractor={isSubmittingToRefractor}
+                    onSubmitToNetwork={onSubmitToNetwork}
+                    onSubmitToRefractor={onSubmitToRefractor}
+                    canSubmitToNetwork={canSubmitToNetwork}
+                    canSubmitToRefractor={canSubmitToRefractor}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
+          </>
+        )
       )}
     </div>
   );
