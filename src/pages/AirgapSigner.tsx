@@ -280,13 +280,13 @@ export const AirgapSigner = () => {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-2xl mx-auto space-y-6">
-        {/* Header */}
+        {/* Main Content */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Smartphone className="w-6 h-6 text-primary" />
+                <div className="p-2 bg-stellar-yellow/10 rounded-lg">
+                  <Smartphone className="w-6 h-6 text-stellar-yellow" />
                 </div>
                 <div>
                   <CardTitle>Air-Gapped Signing Device</CardTitle>
@@ -297,7 +297,7 @@ export const AirgapSigner = () => {
               </div>
               
               <div className="flex items-center gap-2">
-                <Badge variant={isOffline ? "default" : "outline"}>
+                <Badge variant={isOffline ? "default" : "outline"} className="bg-stellar-yellow/10 text-stellar-yellow border-stellar-yellow/30">
                   {isOffline ? <WifiOff className="w-3 h-3 mr-1" /> : <Wifi className="w-3 h-3 mr-1" />}
                   {isOffline ? 'Offline' : 'Online'}
                 </Badge>
@@ -307,31 +307,11 @@ export const AirgapSigner = () => {
               </div>
             </div>
           </CardHeader>
-        </Card>
-
-        {/* Main Content */}
-        <Card>
           <CardContent className="p-6">
             {step === 'scan' && renderScanStep()}
             {step === 'review' && renderReviewStep()}
             {step === 'sign' && renderSignStep()}
             {step === 'share' && renderShareStep()}
-          </CardContent>
-        </Card>
-
-        {/* Security Notice */}
-        <Card className="bg-secondary/50">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Shield className="w-5 h-5 text-primary mt-0.5" />
-              <div>
-                <h4 className="font-medium text-sm">Security Notice</h4>
-                <p className="text-xs text-muted-foreground">
-                  This device operates in air-gapped mode for maximum security. 
-                  Verify transaction fingerprints match across all devices before signing.
-                </p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

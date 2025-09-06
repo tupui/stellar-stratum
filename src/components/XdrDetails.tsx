@@ -96,28 +96,6 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
         
         <CollapsibleContent>
           <CardContent className="space-y-4">
-            {/* Transaction Fingerprint */}
-            <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Fingerprint className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium text-primary">Transaction Fingerprint</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => copyToClipboard(fingerprint, 'Fingerprint')}
-                >
-                  {copied === 'Fingerprint' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-              <div className="flex items-center justify-between">
-                <Badge variant="outline" className="font-mono text-primary border-primary/30">
-                  {fingerprint}
-                </Badge>
-                <span className="text-xs text-primary/70">Verify this matches on all devices</span>
-              </div>
-            </div>
             {/* Transaction Hash */}
             <div className="p-3 bg-secondary/50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
