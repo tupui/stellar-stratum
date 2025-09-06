@@ -71,14 +71,14 @@ export const LandingPage = ({
             manage signer permissions, and execute secure multi-signature transactions.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-            <Button size="lg" className="h-16 px-12 text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center w-full max-w-md sm:max-w-none mx-auto">
+            <Button size="lg" className="w-full sm:w-auto h-16 px-12 text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
               Connect wallet
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
-              className="h-16 px-12 text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105"
+              className="w-full sm:w-auto h-16 px-12 text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105"
               onClick={() => window.open('/sign', '_blank')}
             >
               Air-gapped Signer
