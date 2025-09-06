@@ -18,6 +18,7 @@ import { AnimatedQR } from '@/components/airgap/AnimatedQR';
 import { AnimatedQRScanner } from '@/components/airgap/AnimatedQRScanner';
 import { XdrDetails } from '@/components/XdrDetails';
 import { SignerSelector } from '@/components/SignerSelector';
+import { TransactionSummary } from '@/components/TransactionSummary';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
@@ -136,6 +137,10 @@ export const AirgapSigner = () => {
 
   const renderReviewStep = () => (
     <div className="space-y-6">
+      {/* Transaction Summary - Always visible */}
+      <TransactionSummary xdr={xdr} />
+
+      {/* Detailed XDR Information - Collapsed by default */}
       <XdrDetails xdr={xdr} />
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -150,6 +155,7 @@ export const AirgapSigner = () => {
         <Button 
           onClick={() => setStep('sign')}
           className="flex-1"
+          size="lg"
         >
           Sign Transaction
           <ArrowRight className="w-4 h-4 ml-2" />
