@@ -90,7 +90,7 @@ export const TransactionSubmitter = ({
         </Card>
       )}
 
-      {/* Network Selection or Air-gapped QR */}
+      {/* Air-gapped QR or Submit Actions */}
       {isAirgappedMode && xdrOutput ? (
         <AnimatedQR
           data={xdrOutput}
@@ -99,14 +99,27 @@ export const TransactionSubmitter = ({
           description="Scan with your air-gapped signing device"
         />
       ) : (
-        <NetworkSelector
-          isSubmittingToNetwork={isSubmittingToNetwork}
-          isSubmittingToRefractor={isSubmittingToRefractor}
-          onSubmitToNetwork={onSubmitToNetwork}
-          onSubmitToRefractor={onSubmitToRefractor}
-          canSubmitToNetwork={canSubmitToNetwork}
-          canSubmitToRefractor={canSubmitToRefractor}
-        />
+        // Only show submit actions when online and have sufficient signatures
+        canSubmitToNetwork && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg">Submit Transaction</CardTitle>
+              <CardDescription>
+                Transaction is ready for network submission
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                onClick={onSubmitToNetwork}
+                disabled={isSubmittingToNetwork}
+                className="w-full"
+                size="lg"
+              >
+                {isSubmittingToNetwork ? 'Submitting...' : `Submit to ${currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}`}
+              </Button>
+            </CardContent>
+          </Card>
+        )
       )}
 
       {/* Success Message */}
