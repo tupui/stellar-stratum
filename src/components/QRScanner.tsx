@@ -142,33 +142,51 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         const vw = video.videoWidth;
         const vh = video.videoHeight;
 
-        // Crop to a centered square ROI (matches the visual frame area)
-        const side = Math.floor(Math.min(vw, vh) * 0.7); // 70% of the smallest dimension
+        // Use a more aggressive scan area - full center region
+        const side = Math.floor(Math.min(vw, vh) * 0.8); // Increased to 80%
         const sx = Math.floor((vw - side) / 2);
         const sy = Math.floor((vh - side) / 2);
 
-        // Downscale to improve detection speed and contrast
-        const target = Math.min(600, side); // cap at ~600px
+        // Use higher resolution for better detection
+        const target = Math.min(800, side); // Increased to 800px
         canvas.width = target;
         canvas.height = target;
 
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          ctx.imageSmoothingEnabled = false;
+          // Enable smoothing for better image quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(video, sx, sy, side, side, 0, 0, target, target);
 
           const imageData = ctx.getImageData(0, 0, target, target);
-          const qrCode = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: 'attemptBoth',
-          });
+          
+          // Try multiple detection configurations
+          const configs = [
+            { inversionAttempts: 'attemptBoth' as const },
+            { inversionAttempts: 'onlyInvert' as const },
+            { inversionAttempts: 'dontInvert' as const }
+          ];
 
-          if (qrCode && qrCode.data) {
-            console.log('QR detected:', qrCode.data);
-            stopScanner();
-            onScan(qrCode.data);
-            onClose();
-            return;
+          for (const config of configs) {
+            const qrCode = jsQR(imageData.data, imageData.width, imageData.height, config);
+            if (qrCode && qrCode.data) {
+              console.log('QR detected with config:', config, 'Data:', qrCode.data);
+              stopScanner();
+              onScan(qrCode.data);
+              onClose();
+              return;
+            }
           }
+        }
+      } else {
+        // Occasional debug log when video not ready
+        if (Math.random() < 0.01) { // ~1% chance
+          console.log('Video not ready:', {
+            readyState: video.readyState,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight
+          });
         }
       }
     } catch (error) {

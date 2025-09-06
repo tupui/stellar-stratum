@@ -62,10 +62,20 @@ export const resolveSorobanDomain = async (
       return { error: 'Domain not found', success: false };
     }
   } catch (error: any) {
+    console.error('Soroban domain resolution error:', error);
     let errorMessage = 'Failed to resolve domain';
+    
+    // Check for specific error types
     if (error.name === 'Domain404Error') {
       errorMessage = 'Domain not found';
+    } else if (error.message?.includes('fetch')) {
+      errorMessage = 'Network connection failed. Please check your internet connection.';
+    } else if (error.message?.includes('timeout')) {
+      errorMessage = 'Request timed out. Please try again.';
+    } else if (error.message?.includes('ECONNREFUSED')) {
+      errorMessage = 'Unable to connect to Soroban RPC. Please try again later.';
     }
+    
     return { error: errorMessage, success: false };
   }
 };
