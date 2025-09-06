@@ -710,6 +710,28 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
   };
 
+  const handleCopyXdr = async () => {
+    const xdrToCopy = xdrData.output || xdrData.input;
+    if (!xdrToCopy) return;
+    
+    try {
+      await navigator.clipboard.writeText(xdrToCopy);
+      setCopied(true);
+      toast({
+        title: 'XDR copied',
+        description: 'Transaction XDR copied to clipboard',
+        duration: 2000,
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: 'Copy failed',
+        description: 'Could not copy XDR to clipboard',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleSubmitForSignature = async (): Promise<string> => {
     if (!xdrData.output) {
       throw new Error("No transaction to submit");
@@ -1012,17 +1034,22 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           </Card>
         )}
 
-        {/* Network Selector & Submission */}
-        {(xdrData.output || xdrData.input) && (
-          <NetworkSelector
-            onSubmitToNetwork={handleSubmitToNetwork}
-            onSubmitToRefractor={handleSubmitToRefractor}
-            isSubmittingToNetwork={isSubmittingToNetwork}
-            isSubmittingToRefractor={isSubmittingToRefractor}
-            canSubmitToNetwork={canSubmitToNetwork}
-            canSubmitToRefractor={canSubmitToRefractor}
-          />
-        )}
+        {/* Transaction Submitter with Coordination Mode */}
+        <TransactionSubmitter
+          xdrOutput={xdrData.output || xdrData.input || ''}
+          signedBy={signedBy}
+          currentWeight={getCurrentWeight()}
+          requiredWeight={getRequiredWeight()}
+          canSubmitToNetwork={canSubmitToNetwork}
+          canSubmitToRefractor={canSubmitToRefractor}
+          isSubmittingToNetwork={isSubmittingToNetwork}
+          isSubmittingToRefractor={isSubmittingToRefractor}
+          successData={successData}
+          onCopyXdr={handleCopyXdr}
+          onSubmitToNetwork={handleSubmitToNetwork}
+          onSubmitToRefractor={handleSubmitToRefractor}
+          copied={copied}
+        />
 
 
         {/* Transaction Success Modal */}
