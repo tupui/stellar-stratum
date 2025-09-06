@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Camera, Upload, X } from 'lucide-react';
-import { BrowserMultiFormatReader } from '@zxing/browser';
+import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
 import jsQR from 'jsqr';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,8 +18,8 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const readerRef = useRef<BrowserQRCodeReader | null>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -40,46 +40,40 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       setIsScanning(true);
       
       if (!readerRef.current) {
-        readerRef.current = new BrowserMultiFormatReader();
+        readerRef.current = new BrowserQRCodeReader();
       }
 
       const reader = readerRef.current;
       
-      // Get available video devices
-      const videoDevices = await BrowserMultiFormatReader.listVideoInputDevices();
-      console.log(`Found ${videoDevices.length} video devices`);
+      // Use decodeFromConstraints with back camera preference
+      const constraints: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: 'environment' }, // prefer back camera
+        }
+      };
       
-      // Prefer back camera
-      const selectedDevice = videoDevices.find(device => 
-        device.label.toLowerCase().includes('back') || 
-        device.label.toLowerCase().includes('rear')
-      ) || videoDevices[0];
+      console.log('Starting camera with constraints:', constraints);
       
-      if (!selectedDevice) {
-        throw new Error('No camera found');
-      }
-      
-      console.log(`Using device: ${selectedDevice.label}`);
-      
-      // Start decoding from video device
-      await reader.decodeFromVideoDevice(
-        selectedDevice.deviceId,
+      // Start scanning and store controls for cleanup
+      const controls = await reader.decodeFromConstraints(
+        constraints,
         videoRef.current!,
-          (result, error) => {
-            if (result) {
-              console.log('QR code detected:', result.getText());
-              onScan(result.getText());
-              stopScanner();
-              onClose();
-              toast({
-                title: 'QR Code Scanned',
-                description: 'Successfully scanned QR code',
-              });
-            }
-            // Don't log errors as they're expected while scanning
+        (result, error) => {
+          if (result) {
+            console.log('QR code detected:', result.getText());
+            onScan(result.getText());
+            stopScanner();
+            onClose();
+            toast({
+              title: 'QR Code Scanned',
+              description: 'Successfully scanned QR code',
+            });
           }
+          // Don't log decode errors as they're expected while scanning
+        }
       );
       
+      controlsRef.current = controls;
       console.log('Scanner started successfully');
     } catch (error) {
       console.error('Error starting scanner:', error);
@@ -95,24 +89,18 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const stopScanner = () => {
     console.log('Stopping QR scanner...');
     
-    if (readerRef.current) {
+    if (controlsRef.current) {
       try {
-        // ZXing doesn't have a reset method, just set to null to clean up
-        readerRef.current = null;
+        controlsRef.current.stop();
+        controlsRef.current = null;
       } catch (error) {
-        console.warn('Error cleaning up reader:', error);
+        console.warn('Error stopping scanner controls:', error);
       }
     }
     
-    if (stream) {
-      stream.getTracks().forEach(track => {
-        track.stop();
-      });
-      setStream(null);
-    }
-    
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    // Clean up reader
+    if (readerRef.current) {
+      readerRef.current = null;
     }
     
     setIsScanning(false);
@@ -127,77 +115,108 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     try {
       console.log('Processing uploaded image...');
       
-      // Create an image element and wait for it to load
-      const img = new Image();
-      const imageUrl = URL.createObjectURL(file);
+      if (!readerRef.current) {
+        readerRef.current = new BrowserQRCodeReader();
+      }
       
-      img.onload = async () => {
+      // Use FileReader to avoid Safari blob URL issues
+      const fileReader = new FileReader();
+      
+      fileReader.onload = async (e) => {
         try {
+          const dataUrl = e.target?.result as string;
+          if (!dataUrl) throw new Error('Could not read image data');
+          
           let result = null;
           
-          // Try ZXing first
-          if (!readerRef.current) {
-            readerRef.current = new BrowserMultiFormatReader();
-          }
-          
+          // Try ZXing first with decodeFromImageUrl
           try {
-            result = await readerRef.current!.decodeFromImageElement(img);
+            result = await readerRef.current!.decodeFromImageUrl(dataUrl);
           } catch (zxingError) {
             console.log('ZXing failed, trying jsQR fallback...');
             
             // Try jsQR as fallback
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d')!;
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d')!;
+              canvas.width = img.width;
+              canvas.height = img.height;
+              ctx.drawImage(img, 0, 0);
+              
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const jsQRResult = jsQR(imageData.data, imageData.width, imageData.height);
+              
+              if (jsQRResult) {
+                console.log('QR code detected from image (jsQR):', jsQRResult.data);
+                onScan(jsQRResult.data);
+                onClose();
+                toast({
+                  title: 'QR Code Scanned',
+                  description: 'Successfully read QR code from image',
+                });
+              } else {
+                toast({
+                  title: 'Scan Failed',
+                  description: 'No valid QR code found in the uploaded image',
+                  variant: 'destructive',
+                });
+              }
+              
+              setIsProcessingImage(false);
+            };
             
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const jsQRResult = jsQR(imageData.data, imageData.width, imageData.height);
+            img.onerror = () => {
+              toast({
+                title: 'Upload Failed',
+                description: 'Could not load the uploaded image',
+                variant: 'destructive',
+              });
+              setIsProcessingImage(false);
+            };
             
-            if (jsQRResult) {
-              result = { getText: () => jsQRResult.data };
-            }
+            img.src = dataUrl;
+            return; // Exit early for jsQR async processing
           }
           
           if (result) {
-            console.log('QR code detected from image:', result.getText());
+            console.log('QR code detected from image (ZXing):', result.getText());
             onScan(result.getText());
             onClose();
             toast({
               title: 'QR Code Scanned',
               description: 'Successfully read QR code from image',
             });
-          } else {
-            throw new Error('No QR code found in image');
           }
           
-          URL.revokeObjectURL(imageUrl);
+          setIsProcessingImage(false);
         } catch (error) {
           console.error('Error reading QR code from image:', error);
-          URL.revokeObjectURL(imageUrl);
+          setIsProcessingImage(false);
           toast({
             title: 'Scan Failed',
             description: 'No valid QR code found in the uploaded image',
             variant: 'destructive',
           });
-        } finally {
-          setIsProcessingImage(false);
         }
       };
       
-      img.onerror = () => {
-        console.error('Error loading image');
-        URL.revokeObjectURL(imageUrl);
+      fileReader.onerror = () => {
+        console.error('Error reading image file');
         setIsProcessingImage(false);
         toast({
           title: 'Upload Failed',
-          description: 'Could not load the uploaded image',
+          description: 'Could not read the uploaded image file',
           variant: 'destructive',
         });
       };
       
-      img.src = imageUrl;
+      fileReader.readAsDataURL(file);
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (error) {
       console.error('Error processing image upload:', error);
       setIsProcessingImage(false);
