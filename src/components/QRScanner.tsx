@@ -30,7 +30,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   }, [isOpen]);
 
   const startScanner = useCallback(async () => {
-    console.log('Starting QR scanner...');
+    if (import.meta.env.DEV) console.log('Starting QR scanner...');
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Camera API not available');
@@ -46,16 +46,16 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             height: { ideal: 720 }
           }
         });
-        console.log('Got back camera stream');
+        if (import.meta.env.DEV) console.log('Got back camera stream');
       } catch (e) {
-        console.log('Back camera failed, trying any camera');
+        if (import.meta.env.DEV) console.log('Back camera failed, trying any camera');
         mediaStream = await navigator.mediaDevices.getUserMedia({ 
           video: { 
             width: { ideal: 1280 }, 
             height: { ideal: 720 } 
           } 
         });
-        console.log('Got camera stream');
+        if (import.meta.env.DEV) console.log('Got camera stream');
       }
       
       if (videoRef.current) {
@@ -72,20 +72,24 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           const [track] = mediaStream.getVideoTracks();
           if (track && 'applyConstraints' in track) {
             // @ts-expect-error - browser specific advanced constraints
-            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+            track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {
+              // Continuous focus not supported, ignore
+            });
           }
-        } catch {}
+        } catch {
+          // Advanced camera constraints not supported
+        }
         
         // Wait for video to be ready and start scanning
         const startScanning = () => {
-          console.log('Video ready, starting scan loop');
+          if (import.meta.env.DEV) console.log('Video ready, starting scan loop');
           scanIntervalRef.current = window.setInterval(scanFrame, 120); // Scan every ~120ms
         };
         
         videoRef.current.onloadedmetadata = () => {
-          console.log('Video metadata loaded');
+          if (import.meta.env.DEV) console.log('Video metadata loaded');
           videoRef.current?.play().then(() => {
-            console.log('Video playing');
+            if (import.meta.env.DEV) console.log('Video playing');
             startScanning();
           }).catch((error) => {
             console.error('Play failed:', error);
@@ -105,7 +109,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   }, [toast, onClose]);
 
   const stopScanner = useCallback(() => {
-    console.log('Stopping QR scanner...');
+    if (import.meta.env.DEV) console.log('Stopping QR scanner...');
     
     // Clear scan interval
     if (scanIntervalRef.current) {
@@ -171,7 +175,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           for (const config of configs) {
             const qrCode = jsQR(imageData.data, imageData.width, imageData.height, config);
             if (qrCode && qrCode.data) {
-              console.log('QR detected with config:', config, 'Data:', qrCode.data);
+              if (import.meta.env.DEV) console.log('QR detected with config:', config, 'Data:', qrCode.data);
               stopScanner();
               onScan(qrCode.data);
               onClose();
@@ -182,7 +186,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       } else {
         // Occasional debug log when video not ready
         if (Math.random() < 0.01) { // ~1% chance
-          console.log('Video not ready:', {
+          if (import.meta.env.DEV) console.log('Video not ready:', {
             readyState: video.readyState,
             videoWidth: video.videoWidth,
             videoHeight: video.videoHeight

@@ -219,7 +219,7 @@ export const PaymentForm = ({
   };
 
   // Destination trustline helpers
-  const isValidPublicKey = (s?: string) => !!s && s.length === 56 && s.startsWith('G');
+  const isValidStellarAddress = (s?: string) => !!s && s.length === 56 && s.startsWith('G');
   const fetchRecipientAssets = async (accountId: string): Promise<{
     exists: boolean;
     assets: RecipientAsset[];
@@ -265,7 +265,7 @@ export const PaymentForm = ({
 
   // Fetch recipient assets when destination changes
   useEffect(() => {
-    if (!isValidPublicKey(paymentData.destination)) {
+    if (!isValidStellarAddress(paymentData.destination)) {
       setRecipientAssetOptions([]);
       setRecipientExists(null);
       return;

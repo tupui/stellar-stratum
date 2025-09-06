@@ -79,7 +79,9 @@ export const SignerSelector = ({
             if (Buffer.compare(hint, signerHint) === 0) {
               existingSigs.add(signer.key);
             }
-          } catch {}
+          } catch {
+            // Invalid signer key format, skip
+          }
         });
       });
 

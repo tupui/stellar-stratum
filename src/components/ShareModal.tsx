@@ -56,7 +56,7 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
         });
       } catch (error) {
         // User cancelled or share failed
-        console.log('Share cancelled or failed');
+        if (import.meta.env.DEV) console.log('Share cancelled or failed');
       }
     } else {
       // Fallback to copy

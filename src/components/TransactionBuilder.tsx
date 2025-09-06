@@ -743,11 +743,14 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             if (Buffer.compare(hint, signerHint) === 0) {
               set.add(signer.key);
             }
-          } catch {}
+          } catch {
+            // Invalid signer key format, skip
+          }
         });
       });
       return Array.from(set);
     } catch {
+      // XDR parsing failed
       return [];
     }
   };
