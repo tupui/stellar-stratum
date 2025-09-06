@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Copy, ExternalLink, Wifi, WifiOff } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Copy, ExternalLink, Wifi, WifiOff, Send } from 'lucide-react';
 import { NetworkSelector } from '@/components/NetworkSelector';
 import { XdrDetails } from '@/components/XdrDetails';
 import { AnimatedQR } from '@/components/airgap/AnimatedQR';
@@ -90,7 +91,7 @@ export const TransactionSubmitter = ({
         </Card>
       )}
 
-      {/* Air-gapped QR or Submit Actions */}
+      {/* Air-gapped QR or Online Submit Options */}
       {isAirgappedMode && xdrOutput ? (
         <AnimatedQR
           data={xdrOutput}
@@ -99,26 +100,29 @@ export const TransactionSubmitter = ({
           description="Scan with your air-gapped signing device"
         />
       ) : (
-        // Only show submit actions when online and have sufficient signatures
-        canSubmitToNetwork && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Submit Transaction</CardTitle>
-              <CardDescription>
-                Transaction is ready for network submission
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button
-                onClick={onSubmitToNetwork}
-                disabled={isSubmittingToNetwork}
-                className="w-full"
-                size="lg"
-              >
-                {isSubmittingToNetwork ? 'Submitting...' : `Submit to ${currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}`}
+        // Show submit modal trigger when in online mode and have XDR
+        xdrOutput && (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button className="w-full" size="lg">
+                <Send className="w-4 h-4 mr-2" />
+                Submit Transaction
               </Button>
-            </CardContent>
-          </Card>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Submit Transaction</DialogTitle>
+              </DialogHeader>
+              <NetworkSelector
+                isSubmittingToNetwork={isSubmittingToNetwork}
+                isSubmittingToRefractor={isSubmittingToRefractor}
+                onSubmitToNetwork={onSubmitToNetwork}
+                onSubmitToRefractor={onSubmitToRefractor}
+                canSubmitToNetwork={canSubmitToNetwork}
+                canSubmitToRefractor={canSubmitToRefractor}
+              />
+            </DialogContent>
+          </Dialog>
         )
       )}
 
