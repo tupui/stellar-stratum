@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Copy, ExternalLink, X, Mail, MessageCircle, Send } from 'lucide-react';
+import { CheckCircle, Copy, ExternalLink, X, Mail, MessageCircle, Send, Fingerprint } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
@@ -172,6 +172,7 @@ export const SuccessModal = ({
                 {/* ID/Hash below QR */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-center gap-2">
+                    <Fingerprint className="w-3 h-3" />
                     <span className="text-xs font-medium text-muted-foreground">
                       {type === 'refractor' ? (
                         <>
@@ -207,7 +208,10 @@ export const SuccessModal = ({
             {/* Hash Display for Network */}
             {type === 'network' && <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">{label}</span>
+                  <div className="flex items-center gap-2">
+                    <Fingerprint className="w-4 h-4" />
+                    <span className="text-sm font-medium text-muted-foreground">{label}</span>
+                  </div>
                   <Button variant="ghost" size="sm" onClick={() => copyToClipboard(displayValue || '', label)} className="h-8 w-8 p-0">
                     {copied ? <CheckCircle className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
                   </Button>

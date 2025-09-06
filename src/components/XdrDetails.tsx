@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp, Hash, FileText, Copy, Check, AlertTriangle, Fingerprint } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Copy, Check, AlertTriangle, Fingerprint } from 'lucide-react';
 import { Transaction } from '@stellar/stellar-sdk';
 import { useToast } from '@/hooks/use-toast';
 import { getNetworkPassphrase } from '@/lib/stellar';
@@ -122,7 +122,7 @@ export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
             <div className="p-3 bg-secondary/50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <Hash className="w-4 h-4" />
+                  <Fingerprint className="w-4 h-4" />
                   <span className="text-sm font-medium">Transaction Hash</span>
                 </div>
                 <Button

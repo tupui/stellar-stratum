@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Copy, ExternalLink, Wifi, WifiOff, Send } from 'lucide-react';
+import { Copy, ExternalLink, Wifi, WifiOff, Send, Fingerprint } from 'lucide-react';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 
@@ -57,20 +57,6 @@ export const TransactionSubmitter = ({
 
   return (
     <div className="space-y-6">
-      {/* Transaction Fingerprint */}
-      {xdrOutput && fingerprint && (
-        <div className="p-3 bg-muted/50 rounded-lg">
-          <p className="text-sm font-medium mb-1">Transaction Fingerprint</p>
-          <div className="space-y-1">
-            <div className="font-mono text-xs break-all text-foreground">{fingerprint.hash}</div>
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>{fingerprint.operationSummary}</span>
-              <span>{fingerprint.sourceAccount}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* If ready for submission, show direct submit button */}
       {isReadyForSubmission ? (
         <Button

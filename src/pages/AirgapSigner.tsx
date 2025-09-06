@@ -162,19 +162,7 @@ export const AirgapSigner = () => {
         </p>
       </div>
 
-      {fingerprint && (
-        <Alert>
-          <Shield className="w-4 h-4" />
-          <AlertDescription>
-            <div className="space-y-1">
-              <p><strong>Transaction Hash:</strong> <code>{fingerprint.hash}</code></p>
-              <p><strong>Operations:</strong> {fingerprint.operationSummary}</p>
-              <p><strong>Source:</strong> {fingerprint.sourceAccount}</p>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
+      {/* Transaction details without redundant fingerprint */}
       <XdrDetails xdr={xdr} />
 
       <div className="flex gap-3">
