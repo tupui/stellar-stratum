@@ -22,7 +22,7 @@ export function parseSEP7TxUri(uri: string): SEP7TxPayload | null {
   try {
     const url = new URL(uri);
     
-    if (url.protocol !== 'stellar:') {
+    if (url.protocol !== 'stellar:' && url.protocol !== 'web+stellar:') {
       return null;
     }
 
