@@ -169,14 +169,16 @@ export const SignerSelector = ({
                 <Users className="w-4 h-4" />
                 Signature Management
               </CardTitle>
-              <div className="flex items-center gap-4 mt-2">
-                <Badge variant={hasMinimumSignatures ? 'default' : 'secondary'}>
-                  Weight: {currentWeight}/{requiredWeight}
-                </Badge>
-                <Badge variant="outline">
-                  {signedBy.length} of {signers.length} signers
-                </Badge>
-              </div>
+              {!freeMode && (
+                <div className="flex items-center gap-4 mt-2">
+                  <Badge variant={hasMinimumSignatures ? 'default' : 'secondary'}>
+                    Weight: {currentWeight}/{requiredWeight}
+                  </Badge>
+                  <Badge variant="outline">
+                    {signedBy.length} of {signers.length} signers
+                  </Badge>
+                </div>
+              )}
             </div>
             <Button
               variant="ghost"
@@ -260,9 +262,9 @@ export const SignerSelector = ({
                 {/* Current Signatures */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium">Current Signatures</h4>
-                  {getAllSignedSigners().length === 0 ? (
+                  {(!freeMode && getAllSignedSigners().length === 0) ? (
                     <p className="text-sm text-muted-foreground">No signatures yet</p>
-                  ) : (
+                  ) : (!freeMode ? (
                     getAllSignedSigners().map((signed, index) => {
                       const signer = signers.find(s => s.key === signed.signerKey);
                       return (
@@ -278,13 +280,15 @@ export const SignerSelector = ({
                               </div>
                             </div>
                           </div>
-                          <Badge variant="outline">
-                            Weight: {signer?.weight || 0}
-                          </Badge>
+                          {!freeMode && (
+                            <Badge variant="outline">
+                              Weight: {signer?.weight || 0}
+                            </Badge>
+                          )}
                         </div>
                       );
                     })
-                  )}
+                  ) : null)}
                 </div>
 
                 <Separator />
@@ -292,9 +296,9 @@ export const SignerSelector = ({
                 {/* Available Signers */}
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium">Available Signers</h4>
-                  {availableSigners.length === 0 ? (
+                  {(!freeMode && availableSigners.length === 0) ? (
                     <p className="text-sm text-muted-foreground">All signers have signed</p>
-                  ) : (
+                  ) : (!freeMode ? (
                     <>
                       <div className="flex flex-col md:flex-row gap-2">
                         <Select value={selectedSigner} onValueChange={setSelectedSigner}>
@@ -310,7 +314,7 @@ export const SignerSelector = ({
                                     {signer.key === currentAccountKey && (
                                       <Badge variant="outline" className="text-xs">Current</Badge>
                                     )}
-                                    <Badge variant="outline" className="text-xs">
+                                    <Badge variant="outline" className="text-xs hidden">
                                       Weight: {signer.weight}
                                     </Badge>
                                   </div>
@@ -365,14 +369,14 @@ export const SignerSelector = ({
                                 )}
                               </div>
                             </div>
-                            <Badge variant="outline">
+                            <Badge variant="outline" className="hidden">
                               Weight: {signer.weight}
                             </Badge>
                           </div>
                         ))}
                       </div>
                     </>
-                  )}
+                  ) : null)}
                 </div>
 
                 {hasMinimumSignatures && (

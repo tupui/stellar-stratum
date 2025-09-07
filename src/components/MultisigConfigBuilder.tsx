@@ -312,10 +312,6 @@ export const MultisigConfigBuilder = ({
     <div className="space-y-6">
       {/* Header */}
       <div className="space-y-2">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-bold flex items-center gap-2">
-          <Shield className="w-5 h-5 sm:w-6 sm:h-6" />
-          Multisig Configuration
-        </h2>
         <p className="text-muted-foreground">
           Modify account signers and operation thresholds. This requires high threshold approval.
         </p>

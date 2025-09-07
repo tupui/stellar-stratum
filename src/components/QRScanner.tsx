@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Camera, Upload, X, RotateCcw } from 'lucide-react';
 import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
+import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 import jsQR from 'jsqr';
 import { useToast } from '@/hooks/use-toast';
 
@@ -44,7 +45,11 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       setWaitingForCamera(true);
       
       if (!readerRef.current) {
-        readerRef.current = new BrowserMultiFormatReader();
+        // ZXing hints: focus on QR only and try harder for partially visible/angled codes
+        const hints = new Map<DecodeHintType, any>();
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
+        hints.set(DecodeHintType.TRY_HARDER, true);
+        readerRef.current = new BrowserMultiFormatReader(hints, 75);
       }
 
       const reader = readerRef.current;
@@ -65,8 +70,13 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               deviceId: selectedDevice.deviceId,
               width: { ideal: 1920, min: 1280 },
               height: { ideal: 1080, min: 720 },
-              frameRate: { ideal: 30, min: 15 },
-              facingMode: { ideal: 'environment' }
+              frameRate: { ideal: 60, min: 24 },
+              facingMode: { ideal: 'environment' },
+              advanced: [
+                // Best-effort continuous focus for sharper frames
+                { focusMode: 'continuous' } as any,
+                { focusMode: 'auto' } as any,
+              ]
             }
           };
           
@@ -95,18 +105,22 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               const stream = videoRef.current.srcObject as MediaStream;
               const track = stream.getVideoTracks()[0];
               if (track && 'getCapabilities' in track) {
-                const capabilities = track.getCapabilities() as any;
+                const capabilities = (track.getCapabilities?.() || {}) as any;
+                const advanced: MediaTrackConstraintSet[] = [] as any;
                 if (capabilities.zoom && capabilities.zoom.max) {
-                  const maxZoom = Math.min(capabilities.zoom.max, 2);
-                  await track.applyConstraints({
-                    advanced: [{ zoom: maxZoom } as any]
-                  });
+                  const suggestedZoom = Math.min(capabilities.zoom.max, 2);
+                  advanced.push({ zoom: suggestedZoom } as any);
+                }
+                if (capabilities.focusMode && capabilities.focusMode.length) {
+                  advanced.push({ focusMode: 'continuous' } as any);
+                }
+                if (advanced.length) {
+                  await track.applyConstraints({ advanced });
                 }
               }
             }
-          } catch (zoomError) {
-            // Zoom not supported, continue without it
-            console.log('Zoom not supported:', zoomError);
+          } catch (capError) {
+            console.log('Advanced camera constraints not supported:', capError);
           }
         } else {
           // Fallback to constraints if no devices found
@@ -115,7 +129,11 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             facingMode: { ideal: 'environment' },
             width: { ideal: 1920, min: 1280 },
             height: { ideal: 1080, min: 720 },
-            frameRate: { ideal: 30, min: 15 }
+            frameRate: { ideal: 60, min: 24 },
+            advanced: [
+              { focusMode: 'continuous' } as any,
+              { focusMode: 'auto' } as any,
+            ]
           }
         };
           
@@ -156,7 +174,11 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             facingMode: { ideal: 'environment' },
             width: { ideal: 1920, min: 1280 },
             height: { ideal: 1080, min: 720 },
-            frameRate: { ideal: 30, min: 15 }
+            frameRate: { ideal: 60, min: 24 },
+            advanced: [
+              { focusMode: 'continuous' } as any,
+              { focusMode: 'auto' } as any,
+            ]
           }
         };
         

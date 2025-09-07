@@ -1,19 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Smartphone, 
-  QrCode, 
-  Shield, 
-  CheckCircle2, 
-  AlertCircle, 
-  Wifi,
-  WifiOff,
-  ArrowLeft,
-  ArrowRight
-} from 'lucide-react';
+import { Smartphone } from 'lucide-react';
 import { AnimatedQRScanner } from '@/components/airgap/AnimatedQRScanner';
 import { XdrDetails } from '@/components/XdrDetails';
 import { SignerSelector } from '@/components/SignerSelector';
@@ -31,7 +18,7 @@ export const AirgapSigner = () => {
   const { toast } = useToast();
   const [xdr, setXdr] = useState<string>('');
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  
   const [step, setStep] = useState<'scan' | 'loaded'>('scan');
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'offline'; xdr?: string } | null>(null);
 
@@ -59,19 +46,7 @@ export const AirgapSigner = () => {
     };
   }, []);
 
-  // Monitor online/offline status
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+  // Removed online/offline indicator and listeners
 
   // Check URL parameters for XDR
   useEffect(() => {
@@ -156,14 +131,39 @@ export const AirgapSigner = () => {
 
   const renderScanStep = () => (
     <div className="space-y-6">
+      <div className="space-y-3 text-sm">
+        <p className="text-muted-foreground">
+          <span className="text-foreground font-medium">Air‑gapped signing</span> lets you approve transactions on an offline device. This page blocks network requests for safety.
+        </p>
+        <div className="grid gap-1">
+          <p className="text-foreground font-medium">What you need</p>
+          <ul className="list-disc pl-5 text-muted-foreground">
+            <li>Device A (online): build the transaction and display its QR</li>
+            <li>Device B (offline): this page to scan and sign</li>
+          </ul>
+        </div>
+        <div className="grid gap-1">
+          <p className="text-foreground font-medium">Steps</p>
+          <ol className="list-decimal pl-5 text-muted-foreground">
+            <li>Scan the transaction QR below.</li>
+            <li>Review details and add signatures on this device.</li>
+            <li>Show the Signature QR back to Device A to merge and submit.</li>
+          </ol>
+        </div>
+        <div className="grid gap-1">
+          <p className="text-foreground font-medium">Safety tips</p>
+          <ul className="list-disc pl-5 text-muted-foreground">
+            <li>Compare the transaction fingerprint on both devices before signing.</li>
+            <li>Keep this device offline for the entire flow.</li>
+          </ul>
+        </div>
+      </div>
+
       <AnimatedQRScanner
         onDataReceived={handleXdrReceived}
         expectedType="xdr"
         embedded
       />
-      <div className="text-sm text-muted-foreground text-center">
-        Scan a transaction QR code to begin
-      </div>
     </div>
   );
 
@@ -172,6 +172,14 @@ export const AirgapSigner = () => {
       <div className="space-y-6">
         {/* Advanced Transaction Details - Expanded by default */}
         <XdrDetails xdr={xdr} defaultExpanded={true} />
+
+        <div className="p-3 border border-border/50 rounded-lg text-sm">
+          <p className="font-medium text-foreground">Verify before signing</p>
+          <p className="text-muted-foreground">
+            Compare the transaction fingerprint and key fields on both devices.
+            They must match exactly before you add your signature.
+          </p>
+        </div>
 
         {/* Signature Management - Use free mode for air-gapped signing */}
         <SignerSelector
@@ -212,16 +220,7 @@ export const AirgapSigner = () => {
           offlineOnly={true}
         />
 
-        <div className="flex justify-center">
-          <Button 
-            variant="outline" 
-            onClick={() => setStep('scan')}
-            className="px-6"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Scanner
-          </Button>
-        </div>
+        
       </div>
     );
   };
@@ -229,11 +228,7 @@ export const AirgapSigner = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background/50 to-stellar-yellow/5 relative overflow-hidden">
       {/* Subtle background pattern */}
-      <div className="absolute inset-0 opacity-30 pointer-events-none">
-        <div className="absolute top-20 right-10 w-32 h-32 border border-stellar-yellow/20 rounded-full"></div>
-        <div className="absolute bottom-32 left-10 w-24 h-24 border border-stellar-yellow/10 rounded-full"></div>
-        <div className="absolute top-1/2 left-1/3 w-16 h-16 border border-stellar-yellow/15 rounded-full"></div>
-      </div>
+      {/* Background decorations removed */}
 
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
@@ -246,14 +241,18 @@ export const AirgapSigner = () => {
               <div>
                 <h1 className="text-xl font-bold">Air-Gapped Signer</h1>
               </div>
+              {step === 'loaded' && (
+                <Button 
+                  onClick={() => setStep('scan')}
+                  size="sm"
+                  className="self-start bg-success hover:bg-success/90 text-success-foreground"
+                >
+                  Back to Scanner
+                </Button>
+              )}
             </div>
             
-            <div className="flex items-center gap-3 flex-wrap">
-              <Badge className="bg-stellar-yellow/10 text-stellar-yellow border-stellar-yellow/30">
-                {isOffline ? <WifiOff className="w-3 h-3 mr-1" /> : <Wifi className="w-3 h-3 mr-1" />}
-                {isOffline ? 'Offline' : 'Online'}
-              </Badge>
-            </div>
+            <div className="flex items-center gap-3 flex-wrap" />
           </div>
         </header>
 

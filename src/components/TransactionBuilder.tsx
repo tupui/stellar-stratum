@@ -917,7 +917,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Shield className="w-4 h-4" />
-                    <span>Multisig</span>
+                    <span>Multisig Setup</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="import"
