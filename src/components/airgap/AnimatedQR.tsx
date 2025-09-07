@@ -24,7 +24,8 @@ export const AnimatedQR = ({ data, type, title, description, embedded = false }:
   // Generate proper SEP-7 URI for XDR data, raw data for signatures
   const qrData = type === 'xdr' ? buildSEP7TxUri({
     xdr: data,
-    network: network === 'testnet' ? 'testnet' : 'public'
+    network: network === 'testnet' ? 'testnet' : 'public',
+    origin_domain: window.location.hostname
   }) : data;
 
   const handleCopyData = async () => {

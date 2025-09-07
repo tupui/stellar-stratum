@@ -38,7 +38,8 @@ export const SuccessModal = ({
         // For offline signing, create a proper SEP-7 URI with the XDR
         qrData = buildSEP7TxUri({
           xdr,
-          network: network === 'testnet' ? 'testnet' : 'public'
+          network: network === 'testnet' ? 'testnet' : 'public',
+          origin_domain: window.location.hostname
         });
       } else if (type === 'refractor') {
         qrData = shareUrl;
