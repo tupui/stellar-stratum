@@ -6,17 +6,22 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Copy, ExternalLink, Wifi, WifiOff, Send, Fingerprint } from 'lucide-react';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-
 interface TransactionSubmitterProps {
   xdrOutput: string;
-  signedBy: Array<{ signerKey: string; signedAt: Date }>;
+  signedBy: Array<{
+    signerKey: string;
+    signedAt: Date;
+  }>;
   currentWeight: number;
   requiredWeight: number;
   canSubmitToNetwork: boolean;
   canSubmitToRefractor: boolean;
   isSubmittingToNetwork: boolean;
   isSubmittingToRefractor: boolean;
-  successData: { hash: string; network: 'mainnet' | 'testnet' } | null;
+  successData: {
+    hash: string;
+    network: 'mainnet' | 'testnet';
+  } | null;
   onCopyXdr: () => void;
   onSubmitToNetwork: () => Promise<void>;
   onSubmitToRefractor: () => Promise<void>;
@@ -24,8 +29,7 @@ interface TransactionSubmitterProps {
   copied: boolean;
   offlineOnly?: boolean;
 }
-
-export const TransactionSubmitter = ({ 
+export const TransactionSubmitter = ({
   xdrOutput,
   signedBy,
   currentWeight,
@@ -42,39 +46,28 @@ export const TransactionSubmitter = ({
   copied,
   offlineOnly = false
 }: TransactionSubmitterProps) => {
-  const { network: currentNetwork } = useNetwork();
+  const {
+    network: currentNetwork
+  } = useNetwork();
   const [isAirgappedMode, setIsAirgappedMode] = useState(false);
   if (!xdrOutput && !successData) {
     return null;
   }
 
   // Generate fingerprint for transaction verification
-  const fingerprint = xdrOutput 
-    ? generateDetailedFingerprint(xdrOutput, currentNetwork)
-    : null;
+  const fingerprint = xdrOutput ? generateDetailedFingerprint(xdrOutput, currentNetwork) : null;
 
   // Determine if transaction is ready for network submission
   const isReadyForSubmission = canSubmitToNetwork && currentWeight >= requiredWeight;
-
-  return (
-    <div className="space-y-6">
+  return <div className="space-y-6">
       {/* If ready for submission, show direct submit button */}
-      {isReadyForSubmission ? (
-        <Button
-          onClick={onSubmitToNetwork}
-          disabled={isSubmittingToNetwork}
-          className="w-full"
-          size="lg"
-        >
+      {isReadyForSubmission ? <Button onClick={onSubmitToNetwork} disabled={isSubmittingToNetwork} className="w-full" size="lg">
           <Send className="w-4 h-4 mr-2" />
           {isSubmittingToNetwork ? 'Submitting...' : `Send Transaction to ${currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}`}
-        </Button>
-      ) : (
-        // If not ready, show coordination options
-        xdrOutput && (
-          <>
-            {!offlineOnly && (
-              <>
+        </Button> :
+    // If not ready, show coordination options
+    xdrOutput && <>
+            {!offlineOnly && <>
                 {/* Coordination Mode Toggle */}
                 <Card>
                   <CardHeader>
@@ -85,12 +78,7 @@ export const TransactionSubmitter = ({
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      <ToggleGroup
-                        type="single"
-                        value={isAirgappedMode ? "offline" : "online"}
-                        onValueChange={(value) => setIsAirgappedMode(value === "offline")}
-                        className="grid w-full grid-cols-2"
-                      >
+                      <ToggleGroup type="single" value={isAirgappedMode ? "offline" : "online"} onValueChange={value => setIsAirgappedMode(value === "offline")} className="grid w-full grid-cols-2">
                         <ToggleGroupItem value="online" className="flex items-center gap-2">
                           <Wifi className="w-4 h-4" />
                           Refractor (Online)
@@ -100,42 +88,22 @@ export const TransactionSubmitter = ({
                           Air-gapped (Offline)
                         </ToggleGroupItem>
                       </ToggleGroup>
-                      <p className="text-sm text-muted-foreground">
-                        {isAirgappedMode 
-                          ? "Use QR codes for secure offline signature coordination"
-                          : "Share transaction via Refractor for online coordination"
-                        }
-                      </p>
+                      
                     </div>
                   </CardContent>
                 </Card>
 
                 {/* Send for Signature Button */}
-                <Button 
-                  className="w-full" 
-                  size="lg"
-                  onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor}
-                  disabled={isSubmittingToRefractor}
-                >
+                <Button className="w-full" size="lg" onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor} disabled={isSubmittingToRefractor}>
                   <Send className="w-4 h-4 mr-2" />
                   {isSubmittingToRefractor ? 'Sending...' : 'Send for Signature'}
                 </Button>
-              </>
-            )}
+              </>}
             
-            {offlineOnly && (
-              <Button 
-                className="w-full" 
-                size="lg"
-                onClick={onShowOfflineModal}
-              >
+            {offlineOnly && <Button className="w-full" size="lg" onClick={onShowOfflineModal}>
                 <Send className="w-4 h-4 mr-2" />
                 Send for Signature
-              </Button>
-            )}
-          </>
-        )
-      )}
-    </div>
-  );
+              </Button>}
+          </>}
+    </div>;
 };
