@@ -30,6 +30,7 @@ interface SignerSelectorProps {
   requiredWeight: number;
   onSignWithSigner: (signerKey: string, walletId: string) => Promise<void>;
   isSigning: boolean;
+  freeMode?: boolean; // New prop for air-gapped mode
 }
 
 export const SignerSelector = ({ 
@@ -39,7 +40,8 @@ export const SignerSelector = ({
   signedBy, 
   requiredWeight, 
   onSignWithSigner,
-  isSigning 
+  isSigning,
+  freeMode = false
 }: SignerSelectorProps) => {
   const { network } = useNetwork();
   const [selectedSigner, setSelectedSigner] = useState<string>('');
@@ -146,7 +148,11 @@ export const SignerSelector = ({
   const hasMinimumSignatures = currentWeight >= requiredWeight;
 
   const handleSign = async () => {
-    if (selectedSigner && selectedWalletId) {
+    if (freeMode && selectedWalletId) {
+      // In free mode, we use the wallet address as the signer key
+      await onSignWithSigner('', selectedWalletId);
+      setSelectedWalletId('');
+    } else if (selectedSigner && selectedWalletId) {
       await onSignWithSigner(selectedSigner, selectedWalletId);
       setSelectedSigner('');
       setSelectedWalletId('');
@@ -184,134 +190,203 @@ export const SignerSelector = ({
         </CardHeader>
         {!isCollapsed && (
           <CardContent className="space-y-4">
-        {/* Current Signatures */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium">Current Signatures</h4>
-          {getAllSignedSigners().length === 0 ? (
-            <p className="text-sm text-muted-foreground">No signatures yet</p>
-          ) : (
-            getAllSignedSigners().map((signed, index) => {
-              const signer = signers.find(s => s.key === signed.signerKey);
-              return (
-                <div key={index} className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    <div>
-                      <p className="font-address text-sm">{truncateKey(signed.signerKey)}</p>
-                      <div className="flex gap-2 mt-1">
-                        {signed.signerKey === currentAccountKey && (
-                          <Badge variant="outline" className="text-xs">Current Account</Badge>
-                        )}
+            {freeMode ? (
+              // Free mode UI for air-gapped signing
+              <>
+                {/* Collected Signatures */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Collected Signatures</h4>
+                  {signedBy.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No signatures collected yet</p>
+                  ) : (
+                    signedBy.map((signed, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                        <div className="flex items-center gap-4">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <div>
+                            <p className="font-address text-sm">{truncateKey(signed.signerKey)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Signed at {signed.signedAt.toLocaleTimeString()}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                  <Badge variant="outline">
-                    Weight: {signer?.weight || 0}
-                  </Badge>
+                    ))
+                  )}
                 </div>
-              );
-            })
-          )}
-        </div>
 
-        <Separator />
+                <Separator />
 
-        {/* Available Signers */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium">Available Signers</h4>
-          {availableSigners.length === 0 ? (
-            <p className="text-sm text-muted-foreground">All signers have signed</p>
-          ) : (
-            <>
-              <div className="flex flex-col md:flex-row gap-2">
-                <Select value={selectedSigner} onValueChange={setSelectedSigner}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="Select a signer to sign with" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableSigners.map((signer) => (
-                      <SelectItem key={signer.key} value={signer.key}>
-                        <div className="flex items-center justify-between w-full">
-                          <span className="font-address text-sm">{truncateKey(signer.key)}</span>
-                          <div className="flex items-center gap-2 ml-4">
-                            {signer.key === currentAccountKey && (
-                              <Badge variant="outline" className="text-xs">Current</Badge>
-                            )}
-                            <Badge variant="outline" className="text-xs">
+                {/* Wallet Signing */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Sign with Wallet</h4>
+                  <div className="flex flex-col gap-2">
+                    <Select value={selectedWalletId} onValueChange={setSelectedWalletId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select wallet to sign with" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {wallets.map((w) => (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Button 
+                      onClick={() => handleSign()}
+                      disabled={!selectedWalletId || isSigning}
+                      className="w-full"
+                    >
+                      {isSigning ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          Signing...
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Plus className="w-4 h-4" />
+                          Sign with Wallet
+                        </div>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Original UI for normal multisig
+              <>
+                {/* Current Signatures */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Current Signatures</h4>
+                  {getAllSignedSigners().length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No signatures yet</p>
+                  ) : (
+                    getAllSignedSigners().map((signed, index) => {
+                      const signer = signers.find(s => s.key === signed.signerKey);
+                      return (
+                        <div key={index} className="flex items-center justify-between p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                          <div className="flex items-center gap-4">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <div>
+                              <p className="font-address text-sm">{truncateKey(signed.signerKey)}</p>
+                              <div className="flex gap-2 mt-1">
+                                {signed.signerKey === currentAccountKey && (
+                                  <Badge variant="outline" className="text-xs">Current Account</Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <Badge variant="outline">
+                            Weight: {signer?.weight || 0}
+                          </Badge>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Available Signers */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Available Signers</h4>
+                  {availableSigners.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">All signers have signed</p>
+                  ) : (
+                    <>
+                      <div className="flex flex-col md:flex-row gap-2">
+                        <Select value={selectedSigner} onValueChange={setSelectedSigner}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Select a signer to sign with" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableSigners.map((signer) => (
+                              <SelectItem key={signer.key} value={signer.key}>
+                                <div className="flex items-center justify-between w-full">
+                                  <span className="font-address text-sm">{truncateKey(signer.key)}</span>
+                                  <div className="flex items-center gap-2 ml-4">
+                                    {signer.key === currentAccountKey && (
+                                      <Badge variant="outline" className="text-xs">Current</Badge>
+                                    )}
+                                    <Badge variant="outline" className="text-xs">
+                                      Weight: {signer.weight}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Select value={selectedWalletId} onValueChange={setSelectedWalletId}>
+                          <SelectTrigger className="flex-1 md:max-w-xs">
+                            <SelectValue placeholder="Select wallet to sign" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {wallets.map((w) => (
+                              <SelectItem key={w.id} value={w.id}>
+                                {w.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+
+                        <Button 
+                          onClick={handleSign} 
+                          disabled={!selectedSigner || !selectedWalletId || isSigning}
+                          size="sm"
+                        >
+                          {isSigning ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              Signing...
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Plus className="w-4 h-4" />
+                              Sign
+                            </div>
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* Unsigned Signers Preview */}
+                      <div className="space-y-2">
+                        {availableSigners.map((signer) => (
+                          <div key={signer.key} className="flex items-center justify-between p-2 bg-secondary/30 rounded-lg">
+                            <div className="flex items-center gap-4">
+                              <Circle className="w-4 h-4 text-muted-foreground" />
+                              <div>
+                                <p className="font-address text-sm">{truncateKey(signer.key)}</p>
+                                {signer.key === currentAccountKey && (
+                                  <Badge variant="outline" className="text-xs mt-1">Current Account</Badge>
+                                )}
+                              </div>
+                            </div>
+                            <Badge variant="outline">
                               Weight: {signer.weight}
                             </Badge>
                           </div>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={selectedWalletId} onValueChange={setSelectedWalletId}>
-                  <SelectTrigger className="flex-1 md:max-w-xs">
-                    <SelectValue placeholder="Select wallet to sign" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {wallets.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Button 
-                  onClick={handleSign} 
-                  disabled={!selectedSigner || !selectedWalletId || isSigning}
-                  size="sm"
-                >
-                  {isSigning ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Signing...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Plus className="w-4 h-4" />
-                      Sign
-                    </div>
-                  )}
-                </Button>
-              </div>
-
-              {/* Unsigned Signers Preview */}
-              <div className="space-y-2">
-                {availableSigners.map((signer) => (
-                  <div key={signer.key} className="flex items-center justify-between p-2 bg-secondary/30 rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <Circle className="w-4 h-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-address text-sm">{truncateKey(signer.key)}</p>
-                        {signer.key === currentAccountKey && (
-                          <Badge variant="outline" className="text-xs mt-1">Current Account</Badge>
-                        )}
+                        ))}
                       </div>
-                    </div>
-                    <Badge variant="outline">
-                      Weight: {signer.weight}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+                    </>
+                  )}
+                </div>
 
-        {hasMinimumSignatures && (
-          <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <p className="text-sm text-foreground">
-                Minimum signature weight reached. Transaction can be submitted.
-              </p>
-            </div>
-          </div>
-        )}
+                {hasMinimumSignatures && (
+                  <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <p className="text-sm text-foreground">
+                        Minimum signature weight reached. Transaction can be submitted.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         )}
       </Collapsible>

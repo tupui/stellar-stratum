@@ -160,7 +160,7 @@ export const SuccessModal = ({
               <div className="flex items-center gap-4">
                 
                 <div>
-                  <CardTitle className={`${type === 'refractor' ? 'text-stellar-yellow' : 'text-success'} text-xl font-semibold`}>{title}</CardTitle>
+                  <CardTitle className={`${type === 'refractor' || type === 'offline' ? 'text-stellar-yellow' : 'text-success'} text-xl font-semibold`}>{title}</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
                 </div>
               </div>

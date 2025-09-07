@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Camera, Upload, X, RotateCcw } from 'lucide-react';
-import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
+import { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
 import jsQR from 'jsqr';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,7 +21,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const [waitingForCamera, setWaitingForCamera] = useState(false);
   const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
   const [currentDeviceIndex, setCurrentDeviceIndex] = useState(0);
-  const readerRef = useRef<BrowserQRCodeReader | null>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const { toast } = useToast();
 
@@ -44,14 +44,14 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       setWaitingForCamera(true);
       
       if (!readerRef.current) {
-        readerRef.current = new BrowserQRCodeReader();
+        readerRef.current = new BrowserMultiFormatReader();
       }
 
       const reader = readerRef.current;
       
       // Enumerate video devices first
       try {
-        const devices = await BrowserQRCodeReader.listVideoInputDevices();
+        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
         setAvailableDevices(devices);
         
         // Use specific device if available, otherwise fallback to constraints
@@ -59,8 +59,18 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           const selectedDevice = devices[currentDeviceIndex] || devices[0];
           console.log('Using camera device:', selectedDevice.label);
           
-          const controls = await reader.decodeFromVideoDevice(
-            selectedDevice.deviceId,
+          // High-quality constraints for better small QR detection
+          const constraints: MediaStreamConstraints = {
+            video: {
+              deviceId: selectedDevice.deviceId,
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1080, min: 720 },
+              facingMode: { ideal: 'environment' }
+            }
+          };
+          
+          const controls = await reader.decodeFromConstraints(
+            constraints,
             videoRef.current!,
             (result) => {
               if (result) {
@@ -77,10 +87,34 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           );
           
           controlsRef.current = controls;
+          
+          // Try to apply zoom if supported (best effort)
+          try {
+            if (videoRef.current && videoRef.current.srcObject) {
+              const stream = videoRef.current.srcObject as MediaStream;
+              const track = stream.getVideoTracks()[0];
+              if (track && 'getCapabilities' in track) {
+                const capabilities = track.getCapabilities() as any;
+                if (capabilities.zoom && capabilities.zoom.max) {
+                  const maxZoom = Math.min(capabilities.zoom.max, 2);
+                  await track.applyConstraints({
+                    advanced: [{ zoom: maxZoom } as any]
+                  });
+                }
+              }
+            }
+          } catch (zoomError) {
+            // Zoom not supported, continue without it
+            console.log('Zoom not supported:', zoomError);
+          }
         } else {
           // Fallback to constraints if no devices found
           const constraints: MediaStreamConstraints = {
-            video: { facingMode: { ideal: 'environment' } }
+            video: { 
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1920, min: 1280 },
+              height: { ideal: 1080, min: 720 }
+            }
           };
           
           const controls = await reader.decodeFromConstraints(
@@ -114,9 +148,13 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       } catch (deviceError) {
         console.warn('Could not enumerate devices, using constraints fallback:', deviceError);
         
-        // Fallback to constraints
+        // Fallback to constraints with high quality
         const constraints: MediaStreamConstraints = {
-          video: { facingMode: { ideal: 'environment' } }
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 }
+          }
         };
         
         const controls = await reader.decodeFromConstraints(
@@ -192,7 +230,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       console.log('Processing uploaded image...');
       
       if (!readerRef.current) {
-        readerRef.current = new BrowserQRCodeReader();
+        readerRef.current = new BrowserMultiFormatReader();
       }
       
       // Use FileReader to avoid Safari blob URL issues
@@ -211,17 +249,32 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           } catch (zxingError) {
             console.log('ZXing failed, trying jsQR fallback...');
             
-            // Try jsQR as fallback
+            // Try jsQR as fallback with 2x upsampling
             const img = new Image();
             img.onload = () => {
               const canvas = document.createElement('canvas');
               const ctx = canvas.getContext('2d')!;
-              canvas.width = img.width;
-              canvas.height = img.height;
-              ctx.drawImage(img, 0, 0);
+              
+              // Try 2x upsampling for small QR codes
+              const scale = 2;
+              canvas.width = img.width * scale;
+              canvas.height = img.height * scale;
+              
+              // Use image smoothing for better quality
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
               
               const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const jsQRResult = jsQR(imageData.data, imageData.width, imageData.height);
+              let jsQRResult = jsQR(imageData.data, imageData.width, imageData.height);
+              
+              // If 2x failed, try original size
+              if (!jsQRResult) {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                const originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                jsQRResult = jsQR(originalImageData.data, originalImageData.width, originalImageData.height);
+              }
               
               if (jsQRResult) {
                 console.log('QR code detected from image (jsQR):', jsQRResult.data);

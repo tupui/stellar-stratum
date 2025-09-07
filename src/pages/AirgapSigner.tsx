@@ -24,6 +24,7 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractXdrFromData } from '@/lib/sep7';
 import { tryParseTransaction } from '@/lib/xdr/parse';
+import { signWithWallet } from '@/lib/walletKit';
 
 export const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
@@ -128,13 +129,19 @@ export const AirgapSigner = () => {
     walletId: string
   ) => {
     try {
-      // Add signature to signedBy array
-      const newSignature = { signerKey, signedAt: new Date() };
+      // Actually sign the transaction with the wallet
+      const { signedXdr, address } = await signWithWallet(xdr, walletId, network);
+      
+      // Update the XDR with the new signature
+      setXdr(signedXdr);
+      
+      // Add signature to signedBy array using the actual wallet address
+      const newSignature = { signerKey: address, signedAt: new Date() };
       setSignedBy(prev => [...prev, newSignature]);
       
       toast({
         title: 'Transaction Signed',
-        description: 'Signature added successfully',
+        description: `Signature added from ${address.slice(0, 8)}...${address.slice(-8)}`,
       });
     } catch (error) {
       toast({
@@ -161,44 +168,29 @@ export const AirgapSigner = () => {
   );
 
   const renderLoadedStep = () => {
-    // Mock account data for signing interface
-    const mockAccountData = {
-      balances: [],
-      signers: [
-        { key: 'SIGNER_KEY_1', weight: 1, type: 'ed25519_public_key' },
-        { key: 'SIGNER_KEY_2', weight: 1, type: 'ed25519_public_key' },
-      ],
-      thresholds: { low_threshold: 1, med_threshold: 1, high_threshold: 1 }
-    };
-
-    const currentWeight = signedBy.reduce((total, signature) => {
-      const signer = mockAccountData.signers.find(s => s.key === signature.signerKey);
-      return total + (signer?.weight || 0);
-    }, 0);
-    const requiredWeight = 1;
-
     return (
       <div className="space-y-6">
         {/* Advanced Transaction Details - Expanded by default */}
         <XdrDetails xdr={xdr} defaultExpanded={true} />
 
-        {/* Signature Management */}
+        {/* Signature Management - Use free mode for air-gapped signing */}
         <SignerSelector
           xdr={xdr}
-          signers={mockAccountData.signers}
-          currentAccountKey="MOCK_ACCOUNT_KEY"
+          signers={[]} // No predefined signers needed in free mode
+          currentAccountKey=""
           signedBy={signedBy}
-          requiredWeight={requiredWeight}
+          requiredWeight={0} // Not relevant in free mode
           onSignWithSigner={handleSignWithSigner}
           isSigning={false}
+          freeMode={true}
         />
 
         {/* Transaction Submitter - Offline only mode */}
         <TransactionSubmitter
           xdrOutput={xdr}
           signedBy={signedBy}
-          currentWeight={currentWeight}
-          requiredWeight={requiredWeight}
+          currentWeight={0} // Not relevant for offline
+          requiredWeight={0} // Not relevant for offline
           canSubmitToNetwork={false}
           canSubmitToRefractor={false}
           isSubmittingToNetwork={false}
