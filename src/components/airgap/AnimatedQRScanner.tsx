@@ -31,25 +31,32 @@ export const AnimatedQRScanner = ({
     // Extract XDR from SEP-7 URI or use raw data
     const xdr = extractXdrFromData(data);
     if (!xdr) {
+      console.log('XDR extraction failed for:', data);
       toast({
         title: 'Invalid QR Code',
-        description: 'The QR code does not contain valid transaction data.',
+        description: 'Expected a SEP-7 transaction URI or base64 XDR. Got: ' + (data.length > 50 ? data.substring(0, 50) + '...' : data),
         variant: 'destructive',
       });
+      // Keep scanner open for retry
       return;
     }
+
+    console.log('Extracted XDR:', xdr);
 
     // Validate XDR can be parsed
     const parsed = tryParseTransaction(xdr);
     if (!parsed) {
+      console.log('Transaction parsing failed for XDR:', xdr);
       toast({
         title: 'Invalid Transaction',
-        description: 'Invalid transaction payload. Expecting a SEP-7 transaction QR or base64-encoded XDR.',
+        description: 'Could not parse as Stellar transaction. Ensure it\'s valid XDR.',
         variant: 'destructive',
       });
+      // Keep scanner open for retry
       return;
     }
 
+    console.log('Transaction parsed successfully:', parsed);
     onDataReceived(xdr, expectedType);
     setIsScanning(false);
   };

@@ -92,17 +92,28 @@ export function buildSEP7TxUri(payload: SEP7TxPayload): string {
  * @returns Extracted XDR string or null if invalid
  */
 export function extractXdrFromData(data: string): string | null {
+  if (!data || typeof data !== 'string') {
+    return null;
+  }
+
   // Try parsing as SEP-7 URI first
   const sep7Data = parseSEP7TxUri(data);
   if (sep7Data) {
     return sep7Data.xdr;
   }
   
-  // If not SEP-7, assume it's raw XDR
-  // Basic validation: XDR should be base64-like
-  if (data && typeof data === 'string' && data.length > 0) {
-    return data;
+  // If not SEP-7, validate as base64 XDR
+  // XDR should be base64-encoded and reasonably long
+  const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+  if (data.length < 100 || !base64Regex.test(data)) {
+    return null;
   }
   
-  return null;
+  // Try to decode as base64 to validate format
+  try {
+    atob(data);
+    return data;
+  } catch {
+    return null;
+  }
 }
