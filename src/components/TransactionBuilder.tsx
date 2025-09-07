@@ -86,7 +86,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [copied, setCopied] = useState(false);
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
-  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' | 'offline' } | null>(null);
+  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' | 'offline'; xdr?: string } | null>(null);
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -1043,7 +1043,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             setSuccessData({ 
               type: 'offline', 
               hash: fingerprint.hash, 
-              network: currentNetwork 
+              network: currentNetwork,
+              xdr: xdrOutput
             });
           }}
           copied={copied}
@@ -1056,6 +1057,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             type={successData.type}
             hash={successData.type === 'network' || successData.type === 'offline' ? successData.hash : undefined}
             refractorId={successData.type === 'refractor' ? successData.hash : undefined}
+            xdr={successData.xdr}
             network={successData.network}
             onClose={() => setSuccessData(null)}
           />

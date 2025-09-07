@@ -6,10 +6,12 @@ import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
 import { createPortal } from 'react-dom';
+import { buildSEP7TxUri } from '@/lib/sep7';
 interface SuccessModalProps {
   type: 'network' | 'refractor' | 'offline';
   hash?: string;
   refractorId?: string;
+  xdr?: string;
   network?: 'mainnet' | 'testnet';
   onClose: () => void;
 }
@@ -17,6 +19,7 @@ export const SuccessModal = ({
   type,
   hash,
   refractorId,
+  xdr,
   network = 'mainnet',
   onClose
 }: SuccessModalProps) => {
@@ -28,18 +31,31 @@ export const SuccessModal = ({
   } = useToast();
   const shareUrl = type === 'refractor' && refractorId ? `${window.location.origin}?r=${refractorId}` : '';
   useEffect(() => {
-    if ((type === 'refractor' || type === 'offline') && (shareUrl || hash)) {
-      const qrData = type === 'offline' ? hash : shareUrl;
-      QRCode.toDataURL(qrData || '', {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff'
-        }
-      }).then(setQrCodeDataUrl);
+    if ((type === 'refractor' || type === 'offline') && (shareUrl || hash || xdr)) {
+      let qrData = '';
+      
+      if (type === 'offline' && xdr) {
+        // For offline signing, create a proper SEP-7 URI with the XDR
+        qrData = buildSEP7TxUri({
+          xdr,
+          network: network === 'testnet' ? 'testnet' : 'public'
+        });
+      } else if (type === 'refractor') {
+        qrData = shareUrl;
+      }
+      
+      if (qrData) {
+        QRCode.toDataURL(qrData, {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          }
+        }).then(setQrCodeDataUrl);
+      }
     }
-  }, [type, shareUrl, hash]);
+  }, [type, shareUrl, hash, xdr, network]);
   const copyToClipboard = async (text: string, label: string) => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
