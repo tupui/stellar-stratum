@@ -139,7 +139,7 @@ export const SuccessModal = ({
   };
   const displayValue = type === 'network' || type === 'offline' ? hash : refractorId;
   const label = type === 'network' || type === 'offline' ? 'Transaction Hash' : 'Transaction ID';
-  const title = type === 'network' ? 'Transaction Submitted Successfully' : type === 'offline' ? 'Air-gapped Signing' : 'Send for Signature';
+  const title = type === 'network' ? 'Transaction Submitted Successfully' : 'Send for Signature';
   const description = type === 'network' ? 'Your transaction has been successfully submitted to the Stellar network' : type === 'offline' ? 'Scan this QR code with your air-gapped signing device' : 'Send this transaction to other signers for approval';
   return createPortal(
     <>

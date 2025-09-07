@@ -10,11 +10,12 @@ import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
 
 interface XdrDetailsProps {
   xdr: string;
+  defaultExpanded?: boolean;
 }
 
-export const XdrDetails = ({ xdr }: XdrDetailsProps) => {
+export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) => {
   const { toast } = useToast();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
 
   const parsed = tryParseTransaction(xdr);

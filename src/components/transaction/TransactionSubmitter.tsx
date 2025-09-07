@@ -23,6 +23,7 @@ interface TransactionSubmitterProps {
   onSubmitToRefractor: () => Promise<void>;
   onShowOfflineModal: () => void;
   copied: boolean;
+  offlineOnly?: boolean;
 }
 
 export const TransactionSubmitter = ({ 
@@ -39,7 +40,8 @@ export const TransactionSubmitter = ({
   onSubmitToNetwork,
   onSubmitToRefractor,
   onShowOfflineModal,
-  copied
+  copied,
+  offlineOnly = false
 }: TransactionSubmitterProps) => {
   const { network: currentNetwork } = useNetwork();
   const [isAirgappedMode, setIsAirgappedMode] = useState(false);
@@ -72,39 +74,54 @@ export const TransactionSubmitter = ({
         // If not ready, show coordination options
         xdrOutput && (
           <>
-            {/* Coordination Mode Toggle */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base sm:text-lg">Coordination Mode</CardTitle>
-                <CardDescription>
-                  Choose how to coordinate transaction signatures
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center space-x-2">
-                  <Wifi className="w-4 h-4 text-muted-foreground" />
-                  <Label htmlFor="airgapped-mode">Refractor (Online)</Label>
-                  <Switch
-                    id="airgapped-mode"
-                    checked={isAirgappedMode}
-                    onCheckedChange={setIsAirgappedMode}
-                  />
-                  <Label htmlFor="airgapped-mode">Air-gapped (Offline)</Label>
-                  <WifiOff className="w-4 h-4 text-muted-foreground" />
-                </div>
-              </CardContent>
-            </Card>
+            {!offlineOnly && (
+              <>
+                {/* Coordination Mode Toggle */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base sm:text-lg">Coordination Mode</CardTitle>
+                    <CardDescription>
+                      Choose how to coordinate transaction signatures
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center space-x-2">
+                      <Wifi className="w-4 h-4 text-muted-foreground" />
+                      <Label htmlFor="airgapped-mode">Refractor (Online)</Label>
+                      <Switch
+                        id="airgapped-mode"
+                        checked={isAirgappedMode}
+                        onCheckedChange={setIsAirgappedMode}
+                      />
+                      <Label htmlFor="airgapped-mode">Air-gapped (Offline)</Label>
+                      <WifiOff className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Send for Signature Button */}
-            <Button 
-              className="w-full" 
-              size="lg"
-              onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor}
-              disabled={isSubmittingToRefractor}
-            >
-              <Send className="w-4 h-4 mr-2" />
-              {isSubmittingToRefractor ? 'Sending...' : 'Send for Signature'}
-            </Button>
+                {/* Send for Signature Button */}
+                <Button 
+                  className="w-full" 
+                  size="lg"
+                  onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor}
+                  disabled={isSubmittingToRefractor}
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {isSubmittingToRefractor ? 'Sending...' : 'Send for Signature'}
+                </Button>
+              </>
+            )}
+            
+            {offlineOnly && (
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={onShowOfflineModal}
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Send for Signature
+              </Button>
+            )}
           </>
         )
       )}

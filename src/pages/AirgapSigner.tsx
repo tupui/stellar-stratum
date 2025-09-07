@@ -14,11 +14,11 @@ import {
   ArrowLeft,
   ArrowRight
 } from 'lucide-react';
-import { AnimatedQR } from '@/components/airgap/AnimatedQR';
 import { AnimatedQRScanner } from '@/components/airgap/AnimatedQRScanner';
 import { XdrDetails } from '@/components/XdrDetails';
 import { SignerSelector } from '@/components/SignerSelector';
-import { TransactionSummary } from '@/components/TransactionSummary';
+import { TransactionSubmitter } from '@/components/transaction/TransactionSubmitter';
+import { SuccessModal } from '@/components/SuccessModal';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
@@ -29,9 +29,10 @@ export const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
   const { toast } = useToast();
   const [xdr, setXdr] = useState<string>('');
-  const [signedXdr, setSignedXdr] = useState<string>('');
+  const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const [step, setStep] = useState<'scan' | 'review' | 'sign' | 'share'>('scan');
+  const [step, setStep] = useState<'scan' | 'loaded'>('scan');
+  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'offline'; xdr?: string } | null>(null);
 
   // Disable network features for true air-gapped operation
   useEffect(() => {
@@ -84,7 +85,7 @@ export const AirgapSigner = () => {
         const parsed = tryParseTransaction(extractedXdr);
         if (parsed) {
           setXdr(extractedXdr);
-          setStep('review');
+          setStep('loaded');
         } else {
           toast({
             title: 'Invalid URL Parameter',
@@ -115,7 +116,7 @@ export const AirgapSigner = () => {
     }
     
     setXdr(receivedXdr);
-    setStep('review');
+    setStep('loaded');
     toast({
       title: 'Transaction Received',
       description: 'Ready for review and signing',
@@ -127,13 +128,13 @@ export const AirgapSigner = () => {
     walletId: string
   ) => {
     try {
-      // Mock signed XDR for demonstration - in real implementation this would come from wallet
-      const mockSignedXdr = xdr + '_SIGNED';
-      setSignedXdr(mockSignedXdr);
-      setStep('share');
+      // Add signature to signedBy array
+      const newSignature = { signerKey, signedAt: new Date() };
+      setSignedBy(prev => [...prev, newSignature]);
+      
       toast({
         title: 'Transaction Signed',
-        description: 'Ready to share via QR code',
+        description: 'Signature added successfully',
       });
     } catch (error) {
       toast({
@@ -159,36 +160,7 @@ export const AirgapSigner = () => {
     </div>
   );
 
-  const renderReviewStep = () => (
-    <div className="space-y-6">
-      {/* Transaction Summary - Always visible */}
-      <TransactionSummary xdr={xdr} />
-
-      {/* Detailed XDR Information - Collapsed by default */}
-      <XdrDetails xdr={xdr} />
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Button 
-          variant="outline" 
-          onClick={() => setStep('scan')}
-          className="flex-1"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
-        <Button 
-          onClick={() => setStep('sign')}
-          className="flex-1"
-          size="lg"
-        >
-          Sign Transaction
-          <ArrowRight className="w-4 h-4 ml-2" />
-        </Button>
-      </div>
-    </div>
-  );
-
-  const renderSignStep = () => {
+  const renderLoadedStep = () => {
     // Mock account data for signing interface
     const mockAccountData = {
       balances: [],
@@ -199,64 +171,63 @@ export const AirgapSigner = () => {
       thresholds: { low_threshold: 1, med_threshold: 1, high_threshold: 1 }
     };
 
+    const currentWeight = signedBy.reduce((total, signature) => {
+      const signer = mockAccountData.signers.find(s => s.key === signature.signerKey);
+      return total + (signer?.weight || 0);
+    }, 0);
+    const requiredWeight = 1;
+
     return (
       <div className="space-y-6">
+        {/* Advanced Transaction Details - Expanded by default */}
+        <XdrDetails xdr={xdr} defaultExpanded={true} />
+
+        {/* Signature Management */}
         <SignerSelector
           xdr={xdr}
           signers={mockAccountData.signers}
           currentAccountKey="MOCK_ACCOUNT_KEY"
-          signedBy={[]}
-          requiredWeight={1}
+          signedBy={signedBy}
+          requiredWeight={requiredWeight}
           onSignWithSigner={handleSignWithSigner}
           isSigning={false}
+        />
+
+        {/* Transaction Submitter - Offline only mode */}
+        <TransactionSubmitter
+          xdrOutput={xdr}
+          signedBy={signedBy}
+          currentWeight={currentWeight}
+          requiredWeight={requiredWeight}
+          canSubmitToNetwork={false}
+          canSubmitToRefractor={false}
+          isSubmittingToNetwork={false}
+          isSubmittingToRefractor={false}
+          successData={null}
+          onCopyXdr={() => {}}
+          onSubmitToNetwork={async () => {}}
+          onSubmitToRefractor={async () => {}}
+          onShowOfflineModal={() => {
+            const fingerprint = generateDetailedFingerprint(xdr, network);
+            setSuccessData({ 
+              type: 'offline', 
+              hash: fingerprint.hash, 
+              network,
+              xdr
+            });
+          }}
+          copied={false}
+          offlineOnly={true}
         />
 
         <div className="flex justify-center">
           <Button 
             variant="outline" 
-            onClick={() => setStep('review')}
+            onClick={() => setStep('scan')}
             className="px-6"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back
-          </Button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderShareStep = () => {
-    const signaturePayload = signedXdr || '';
-
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 rounded-full text-sm font-medium mb-4">
-            <CheckCircle2 className="w-4 h-4" />
-            Transaction Signed Successfully
-          </div>
-        </div>
-
-        <AnimatedQR
-          data={signaturePayload}
-          type="xdr"
-          embedded
-        />
-
-        <div className="text-sm text-muted-foreground text-center">
-          Share this QR code with the transaction coordinator
-        </div>
-
-        <div className="flex justify-center">
-          <Button 
-            onClick={() => {
-              setXdr('');
-              setSignedXdr('');
-              setStep('scan');
-            }}
-            className="px-8"
-          >
-            Sign Another Transaction
+            Back to Scanner
           </Button>
         </div>
       </div>
@@ -284,9 +255,7 @@ export const AirgapSigner = () => {
                 <h1 className="text-xl font-bold">Air-Gapped Signer</h1>
                 <p className="text-sm text-muted-foreground">
                   {step === 'scan' && 'Ready to scan transaction'}
-                  {step === 'review' && 'Review transaction details'}
-                  {step === 'sign' && 'Sign with your wallet'}
-                  {step === 'share' && 'Share signed transaction'}
+                  {step === 'loaded' && 'Review and sign transaction'}
                 </p>
               </div>
             </div>
@@ -306,14 +275,23 @@ export const AirgapSigner = () => {
             <div className="bg-background/80 backdrop-blur-sm border border-border/50 rounded-2xl shadow-xl">
                 <div className="p-4 md:p-6">
                 {step === 'scan' && renderScanStep()}
-                {step === 'review' && renderReviewStep()}
-                {step === 'sign' && renderSignStep()}
-                {step === 'share' && renderShareStep()}
+                {step === 'loaded' && renderLoadedStep()}
               </div>
             </div>
           </div>
         </main>
       </div>
+
+      {/* Success Modal */}
+      {successData && (
+        <SuccessModal
+          type={successData.type}
+          hash={successData.hash}
+          xdr={successData.xdr}
+          network={successData.network}
+          onClose={() => setSuccessData(null)}
+        />
+      )}
     </div>
   );
 };
