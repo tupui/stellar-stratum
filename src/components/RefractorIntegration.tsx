@@ -10,6 +10,7 @@ import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useToast } from '@/hooks/use-toast';
 import { ShareModal } from './ShareModal';
 import { QRScanner } from './QRScanner';
+import { parseQRData } from '@/lib/qr';
 interface RefractorIntegrationProps {
   onPullTransaction: (refractorId: string) => Promise<void>;
   lastRefractorId?: string;
@@ -61,52 +62,35 @@ export const RefractorIntegration = ({
     }
   };
   const handleQRScan = (data: string) => {
-    // Check if it's a SEP-7 URI or Stellar Stratum deep link
-    try {
-      const url = new URL(data);
-      
-      // Check for SEP-7 tx URI
-      if (url.protocol === 'web+stellar:' && url.pathname === 'tx') {
-        const xdr = url.searchParams.get('xdr');
-        if (xdr) {
-          // This is XDR data, let the parent handle it directly
-          // For now, just extract refractor ID if present
-          const callback = url.searchParams.get('callback');
-          if (callback) {
-            try {
-              const callbackUrl = new URL(callback);
-              if (callbackUrl.hostname === 'refractor.space') {
-                const refractorParam = callbackUrl.searchParams.get('r');
-                if (refractorParam) {
-                  setRefractorId(refractorParam);
-                  handlePullTransaction();
-                  return;
-                }
-              }
-            } catch {
-              // Invalid callback URL
-            }
-          }
+    const result = parseQRData(data);
+    
+    switch (result.type) {
+      case 'refractor-id':
+      case 'deeplink':
+        if (result.metadata?.refractorId) {
+          setRefractorId(result.metadata.refractorId);
+          // Auto-pull if we found a refractor ID
+          setTimeout(() => handlePullTransaction(), 100);
         }
-      }
+        break;
       
-      // Check for Stratum deep link
-      const refractorParam = url.searchParams.get('r');
-      if (refractorParam) {
-        setRefractorId(refractorParam);
-        handlePullTransaction();
-        return;
-      }
-    } catch {
-      // Not a valid URL, might be just the refractor ID
+      case 'sep7':
+        if (result.metadata?.refractorId) {
+          setRefractorId(result.metadata.refractorId);
+          setTimeout(() => handlePullTransaction(), 100);
+        }
+        break;
+      
+      default:
+        // Fallback: assume it's a refractor ID
+        setRefractorId(data);
+        toast({
+          title: 'QR Code Scanned',
+          description: 'Please verify the ID and click Pull to import',
+          duration: 3000
+        });
+        break;
     }
-
-    // Assume it's a refractor ID or XDR
-    if (data.length > 50) {
-      // Likely XDR data - could be handled by parent component
-      // For now, just treat as refractor ID
-    }
-    setRefractorId(data);
   };
   const openRefractor = () => {
     const newWindow = window.open('https://refractor.space/', '_blank', 'noopener,noreferrer');

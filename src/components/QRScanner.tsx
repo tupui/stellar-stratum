@@ -65,6 +65,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               deviceId: selectedDevice.deviceId,
               width: { ideal: 1920, min: 1280 },
               height: { ideal: 1080, min: 720 },
+              frameRate: { ideal: 30, min: 15 },
               facingMode: { ideal: 'environment' }
             }
           };
@@ -109,13 +110,14 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           }
         } else {
           // Fallback to constraints if no devices found
-          const constraints: MediaStreamConstraints = {
-            video: { 
-              facingMode: { ideal: 'environment' },
-              width: { ideal: 1920, min: 1280 },
-              height: { ideal: 1080, min: 720 }
-            }
-          };
+        const constraints: MediaStreamConstraints = {
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 },
+            frameRate: { ideal: 30, min: 15 }
+          }
+        };
           
           const controls = await reader.decodeFromConstraints(
             constraints,
@@ -153,7 +155,8 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           video: { 
             facingMode: { ideal: 'environment' },
             width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 }
+            height: { ideal: 1080, min: 720 },
+            frameRate: { ideal: 30, min: 15 }
           }
         };
         
