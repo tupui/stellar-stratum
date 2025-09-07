@@ -48,8 +48,8 @@ export const LandingPage = ({
         <div className="container mx-auto flex justify-between items-center">
           <div className="text-2xl font-bold text-stellar-yellow text-glow-yellow transition-all duration-300">Stratum</div>
           <Button variant="outline" className="border-muted-foreground/20 hover:border-stellar-yellow hover:text-stellar-yellow" asChild>
-            <a href="https://x.com/PamphileRoy" target="_blank" rel="noopener noreferrer">
-              Contact
+            <a href="https://github.com/tupui/stellar-stratum/issues" target="_blank" rel="noopener noreferrer">
+              Support
             </a>
           </Button>
         </div>
