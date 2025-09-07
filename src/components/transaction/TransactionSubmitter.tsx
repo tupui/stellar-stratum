@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Copy, ExternalLink, Wifi, WifiOff, Send, Fingerprint } from 'lucide-react';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
@@ -85,16 +84,28 @@ export const TransactionSubmitter = ({
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center space-x-2">
-                      <Wifi className="w-4 h-4 text-muted-foreground" />
-                      <Label htmlFor="airgapped-mode">Refractor (Online)</Label>
-                      <Switch
-                        id="airgapped-mode"
-                        checked={isAirgappedMode}
-                        onCheckedChange={setIsAirgappedMode}
-                      />
-                      <Label htmlFor="airgapped-mode">Air-gapped (Offline)</Label>
-                      <WifiOff className="w-4 h-4 text-muted-foreground" />
+                    <div className="space-y-4">
+                      <ToggleGroup
+                        type="single"
+                        value={isAirgappedMode ? "offline" : "online"}
+                        onValueChange={(value) => setIsAirgappedMode(value === "offline")}
+                        className="grid w-full grid-cols-2"
+                      >
+                        <ToggleGroupItem value="online" className="flex items-center gap-2">
+                          <Wifi className="w-4 h-4" />
+                          Refractor (Online)
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="offline" className="flex items-center gap-2">
+                          <WifiOff className="w-4 h-4" />
+                          Air-gapped (Offline)
+                        </ToggleGroupItem>
+                      </ToggleGroup>
+                      <p className="text-sm text-muted-foreground">
+                        {isAirgappedMode 
+                          ? "Use QR codes for secure offline signature coordination"
+                          : "Share transaction via Refractor for online coordination"
+                        }
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
