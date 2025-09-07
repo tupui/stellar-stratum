@@ -245,10 +245,6 @@ export const AirgapSigner = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold">Air-Gapped Signer</h1>
-                <p className="text-sm text-muted-foreground">
-                  {step === 'scan' && 'Ready to scan transaction'}
-                  {step === 'loaded' && 'Review and sign transaction'}
-                </p>
               </div>
             </div>
             
