@@ -23,6 +23,7 @@ import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractXdrFromData } from '@/lib/sep7';
+import { tryParseTransaction } from '@/lib/xdr/parse';
 
 export const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
@@ -79,17 +80,40 @@ export const AirgapSigner = () => {
     if (xdrParam) {
       const extractedXdr = extractXdrFromData(decodeURIComponent(xdrParam));
       if (extractedXdr) {
-        setXdr(extractedXdr);
-        setStep('review');
+        // Validate XDR before setting
+        const parsed = tryParseTransaction(extractedXdr);
+        if (parsed) {
+          setXdr(extractedXdr);
+          setStep('review');
+        } else {
+          toast({
+            title: 'Invalid URL Parameter',
+            description: 'The XDR in the URL is not a valid transaction.',
+            variant: 'destructive',
+          });
+        }
       }
     }
     
     if (networkParam) {
       setNetwork(networkParam);
     }
-  }, [setNetwork]);
+  }, [setNetwork, toast]);
 
   const handleXdrReceived = (receivedXdr: string) => {
+    console.log('XDR received:', receivedXdr);
+    
+    // Validate XDR
+    const parsed = tryParseTransaction(receivedXdr);
+    if (!parsed) {
+      toast({
+        title: 'Invalid Transaction',
+        description: 'Invalid transaction payload. Ensure it\'s a SEP-7 tx QR or base64 XDR.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setXdr(receivedXdr);
     setStep('review');
     toast({

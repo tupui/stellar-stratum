@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { QrCode, X } from 'lucide-react';
 import { QRScanner } from '@/components/QRScanner';
 import { extractXdrFromData } from '@/lib/sep7';
+import { tryParseTransaction } from '@/lib/xdr/parse';
+import { useToast } from '@/hooks/use-toast';
 
 interface AnimatedQRScannerProps {
   onDataReceived: (data: string, type: 'xdr' | 'signature') => void;
@@ -21,14 +23,35 @@ export const AnimatedQRScanner = ({
   embedded = false
 }: AnimatedQRScannerProps) => {
   const [isScanning, setIsScanning] = useState(false);
+  const { toast } = useToast();
 
   const handleQRScan = (data: string) => {
+    console.log('QR scanned:', data);
+    
     // Extract XDR from SEP-7 URI or use raw data
     const xdr = extractXdrFromData(data);
-    if (xdr) {
-      onDataReceived(xdr, expectedType);
-      setIsScanning(false);
+    if (!xdr) {
+      toast({
+        title: 'Invalid QR Code',
+        description: 'The QR code does not contain valid transaction data.',
+        variant: 'destructive',
+      });
+      return;
     }
+
+    // Validate XDR can be parsed
+    const parsed = tryParseTransaction(xdr);
+    if (!parsed) {
+      toast({
+        title: 'Invalid Transaction',
+        description: 'Invalid transaction payload. Expecting a SEP-7 transaction QR or base64-encoded XDR.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    onDataReceived(xdr, expectedType);
+    setIsScanning(false);
   };
 
   if (embedded) {

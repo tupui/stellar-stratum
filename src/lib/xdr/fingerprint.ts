@@ -1,19 +1,17 @@
-import { Transaction, xdr } from '@stellar/stellar-sdk';
-import { getNetworkPassphrase } from '@/lib/stellar';
+import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
 
 /**
  * Generates a transaction hash for verification
  */
 export const generateTransactionFingerprint = (
   transactionXdr: string,
-  network: 'mainnet' | 'testnet'
+  network?: 'mainnet' | 'testnet'
 ): string => {
   try {
-    const networkPassphrase = getNetworkPassphrase(network);
-    const transaction = new Transaction(transactionXdr, networkPassphrase);
+    const parsed = tryParseTransaction(transactionXdr);
+    if (!parsed) return '';
     
-    // Return full transaction hash
-    return transaction.hash().toString('hex');
+    return parsed.tx.hash().toString('hex');
   } catch (error) {
     console.error('Error generating fingerprint:', error);
     return '';
@@ -25,15 +23,23 @@ export const generateTransactionFingerprint = (
  */
 export const generateDetailedFingerprint = (
   transactionXdr: string,
-  network: 'mainnet' | 'testnet'
+  network?: 'mainnet' | 'testnet'
 ): { hash: string; operationSummary: string; sourceAccount: string } => {
   try {
-    const networkPassphrase = getNetworkPassphrase(network);
-    const transaction = new Transaction(transactionXdr, networkPassphrase);
-    
+    const parsed = tryParseTransaction(transactionXdr);
+    if (!parsed) {
+      return {
+        hash: '',
+        operationSummary: 'Unknown ops',
+        sourceAccount: 'Unknown'
+      };
+    }
+
+    const { tx } = parsed;
+    const innerTx = getInnerTransaction(tx);
     const hash = generateTransactionFingerprint(transactionXdr, network);
-    const operationSummary = `${transaction.operations.length} op${transaction.operations.length !== 1 ? 's' : ''}`;
-    const sourceAccount = transaction.source.substring(0, 4) + '...' + transaction.source.slice(-4);
+    const operationSummary = `${innerTx.operations.length} op${innerTx.operations.length !== 1 ? 's' : ''}`;
+    const sourceAccount = innerTx.source.substring(0, 4) + '...' + innerTx.source.slice(-4);
     
     return {
       hash,

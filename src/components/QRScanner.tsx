@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Camera, Upload, X } from 'lucide-react';
+import { Camera, Upload, X, RotateCcw } from 'lucide-react';
 import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser';
 import jsQR from 'jsqr';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,9 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [waitingForCamera, setWaitingForCamera] = useState(false);
+  const [availableDevices, setAvailableDevices] = useState<MediaDeviceInfo[]>([]);
+  const [currentDeviceIndex, setCurrentDeviceIndex] = useState(0);
   const readerRef = useRef<BrowserQRCodeReader | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const { toast } = useToast();
@@ -38,6 +41,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     try {
       console.log('Starting QR scanner...');
       setIsScanning(true);
+      setWaitingForCamera(true);
       
       if (!readerRef.current) {
         readerRef.current = new BrowserQRCodeReader();
@@ -45,42 +49,103 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
 
       const reader = readerRef.current;
       
-      // Use decodeFromConstraints with back camera preference
-      const constraints: MediaStreamConstraints = {
-        video: {
-          facingMode: { ideal: 'environment' }, // prefer back camera
+      // Enumerate video devices first
+      try {
+        const devices = await BrowserQRCodeReader.listVideoInputDevices();
+        setAvailableDevices(devices);
+        
+        // Use specific device if available, otherwise fallback to constraints
+        if (devices.length > 0) {
+          const selectedDevice = devices[currentDeviceIndex] || devices[0];
+          console.log('Using camera device:', selectedDevice.label);
+          
+          const controls = await reader.decodeFromVideoDevice(
+            selectedDevice.deviceId,
+            videoRef.current!,
+            (result) => {
+              if (result) {
+                console.log('QR code detected:', result.getText());
+                onScan(result.getText());
+                stopScanner();
+                onClose();
+                toast({
+                  title: 'QR Code Scanned',
+                  description: 'Successfully scanned QR code',
+                });
+              }
+            }
+          );
+          
+          controlsRef.current = controls;
+        } else {
+          // Fallback to constraints if no devices found
+          const constraints: MediaStreamConstraints = {
+            video: { facingMode: { ideal: 'environment' } }
+          };
+          
+          const controls = await reader.decodeFromConstraints(
+            constraints,
+            videoRef.current!,
+            (result) => {
+              if (result) {
+                console.log('QR code detected:', result.getText());
+                onScan(result.getText());
+                stopScanner();
+                onClose();
+                toast({
+                  title: 'QR Code Scanned',
+                  description: 'Successfully scanned QR code',
+                });
+              }
+            }
+          );
+          
+          controlsRef.current = controls;
         }
-      };
-      
-      console.log('Starting camera with constraints:', constraints);
-      
-      // Start scanning and store controls for cleanup
-      const controls = await reader.decodeFromConstraints(
-        constraints,
-        videoRef.current!,
-        (result, error) => {
-          if (result) {
-            console.log('QR code detected:', result.getText());
-            onScan(result.getText());
-            stopScanner();
-            onClose();
-            toast({
-              title: 'QR Code Scanned',
-              description: 'Successfully scanned QR code',
-            });
+        
+        // Wait for video to load
+        if (videoRef.current) {
+          videoRef.current.addEventListener('loadedmetadata', () => {
+            setWaitingForCamera(false);
+          }, { once: true });
+        }
+        
+        console.log('Scanner started successfully');
+      } catch (deviceError) {
+        console.warn('Could not enumerate devices, using constraints fallback:', deviceError);
+        
+        // Fallback to constraints
+        const constraints: MediaStreamConstraints = {
+          video: { facingMode: { ideal: 'environment' } }
+        };
+        
+        const controls = await reader.decodeFromConstraints(
+          constraints,
+          videoRef.current!,
+          (result) => {
+            if (result) {
+              console.log('QR code detected:', result.getText());
+              onScan(result.getText());
+              stopScanner();
+              onClose();
+              toast({
+                title: 'QR Code Scanned',
+                description: 'Successfully scanned QR code',
+              });
+            }
           }
-          // Don't log decode errors as they're expected while scanning
-        }
-      );
-      
-      controlsRef.current = controls;
-      console.log('Scanner started successfully');
+        );
+        
+        controlsRef.current = controls;
+        setWaitingForCamera(false);
+      }
     } catch (error) {
       console.error('Error starting scanner:', error);
       setIsScanning(false);
+      setWaitingForCamera(false);
       toast({
         title: 'Camera Error',
-        description: 'Could not access camera for scanning',
+        description: 'Camera access denied or unavailable. Try switching camera or upload an image.',
         variant: 'destructive',
       });
     }
@@ -104,6 +169,17 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     }
     
     setIsScanning(false);
+    setWaitingForCamera(false);
+  };
+
+  const switchCamera = () => {
+    if (availableDevices.length > 1) {
+      const nextIndex = (currentDeviceIndex + 1) % availableDevices.length;
+      setCurrentDeviceIndex(nextIndex);
+      stopScanner();
+      // Restart scanner with new device
+      setTimeout(startScanner, 100);
+    }
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,13 +331,32 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             {/* Scanning overlay */}
             <div className="absolute inset-4 border-2 border-dashed border-primary/50 rounded-lg pointer-events-none">
               <div className="absolute inset-0 flex items-center justify-center">
-                {isScanning && (
+                {waitingForCamera && (
+                  <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                    Waiting for camera permission...
+                  </div>
+                )}
+                {isScanning && !waitingForCamera && (
                   <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">
                     Scanning...
                   </div>
                 )}
               </div>
             </div>
+            
+            {/* Camera switch button */}
+            {availableDevices.length > 1 && isScanning && (
+              <div className="absolute top-2 right-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={switchCamera}
+                  className="bg-black/50 text-white hover:bg-black/70"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
           </div>
           
           {/* Upload Alternative */}
@@ -272,7 +367,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp"
               onChange={handleImageUpload}
               className="hidden"
             />

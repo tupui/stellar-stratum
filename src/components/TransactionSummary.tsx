@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, ArrowRight, DollarSign, Users, Settings, Merge, CreditCard, Fingerprint } from 'lucide-react';
-import { Transaction } from '@stellar/stellar-sdk';
-import { getNetworkPassphrase } from '@/lib/stellar';
+import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface TransactionSummaryProps {
@@ -14,27 +13,28 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
   const { network } = useNetwork();
 
   const getTransactionSummary = () => {
-    try {
-      const networkPassphrase = getNetworkPassphrase(network);
-      const transaction = new Transaction(xdr, networkPassphrase);
-      
-      const operations = transaction.operations.map((op, index) => ({
-        index,
-        type: op.type,
-        details: op as any,
-      }));
+    const parsed = tryParseTransaction(xdr);
+    if (!parsed) return null;
 
-      return {
-        source: transaction.source,
-        fee: transaction.fee,
-        operations,
-        memo: transaction.memo,
-        operationCount: operations.length,
-        hash: transaction.hash().toString('hex').substring(0, 8) + '...',
-      };
-    } catch (error) {
-      return null;
-    }
+    const { tx, network: detectedNetwork, isFeeBump } = parsed;
+    const transaction = getInnerTransaction(tx);
+    
+    const operations = transaction.operations.map((op, index) => ({
+      index,
+      type: op.type,
+      details: op as any,
+    }));
+
+    return {
+      source: transaction.source,
+      fee: tx.fee,
+      operations,
+      memo: transaction.memo,
+      operationCount: operations.length,
+      hash: tx.hash().toString('hex').substring(0, 8) + '...',
+      detectedNetwork,
+      isFeeBump,
+    };
   };
 
   const summary = getTransactionSummary();
@@ -135,6 +135,19 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
             <p className="text-sm font-medium">{parseInt(summary.fee) / 10000000} XLM</p>
           </div>
         </div>
+        
+        {summary.isFeeBump && (
+          <div className="p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="outline" className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                Fee-Bump Transaction
+              </Badge>
+            </div>
+            <p className="text-sm text-blue-700 dark:text-blue-300">
+              This transaction has been wrapped with additional fees by a sponsor account.
+            </p>
+          </div>
+        )}
 
         {/* Operations Summary */}
         <div>
@@ -215,7 +228,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
         
         <div className="pt-2 border-t border-border/50">
           <p className="text-xs text-muted-foreground">
-            Transaction Hash: {summary.hash} • {network === 'mainnet' ? 'Mainnet' : 'Testnet'}
+            Transaction Hash: {summary.hash} • Network: {summary.detectedNetwork === 'public' ? 'Mainnet' : 'Testnet'}
           </p>
         </div>
       </CardContent>
