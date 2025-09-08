@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Copy, Shield, Users, AlertTriangle, Settings } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
+import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 
 interface AccountData {
   publicKey: string;
@@ -107,8 +109,25 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           </CardContent>
         </Card>
 
-        {/* Balances */}
-        <AssetBalancePanel balances={accountData.balances} onRefreshBalances={onRefreshBalances} />
+        {/* Tabs: Balances and Activity */}
+        <Tabs defaultValue="balances" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
+            <TabsTrigger value="balances" className="text-sm">
+              Balances
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="text-sm">
+              Activity
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="balances" className="mt-6">
+            <AssetBalancePanel balances={accountData.balances} onRefreshBalances={onRefreshBalances} />
+          </TabsContent>
+          
+          <TabsContent value="activity" className="mt-6">
+            <TransactionHistoryPanel accountPublicKey={accountData.publicKey} />
+          </TabsContent>
+        </Tabs>
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Thresholds */}

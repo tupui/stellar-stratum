@@ -49,7 +49,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         const hints = new Map<DecodeHintType, any>();
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
         hints.set(DecodeHintType.TRY_HARDER, true);
-        readerRef.current = new BrowserMultiFormatReader(hints, 75);
+        const reader = readerRef.current = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 75 });
       }
 
       const reader = readerRef.current;

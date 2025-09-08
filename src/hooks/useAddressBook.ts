@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createHorizonServer } from '@/lib/stellar';
 import { resolveSorobanDomain } from '@/lib/soroban-domains';
+import { retryWithBackoff } from '@/lib/horizon-utils';
 
 export interface AddressBookEntry {
   address: string;
@@ -20,7 +21,7 @@ interface CachedAddressBook {
 }
 
 const STORAGE_KEY_PREFIX = 'stellar-stratum-address-book';
-const MIN_TRANSACTION_AMOUNT = 1; // Filter transactions below 1 XLM
+const MIN_TRANSACTION_AMOUNT = 1; // Use shared constant from horizon-utils
 const SYNC_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_ENTRIES = 500; // Cap total entries
 const MAX_PAGES_PER_SYNC = 5; // Limit operations per sync
@@ -97,24 +98,6 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
     const amountScore = Math.log(totalAmount + 1) * 5; // XLM amounts only
     
     return (frequencyScore + amountScore) * recencyFactor;
-  };
-
-  // Retry with backoff for rate limit errors
-  const retryWithBackoff = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> => {
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        return await fn();
-      } catch (error: any) {
-        const isRateLimit = error?.status === 429 || error?.status === 503;
-        if (isRateLimit && i < maxRetries - 1) {
-          const delay = Math.min(1000 * Math.pow(2, i), 10000); // Exponential backoff, max 10s
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        throw error;
-      }
-    }
-    throw new Error('Max retries exceeded');
   };
 
   // Sync address book with transaction history (optimized)
