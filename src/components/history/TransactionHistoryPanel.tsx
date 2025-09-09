@@ -28,7 +28,7 @@ import { useFiatConversion } from '@/hooks/useFiatConversion';
 import { getHorizonTransactionUrl } from '@/lib/horizon-utils';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { TransactionChart } from './TransactionChart';
 
 interface TransactionHistoryPanelProps {
   accountPublicKey: string;
@@ -62,7 +62,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
     hasMore, 
     lastSync, 
     loadMore, 
-    refresh 
+    loadProgressively,
+    refresh,
+    getTransactionsByDateRange
   } = useAccountHistory(accountPublicKey);
   
   const { convertXLMToFiat, formatFiatAmount } = useFiatConversion();
@@ -158,7 +160,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
     });
   }, [transactions, filters]);
 
-  // Calculate aggregated stats for selected or filtered transactions
+  // Calculate aggregated stats for selected or filtered transactions (removed avg amount)
   const aggregatedStats = useMemo((): AggregatedStats => {
     const targetTransactions = selectedTransactions.size > 0 
       ? filteredTransactions.filter(tx => selectedTransactions.has(tx.id))
@@ -177,27 +179,15 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
       count,
       totalXLM,
       totalFiat,
-      avgXLM: count > 0 ? totalXLM / count : 0,
-      avgFiat: count > 0 ? totalFiat / count : 0,
+      avgXLM: 0, // Remove avg calculation
+      avgFiat: 0, // Remove avg calculation
     };
   }, [filteredTransactions, selectedTransactions, fiatAmounts]);
 
-  // Prepare chart data (last 30 transactions for performance)
-  const chartData = useMemo(() => {
-    const recentTransactions = filteredTransactions.slice(0, 30).reverse();
-    let runningBalance = 0;
-    
-    return recentTransactions.map((tx, index) => {
-      runningBalance += tx.direction === 'in' ? tx.amount : -tx.amount;
-      
-      return {
-        date: format(tx.createdAt, 'MMM dd'),
-        balance: runningBalance,
-        amount: tx.amount,
-        direction: tx.direction,
-      };
-    });
-  }, [filteredTransactions]);
+  // Auto-load more data progressively for better UX
+  const handleRequestMoreData = async () => {
+    await loadProgressively();
+  };
 
   const truncateAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-6)}`;
@@ -423,25 +413,21 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
           </div>
         )}
 
-        {/* Aggregated Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="text-center p-3 bg-secondary/50 rounded-lg">
+        {/* Aggregated Stats - removed avg amount */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-secondary/50 rounded-lg">
             <div className="text-2xl font-bold text-primary">{aggregatedStats.count}</div>
             <div className="text-xs text-muted-foreground">
-              {selectedTransactions.size > 0 ? 'Selected' : 'Total'}
+              {selectedTransactions.size > 0 ? 'Selected' : 'Total'} Transactions
             </div>
           </div>
-          <div className="text-center p-3 bg-secondary/50 rounded-lg">
+          <div className="text-center p-4 bg-secondary/50 rounded-lg">
             <div className="text-lg font-bold">{aggregatedStats.totalXLM.toFixed(2)} XLM</div>
             <div className="text-xs text-muted-foreground">Total Amount</div>
           </div>
-          <div className="text-center p-3 bg-secondary/50 rounded-lg">
+          <div className="text-center p-4 bg-secondary/50 rounded-lg">
             <div className="text-lg font-bold">{formatFiatAmount(aggregatedStats.totalFiat)}</div>
             <div className="text-xs text-muted-foreground">Total Value</div>
-          </div>
-          <div className="text-center p-3 bg-secondary/50 rounded-lg">
-            <div className="text-lg font-bold">{aggregatedStats.avgXLM.toFixed(2)} XLM</div>
-            <div className="text-xs text-muted-foreground">Avg Amount</div>
           </div>
         </div>
 
@@ -457,43 +443,11 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
           </div>
         )}
 
-        {/* Chart */}
-        {chartData.length > 0 && (
-          <div className="h-48 w-full">
-            <h3 className="text-sm font-medium mb-2">Balance Trend (Last 30 transactions)</h3>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 10 }}
-                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                />
-                <YAxis 
-                  tick={{ fontSize: 10 }}
-                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--popover))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                  formatter={(value: any) => [`${Number(value).toFixed(2)} XLM`, 'Balance']}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="balance"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: 'hsl(var(--primary))' }}
-                  activeDot={{ r: 4, stroke: 'hsl(var(--primary-glow))' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        {/* Enhanced Chart with Controls */}
+        <TransactionChart 
+          transactions={filteredTransactions}
+          onRequestMoreData={handleRequestMoreData}
+        />
 
         <Separator />
 
@@ -527,10 +481,10 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className={cn(
-                        "p-2 rounded-full",
+                        "p-2 rounded-full transition-colors",
                         tx.direction === 'out' 
-                          ? "bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400"
-                          : "bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-400"
+                          ? "bg-destructive/20 text-destructive"
+                          : "bg-success/20 text-success"
                       )}>
                         {tx.direction === 'out' ? 
                           <ArrowUpRight className="w-4 h-4" /> : 

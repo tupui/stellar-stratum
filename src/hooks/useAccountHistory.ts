@@ -21,15 +21,21 @@ interface AccountHistoryHook {
   lastSync: Date | null;
   loadInitial: () => Promise<void>;
   loadMore: () => Promise<void>;
+  loadProgressively: () => Promise<void>;
   refresh: () => Promise<void>;
+  getTransactionsByDateRange: (startDate: Date, endDate: Date) => NormalizedTransaction[];
 }
 
 const CACHE_KEY_PREFIX = 'account-history';
-const INITIAL_LIMIT = 50;
-const LOAD_MORE_LIMIT = 25;
+const INITIAL_LIMIT = 100; // Increased for better UX
+const LOAD_MORE_LIMIT = 50;
+const MAX_TRANSACTIONS_PER_SESSION = 5000; // ~1 year of data for active accounts
+const RATE_LIMIT_DELAY = 100; // ms between requests
+const MAX_CONCURRENT_REQUESTS = 3;
 
 // In-flight promises to prevent concurrent requests for same account
 const requestPromises = new Map<string, Promise<any>>();
+const requestCounts = new Map<string, { count: number; resetTime: number }>();
 
 export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
   const { network } = useNetwork();
@@ -84,18 +90,42 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     }
   }, [cacheKey]);
 
+  // Smart rate limiting
+  const checkRateLimit = useCallback((key: string): boolean => {
+    const now = Date.now();
+    const requestInfo = requestCounts.get(key);
+    
+    if (!requestInfo || now > requestInfo.resetTime) {
+      requestCounts.set(key, { count: 1, resetTime: now + 60000 }); // Reset every minute
+      return true;
+    }
+    
+    if (requestInfo.count >= MAX_CONCURRENT_REQUESTS) {
+      return false;
+    }
+    
+    requestInfo.count++;
+    return true;
+  }, []);
+
   // Check if we need to sync
   const needsSync = useCallback((): boolean => {
     if (!lastSync) return true;
     return Date.now() - lastSync.getTime() > TRANSACTION_CACHE_DURATION;
   }, [lastSync]);
 
-  // Fetch and process transactions
+  // Fetch and process transactions with rate limiting
   const fetchTransactions = useCallback(async (
     useCursor?: string, 
     limit: number = INITIAL_LIMIT,
     append: boolean = false
   ): Promise<NormalizedTransaction[]> => {
+    const rateLimitKey = `${publicKey}-${network}`;
+    
+    if (!checkRateLimit(rateLimitKey)) {
+      await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+    }
+
     const response = await fetchAccountPayments(publicKey, network, useCursor, limit);
     
     const normalizedTransactions: NormalizedTransaction[] = [];
@@ -113,11 +143,12 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
       setCursor(lastRecord.paging_token);
     }
 
-    // Update hasMore based on response
-    setHasMore(response.records.length === limit);
+    // Update hasMore based on response and max limit
+    const reachedMaxTransactions = transactions.length + normalizedTransactions.length >= MAX_TRANSACTIONS_PER_SESSION;
+    setHasMore(response.records.length === limit && !reachedMaxTransactions);
 
     return normalizedTransactions;
-  }, [publicKey, network]);
+  }, [publicKey, network, checkRateLimit, transactions.length]);
 
   // Load initial data (from cache if available, otherwise fetch)
   const loadInitial = useCallback(async () => {
@@ -150,11 +181,15 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
         setTransactions(newTransactions);
         setLastSync(now);
 
-        // Save to cache
+        // Save to cache with current cursor
+        const currentCursor = newTransactions.length > 0 
+          ? newTransactions[newTransactions.length - 1].id 
+          : undefined;
+        
         saveToCache({
           transactions: newTransactions,
           lastSync: now,
-          cursor,
+          cursor: currentCursor,
         });
 
       } catch (err: any) {
@@ -201,6 +236,39 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     }
   }, [publicKey, cursor, hasMore, isLoading, fetchTransactions]);
 
+  // Load progressively to build up 1 year of data
+  const loadProgressively = useCallback(async () => {
+    if (!publicKey || isLoading || !hasMore || transactions.length >= MAX_TRANSACTIONS_PER_SESSION) return;
+
+    try {
+      // Load multiple batches progressively with delays
+      let batchCount = 0;
+      const maxBatches = 5; // Load 5 batches progressively
+      
+      while (batchCount < maxBatches && hasMore && transactions.length < MAX_TRANSACTIONS_PER_SESSION) {
+        await loadMore();
+        batchCount++;
+        
+        // Add delay between batches to not overwhelm the API
+        if (batchCount < maxBatches) {
+          await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY * 2));
+        }
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('Progressive loading failed:', error);
+      }
+    }
+  }, [publicKey, isLoading, hasMore, transactions.length, loadMore]);
+
+  // Get transactions within date range
+  const getTransactionsByDateRange = useCallback((startDate: Date, endDate: Date): NormalizedTransaction[] => {
+    return transactions.filter(tx => {
+      const txDate = new Date(tx.createdAt);
+      return txDate >= startDate && txDate <= endDate;
+    });
+  }, [transactions]);
+
   // Refresh (clear cache and reload)
   const refresh = useCallback(async () => {
     localStorage.removeItem(cacheKey);
@@ -235,6 +303,8 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     lastSync,
     loadInitial,
     loadMore,
+    loadProgressively,
     refresh,
+    getTransactionsByDateRange,
   };
 };

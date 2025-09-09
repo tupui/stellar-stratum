@@ -2,7 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle, Settings } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
@@ -111,16 +112,40 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           </CardContent>
         </Card>
 
-        {/* Tabs: Balances and Activity */}
+        {/* Enhanced Tabs: Balances and Activity */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
-            <TabsTrigger value="balances" className="text-sm">
-              Balances
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="text-sm">
-              Activity
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex justify-center mb-6">
+            <div className="inline-flex items-center justify-center rounded-lg bg-secondary p-1 text-muted-foreground">
+              <button
+                onClick={() => setActiveTab("balances")}
+                className={cn(
+                  "inline-flex items-center justify-center whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+                  activeTab === "balances"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "hover:bg-secondary/80"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4" />
+                  <span>Balances</span>
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab("activity")}
+                className={cn(
+                  "inline-flex items-center justify-center whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+                  activeTab === "activity"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "hover:bg-secondary/80"
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>Activity</span>
+                </div>
+              </button>
+            </div>
+          </div>
           
           <TabsContent value="balances" className="mt-6">
             <AssetBalancePanel balances={accountData.balances} onRefreshBalances={onRefreshBalances} />
