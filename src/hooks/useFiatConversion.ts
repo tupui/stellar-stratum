@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getFxRate } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 
@@ -41,7 +41,7 @@ export const useFiatConversion = (): FiatConversionHook => {
     fetchRate();
   }, [quoteCurrency]);
 
-  const convertXLMToFiat = async (xlmAmount: number): Promise<number> => {
+  const convertXLMToFiat = useCallback(async (xlmAmount: number): Promise<number> => {
     try {
       // First, we need to get USD price of XLM (this would require a price API)
       // For now, we'll use a placeholder - in a real implementation,
@@ -62,9 +62,9 @@ export const useFiatConversion = (): FiatConversionHook => {
     } catch (err) {
       throw new Error('Failed to convert XLM to fiat');
     }
-  };
+  }, [quoteCurrency, exchangeRate]);
 
-  const formatFiatAmount = (amount: number): string => {
+  const formatFiatAmount = useCallback((amount: number): string => {
     const currency = getCurrentCurrency();
     
     try {
@@ -78,7 +78,7 @@ export const useFiatConversion = (): FiatConversionHook => {
       // Fallback if currency not supported by Intl.NumberFormat
       return `${currency.symbol}${amount.toFixed(2)}`;
     }
-  };
+  }, [getCurrentCurrency]);
 
   return {
     convertXLMToFiat,

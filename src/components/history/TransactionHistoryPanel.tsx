@@ -82,19 +82,27 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
   const [showFilters, setShowFilters] = useState(false);
   const [fiatAmounts, setFiatAmounts] = useState<Map<string, number>>(new Map());
 
-  // Convert XLM amounts to fiat asynchronously
+  // Convert XLM amounts to fiat asynchronously - memoized to prevent infinite loops
   useEffect(() => {
     const convertAmounts = async () => {
       const newFiatAmounts = new Map<string, number>();
       
-      for (const tx of transactions) {
-        try {
-          const fiatAmount = await convertXLMToFiat(tx.amount);
-          newFiatAmounts.set(tx.id, fiatAmount);
-        } catch (error) {
-          // Fallback to 0 if conversion fails
-          newFiatAmounts.set(tx.id, 0);
-        }
+      // Process in smaller batches to avoid performance issues
+      const batchSize = 10;
+      for (let i = 0; i < transactions.length; i += batchSize) {
+        const batch = transactions.slice(i, i + batchSize);
+        
+        await Promise.all(
+          batch.map(async (tx) => {
+            try {
+              const fiatAmount = await convertXLMToFiat(tx.amount);
+              newFiatAmounts.set(tx.id, fiatAmount);
+            } catch (error) {
+              // Fallback to 0 if conversion fails
+              newFiatAmounts.set(tx.id, 0);
+            }
+          })
+        );
       }
       
       setFiatAmounts(newFiatAmounts);
@@ -103,7 +111,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
     if (transactions.length > 0) {
       convertAmounts();
     }
-  }, [transactions, convertXLMToFiat]);
+  }, [transactions.length, convertXLMToFiat]);
 
   // Filter transactions based on current filters
   const filteredTransactions = useMemo(() => {

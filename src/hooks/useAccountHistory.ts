@@ -212,9 +212,19 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
 
   // Auto-load initial data when component mounts or key params change
   useEffect(() => {
-    if (publicKey) {
-      loadInitial();
-    }
+    let mounted = true;
+    
+    const loadData = async () => {
+      if (publicKey && mounted) {
+        await loadInitial();
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      mounted = false;
+    };
   }, [publicKey, network]); // Only depend on key params, not loadInitial to avoid loops
 
   return {

@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { NetworkProvider } from "@/contexts/NetworkContext";
-import { DeepLinkHandler } from "@/components/DeepLinkHandler";
 import Index from "./pages/Index";
 import AirgapSigner from "./pages/AirgapSigner";
 import NotFound from "./pages/NotFound";
@@ -18,7 +17,6 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <BrowserRouter>
-            <DeepLinkHandler />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/sign" element={<AirgapSigner />} />

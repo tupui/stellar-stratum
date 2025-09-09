@@ -40,6 +40,8 @@ interface AccountOverviewProps {
 }
 
 export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
+  const [activeTab, setActiveTab] = useState("balances");
+  
   const truncateKey = (key: string) => {
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
   };
@@ -110,7 +112,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
         </Card>
 
         {/* Tabs: Balances and Activity */}
-        <Tabs defaultValue="balances" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
             <TabsTrigger value="balances" className="text-sm">
               Balances
@@ -125,7 +127,9 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           </TabsContent>
           
           <TabsContent value="activity" className="mt-6">
-            <TransactionHistoryPanel accountPublicKey={accountData.publicKey} />
+            {activeTab === "activity" && (
+              <TransactionHistoryPanel accountPublicKey={accountData.publicKey} />
+            )}
           </TabsContent>
         </Tabs>
 
