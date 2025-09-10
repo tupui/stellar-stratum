@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   ReferenceLine 
 } from 'recharts';
+import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -21,12 +22,18 @@ import {
   ZoomOut
 } from 'lucide-react';
 import { format, subDays, subMonths, startOfDay, endOfDay } from 'date-fns';
+import { getXlmUsdRateForDate } from '@/lib/kraken';
 import { NormalizedTransaction } from '@/lib/horizon-utils';
 
 interface TransactionChartProps {
   transactions: NormalizedTransaction[];
   onDateRangeChange?: (startDate: Date, endDate: Date) => void;
   onRequestMoreData?: () => void;
+  currentBalance?: number;
+  assetSymbol?: string;
+  fiatMode?: boolean;
+  fiatAmountMap?: Map<string, number>;
+  fiatSymbol?: string;
 }
 
 type TimeRange = '7d' | '30d' | '90d' | '1y' | 'all';
@@ -42,10 +49,16 @@ interface ChartDataPoint {
 export const TransactionChart = ({ 
   transactions, 
   onDateRangeChange,
-  onRequestMoreData 
+  onRequestMoreData,
+  currentBalance = 0,
+  assetSymbol = 'XLM',
+  fiatMode = false,
+  fiatAmountMap,
+  fiatSymbol = '$'
 }: TransactionChartProps) => {
-  const [selectedRange, setSelectedRange] = useState<TimeRange>('30d');
+  const [selectedRange, setSelectedRange] = useState<TimeRange>('all');
   const [currentOffset, setCurrentOffset] = useState(0);
+  const { quoteCurrency } = useFiatCurrency();
 
   // Calculate date range based on selection
   const dateRange = useMemo(() => {
@@ -75,37 +88,130 @@ export const TransactionChart = ({
         };
       case 'all':
       default:
-        const oldestTx = transactions[transactions.length - 1];
+        const oldestDate = transactions.reduce((earliest, tx) => {
+          const d = new Date(tx.createdAt).getTime();
+          return d < earliest ? d : earliest;
+        }, Number.POSITIVE_INFINITY);
+
         return {
-          start: oldestTx ? new Date(oldestTx.createdAt) : subDays(now, 30),
-          end: now
+          start: Number.isFinite(oldestDate) ? new Date(oldestDate) : subDays(now, 30),
+          end: now,
         };
     }
   }, [selectedRange, currentOffset, transactions]);
 
   // Filter and prepare chart data
   const chartData = useMemo((): ChartDataPoint[] => {
-    const filteredTxs = transactions
-      .filter(tx => {
-        const txDate = new Date(tx.createdAt);
-        return txDate >= dateRange.start && txDate <= dateRange.end;
-      })
+    // Get all transactions in chronological order (oldest first)
+    const allTxs = transactions
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    let runningBalance = 0;
-    
-    return filteredTxs.map(tx => {
-      runningBalance += tx.direction === 'in' ? tx.amount : -tx.amount;
-      
-      return {
-        date: format(tx.createdAt, getDateFormat(selectedRange)),
-        balance: runningBalance,
-        amount: tx.amount,
-        direction: tx.direction,
-        timestamp: new Date(tx.createdAt).getTime(),
-      };
+    // Filter for date range
+    const filteredTxs = allTxs.filter(tx => {
+      const txDate = new Date(tx.createdAt);
+      return txDate >= dateRange.start && txDate <= dateRange.end;
     });
-  }, [transactions, dateRange, selectedRange]);
+
+    if (filteredTxs.length === 0) {
+      // No transactions in range - show current balance as flat line
+      const balance = Number(currentBalance) || 0;
+      
+      return [
+        {
+          date: format(dateRange.start, getDateFormat(selectedRange)),
+          balance: balance,
+          amount: 0,
+          direction: 'in',
+          timestamp: dateRange.start.getTime(),
+        },
+        {
+          date: format(dateRange.end, getDateFormat(selectedRange)),
+          balance: balance,
+          amount: 0,
+          direction: 'in',
+          timestamp: dateRange.end.getTime(),
+        }
+      ];
+    }
+
+    const points: ChartDataPoint[] = [];
+    
+    // Calculate starting balance by working backwards from current balance
+    let startingBalance = fiatMode ? (Number(currentBalance) || 0) : (Number(currentBalance) || 0);
+    
+    // Work backwards through filtered transactions to find starting balance
+    for (let i = filteredTxs.length - 1; i >= 0; i--) {
+      const tx = filteredTxs[i];
+      let deltaAmount = tx.amount ?? 0;
+      if (fiatMode && fiatAmountMap) {
+        deltaAmount = fiatAmountMap.get(tx.id) ?? 0;
+      }
+      
+      // Reverse the transaction effect to get earlier balance
+      if (tx.direction === 'in') {
+        startingBalance -= deltaAmount;
+      } else if (tx.direction === 'out') {
+        startingBalance += deltaAmount;
+      }
+    }
+    
+    // Ensure starting balance is not negative
+    startingBalance = Math.max(0, startingBalance);
+    
+    let runningBalance = startingBalance;
+    const firstTxDate = new Date(filteredTxs[0].createdAt);
+
+    // Add starting point
+    points.push({
+      date: format(firstTxDate, getDateFormat(selectedRange)),
+      balance: runningBalance,
+      amount: 0,
+      direction: 'in',
+      timestamp: firstTxDate.getTime(),
+    });
+
+    // Process each transaction chronologically
+    filteredTxs.forEach(tx => {
+      const amount = tx.amount ?? 0;
+      
+      // For portfolio mode, use fiat amounts; for asset-specific, use native amounts
+      let deltaAmount = amount;
+      if (fiatMode && fiatAmountMap) {
+        deltaAmount = fiatAmountMap.get(tx.id) ?? 0;
+      }
+      
+      // Apply transaction to balance
+      if (tx.direction === 'in') {
+        runningBalance += deltaAmount;
+      } else if (tx.direction === 'out') {
+        runningBalance -= deltaAmount;
+      }
+      
+      // Ensure balance never goes negative (shouldn't happen with correct data)
+      runningBalance = Math.max(0, runningBalance);
+      
+      const txDate = new Date(tx.createdAt);
+      points.push({
+        date: format(txDate, getDateFormat(selectedRange)),
+        balance: runningBalance,
+        amount: deltaAmount,
+        direction: tx.direction || 'in',
+        timestamp: txDate.getTime(),
+      });
+    });
+
+    // Add final point at end of range - use current balance to anchor the end
+    const finalBalance = fiatMode ? (Number(currentBalance) || 0) : (Number(currentBalance) || 0);
+    points.push({
+      date: format(dateRange.end, getDateFormat(selectedRange)),
+      balance: finalBalance,
+      amount: 0,
+      direction: 'in',
+      timestamp: dateRange.end.getTime(),
+    });
+
+    return points;
+  }, [transactions, dateRange, selectedRange, currentBalance]);
 
   // Aggregate data for better visualization on longer time ranges
   const aggregatedData = useMemo((): ChartDataPoint[] => {
@@ -228,18 +334,18 @@ export const TransactionChart = ({
       </CardHeader>
 
       <CardContent>
-        <div className="h-64 w-full">
+        <div className="h-64 w-full font-amount tabular-nums">
           {aggregatedData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={aggregatedData}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                 <XAxis 
                   dataKey="date"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
                   tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
                 />
                 <YAxis 
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
                   tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(value) => `${Number(value).toFixed(1)}`}
                 />
@@ -250,7 +356,11 @@ export const TransactionChart = ({
                     borderRadius: '8px',
                     fontSize: '12px',
                   }}
-                  formatter={(value: any) => [`${Number(value).toFixed(2)} XLM`, 'Balance']}
+                  wrapperStyle={{ fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
+                  formatter={(value: any) => [
+                    fiatMode ? `${Number(value).toFixed(2)} ${fiatSymbol}` : `${Number(value).toFixed(7)} ${assetSymbol}`,
+                    'Balance'
+                  ]}
                   labelFormatter={(label) => `Date: ${label}`}
                 />
                 
@@ -303,7 +413,8 @@ function getDateFormat(range: TimeRange): string {
     case '30d': return 'MMM dd';
     case '90d': return 'MMM dd';
     case '1y': return 'MMM yyyy';
-    default: return 'MMM dd';
+    case 'all': return 'MMM dd, yyyy'; // Include year for full history
+    default: return 'MMM dd, yyyy'; // Include year by default
   }
 }
 

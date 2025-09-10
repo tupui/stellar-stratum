@@ -204,7 +204,7 @@ export const AddressAutocomplete = ({
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm truncate">
+                        <span className="font-mono font-address text-sm truncate">
                           {entry.sorobanDomain || formatAddress(entry.address)}
                         </span>
                         {entry.sorobanDomain && (
@@ -214,7 +214,7 @@ export const AddressAutocomplete = ({
                         )}
                       </div>
                       {entry.sorobanDomain && (
-                        <div className="font-mono text-xs text-muted-foreground truncate">
+                        <div className="font-mono font-address text-xs text-muted-foreground truncate">
                           {formatAddress(entry.address)}
                         </div>
                       )}

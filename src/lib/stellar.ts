@@ -66,9 +66,10 @@ export const createStellarKit = (network: 'mainnet' | 'testnet' = 'mainnet') => 
 export const stellarKit = createStellarKit('mainnet');
 
 // Create Horizon server for specific network
-export const createHorizonServer = (network: 'mainnet' | 'testnet' = 'mainnet') => {
+export const createHorizonServer = (network: 'mainnet' | 'testnet' = 'mainnet', customUrl?: string) => {
   const config = getNetworkConfig(network);
-  return new Horizon.Server(config.horizonUrl);
+  const horizonUrl = customUrl || config.horizonUrl;
+  return new Horizon.Server(horizonUrl);
 };
 
 // Default horizon server for mainnet (backward compatibility)

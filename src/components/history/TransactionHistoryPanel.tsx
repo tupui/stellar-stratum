@@ -17,7 +17,11 @@ import {
   DollarSign,
   Hash,
   Eye,
-  EyeOff
+  EyeOff,
+  Settings,
+  Replace,
+  Code2,
+  Loader2
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -25,18 +29,29 @@ import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAccountHistory } from '@/hooks/useAccountHistory';
 import { useFiatConversion } from '@/hooks/useFiatConversion';
+import { getXlmUsdRateForDate, primeXlmUsdRates } from '@/lib/kraken';
+import { convertFromUSD } from '@/lib/fiat-currencies';
+import { getAssetPrice } from '@/lib/reflector';
+import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { getHorizonTransactionUrl } from '@/lib/horizon-utils';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TransactionChart } from './TransactionChart';
+import { LoadingPill } from '@/components/ui/loading-pill';
 
 interface TransactionHistoryPanelProps {
   accountPublicKey: string;
+  balances: Array<{
+    asset_type: string;
+    asset_code?: string;
+    asset_issuer?: string;
+    balance: string;
+  }>;
 }
 
 interface Filters {
   direction: 'all' | 'in' | 'out';
-  type: 'all' | 'payment' | 'create_account';
+  category: 'all' | 'transfer' | 'swap' | 'contract' | 'config';
   minAmount: string;
   maxAmount: string;
   dateFrom: Date | undefined;
@@ -52,9 +67,10 @@ interface AggregatedStats {
   avgFiat: number;
 }
 
-export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistoryPanelProps) => {
+export const TransactionHistoryPanel = ({ accountPublicKey, balances }: TransactionHistoryPanelProps) => {
   const { network } = useNetwork();
   const isMobile = useIsMobile();
+  
   const { 
     transactions, 
     isLoading, 
@@ -67,12 +83,13 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
     getTransactionsByDateRange
   } = useAccountHistory(accountPublicKey);
   
-  const { convertXLMToFiat, formatFiatAmount } = useFiatConversion();
+  const { formatFiatAmount } = useFiatConversion();
+  const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
 
   // Filter and selection state
   const [filters, setFilters] = useState<Filters>({
     direction: 'all',
-    type: 'all',
+    category: 'all',
     minAmount: '',
     maxAmount: '',
     dateFrom: undefined,
@@ -80,59 +97,214 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
     addressFilter: '',
   });
 
-  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [fiatAmounts, setFiatAmounts] = useState<Map<string, number>>(new Map());
+  const [fiatLoading, setFiatLoading] = useState<boolean>(true);
+  const [selectedAsset, setSelectedAsset] = useState<{ code: string; issuer?: string }>({ code: 'PORTFOLIO' });
+  const [currentPortfolioFiat, setCurrentPortfolioFiat] = useState<number>(0);
+  const [currentXLMFiat, setCurrentXLMFiat] = useState<number>(0);
+  const [currentAssetFiat, setCurrentAssetFiat] = useState<number>(0);
 
-  // Convert XLM amounts to fiat asynchronously - memoized to prevent infinite loops
+  // Build asset options from balances
+  const assetOptions = useMemo(() => {
+    const options: Array<{ code: string; issuer?: string; label: string }> = [];
+    options.push({ code: 'PORTFOLIO', label: 'Portfolio' });
+    // XLM native
+    options.push({ code: 'XLM', label: 'XLM' });
+    balances.forEach((b) => {
+      if (b.asset_type !== 'native' && b.asset_code && b.asset_issuer) {
+        const label = `${b.asset_code} (${b.asset_issuer.slice(0, 4)}...${b.asset_issuer.slice(-4)})`;
+        options.push({ code: b.asset_code, issuer: b.asset_issuer, label });
+      }
+    });
+    // Deduplicate by code+issuer
+    const seen = new Set<string>();
+    return options.filter((o) => {
+      const key = `${o.code}:${o.issuer || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [balances]);
+
+  // Convert amounts to fiat based on asset prices and selected currency
   useEffect(() => {
-    const convertAmounts = async () => {
+    const convertAll = async () => {
       const newFiatAmounts = new Map<string, number>();
       
-      // Process in smaller batches to avoid performance issues
-      const batchSize = 10;
-      for (let i = 0; i < transactions.length; i += batchSize) {
-        const batch = transactions.slice(i, i + batchSize);
-        
-        await Promise.all(
-          batch.map(async (tx) => {
+      if (transactions.length === 0) {
+        setFiatAmounts(newFiatAmounts);
+        setFiatLoading(false);
+        return;
+      }
+
+      // Prime a single OHLC(365d) window up-front so per-tx lookups hit cache
+      try {
+        const earliest = transactions.reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
+        const start = new Date(earliest);
+        const end = new Date();
+        await primeXlmUsdRates(start, end);
+      } catch {}
+
+      // We compute fiat at transaction time:
+      // - For XLM: use CF Benchmarks XLMUSD_RR for the transaction date
+      // - For other assets: fall back to current Reflector price (best-effort)
+
+      // Pre-compute FX factor once (USD -> target fiat)
+      let fxFactor = 1;
+      try {
+        if (quoteCurrency !== 'USD') {
+          fxFactor = await convertFromUSD(1, quoteCurrency);
+        }
+      } catch {
+        fxFactor = 1;
+      }
+
+      // Cache for non-XLM asset prices to avoid N calls
+      const otherPriceCache = new Map<string, number>();
+      for (const tx of transactions) {
+        const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
+        let usdPrice = 0;
+        if (tx.assetType === 'native') {
+          usdPrice = await getXlmUsdRateForDate(txDate);
+        } else {
+          const key = `${tx.assetCode}:${tx.assetIssuer}`;
+          if (!otherPriceCache.has(key)) {
             try {
-              const fiatAmount = await convertXLMToFiat(tx.amount);
-              newFiatAmounts.set(tx.id, fiatAmount);
-            } catch (error) {
-              // Fallback to 0 if conversion fails
-              newFiatAmounts.set(tx.id, 0);
+              const p = await getAssetPrice(tx.assetCode!, tx.assetIssuer);
+              otherPriceCache.set(key, p || 0);
+            } catch {
+              otherPriceCache.set(key, 0);
             }
-          })
-        );
+          }
+          usdPrice = otherPriceCache.get(key) || 0;
+        }
+
+        if (!usdPrice || !tx.amount) {
+          newFiatAmounts.set(tx.id, 0);
+          continue;
+        }
+        const usdAmount = usdPrice * tx.amount;
+        const fiatAmount = usdAmount * fxFactor;
+        newFiatAmounts.set(tx.id, fiatAmount);
       }
       
       setFiatAmounts(newFiatAmounts);
+      setFiatLoading(false);
     };
 
-    if (transactions.length > 0) {
-      convertAmounts();
-    }
-  }, [transactions.length, convertXLMToFiat]);
+    convertAll();
+  }, [transactions, quoteCurrency]);
 
-  // Filter transactions based on current filters
+  // Compute current portfolio fiat value from balances
+  useEffect(() => {
+    const computePortfolio = async () => {
+      try {
+        let totalUSD = 0;
+        const tasks = balances.map(async (b) => {
+          const qty = parseFloat(b.balance);
+          if (!qty || Number.isNaN(qty)) return 0;
+          if (b.asset_type === 'native') {
+            const p = await getAssetPrice('XLM');
+            return (p || 0) * qty;
+          }
+          if (b.asset_code && b.asset_issuer) {
+            const p = await getAssetPrice(b.asset_code, b.asset_issuer);
+            return (p || 0) * qty;
+          }
+          return 0;
+        });
+        const parts = await Promise.all(tasks);
+        totalUSD = parts.reduce((a, b) => a + b, 0);
+
+        if (quoteCurrency === 'USD') {
+          setCurrentPortfolioFiat(totalUSD);
+        } else {
+          const converted = await convertFromUSD(totalUSD, quoteCurrency);
+          setCurrentPortfolioFiat(converted);
+        }
+      } catch {
+        setCurrentPortfolioFiat(0);
+      }
+    };
+    computePortfolio();
+  }, [balances, quoteCurrency]);
+
+  // Compute current XLM balance in fiat for chart anchoring when viewing XLM
+  useEffect(() => {
+    const computeXLM = async () => {
+      try {
+        const xlm = balances.find(b => b.asset_type === 'native');
+        const qty = xlm ? parseFloat(xlm.balance) : 0;
+        if (!qty || Number.isNaN(qty)) { setCurrentXLMFiat(0); return; }
+        const usd = await getAssetPrice('XLM');
+        const valueUSD = (usd || 0) * qty;
+        if (quoteCurrency === 'USD') setCurrentXLMFiat(valueUSD);
+        else setCurrentXLMFiat(await convertFromUSD(valueUSD, quoteCurrency));
+      } catch {
+        setCurrentXLMFiat(0);
+      }
+    };
+    computeXLM();
+  }, [balances, quoteCurrency]);
+
+  // Compute current selected asset balance in fiat
+  useEffect(() => {
+    const computeCurrentAsset = async () => {
+      try {
+        if (selectedAsset.code === 'PORTFOLIO' || selectedAsset.code === 'XLM') {
+          setCurrentAssetFiat(0);
+          return;
+        }
+        
+        const asset = balances.find(b => 
+          b.asset_code === selectedAsset.code && 
+          b.asset_issuer === selectedAsset.issuer
+        );
+        const qty = asset ? parseFloat(asset.balance) : 0;
+        if (!qty || Number.isNaN(qty)) { setCurrentAssetFiat(0); return; }
+        
+        const usd = await getAssetPrice(selectedAsset.code, selectedAsset.issuer);
+        const valueUSD = (usd || 0) * qty;
+        if (quoteCurrency === 'USD') setCurrentAssetFiat(valueUSD);
+        else setCurrentAssetFiat(await convertFromUSD(valueUSD, quoteCurrency));
+      } catch {
+        setCurrentAssetFiat(0);
+      }
+    };
+    computeCurrentAsset();
+  }, [balances, selectedAsset, quoteCurrency]);
+
+  // Filter transactions based on current filters and selected asset
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
+      // Category filter
+      if (filters.category !== 'all') {
+        if (tx.category !== filters.category) return false;
+      }
+      // Asset filter
+      if (selectedAsset.code !== 'PORTFOLIO') {
+        if (selectedAsset.code === 'XLM') {
+          if (tx.assetType && tx.assetType !== 'native') return false;
+        } else {
+          if (tx.assetCode && tx.assetCode !== selectedAsset.code) return false;
+          if (selectedAsset.issuer && tx.assetIssuer && tx.assetIssuer !== selectedAsset.issuer) return false;
+        }
+      }
+
       // Direction filter
-      if (filters.direction !== 'all' && tx.direction !== filters.direction) {
+      if (filters.direction !== 'all' && tx.direction && tx.direction !== filters.direction) {
         return false;
       }
 
       // Type filter
-      if (filters.type !== 'all' && tx.type !== filters.type) {
-        return false;
-      }
+      // Removed specific type filter; using categories instead
 
       // Amount filters
-      if (filters.minAmount && tx.amount < parseFloat(filters.minAmount)) {
+      if (filters.minAmount && (tx.amount || 0) < parseFloat(filters.minAmount)) {
         return false;
       }
-      if (filters.maxAmount && tx.amount > parseFloat(filters.maxAmount)) {
+      if (filters.maxAmount && (tx.amount || 0) > parseFloat(filters.maxAmount)) {
         return false;
       }
 
@@ -151,7 +323,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
       // Address filter
       if (filters.addressFilter) {
         const query = filters.addressFilter.toLowerCase();
-        if (!tx.counterparty.toLowerCase().includes(query)) {
+        if (!tx.counterparty || !tx.counterparty.toLowerCase().includes(query)) {
           return false;
         }
       }
@@ -160,59 +332,56 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
     });
   }, [transactions, filters]);
 
-  // Calculate aggregated stats for selected or filtered transactions (removed avg amount)
+  // Calculate aggregated stats for filtered transactions (sum totals only)
   const aggregatedStats = useMemo((): AggregatedStats => {
-    const targetTransactions = selectedTransactions.size > 0 
-      ? filteredTransactions.filter(tx => selectedTransactions.has(tx.id))
-      : filteredTransactions;
-
-    const count = targetTransactions.length;
-    const totalXLM = targetTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+    const count = filteredTransactions.length;
+    const totalAsset = filteredTransactions.reduce((sum, tx) => {
+      const amt = tx.amount || 0;
+      if (!tx.direction) return sum + amt; // fallback
+      return tx.direction === 'in' ? sum + amt : sum - amt;
+    }, 0);
     
     let totalFiat = 0;
-    targetTransactions.forEach(tx => {
+    filteredTransactions.forEach(tx => {
       const fiatAmount = fiatAmounts.get(tx.id) || 0;
-      totalFiat += fiatAmount;
+      if (!tx.direction) { totalFiat += fiatAmount; return; }
+      totalFiat += tx.direction === 'in' ? fiatAmount : -fiatAmount;
     });
 
     return {
       count,
-      totalXLM,
+      totalXLM: totalAsset,
       totalFiat,
       avgXLM: 0, // Remove avg calculation
       avgFiat: 0, // Remove avg calculation
     };
-  }, [filteredTransactions, selectedTransactions, fiatAmounts]);
+  }, [filteredTransactions, fiatAmounts]);
 
   // Auto-load more data progressively for better UX
   const handleRequestMoreData = async () => {
     await loadProgressively();
   };
 
-  const truncateAddress = (address: string) => {
+  // Kick off progressive loading only if we need more data
+  useEffect(() => {
+    // Only start progressive loading if we have some transactions but want more
+    if (transactions.length > 0 && transactions.length < 1000 && hasMore && !isLoading) {
+      loadProgressively();
+    }
+  }, [transactions.length, hasMore, isLoading, loadProgressively]);
+
+  const truncateAddress = (address?: string | null) => {
+    if (!address || typeof address !== 'string') return '—';
+    if (address.length <= 12) return address;
     return `${address.slice(0, 6)}...${address.slice(-6)}`;
   };
 
-  const handleTransactionSelect = (txId: string, selected: boolean) => {
-    setSelectedTransactions(prev => {
-      const newSet = new Set(prev);
-      if (selected) {
-        newSet.add(txId);
-      } else {
-        newSet.delete(txId);
-      }
-      return newSet;
-    });
-  };
 
-  const clearSelection = () => {
-    setSelectedTransactions(new Set());
-  };
 
   const clearFilters = () => {
     setFilters({
       direction: 'all',
-      type: 'all',
+      category: 'all',
       minAmount: '',
       maxAmount: '',
       dateFrom: undefined,
@@ -238,6 +407,34 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
     );
   }
 
+  // Build transactions for chart (asset or portfolio filtered)
+  const assetOnlyTransactions = useMemo(() => {
+    if (selectedAsset.code === 'PORTFOLIO') {
+      // For portfolio, include all transactions
+      return transactions;
+    }
+    // For specific assets, filter transactions that affect that asset
+    return transactions.filter((tx) => {
+      if (selectedAsset.code === 'XLM') return tx.assetType === 'native';
+      if (tx.assetCode !== selectedAsset.code) return false;
+      if (selectedAsset.issuer && tx.assetIssuer !== selectedAsset.issuer) return false;
+      return true;
+    });
+  }, [transactions, selectedAsset]);
+
+  // Current balance for selected asset
+  const currentBalance = useMemo(() => {
+    if (selectedAsset.code === 'XLM') {
+      const xlmBal = balances.find(b => b.asset_type === 'native');
+      return xlmBal ? parseFloat(xlmBal.balance) : 0;
+    }
+    if (selectedAsset.code === 'PORTFOLIO') {
+      return currentPortfolioFiat; // used only when fiatMode is true for portfolio
+    }
+    const b = balances.find(b => b.asset_code === selectedAsset.code && b.asset_issuer === selectedAsset.issuer);
+    return b ? parseFloat(b.balance) : 0;
+  }, [balances, selectedAsset, currentPortfolioFiat, currentXLMFiat]);
+
   return (
     <Card className="shadow-card">
       <CardHeader>
@@ -248,13 +445,32 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
               Activity History
             </CardTitle>
             <CardDescription>
-              Filtered: Native XLM ≥ 1 • {filteredTransactions.length} transactions
+              {filteredTransactions.length} transactions
               {lastSync && (
                 <> • Last updated {formatDistanceToNow(lastSync, { addSuffix: true })}</>
               )}
             </CardDescription>
           </div>
           <div className="flex gap-2">
+            {/* Asset selector */}
+            <Select 
+              value={`${selectedAsset.code}:${selectedAsset.issuer || ''}`}
+              onValueChange={(val) => {
+                const [code, issuer] = val.split(':');
+                setSelectedAsset({ code, issuer: issuer || undefined });
+              }}
+            >
+              <SelectTrigger className="h-8 w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {assetOptions.map((opt) => (
+                  <SelectItem key={`${opt.code}:${opt.issuer || ''}`} value={`${opt.code}:${opt.issuer || ''}`}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant="ghost"
               size="sm"
@@ -276,6 +492,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
             </Button>
           </div>
         </div>
+
+        {/* Attribution (CoinGecko) - Keep near the bottom */}
       </CardHeader>
 
       <CardContent className="space-y-6">
@@ -308,18 +526,20 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs">Type</Label>
+                <Label className="text-xs">Category</Label>
                 <Select 
-                  value={filters.type} 
-                  onValueChange={(value: any) => setFilters(prev => ({ ...prev, type: value }))}
+                  value={filters.category} 
+                  onValueChange={(value: any) => setFilters(prev => ({ ...prev, category: value }))}
                 >
                   <SelectTrigger className="h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="payment">Payment</SelectItem>
-                    <SelectItem value="create_account">Account Creation</SelectItem>
+                    <SelectItem value="transfer">Transfers</SelectItem>
+                    <SelectItem value="swap">Swaps</SelectItem>
+                    <SelectItem value="contract">Contract Calls</SelectItem>
+                    <SelectItem value="config">Configuration</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -413,41 +633,46 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
           </div>
         )}
 
-        {/* Aggregated Stats - removed avg amount */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-secondary/50 rounded-lg">
-            <div className="text-2xl font-bold text-primary">{aggregatedStats.count}</div>
-            <div className="text-xs text-muted-foreground">
-              {selectedTransactions.size > 0 ? 'Selected' : 'Total'} Transactions
+        {/* Value Card */}
+        <div className="mt-1 p-4 bg-primary/5 rounded-lg border border-primary/10">
+          <div className="flex items-center justify-between">
+            <div>
+              {selectedAsset.code === 'PORTFOLIO' ? (
+                <>
+                  <p className="text-sm text-muted-foreground/80">Portfolio Value</p>
+                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">{formatFiatAmount(currentPortfolioFiat)}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground/80">
+                    {selectedAsset.code} Balance Value
+                  </p>
+                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">
+                    {selectedAsset.code === 'XLM' ? formatFiatAmount(currentXLMFiat) : formatFiatAmount(currentAssetFiat)}
+                  </p>
+                </>
+              )}
             </div>
-          </div>
-          <div className="text-center p-4 bg-secondary/50 rounded-lg">
-            <div className="text-lg font-bold">{aggregatedStats.totalXLM.toFixed(2)} XLM</div>
-            <div className="text-xs text-muted-foreground">Total Amount</div>
-          </div>
-          <div className="text-center p-4 bg-secondary/50 rounded-lg">
-            <div className="text-lg font-bold">{formatFiatAmount(aggregatedStats.totalFiat)}</div>
-            <div className="text-xs text-muted-foreground">Total Value</div>
+            <div className="text-right text-xs text-muted-foreground">
+              <div>{aggregatedStats.count} transactions</div>
+            </div>
           </div>
         </div>
 
-        {selectedTransactions.size > 0 && (
-          <div className="flex items-center justify-between p-3 bg-primary/10 rounded-lg">
-            <span className="text-sm">
-              {selectedTransactions.size} transaction(s) selected
-            </span>
-            <Button variant="ghost" size="sm" onClick={clearSelection}>
-              <EyeOff className="w-4 h-4 mr-2" />
-              Clear Selection
-            </Button>
-          </div>
-        )}
-
         {/* Enhanced Chart with Controls */}
         <TransactionChart 
-          transactions={filteredTransactions}
+          transactions={assetOnlyTransactions}
           onRequestMoreData={handleRequestMoreData}
+          currentBalance={currentBalance}
+          assetSymbol={selectedAsset.code}
+          fiatMode={selectedAsset.code === 'PORTFOLIO'}
+          fiatAmountMap={fiatAmounts}
+          fiatSymbol={getCurrentCurrency().symbol}
         />
+        {/* Proactively load up to ~1 year */}
+        <div className="hidden">
+          {loadProgressively && <span />}
+        </div>
 
         <Separator />
 
@@ -466,18 +691,16 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
             </div>
           ) : (
             <>
-              {filteredTransactions.map((tx) => {
+              {filteredTransactions
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .map((tx) => {
                 const fiatAmount = fiatAmounts.get(tx.id) || 0;
-                const isSelected = selectedTransactions.has(tx.id);
+                const showNA = (tx.amount || 0) > 0 && fiatAmount === 0;
                 
                 return (
                   <div
                     key={tx.id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer hover:bg-secondary/50",
-                      isSelected && "bg-primary/10 border-primary/50"
-                    )}
-                    onClick={() => handleTransactionSelect(tx.id, !isSelected)}
+                    className="flex items-center justify-between p-3 rounded-lg border transition-colors hover:bg-secondary/50"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className={cn(
@@ -494,15 +717,32 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
                       
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">
-                            {tx.direction === 'out' ? 'Sent' : 'Received'} {tx.amount.toFixed(2)} XLM
+                          {tx.category === 'transfer' && (
+                            <span className="font-medium text-sm font-amount tabular-nums">
+                              {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
+                            </span>
+                          )}
+                          {tx.category === 'swap' && (
+                            <span className="font-medium text-sm flex items-center gap-1">
+                              <Replace className="w-4 h-4" />
+                              <span className="font-amount tabular-nums">
+                                {`${(tx.swapFromAmount ?? 0).toFixed(2)} ${tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}`} → {`${(tx.swapToAmount ?? 0).toFixed(2)} ${tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}`}
+                              </span>
+                            </span>
+                          )}
+                          {tx.category === 'contract' && (
+                            <span className="font-medium text-sm flex items-center gap-1">
+                              <Code2 className="w-4 h-4" /> Contract call
+                            </span>
+                          )}
+                          {tx.category === 'config' && (
+                            <span className="font-medium text-sm flex items-center gap-1">
+                              <Settings className="w-4 h-4" /> Configuration change
                           </span>
+                          )}
                           <Badge variant="secondary" className="text-xs">
                             {tx.type}
                           </Badge>
-                          {isSelected && (
-                            <Eye className="w-4 h-4 text-primary" />
-                          )}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span className="font-mono">
@@ -518,8 +758,14 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
 
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="text-right">
-                        <div className="font-medium text-sm">
-                          {formatFiatAmount(fiatAmount)}
+                        <div className="font-medium text-sm font-amount tabular-nums">
+                          {fiatLoading ? (
+                            <LoadingPill size="sm" />
+                          ) : showNA ? (
+                            'N/A'
+                          ) : (
+                            formatFiatAmount(fiatAmount)
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {format(tx.createdAt, 'MMM dd, HH:mm')}
@@ -531,7 +777,10 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(getHorizonTransactionUrl(network, tx.transactionHash), '_blank');
+                          const expertUrl = network === 'testnet' 
+                            ? `https://stellar.expert/explorer/testnet/tx/${tx.transactionHash}`
+                            : `https://stellar.expert/explorer/public/tx/${tx.transactionHash}`;
+                          window.open(expertUrl, '_blank');
                         }}
                         className="shrink-0"
                       >
@@ -542,24 +791,21 @@ export const TransactionHistoryPanel = ({ accountPublicKey }: TransactionHistory
                 );
               })}
 
-              {/* Load More Button */}
+              {/* Load more / loading indicator */}
               {hasMore && (
-                <div className="text-center pt-4">
-                  <Button
-                    onClick={loadMore}
-                    variant="outline"
-                    disabled={isLoading}
-                    className="w-full sm:w-auto"
-                  >
+                <div className="flex justify-center py-4">
                     {isLoading ? (
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                     ) : (
-                      <DollarSign className="w-4 h-4 mr-2" />
+                    <Button variant="ghost" size="sm" onClick={loadMore}>
+                      Load older transactions
+                    </Button>
                     )}
-                    Load More Transactions
-                  </Button>
                 </div>
               )}
+              <div className="text-[11px] text-muted-foreground/80 mt-4 select-none text-center">
+                Historical price data from <a href="https://docs.kraken.com/api/docs/rest-api/get-ohlc-data" target="_blank" rel="noreferrer" className="underline hover:text-foreground">Kraken</a>
+              </div>
             </>
           )}
         </div>

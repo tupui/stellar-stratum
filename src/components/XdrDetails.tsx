@@ -96,7 +96,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="font-mono text-xs break-all text-muted-foreground">
+              <p className="font-mono font-address text-xs break-all text-muted-foreground">
                 {hash}
               </p>
             </div>
@@ -116,7 +116,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="font-mono text-xs break-all text-muted-foreground">
+              <p className="font-mono font-address text-xs break-all text-muted-foreground">
                 {xdr}
               </p>
             </div>
@@ -139,7 +139,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                     <User className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium">Source Account:</span>
                   </div>
-                  <p className="font-mono text-xs bg-muted p-2 rounded break-all">{sourceAccount}</p>
+                  <p className="font-mono font-address text-xs bg-muted p-2 rounded break-all">{sourceAccount}</p>
                 </div>
                 
                 <div className="space-y-2">
@@ -182,7 +182,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                             <div className="text-sm space-y-1">
                               <p className="break-words">
                                 <span className="text-muted-foreground">To:</span> 
-                                <span className="font-mono text-xs ml-1 break-all">{(op as any).destination}</span>
+                                <span className="font-mono font-address text-xs ml-1 break-all">{(op as any).destination}</span>
                               </p>
                               <p>
                                 <span className="text-muted-foreground">Amount:</span> {(op as any).amount} {(op as any).asset?.code || 'XLM'}

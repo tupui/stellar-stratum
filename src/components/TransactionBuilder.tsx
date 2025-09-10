@@ -26,7 +26,6 @@ import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
-import { MultisigConfigBuilder } from './MultisigConfigBuilder';
 import { SuccessModal } from './SuccessModal';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
@@ -882,7 +881,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="min-w-0 flex-1">
                   <Label className="text-sm text-muted-foreground">Source Account</Label>
-                  <p className="font-address text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
+                  <p className="font-address font-mono text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
                 </div>
                 <Badge variant="outline" className="shrink-0">Connected</Badge>
               </div>
@@ -904,20 +903,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <div className="p-2 bg-muted/50 rounded-lg">
-                <TabsList className="grid grid-cols-2 sm:grid-cols-3 w-full p-0 bg-transparent gap-2">
+                <TabsList className="grid grid-cols-2 w-full p-0 bg-transparent gap-2">
                   <TabsTrigger 
                     value="payment" 
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Send className="w-4 h-4" />
                     <span>Payment</span>
-                  </TabsTrigger>
-                  <TabsTrigger 
-                    value="multisig"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
-                  >
-                    <Shield className="w-4 h-4" />
-                    <span>Multisig Setup</span>
                   </TabsTrigger>
                   <TabsTrigger 
                     value="import"
@@ -978,17 +970,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                 />
               </TabsContent>
 
-              <TabsContent value="multisig" className="space-y-4 mt-6">
-                {accountData && (
-                  <MultisigConfigBuilder
-                    accountPublicKey={accountPublicKey}
-                    currentSigners={accountData.signers}
-                    currentThresholds={accountData.thresholds}
-                    onXdrGenerated={(xdr) => setXdrData(prev => ({ ...prev, output: xdr }))}
-                    onAccountRefresh={onAccountRefresh}
-                  />
-                )}
-              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>

@@ -51,8 +51,18 @@ function __runLimited<T>(fn: () => Promise<T>): Promise<T> {
 export class OracleClient {
   private contract: Contract;
   private rpcServer: rpc.Server;
+  private contractId: string;
+
+  // Global in-memory memoization across instances to dedupe identical requests
+  private static inflightAssets = new Map<string, Promise<string[]>>();
+  private static inflightLastPrice = new Map<string, Promise<number>>();
+  private static cacheAssets = new Map<string, { data: string[]; ts: number }>();
+  private static cacheLastPrice = new Map<string, { data: number; ts: number }>();
+  private static ASSETS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+  private static PRICE_TTL_MS = 60 * 1000; // 60s
 
   constructor(contractId: string, rpcUrl: string = 'https://mainnet.sorobanrpc.com') {
+    this.contractId = contractId;
     this.contract = new Contract(contractId);
     this.rpcServer = new rpc.Server(rpcUrl);
   }
@@ -61,97 +71,112 @@ export class OracleClient {
    * Get available assets from the oracle
    */
   async getAssets(): Promise<string[]> {
-    const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
-    const account = await __runLimited(() => this.rpcServer.getAccount(simulationAccount));
-    
-    const transaction = new TransactionBuilder(account, {
-      fee: '100000',
-      networkPassphrase: Networks.PUBLIC,
-    })
-    .addOperation(this.contract.call('assets'))
-    .setTimeout(30)
-    .build();
-    
-    const simResult = await __runLimited(() => this.rpcServer.simulateTransaction(transaction));
-    
-    if ('error' in simResult) {
-      throw new Error(`Assets fetch failed: ${simResult.error}`);
+    // Cache hit
+    const cached = OracleClient.cacheAssets.get(this.contractId);
+    if (cached && Date.now() - cached.ts < OracleClient.ASSETS_TTL_MS) {
+      return cached.data;
     }
-    
-    if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
-      const { scValToNative } = await import('@stellar/stellar-sdk');
-      const resultValue = scValToNative(simResult.result.retval);
-      
-      const assetSymbols: string[] = [];
-      if (Array.isArray(resultValue)) {
-        for (const asset of resultValue) {
-          if (Array.isArray(asset) && asset.length === 2) {
-            const [type, value] = asset;
-            if (type === "Other" && value) {
-              assetSymbols.push(String(value));
-            } else if (type === "Stellar" && value) {
-              assetSymbols.push(`stellar_${value}`);
+
+    // Inflight dedupe
+    const existing = OracleClient.inflightAssets.get(this.contractId);
+    if (existing) return existing;
+
+    const promise = (async () => {
+      const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
+      const account = await __runLimited(() => this.rpcServer.getAccount(simulationAccount));
+      const transaction = new TransactionBuilder(account, {
+        fee: '100000',
+        networkPassphrase: Networks.PUBLIC,
+      })
+        .addOperation(this.contract.call('assets'))
+        .setTimeout(30)
+        .build();
+
+      const simResult = await __runLimited(() => this.rpcServer.simulateTransaction(transaction));
+      if ('error' in simResult) throw new Error(`Assets fetch failed: ${simResult.error}`);
+
+      if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
+        const { scValToNative } = await import('@stellar/stellar-sdk');
+        const resultValue = scValToNative(simResult.result.retval);
+        const assetSymbols: string[] = [];
+        if (Array.isArray(resultValue)) {
+          for (const asset of resultValue) {
+            if (Array.isArray(asset) && asset.length === 2) {
+              const [type, value] = asset;
+              if (type === 'Other' && value) assetSymbols.push(String(value));
+              else if (type === 'Stellar' && value) assetSymbols.push(`stellar_${value}`);
             }
           }
         }
+        OracleClient.cacheAssets.set(this.contractId, { data: assetSymbols, ts: Date.now() });
+        return assetSymbols;
       }
-      
-      return assetSymbols;
+      return [];
+    })();
+
+    OracleClient.inflightAssets.set(this.contractId, promise);
+    try {
+      return await promise;
+    } finally {
+      OracleClient.inflightAssets.delete(this.contractId);
     }
-    
-    return [];
   }
 
   /**
    * Get last price for an asset
    */
   async getLastPrice(asset: Asset): Promise<number> {
-    const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
-    const account = await __runLimited(() => this.rpcServer.getAccount(simulationAccount));
-    
-    const assetParam = buildAssetScVal(asset);
-    
-    const transaction = new TransactionBuilder(account, {
-      fee: '100000',
-      networkPassphrase: Networks.PUBLIC,
-    })
-    .addOperation(this.contract.call('lastprice', assetParam))
-    .setTimeout(30)
-    .build();
-    
-    const simResult = await __runLimited(() => this.rpcServer.simulateTransaction(transaction));
-    
-    if ('error' in simResult) {
-      throw new Error(`Price fetch failed: ${simResult.error}`);
+    const key = `${this.contractId}:${asset.type}-${asset.code}`;
+
+    // Cache hit
+    const cached = OracleClient.cacheLastPrice.get(key);
+    if (cached && Date.now() - cached.ts < OracleClient.PRICE_TTL_MS) {
+      return cached.data;
     }
-    
-    if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
-      const { scValToNative } = await import('@stellar/stellar-sdk');
-      const resultValue = scValToNative(simResult.result.retval);
-      
-      if (resultValue && typeof resultValue === 'object') {
+
+    // Inflight dedupe
+    const existing = OracleClient.inflightLastPrice.get(key);
+    if (existing) return existing;
+
+    const promise = (async () => {
+      const simulationAccount = 'GDMTVHLWJTHSUDMZVVMXXH6VJHA2ZV3HNG5LYNAZ6RTWB7GISM6PGTUV';
+      const account = await __runLimited(() => this.rpcServer.getAccount(simulationAccount));
+      const assetParam = buildAssetScVal(asset);
+      const transaction = new TransactionBuilder(account, {
+        fee: '100000',
+        networkPassphrase: Networks.PUBLIC,
+      })
+        .addOperation(this.contract.call('lastprice', assetParam))
+        .setTimeout(30)
+        .build();
+
+      const simResult = await __runLimited(() => this.rpcServer.simulateTransaction(transaction));
+      if ('error' in simResult) throw new Error(`Price fetch failed: ${simResult.error}`);
+
+      if ('result' in simResult && simResult.result && 'retval' in simResult.result) {
+        const { scValToNative } = await import('@stellar/stellar-sdk');
+        const resultValue = scValToNative(simResult.result.retval);
         let price = 0;
-        
-        // Handle Some(PriceData) case
-        if ('Some' in resultValue && resultValue.Some) {
-          const priceData = resultValue.Some;
-          if (priceData && typeof priceData === 'object' && 'price' in priceData) {
-            price = parseFloat(String(priceData.price));
+        if (resultValue && typeof resultValue === 'object') {
+          if ('Some' in resultValue && resultValue.Some && typeof resultValue.Some === 'object' && 'price' in resultValue.Some) {
+            price = parseFloat(String(resultValue.Some.price));
+          } else if ('price' in resultValue) {
+            price = parseFloat(String(resultValue.price));
+          } else if (typeof (resultValue as any) === 'number' || typeof (resultValue as any) === 'string') {
+            price = parseFloat(String(resultValue as any));
           }
         }
-        // Handle direct PriceData case  
-        else if ('price' in resultValue) {
-          price = parseFloat(String(resultValue.price));
-        }
-        // Handle if the result is a direct number
-        else if (typeof resultValue === 'number' || typeof resultValue === 'string') {
-          price = parseFloat(String(resultValue));
-        }
-        
+        OracleClient.cacheLastPrice.set(key, { data: price, ts: Date.now() });
         return price;
       }
+      return 0;
+    })();
+
+    OracleClient.inflightLastPrice.set(key, promise);
+    try {
+      return await promise;
+    } finally {
+      OracleClient.inflightLastPrice.delete(key);
     }
-    
-    return 0;
   }
 }

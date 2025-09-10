@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { LoadingPill } from '@/components/ui/loading-pill';
 import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, ExternalLink } from 'lucide-react';
@@ -36,8 +35,6 @@ export const AssetBalancePanel = ({
   } = useAssetPrices(balances);
   const {
     quoteCurrency,
-    setQuoteCurrency,
-    availableCurrencies,
     getCurrentCurrency
   } = useFiatCurrency();
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
@@ -212,20 +209,7 @@ export const AssetBalancePanel = ({
                 {loading ? <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span> : <span className="text-primary">{formatValueSync(totalValueUSD)}</span>}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
-                <SelectTrigger className="w-16 h-8 border-0 bg-transparent px-2">
-                  <SelectValue>
-                    <span className="text-sm text-primary">{quoteCurrency}</span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="min-w-24">
-                  {availableCurrencies.map(currency => <SelectItem key={currency.code} value={currency.code}>
-                      <span>{currency.code}</span>
-                    </SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="text-sm text-muted-foreground"></div>
           </div>
         </div>
       </CardHeader>
@@ -284,7 +268,7 @@ export const AssetBalancePanel = ({
                     }}>
                       {formatBalance(asset.balance)}
                     </p>
-                    <p className="text-sm text-muted-foreground/70">{asset.symbol}</p>
+                    <p className="text-sm text-muted-foreground/70 font-address">{asset.symbol}</p>
                       <div className="text-sm font-medium text-primary flex justify-end">
                         {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValueForAsset(asset.valueUSD, index)}
                       </div>
