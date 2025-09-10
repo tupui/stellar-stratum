@@ -8,6 +8,16 @@ export type ActivityCategory = 'transfer' | 'swap' | 'contract' | 'config';
 // Cache durations
 export const TRANSACTION_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
+// API-level caching for Horizon requests
+interface HorizonCacheEntry {
+  data: any;
+  timestamp: number;
+  ttl: number;
+}
+
+const horizonCache = new Map<string, HorizonCacheEntry>();
+const HORIZON_CACHE_TTL = 5 * 60 * 1000; // 5 minutes for API responses
+
 // Normalized transaction record type
 export interface NormalizedTransaction {
   id: string;
@@ -210,15 +220,16 @@ export const normalizeOperationRecord = (
         swapFromAssetType = record.source_asset_type || 'native';
         swapFromAssetCode = record.source_asset_code || (swapFromAssetType === 'native' ? 'XLM' : undefined);
         swapFromAssetIssuer = record.source_asset_issuer;
-        // To leg
-        swapToAmount = Math.abs(parseFloat(record.amount || record.dest_min || '0'));
-
-        // Horizon field names differ between strict_send vs strict_receive
+        // To leg - different fields for strict_send vs strict_receive
         if (type === 'path_payment_strict_send') {
+          // For strict_send, destination is in dest_* fields
+          swapToAmount = Math.abs(parseFloat(record.destination_amount || record.amount || '0'));
           swapToAssetType = record.dest_asset_type || 'native';
           swapToAssetCode = record.dest_asset_code || (swapToAssetType === 'native' ? 'XLM' : undefined);
           swapToAssetIssuer = record.dest_asset_issuer;
         } else {
+          // For strict_receive, destination is in regular asset_* fields
+          swapToAmount = Math.abs(parseFloat(record.amount || '0'));
           swapToAssetType = record.asset_type || 'native';
           swapToAssetCode = record.asset_code || (swapToAssetType === 'native' ? 'XLM' : undefined);
           swapToAssetIssuer = record.asset_issuer;
@@ -232,12 +243,12 @@ export const normalizeOperationRecord = (
       } else if (record.to === accountPublicKey) {
         direction = 'in';
         // From leg (what sender spent)
-        swapFromAmount = Math.abs(parseFloat(record.source_amount || record.send_max || '0'));
-        swapFromAssetType = record.source_asset_type || record.send_asset_type || 'native';
-        swapFromAssetCode = record.source_asset_code || record.send_asset_code || (swapFromAssetType === 'native' ? 'XLM' : undefined);
-        swapFromAssetIssuer = record.source_asset_issuer || record.send_asset_issuer;
+        swapFromAmount = Math.abs(parseFloat(record.source_amount || '0'));
+        swapFromAssetType = record.source_asset_type || 'native';
+        swapFromAssetCode = record.source_asset_code || (swapFromAssetType === 'native' ? 'XLM' : undefined);
+        swapFromAssetIssuer = record.source_asset_issuer;
         // To leg (what we received)
-        swapToAmount = Math.abs(parseFloat(record.amount || record.destination_amount || '0'));
+        swapToAmount = Math.abs(parseFloat(record.amount || '0'));
         swapToAssetType = record.asset_type || 'native';
         swapToAssetCode = record.asset_code || (swapToAssetType === 'native' ? 'XLM' : undefined);
         swapToAssetIssuer = record.asset_issuer;
@@ -281,6 +292,27 @@ export const normalizeOperationRecord = (
   }
 };
 
+// Helper to get/set cache with TTL
+const getCachedResponse = (key: string): any | null => {
+  const entry = horizonCache.get(key);
+  if (!entry) return null;
+  
+  if (Date.now() - entry.timestamp > entry.ttl) {
+    horizonCache.delete(key);
+    return null;
+  }
+  
+  return entry.data;
+};
+
+const setCachedResponse = (key: string, data: any, ttl: number = HORIZON_CACHE_TTL) => {
+  horizonCache.set(key, {
+    data,
+    timestamp: Date.now(),
+    ttl,
+  });
+};
+
 // Fetch paginated payments for an account
 export const fetchAccountPayments = async (
   publicKey: string,
@@ -288,6 +320,22 @@ export const fetchAccountPayments = async (
   cursor?: string,
   limit: number = 200
 ) => {
+  // Create cache key based on all parameters
+  const cacheKey = `payments-${publicKey}-${network}-${cursor || 'initial'}-${limit}`;
+  
+  // Check cache first
+  const cached = getCachedResponse(cacheKey);
+  if (cached) {
+    if (import.meta.env.DEV) {
+      console.log(`🎯 API cache hit for payments: ${cacheKey}`);
+    }
+    return cached;
+  }
+  
+  if (import.meta.env.DEV) {
+    console.log(`🌐 API call for payments: ${cacheKey}`);
+  }
+  
   const server = createHorizonServer(network);
   
   let query = server
@@ -300,7 +348,12 @@ export const fetchAccountPayments = async (
     query = query.cursor(cursor);
   }
   
-  return await retryWithBackoff(() => query.call());
+  const result = await retryWithBackoff(() => query.call());
+  
+  // Cache the result
+  setCachedResponse(cacheKey, result);
+  
+  return result;
 };
 
 // Fetch selected non-payment operations for an account
@@ -310,6 +363,22 @@ export const fetchAccountOperations = async (
   cursor?: string,
   limit: number = 200
 ) => {
+  // Create cache key based on all parameters
+  const cacheKey = `operations-${publicKey}-${network}-${cursor || 'initial'}-${limit}`;
+  
+  // Check cache first
+  const cached = getCachedResponse(cacheKey);
+  if (cached) {
+    if (import.meta.env.DEV) {
+      console.log(`🎯 API cache hit for operations: ${cacheKey}`);
+    }
+    return cached;
+  }
+  
+  if (import.meta.env.DEV) {
+    console.log(`🌐 API call for operations: ${cacheKey}`);
+  }
+
   const server = createHorizonServer(network);
 
   let query = server
@@ -323,8 +392,12 @@ export const fetchAccountOperations = async (
     query = query.cursor(cursor);
   }
 
-  // We will filter result records client-side to keep only types we care about
-  return await retryWithBackoff(() => query.call());
+  const result = await retryWithBackoff(() => query.call());
+  
+  // Cache the result
+  setCachedResponse(cacheKey, result);
+
+  return result;
 };
 
 // Get Horizon transaction URL for external viewing

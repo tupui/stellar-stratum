@@ -16,8 +16,6 @@ import {
   TrendingUp,
   DollarSign,
   Hash,
-  Eye,
-  EyeOff,
   Settings,
   Replace,
   Code2,
@@ -471,6 +469,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 ))}
               </SelectContent>
             </Select>
+            
             <Button
               variant="ghost"
               size="sm"
@@ -669,10 +668,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
           fiatAmountMap={fiatAmounts}
           fiatSymbol={getCurrentCurrency().symbol}
         />
-        {/* Proactively load up to ~1 year */}
-        <div className="hidden">
-          {loadProgressively && <span />}
-        </div>
 
         <Separator />
 

@@ -36,7 +36,7 @@ const CACHE_KEY_PREFIX = 'account-history';
 const CACHE_VERSION = 'v3'; // Increment when cache structure changes
 const INITIAL_LIMIT = 200; // Horizon API maximum limit
 const LOAD_MORE_LIMIT = 200; // Horizon API maximum limit (cannot be increased)
-const MAX_TRANSACTIONS_PER_SESSION = 10000; // 50 calls × 200 records = 20k transactions max
+const MAX_TRANSACTIONS_PER_SESSION = 5000; // 25 calls × 200 records = 5k transactions max
 const RATE_LIMIT_DELAY = 100; // ms between requests
 const MAX_CONCURRENT_REQUESTS = 3;
 
@@ -162,6 +162,10 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
   // Load initial data (from cache if available, otherwise fetch)
   const loadInitial = useCallback(async (force: boolean = false) => {
     if (!publicKey) return;
+
+    if (import.meta.env.DEV) {
+      console.log(`🔍 loadInitial called for ${publicKey}-${network}, force: ${force}`);
+    }
 
     // Prevent concurrent requests for same account+network
     const requestKey = `${publicKey}-${network}`;
@@ -449,9 +453,10 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
   // Auto-load initial data when component mounts or key params change
   useEffect(() => {
     if (publicKey) {
+      // Always check cache first on mount, even if we have no state
       loadInitial();
     }
-  }, [publicKey, network, loadInitial]);
+  }, [publicKey, network]); // Remove loadInitial from deps to prevent loops
 
   return {
     transactions,

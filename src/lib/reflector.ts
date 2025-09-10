@@ -79,6 +79,16 @@ const ASSETS_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
 // In-memory cache to track which oracle asset lists are loaded
 const loadedOracles = new Set<string>();
 
+// Global client cache to prevent multiple instances for same contract
+const oracleClients = new Map<string, OracleClient>();
+
+const getOracleClient = (contractId: string): OracleClient => {
+  if (!oracleClients.has(contractId)) {
+    oracleClients.set(contractId, new OracleClient(contractId));
+  }
+  return oracleClients.get(contractId)!;
+};
+
 const ensureAssetListsLoaded = async (oraclesToLoad: OracleConfig[]): Promise<void> => {
   const toLoad = oraclesToLoad.filter((o) => !loadedOracles.has(o.contract));
   if (toLoad.length === 0) return;
@@ -229,7 +239,7 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const client = new OracleClient(oracle.contract);
+      const client = getOracleClient(oracle.contract);
       const assets = await client.getAssets();
       if (assets.length > 0) {
         // Cache successful result
@@ -318,7 +328,7 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const client = new OracleClient(oracle.contract);
+      const client = getOracleClient(oracle.contract);
       const rawPrice = await client.getLastPrice(asset);
       
       if (rawPrice > 0) {
