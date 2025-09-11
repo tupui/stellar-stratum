@@ -51,7 +51,7 @@ export const AssetBalancePanel = ({
       }
       await refetch();
     } catch (e) {
-      if (import.meta.env.DEV) console.error('Failed to refresh balances:', e);
+      // Ignore refresh errors - balances will be updated on next successful fetch
     } finally {
       // Always update timestamp after any operation
       setLastUpdateTime(new Date());
@@ -90,7 +90,6 @@ export const AssetBalancePanel = ({
           const convertedTotal = await convertFromUSD(totalValueUSD, quoteCurrency);
           setConvertedTotalValue(convertedTotal);
         } catch (error) {
-          if (import.meta.env.DEV) console.warn('Failed to convert total value:', error);
           setConvertedTotalValue(totalValueUSD);
         }
       }
@@ -105,7 +104,7 @@ export const AssetBalancePanel = ({
             const convertedValue = await convertFromUSD(asset.valueUSD, quoteCurrency);
             newConvertedValues[i] = convertedValue;
           } catch (error) {
-            if (import.meta.env.DEV) console.warn(`Failed to convert value for asset ${asset.symbol}:`, error);
+            // Ignore conversion errors - use USD fallback
           }
         }
         if (asset.priceUSD > 0) {
@@ -113,7 +112,7 @@ export const AssetBalancePanel = ({
             const convertedPrice = await convertFromUSD(asset.priceUSD, quoteCurrency);
             newConvertedPrices[i] = convertedPrice;
           } catch (error) {
-            if (import.meta.env.DEV) console.warn(`Failed to convert price for asset ${asset.symbol}:`, error);
+            // Ignore conversion errors - use USD fallback
           }
         }
       }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,27 +26,14 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const controlsRef = useRef<IScannerControls | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (isOpen) {
-      startScanner();
-    } else {
-      stopScanner();
-    }
-    
-    return () => {
-      stopScanner();
-    };
-  }, [isOpen]);
-
-  const startScanner = async () => {
+  const startScanner = useCallback(async () => {
     try {
-      console.log('Starting QR scanner...');
       setIsScanning(true);
       setWaitingForCamera(true);
       
       if (!readerRef.current) {
         // ZXing hints: focus on QR only and try harder for partially visible/angled codes
-        const hints = new Map<DecodeHintType, any>();
+        const hints = new Map<DecodeHintType, unknown>();
         hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
         hints.set(DecodeHintType.TRY_HARDER, true);
         const reader = readerRef.current = new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 75 });
@@ -62,7 +49,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         // Use specific device if available, otherwise fallback to constraints
         if (devices.length > 0) {
           const selectedDevice = devices[currentDeviceIndex] || devices[0];
-          console.log('Using camera device:', selectedDevice.label);
           
           // High-quality constraints for better small QR detection
           const constraints: MediaStreamConstraints = {
@@ -74,8 +60,8 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               facingMode: { ideal: 'environment' },
               advanced: [
                 // Best-effort continuous focus for sharper frames
-                { focusMode: 'continuous' } as any,
-                { focusMode: 'auto' } as any,
+                { focusMode: 'continuous' } as MediaTrackConstraintSet,
+                { focusMode: 'auto' } as MediaTrackConstraintSet,
               ]
             }
           };
@@ -85,7 +71,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             videoRef.current!,
             (result) => {
               if (result) {
-                console.log('QR code detected:', result.getText());
                 onScan(result.getText());
                 stopScanner();
                 onClose();
@@ -105,14 +90,14 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               const stream = videoRef.current.srcObject as MediaStream;
               const track = stream.getVideoTracks()[0];
               if (track && 'getCapabilities' in track) {
-                const capabilities = (track.getCapabilities?.() || {}) as any;
-                const advanced: MediaTrackConstraintSet[] = [] as any;
+                const capabilities = (track.getCapabilities?.() || {}) as MediaTrackCapabilities;
+                const advanced: MediaTrackConstraintSet[] = [];
                 if (capabilities.zoom && capabilities.zoom.max) {
                   const suggestedZoom = Math.min(capabilities.zoom.max, 2);
-                  advanced.push({ zoom: suggestedZoom } as any);
+                  advanced.push({ zoom: suggestedZoom } as MediaTrackConstraintSet);
                 }
                 if (capabilities.focusMode && capabilities.focusMode.length) {
-                  advanced.push({ focusMode: 'continuous' } as any);
+                  advanced.push({ focusMode: 'continuous' } as MediaTrackConstraintSet);
                 }
                 if (advanced.length) {
                   await track.applyConstraints({ advanced });
@@ -120,7 +105,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               }
             }
           } catch (capError) {
-            console.log('Advanced camera constraints not supported:', capError);
+            // Ignore advanced camera constraints errors
           }
         } else {
           // Fallback to constraints if no devices found
@@ -131,8 +116,8 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             height: { ideal: 1080, min: 720 },
             frameRate: { ideal: 60, min: 24 },
             advanced: [
-              { focusMode: 'continuous' } as any,
-              { focusMode: 'auto' } as any,
+              { focusMode: 'continuous' } as MediaTrackConstraintSet,
+              { focusMode: 'auto' } as MediaTrackConstraintSet,
             ]
           }
         };
@@ -142,7 +127,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             videoRef.current!,
             (result) => {
               if (result) {
-                console.log('QR code detected:', result.getText());
                 onScan(result.getText());
                 stopScanner();
                 onClose();
@@ -164,9 +148,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           }, { once: true });
         }
         
-        console.log('Scanner started successfully');
       } catch (deviceError) {
-        console.warn('Could not enumerate devices, using constraints fallback:', deviceError);
         
         // Fallback to constraints with high quality
         const constraints: MediaStreamConstraints = {
@@ -176,8 +158,8 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
             height: { ideal: 1080, min: 720 },
             frameRate: { ideal: 60, min: 24 },
             advanced: [
-              { focusMode: 'continuous' } as any,
-              { focusMode: 'auto' } as any,
+              { focusMode: 'continuous' } as MediaTrackConstraintSet,
+              { focusMode: 'auto' } as MediaTrackConstraintSet,
             ]
           }
         };
@@ -203,7 +185,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         setWaitingForCamera(false);
       }
     } catch (error) {
-      console.error('Error starting scanner:', error);
       setIsScanning(false);
       setWaitingForCamera(false);
       toast({
@@ -212,17 +193,16 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         variant: 'destructive',
       });
     }
-  };
+  }, [onScan, onClose, toast, currentDeviceIndex]);
 
   const stopScanner = () => {
-    console.log('Stopping QR scanner...');
     
     if (controlsRef.current) {
       try {
         controlsRef.current.stop();
         controlsRef.current = null;
       } catch (error) {
-        console.warn('Error stopping scanner controls:', error);
+        // Ignore scanner stop errors
       }
     }
     
@@ -234,6 +214,18 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     setIsScanning(false);
     setWaitingForCamera(false);
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      startScanner();
+    } else {
+      stopScanner();
+    }
+
+    return () => {
+      stopScanner();
+    };
+  }, [isOpen, startScanner]);
 
   const switchCamera = () => {
     if (availableDevices.length > 1) {
@@ -252,7 +244,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     setIsProcessingImage(true);
     
     try {
-      console.log('Processing uploaded image...');
       
       if (!readerRef.current) {
         readerRef.current = new BrowserMultiFormatReader();
@@ -272,7 +263,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           try {
             result = await readerRef.current!.decodeFromImageUrl(dataUrl);
           } catch (zxingError) {
-            console.log('ZXing failed, trying jsQR fallback...');
             
             // Try jsQR as fallback with 2x upsampling
             const img = new Image();
@@ -302,7 +292,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               }
               
               if (jsQRResult) {
-                console.log('QR code detected from image (jsQR):', jsQRResult.data);
                 onScan(jsQRResult.data);
                 onClose();
                 toast({
@@ -334,7 +323,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           }
           
           if (result) {
-            console.log('QR code detected from image (ZXing):', result.getText());
             onScan(result.getText());
             onClose();
             toast({
@@ -345,7 +333,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           
           setIsProcessingImage(false);
         } catch (error) {
-          console.error('Error reading QR code from image:', error);
           setIsProcessingImage(false);
           toast({
             title: 'Scan Failed',
@@ -356,7 +343,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       };
       
       fileReader.onerror = () => {
-        console.error('Error reading image file');
         setIsProcessingImage(false);
         toast({
           title: 'Upload Failed',
@@ -372,7 +358,6 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         fileInputRef.current.value = '';
       }
     } catch (error) {
-      console.error('Error processing image upload:', error);
       setIsProcessingImage(false);
       toast({
         title: 'Upload Failed',

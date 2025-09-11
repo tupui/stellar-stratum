@@ -10,6 +10,8 @@ import { Transaction, TransactionBuilder as StellarTransactionBuilder, StrKey } 
 import { getSupportedWallets, getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
+import { signWithWallet } from '@/lib/walletKit';
+import { appendSignature } from '@/lib/multisig-store';
 
 interface Signer {
   key: string;
@@ -31,6 +33,9 @@ interface SignerSelectorProps {
   onSignWithSigner: (signerKey: string, walletId: string) => Promise<void>;
   isSigning: boolean;
   freeMode?: boolean; // New prop for air-gapped mode
+  network: 'mainnet' | 'testnet';
+  onSigned: (signedXdr: string, signerKey: string) => void;
+  pendingId?: string;
 }
 
 export const SignerSelector = ({ 
@@ -41,9 +46,12 @@ export const SignerSelector = ({
   requiredWeight, 
   onSignWithSigner,
   isSigning,
-  freeMode = false
+  freeMode = false,
+  network,
+  onSigned,
+  pendingId
 }: SignerSelectorProps) => {
-  const { network } = useNetwork();
+  const { network: contextNetwork } = useNetwork(); // Renamed to avoid conflict with prop
   const [selectedSigner, setSelectedSigner] = useState<string>('');
   const [selectedWalletId, setSelectedWalletId] = useState<string>('');
   const [wallets, setWallets] = useState<ISupportedWallet[]>([]);
@@ -57,17 +65,17 @@ export const SignerSelector = ({
         const ws = await getSupportedWallets();
         setWallets(ws.filter(w => w.isAvailable));
       } catch (e) {
-        console.error('Failed to load wallets for signing:', e);
+        // Ignore wallet loading errors
       }
     })();
   }, []);
   // Extract existing signatures from XDR
   useEffect(() => {
     try {
-      const networkPassphrase = getNetworkPassphrase(network);
-      const parsed: any = StellarTransactionBuilder.fromXDR(xdr, networkPassphrase);
+      const networkPassphrase = getNetworkPassphrase(contextNetwork);
+      const parsed = StellarTransactionBuilder.fromXDR(xdr, networkPassphrase);
 
-      const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
+      const collectHints = (tx: Transaction) => (tx?.signatures || []).map((s) => s.hint());
       const hints: Buffer[] = parsed?.innerTransaction
         ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
         : collectHints(parsed);
@@ -89,10 +97,9 @@ export const SignerSelector = ({
 
       setExistingSignatures(Array.from(existingSigs));
     } catch (error) {
-      console.error('Error parsing XDR for signatures:', error);
       setExistingSignatures([]);
     }
-  }, [xdr, network, signers]);
+  }, [xdr, contextNetwork, signers]);
 
   const getCurrentWeight = () => {
     // Combine UI signatures with existing XDR signatures
@@ -150,7 +157,9 @@ export const SignerSelector = ({
   const handleSign = async () => {
     if (freeMode && selectedWalletId) {
       // In free mode, we use the wallet address as the signer key
-      await onSignWithSigner('', selectedWalletId);
+      const { signedXDR, signerKey } = await signWithWallet(xdr, contextNetwork);
+      if (pendingId) appendSignature(pendingId, signedXDR);
+      onSigned(signedXDR, signerKey);
       setSelectedWalletId('');
     } else if (selectedSigner && selectedWalletId) {
       await onSignWithSigner(selectedSigner, selectedWalletId);

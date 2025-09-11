@@ -70,7 +70,7 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
     };
 
     handleDeepLink();
-  }, [location.search, toast]);
+  }, [location.search, toast, onDeepLinkLoaded]);
 
   return null; // This component doesn't render anything
 };

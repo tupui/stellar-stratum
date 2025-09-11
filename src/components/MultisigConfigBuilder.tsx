@@ -28,6 +28,7 @@ import {
   Horizon
 } from '@stellar/stellar-sdk';
 import { createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
+import { addPendingTx } from '@/lib/multisig-store';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface Signer {
@@ -47,6 +48,7 @@ interface MultisigConfigBuilderProps {
   currentSigners: Signer[];
   currentThresholds: Thresholds;
   onXdrGenerated: (xdr: string) => void;
+  onPendingCreated?: (id: string, xdr: string) => void;
   onAccountRefresh?: () => Promise<void>;
 }
 
@@ -67,7 +69,8 @@ export const MultisigConfigBuilder = ({
   accountPublicKey, 
   currentSigners, 
   currentThresholds,
-  onXdrGenerated 
+  onXdrGenerated,
+  onPendingCreated,
 }: MultisigConfigBuilderProps) => {
   const { toast } = useToast();
   const { network: currentNetwork } = useNetwork();
@@ -96,6 +99,20 @@ export const MultisigConfigBuilder = ({
 
     // Calculate final signer configuration
     const finalSigners = editableSigners.filter(s => s.weight > 0);
+
+    // CRITICAL: Validate all signer public keys
+    finalSigners.forEach((signer, index) => {
+      if (!isValidPublicKey(signer.key)) {
+        errors.push(`Signer ${index + 1} has an invalid public key format`);
+      }
+    });
+
+    // CRITICAL: Check for duplicate signer keys
+    const signerKeys = finalSigners.map(s => s.key);
+    const duplicateKeys = signerKeys.filter((key, index) => signerKeys.indexOf(key) !== index);
+    if (duplicateKeys.length > 0) {
+      errors.push('Duplicate signer keys are not allowed');
+    }
 
     // Check maximum signers limit (20)
     if (finalSigners.length > 20) {
@@ -273,8 +290,11 @@ export const MultisigConfigBuilder = ({
       // Build the transaction
       const builtTransaction = transaction.build();
       const xdr = builtTransaction.toXDR();
-      
+
+      // Register pending multisig envelope (client-side only)
+      const pending = addPendingTx(xdr, newThresholds.high_threshold);
       onXdrGenerated(xdr);
+      if (onPendingCreated) onPendingCreated(pending.id, xdr);
       
       toast({
         title: "Multisig configuration built",
@@ -283,7 +303,6 @@ export const MultisigConfigBuilder = ({
       });
     } catch (error) {
       const { userMessage, fullError } = sanitizeError(error);
-      console.error('Build error:', fullError);
       toast({
         title: "Build failed",
         description: userMessage,

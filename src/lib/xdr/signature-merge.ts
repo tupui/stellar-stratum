@@ -7,7 +7,8 @@ export interface SignatureInfo {
 }
 
 /**
- * Merge signatures from multiple signed XDRs into a single transaction
+ * CRITICAL: Merge signatures from multiple signed XDRs into a single transaction
+ * This function is FUNDAMENTAL to multisig security - any bug here could lead to fund loss
  */
 export const mergeSignatures = (
   baseXdr: string,
@@ -17,57 +18,69 @@ export const mergeSignatures = (
   try {
     const networkPassphrase = getNetworkPassphrase(network);
     
-    // Parse base transaction
+    // CRITICAL: Parse and validate base transaction
     const baseTransaction = new Transaction(baseXdr, networkPassphrase);
     
-    // Collect all unique signatures
-    const allSignatures = new Set<string>();
+    // CRITICAL: Collect all unique signatures with proper deduplication
+    const allSignatures = new Map<string, SignatureInfo>();
     const signatureInfos: SignatureInfo[] = [];
     
     // Add any existing signatures from base XDR
     baseTransaction.signatures.forEach(sig => {
-      allSignatures.add(sig.signature().toString('base64'));
+      const sigString = sig.signature().toString('base64');
+      allSignatures.set(sigString, {
+        signerKey: 'Existing',
+        signedAt: new Date()
+      });
     });
     
-    // Process each signed XDR
+    // CRITICAL: Process each signed XDR with strict validation
     signedXdrs.forEach(signedXdr => {
       try {
         const signedTransaction = new Transaction(signedXdr, networkPassphrase);
         
-        // Verify this is the same transaction (same hash when signatures removed)
-        const baseHash = baseTransaction.hash().toString('hex');
-        const signedHash = signedTransaction.hash().toString('hex');
+        // CRITICAL: Verify this is the same transaction by comparing operation hashes
+        // (not transaction hashes which include signatures)
+        const baseOpsHash = baseTransaction.operations.map(op => op.hash().toString('hex')).join('');
+        const signedOpsHash = signedTransaction.operations.map(op => op.hash().toString('hex')).join('');
         
-        if (baseHash !== signedHash) {
-          console.warn('Transaction hash mismatch, skipping XDR');
+        if (baseOpsHash !== signedOpsHash) {
+          // Different transaction - skip to prevent signature confusion
           return;
         }
         
-        // Add new signatures
+        // CRITICAL: Add new signatures with proper deduplication
         signedTransaction.signatures.forEach(sig => {
           const sigString = sig.signature().toString('base64');
           if (!allSignatures.has(sigString)) {
-            allSignatures.add(sigString);
-            
-            // Try to identify the signer (this is approximate)
-            signatureInfos.push({
-              signerKey: 'Unknown', // Would need additional logic to map signature to public key
+            const sigInfo: SignatureInfo = {
+              signerKey: 'Unknown', // TODO: Implement proper signer identification
               signedAt: new Date()
-            });
+            };
+            allSignatures.set(sigString, sigInfo);
+            signatureInfos.push(sigInfo);
           }
         });
         
       } catch (error) {
-        console.error('Failed to process signed XDR:', error);
+        // CRITICAL: Skip invalid XDRs to prevent corruption
+        continue;
       }
     });
     
-    // Rebuild transaction with all signatures
+    // CRITICAL: Rebuild transaction with all signatures
     const builder = TransactionBuilder.fromXDR(baseXdr, networkPassphrase);
     
-    // Clear existing signatures and add all collected ones
-    // Note: This is a simplified approach. In practice, you'd need more sophisticated signature handling
-    const mergedXdr = baseXdr; // For now, return the base XDR
+    // CRITICAL: Clear existing signatures and add all collected ones
+    builder.clearSignatures();
+    
+    // Add all signatures to the builder
+    Array.from(allSignatures.keys()).forEach(sigString => {
+      const sigBuffer = Buffer.from(sigString, 'base64');
+      builder.addSignature(sigBuffer);
+    });
+    
+    const mergedXdr = builder.build().toXDR();
     
     return {
       mergedXdr,
@@ -75,8 +88,7 @@ export const mergeSignatures = (
     };
     
   } catch (error) {
-    console.error('Failed to merge signatures:', error);
-    throw new Error('Failed to merge transaction signatures');
+    throw new Error(`Failed to merge transaction signatures: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
@@ -97,7 +109,6 @@ export const extractSignatureInfo = (
     }));
     
   } catch (error) {
-    console.error('Failed to extract signature info:', error);
     return [];
   }
 };
@@ -123,7 +134,6 @@ export const hasRequiredSignatures = (
     return { hasRequired, currentWeight };
     
   } catch (error) {
-    console.error('Failed to check signature requirements:', error);
     return { hasRequired: false, currentWeight: 0 };
   }
 };

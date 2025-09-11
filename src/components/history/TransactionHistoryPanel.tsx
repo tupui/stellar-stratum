@@ -142,7 +142,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         const start = new Date(earliest);
         const end = new Date();
         await primeXlmUsdRates(start, end);
-      } catch {}
+      } catch {
+        // Ignore rate fetching errors, continue with current prices
+      }
 
       // We compute fiat at transaction time:
       // - For XLM: use CF Benchmarks XLMUSD_RR for the transaction date
@@ -328,7 +330,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
 
       return true;
     });
-  }, [transactions, filters]);
+  }, [transactions, filters, selectedAsset.code, selectedAsset.issuer]);
 
   // Calculate aggregated stats for filtered transactions (sum totals only)
   const aggregatedStats = useMemo((): AggregatedStats => {
@@ -388,23 +390,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
     });
   };
 
-  if (error) {
-    return (
-      <Card className="shadow-card">
-        <CardContent className="pt-6">
-          <div className="text-center text-muted-foreground">
-            <p>Failed to load transaction history</p>
-            <p className="text-sm mt-1">{error}</p>
-            <Button onClick={refresh} variant="outline" size="sm" className="mt-2">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Retry
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   // Build transactions for chart (asset or portfolio filtered)
   const assetOnlyTransactions = useMemo(() => {
     if (selectedAsset.code === 'PORTFOLIO') {
@@ -431,7 +416,24 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
     }
     const b = balances.find(b => b.asset_code === selectedAsset.code && b.asset_issuer === selectedAsset.issuer);
     return b ? parseFloat(b.balance) : 0;
-  }, [balances, selectedAsset, currentPortfolioFiat, currentXLMFiat]);
+  }, [balances, selectedAsset, currentPortfolioFiat]);
+
+  if (error) {
+    return (
+      <Card className="shadow-card">
+        <CardContent className="pt-6">
+          <div className="text-center text-muted-foreground">
+            <p>Failed to load transaction history</p>
+            <p className="text-sm mt-1">{error}</p>
+            <Button onClick={refresh} variant="outline" size="sm" className="mt-2">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="shadow-card">
@@ -511,7 +513,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 <Label className="text-xs">Direction</Label>
                 <Select 
                   value={filters.direction} 
-                  onValueChange={(value: any) => setFilters(prev => ({ ...prev, direction: value }))}
+                  onValueChange={(value: string) => setFilters(prev => ({ ...prev, direction: value }))}
                 >
                   <SelectTrigger className="h-8">
                     <SelectValue />
@@ -528,7 +530,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 <Label className="text-xs">Category</Label>
                 <Select 
                   value={filters.category} 
-                  onValueChange={(value: any) => setFilters(prev => ({ ...prev, category: value }))}
+                  onValueChange={(value: string) => setFilters(prev => ({ ...prev, category: value }))}
                 >
                   <SelectTrigger className="h-8">
                     <SelectValue />

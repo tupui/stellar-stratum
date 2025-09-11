@@ -10,7 +10,7 @@ export const TRANSACTION_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 // API-level caching for Horizon requests
 interface HorizonCacheEntry {
-  data: any;
+  data: unknown;
   timestamp: number;
   ttl: number;
 }
@@ -47,8 +47,8 @@ export const retryWithBackoff = async <T>(fn: () => Promise<T>, maxRetries = 3):
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
-    } catch (error: any) {
-      const isRateLimit = error?.status === 429 || error?.status === 503;
+    } catch (error: unknown) {
+      const isRateLimit = (error as { status?: number })?.status === 429 || (error as { status?: number })?.status === 503;
       if (isRateLimit && i < maxRetries - 1) {
         const delay = Math.min(1000 * Math.pow(2, i), 10000); // Exponential backoff, max 10s
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -132,9 +132,6 @@ export const normalizePaymentRecord = (
       transactionHash: record.transaction_hash,
     };
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn('Failed to normalize payment record:', error, record);
-    }
     return null;
   }
 };
@@ -285,15 +282,12 @@ export const normalizeOperationRecord = (
 
     return null;
   } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn('Failed to normalize operation record:', error, record);
-    }
     return null;
   }
 };
 
 // Helper to get/set cache with TTL
-const getCachedResponse = (key: string): any | null => {
+const getCachedResponse = (key: string): unknown | null => {
   const entry = horizonCache.get(key);
   if (!entry) return null;
   
@@ -305,7 +299,7 @@ const getCachedResponse = (key: string): any | null => {
   return entry.data;
 };
 
-const setCachedResponse = (key: string, data: any, ttl: number = HORIZON_CACHE_TTL) => {
+const setCachedResponse = (key: string, data: unknown, ttl: number = HORIZON_CACHE_TTL) => {
   horizonCache.set(key, {
     data,
     timestamp: Date.now(),
@@ -326,14 +320,7 @@ export const fetchAccountPayments = async (
   // Check cache first
   const cached = getCachedResponse(cacheKey);
   if (cached) {
-    if (import.meta.env.DEV) {
-      console.log(`🎯 API cache hit for payments: ${cacheKey}`);
-    }
     return cached;
-  }
-  
-  if (import.meta.env.DEV) {
-    console.log(`🌐 API call for payments: ${cacheKey}`);
   }
   
   const server = createHorizonServer(network);
@@ -369,14 +356,7 @@ export const fetchAccountOperations = async (
   // Check cache first
   const cached = getCachedResponse(cacheKey);
   if (cached) {
-    if (import.meta.env.DEV) {
-      console.log(`🎯 API cache hit for operations: ${cacheKey}`);
-    }
     return cached;
-  }
-  
-  if (import.meta.env.DEV) {
-    console.log(`🌐 API call for operations: ${cacheKey}`);
   }
 
   const server = createHorizonServer(network);

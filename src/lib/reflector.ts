@@ -17,7 +17,6 @@ const computeStellarAssetContractId = (assetCode: string, assetIssuer: string): 
     const cid = StrKey.encodeContract(hash(envelope.toXDR()));
     return cid;
   } catch (e) {
-    if (import.meta.env.DEV) console.warn('computeStellarAssetContractId failed', { assetCode, assetIssuer, error: e });
     return '';
   }
 };
@@ -62,7 +61,6 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
     return getCachedPrice(assetKey);
 
   } catch (error) {
-    if (import.meta.env.DEV) console.warn(`Failed to get price for ${assetCode}:`, error);
     return getCachedPrice(assetKey);
   }
 };
@@ -152,7 +150,6 @@ const initializeAssetMapping = async (): Promise<void> => {
       
       mappingInitialized = true;
     } catch (error) {
-      if (import.meta.env.DEV) console.error('Failed to initialize asset mapping:', error);
       mappingPromise = null; // Reset to allow retry
       throw error;
     }
@@ -253,11 +250,13 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
       
       // If no assets but still have more attempts, continue immediately
       if (attempt < maxRetries - 1) {
-        if (import.meta.env.DEV) console.warn(`No assets returned from ${oracle.contract}, attempt ${attempt + 1}/${maxRetries}`);
+        // Continue immediately
       }
     } catch (error) {
-      if (import.meta.env.DEV) console.warn(`Attempt ${attempt + 1} failed to fetch assets from ${oracle.contract}:`, error);
-      
+      // Log error for debugging but continue to next attempt
+      if (import.meta.env.DEV) {
+        console.warn(`Oracle fetch attempt ${attempt + 1} failed:`, error);
+      }
       // Continue to next attempt immediately without delay
     }
   }
@@ -347,11 +346,13 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
       
       // If no price but still have attempts, continue immediately
       if (attempt < maxRetries - 1 && rawPrice === 0) {
-        if (import.meta.env.DEV) console.warn(`No price returned for ${asset.code}, attempt ${attempt + 1}/${maxRetries}`);
+        // Continue immediately
       }
     } catch (error) {
-      if (import.meta.env.DEV) console.warn(`Attempt ${attempt + 1} failed for ${asset.code} from ${oracle.contract}:`, error);
-      
+      // Log error for debugging but continue to next attempt
+      if (import.meta.env.DEV) {
+        console.warn(`Price fetch attempt ${attempt + 1} failed:`, error);
+      }
       // Continue to next attempt immediately without delay
     }
   }
@@ -373,7 +374,7 @@ export const setLastFetchTimestamp = (): void => {
   try {
     localStorage.setItem(FETCH_TIMESTAMP_KEY, Date.now().toString());
   } catch (error) {
-    console.warn('Failed to save fetch timestamp:', error);
+    // Ignore localStorage errors (private mode, quota exceeded)
   }
 };
 
@@ -385,7 +386,7 @@ export const getLastFetchTimestamp = (): Date | null => {
       return new Date(parseInt(timestamp));
     }
   } catch (error) {
-    console.warn('Failed to get fetch timestamp:', error);
+    // Ignore localStorage errors (private mode, quota exceeded)
   }
   return null;
 };
@@ -406,7 +407,7 @@ const loadPriceCache = (): PriceCache => {
       return JSON.parse(cached);
     }
   } catch (error) {
-    if (import.meta.env.DEV) console.warn('Failed to load price cache from localStorage:', error);
+    // Ignore localStorage errors (private mode, quota exceeded)
   }
   return {};
 };
@@ -415,7 +416,7 @@ const savePriceCache = (cache: PriceCache): void => {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
   } catch (error) {
-    if (import.meta.env.DEV) console.warn('Failed to save price cache to localStorage:', error);
+    // Ignore localStorage errors (private mode, quota exceeded)
   }
 };
 
@@ -459,7 +460,6 @@ export const getLastPriceUpdate = (): Date | null => {
     const latestTimestamp = Math.max(...timestamps);
     return new Date(latestTimestamp);
   } catch (error) {
-    if (import.meta.env.DEV) console.warn('Failed to get last price update:', error);
     return null;
   }
 };
@@ -480,6 +480,6 @@ export const clearPriceCache = (): void => {
     loadedOracles.clear();
     
   } catch (error) {
-    if (import.meta.env.DEV) console.warn('Failed to clear price cache:', error);
+    // Ignore localStorage errors (private mode, quota exceeded)
   }
 };

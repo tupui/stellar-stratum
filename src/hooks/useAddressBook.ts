@@ -61,7 +61,6 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
           setCursor(parsed.cursor);
         }
       } catch (error) {
-        console.error('Failed to parse cached address book:', error);
       }
     }
   }, [accountPublicKey, network]);
@@ -78,7 +77,6 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
       };
       localStorage.setItem(getStorageKey(), JSON.stringify(data));
     } catch (error) {
-      console.error('Failed to save address book:', error);
     }
   };
 
@@ -259,7 +257,6 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
         saveToStorage(cappedEntries, syncTime, newCursor);
 
       } catch (error) {
-        console.error('Failed to sync address book:', error);
         throw error;
       } finally {
         setIsLoading(false);

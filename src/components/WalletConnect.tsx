@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -41,13 +41,12 @@ export const WalletConnect = ({
     network: selectedNetwork,
     setNetwork: setSelectedNetwork
   } = useNetwork();
-  const loadWallets = async () => {
+  const loadWallets = useCallback(async () => {
     try {
       setLoading(true);
       const wallets = await getSupportedWallets(selectedNetwork);
       setSupportedWallets(wallets);
     } catch (error) {
-      if (import.meta.env.DEV) console.error('Failed to load wallets:', error);
       toast({
         title: "Failed to load wallets",
         description: "Could not load supported wallets",
@@ -57,10 +56,8 @@ export const WalletConnect = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedNetwork, toast]);
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    let timeout: NodeJS.Timeout;
     const checkWallets = async () => {
       await loadWallets();
       
@@ -71,20 +68,22 @@ export const WalletConnect = ({
         setLoading(false);
       }
     };
-    checkWallets();
 
     // Check for wallet availability using config values
-    interval = setInterval(checkWallets, appConfig.WALLET_CHECK_INTERVAL);
-    timeout = setTimeout(() => {
+    const interval: NodeJS.Timeout = setInterval(checkWallets, appConfig.WALLET_CHECK_INTERVAL);
+    const timeout: NodeJS.Timeout = setTimeout(() => {
       clearInterval(interval);
       clearTimeout(timeout);
       setLoading(false);
     }, appConfig.WALLET_TIMEOUT);
+    
+    checkWallets();
+    
     return () => {
       clearInterval(interval);
       clearTimeout(timeout);
     };
-  }, [selectedNetwork]); // Re-run when network changes
+  }, [selectedNetwork, loadWallets, supportedWallets]); // Re-run when network changes
 
   const getWalletIcon = (wallet: ISupportedWallet) => {
     const isLedger = wallet.id.toLowerCase().includes('ledger');
@@ -193,7 +192,7 @@ export const WalletConnect = ({
           variant: "destructive"
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       const {
         userMessage,
         fullError
@@ -224,7 +223,6 @@ export const WalletConnect = ({
         userMessage,
         fullError
       } = sanitizeError(error);
-      if (import.meta.env.DEV) console.error('Failed to connect wallet:', fullError);
       const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
       toast({
         title: "Connection failed",

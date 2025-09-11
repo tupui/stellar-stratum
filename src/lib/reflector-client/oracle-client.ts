@@ -30,7 +30,6 @@ async function __acquireToken() {
   const wait = Math.max(0, WINDOW_MS - (now - oldest));
   if (wait > 0) {
     // Only sleep when we exceed the burst limit
-    // [silenced] console.debug(`[oracle-client] Rate limit reached: sleeping ${wait}ms`);
     await __sleep(wait);
   }
   __cleanupTimestamps();

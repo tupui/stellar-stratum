@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +17,8 @@ import {
   Asset,
   Memo,
   Horizon,
-  StrKey
+  StrKey,
+  Signature
 } from '@stellar/stellar-sdk';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
@@ -58,10 +59,12 @@ interface TransactionBuilderProps {
     };
   } | null;
   initialTab?: string;
+  pendingId?: string;
+  initialXdr?: string;
   onAccountRefresh?: () => Promise<void>;
 }
 
-export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment', onAccountRefresh }: TransactionBuilderProps) => {
+export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment', pendingId, initialXdr, onAccountRefresh }: TransactionBuilderProps) => {
   const { toast } = useToast();
   const { network: currentNetwork, setNetwork: setCurrentNetwork } = useNetwork();
   const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
@@ -105,6 +108,21 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   }, [activeTab]);
 
   // Check for deep link data on mount
+  const handleXdrInputChange = useCallback((xdr: string) => {
+    setXdrData(prev => ({ ...prev, input: xdr }));
+    
+    // Auto-validate XDR on input change
+    if (xdr.trim()) {
+      try {
+        const networkPassphrase = getNetworkPassphrase(currentNetwork);
+        new Transaction(xdr.trim(), networkPassphrase);
+        // Clear any previous errors silently
+      } catch (parseError) {
+        // Invalid XDR - user is still typing, don't show error yet
+      }
+    }
+  }, [currentNetwork]);
+
   useEffect(() => {
     const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
     const deepLinkRefractorId = sessionStorage.getItem('deeplink-refractor-id');
@@ -118,8 +136,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       sessionStorage.removeItem('deeplink-xdr');
       sessionStorage.removeItem('deeplink-refractor-id');
       toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
+    } else if (initialXdr) {
+      // Pre-load XDR from multisig flow
+      handleXdrInputChange(initialXdr);
+      setActiveTab('import');
+      toast({ title: 'Multisig Transaction Loaded', description: 'Ready for signing.', duration: 3000 });
     }
-  }, []);
+  }, [initialXdr, handleXdrInputChange, toast]);
 
   // Also handle deep link events when already on the builder
   useEffect(() => {
@@ -135,10 +158,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
       }
     };
-    // Use 'as any' to avoid TS custom event typing friction
-    window.addEventListener('deeplink:xdr-loaded', handleDeepLinkEvent as any);
-    return () => window.removeEventListener('deeplink:xdr-loaded', handleDeepLinkEvent as any);
-  }, []);
+    // Custom event for deep link handling
+    window.addEventListener('deeplink:xdr-loaded', handleDeepLinkEvent as EventListener);
+    return () => window.removeEventListener('deeplink:xdr-loaded', handleDeepLinkEvent as EventListener);
+  }, [handleXdrInputChange, toast]);
 
 
   // Function to fetch additional asset prices with timeout
@@ -228,7 +251,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const createTrustlineRemovalOperations = () => {
     // Create operations to remove all existing trustlines before account merge
     // Note: XLM (native asset) cannot be closed and is automatically skipped
-    const trustlineRemovalOps: any[] = [];
+    const trustlineRemovalOps: Operation[] = [];
     
     if (!accountData?.balances) return trustlineRemovalOps;
     
@@ -271,7 +294,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return parseFloat((converted * slippageAdjustment).toFixed(7));
   };
   
-  const handlePaymentBuild = async (paymentData?: any, isAccountMerge = false, batchPayments?: any[], pathPayment?: any) => {
+  const handlePaymentBuild = async (paymentData?: unknown, isAccountMerge = false, batchPayments?: unknown[], pathPayment?: unknown) => {
     setIsBuilding(true);
     setTrustlineError('');
 
@@ -552,20 +575,6 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
   };
 
-  const handleXdrInputChange = (xdr: string) => {
-    setXdrData(prev => ({ ...prev, input: xdr }));
-    
-    // Auto-validate XDR on input change
-    if (xdr.trim()) {
-      try {
-        const networkPassphrase = getNetworkPassphrase(currentNetwork);
-        new Transaction(xdr.trim(), networkPassphrase);
-        // Clear any previous errors silently
-      } catch (parseError) {
-        // Invalid XDR - user is still typing, don't show error yet
-      }
-    }
-  };
 
   const handleSignTransaction = async () => {
     const xdrToSign = xdrData.output || xdrData.input;
@@ -751,8 +760,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     const xdrToCheck = xdrData.output || xdrData.input;
     if (!xdrToCheck || !accountData?.signers) return [];
     try {
-      const parsed: any = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork));
-      const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
+      const parsed = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork));
+      const collectHints = (tx: Transaction) => (tx?.signatures || []).map((s: Signature) => s.hint());
       const hints: Buffer[] = parsed?.innerTransaction
         ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
         : collectHints(parsed);
@@ -993,6 +1002,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             <CardContent>
               <SignerSelector
                 xdr={xdrData.output || xdrData.input}
+                network={currentNetwork}
+                onSigned={(signedXdr, signerKey) => {
+                  setXdrData(prev => ({ ...prev, output: signedXdr }));
+                  setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
+                  toast({ title: 'Signature Added', description: `Signed by ${signerKey.slice(0, 8)}...` });
+                }}
+                pendingId={pendingId}
                 signers={accountData.signers}
                 currentAccountKey={accountPublicKey}
                 signedBy={signedBy}

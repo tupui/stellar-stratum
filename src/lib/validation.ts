@@ -1,21 +1,35 @@
 /**
- * Centralized input validation utilities for security and consistency
+ * CRITICAL: Centralized input validation utilities for security and consistency
+ * This is FUNDAMENTAL to preventing fund loss in self-custody applications
  */
 
 /**
- * Validates a Stellar public key format
+ * CRITICAL: Validates a Stellar public key format
+ * Invalid keys could lead to fund loss
  */
 export const isValidPublicKey = (key: string): boolean => {
-  return typeof key === 'string' && key.match(/^G[A-Z2-7]{55}$/) !== null;
+  if (typeof key !== 'string') return false;
+  if (key.length !== 56) return false;
+  return key.match(/^G[A-Z2-7]{55}$/) !== null;
 };
 
 /**
- * Validates a Stellar amount (numeric string with max 7 decimal places)
+ * CRITICAL: Validates a Stellar amount (numeric string with max 7 decimal places)
+ * Invalid amounts could lead to transaction failures or fund loss
  */
 export const isValidAmount = (amount: string): boolean => {
+  if (typeof amount !== 'string') return false;
+  if (amount.length === 0) return false;
+  
   const numericRegex = /^\d+(\.\d{1,7})?$/;
+  if (!numericRegex.test(amount)) return false;
+  
   const num = parseFloat(amount);
-  return numericRegex.test(amount) && num > 0 && num <= 922337203685.4775807;
+  if (isNaN(num)) return false;
+  if (num <= 0) return false;
+  if (num > Number.MAX_SAFE_INTEGER) return false;
+  
+  return true;
 };
 
 /**
@@ -31,6 +45,43 @@ export const isValidDomain = (domain: string): boolean => {
          domainRegex.test(domain) &&
          !domain.startsWith('-') &&
          !domain.endsWith('-');
+};
+
+/**
+ * CRITICAL: Validates XDR format for Stellar transactions
+ * Invalid XDR could lead to transaction failures or fund loss
+ */
+export const isValidXdr = (xdr: string): boolean => {
+  if (typeof xdr !== 'string') return false;
+  if (xdr.length === 0) return false;
+  
+  try {
+    // Basic XDR format validation - should be base64
+    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+    if (!base64Regex.test(xdr)) return false;
+    
+    // Try to decode as base64
+    const decoded = atob(xdr);
+    if (decoded.length === 0) return false;
+    
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * CRITICAL: Validates asset code format
+ * Invalid asset codes could lead to transaction failures
+ */
+export const isValidAssetCode = (code: string): boolean => {
+  if (typeof code !== 'string') return false;
+  if (code.length === 0) return false;
+  if (code.length > 12) return false; // Stellar asset code limit
+  
+  // Asset codes can be alphanumeric
+  const assetCodeRegex = /^[A-Z0-9]+$/;
+  return assetCodeRegex.test(code);
 };
 
 /**

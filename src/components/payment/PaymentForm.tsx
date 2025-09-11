@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { resolveSorobanDomain, isLikelySorobanDomain } from '@/lib/soroban-domains';
-import { isValidPublicKey, isValidDomain } from '@/lib/validation';
+import { isValidPublicKey, isValidDomain, isValidAmount } from '@/lib/validation';
 import { useToast } from '@/hooks/use-toast';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
 import { SwapInterface } from '../SwapInterface';
@@ -59,7 +59,7 @@ interface PaymentFormProps {
   assetPrices: Record<string, number>;
   onFetchAssetPrice?: (assetCode: string, assetIssuer?: string) => Promise<number>;
   trustlineError: string;
-  onBuild: (paymentData?: PaymentData, isAccountMerge?: boolean, payments?: CompactPayment[], pathPayment?: any) => void;
+  onBuild: (paymentData?: PaymentData, isAccountMerge?: boolean, payments?: CompactPayment[], pathPayment?: unknown) => void;
   isBuilding: boolean;
   accountData: {
     balances: Array<{
@@ -160,7 +160,7 @@ export const PaymentForm = ({
   };
 
   // Calculate leftover balance after all other transactions (for merge display)
-  const getLeftoverBalance = (assetCode: string) => {
+  const getLeftoverBalance = useCallback((assetCode: string) => {
     // Use FULL balance for merge (do not subtract reserves/fees)
     const asset = availableAssets.find(a => a.code === assetCode);
     const fullBalance = asset ? parseFloat(asset.balance) : 0;
@@ -168,7 +168,7 @@ export const PaymentForm = ({
       .filter(p => p.asset === assetCode && !p.isAccountClosure) // Exclude other merges
       .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
     return Math.max(0, fullBalance - compactTotal);
-  };
+  }, [availableAssets, compactPayments]);
   const getMaxSliderValue = (assetCode: string) => {
     const asset = availableAssets.find(a => a.code === assetCode);
     if (!asset) return 0;
@@ -218,9 +218,9 @@ export const PaymentForm = ({
     return numAmount > availableBalance;
   };
 
-  // Destination trustline helpers
-  const isValidStellarAddress = (s?: string) => !!s && s.length === 56 && s.startsWith('G');
-  const fetchRecipientAssets = async (accountId: string): Promise<{
+  // CRITICAL: Use proper validation for destination addresses
+  const isValidStellarAddress = (s?: string) => !!s && isValidPublicKey(s);
+  const fetchRecipientAssets = useCallback(async (accountId: string): Promise<{
     exists: boolean;
     assets: RecipientAsset[];
   }> => {
@@ -228,7 +228,7 @@ export const PaymentForm = ({
     try {
       const account = await server.loadAccount(accountId);
       const assets: RecipientAsset[] = [];
-      account.balances.forEach((b: any) => {
+      account.balances.forEach((b: { asset_type: string; asset_code?: string; asset_issuer?: string; balance: string }) => {
         if (b.asset_type === 'native') {
           assets.push({
             code: 'XLM',
@@ -261,7 +261,7 @@ export const PaymentForm = ({
         }]
       };
     }
-  };
+  }, [network]);
 
   // Fetch recipient assets when destination changes
   useEffect(() => {
@@ -283,13 +283,13 @@ export const PaymentForm = ({
     return () => {
       cancelled = true;
     };
-  }, [paymentData.destination, network]);
+  }, [paymentData.destination, network, fetchRecipientAssets]);
 
 // Removed auto-selection of receive asset to respect manual choice and explicit rules
 // per user request: no automatic adjustments.
 
   // Helper to dynamically format fiat value based on current currency context
-  const formatDynamicFiatValue = async (amount: string, asset: string) => {
+  const formatDynamicFiatValue = useCallback(async (amount: string, asset: string) => {
     const price = assetPrices[asset] || 0;
     if (price > 0) {
       const usdValue = parseFloat(amount) * price;
@@ -306,7 +306,7 @@ export const PaymentForm = ({
       }
     }
     return null;
-  };
+  }, [assetPrices, getCurrentCurrency]);
 
   // State to store formatted fiat values for compact payments
   const [compactPaymentFiatValues, setCompactPaymentFiatValues] = useState<Record<string, string>>({});
@@ -327,7 +327,7 @@ export const PaymentForm = ({
     if (compactPayments.length > 0) {
       updateCompactFiatValues();
     }
-  }, [compactPayments, quoteCurrency, assetPrices, getCurrentCurrency]);
+  }, [compactPayments, quoteCurrency, assetPrices, getCurrentCurrency, formatDynamicFiatValue]);
 
   // Helper to handle destination input and domain resolution
   const handleDestinationChange = (inputValue: string) => {
@@ -400,7 +400,7 @@ export const PaymentForm = ({
       }
     };
   }, [debounceTimer]);
-  const calculateFiatValue = async (amount: string, asset: string) => {
+  const calculateFiatValue = useCallback(async (amount: string, asset: string) => {
     const price = assetPrices[asset] || 0;
     if (price > 0) {
       const usdValue = parseFloat(amount) * price;
@@ -418,7 +418,7 @@ export const PaymentForm = ({
       }
     }
     return 'N/A';
-  };
+  }, [assetPrices, quoteCurrency, getCurrentCurrency]);
 
   // Update fiat value when amount, asset, or currency changes
   useEffect(() => {
@@ -431,7 +431,7 @@ export const PaymentForm = ({
       setFiatValue(fiat);
     };
     updateFiatValue();
-  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency]);
+  }, [paymentData.amount, paymentData.asset, quoteCurrency, assetPrices, getCurrentCurrency, calculateFiatValue]);
 
   // Update amount when willCloseAccount changes or when compactPayments change
   useEffect(() => {
@@ -442,7 +442,7 @@ export const PaymentForm = ({
         amount: leftoverBalance.toFixed(7)
       });
     }
-  }, [willCloseAccount, compactPayments]);
+  }, [willCloseAccount, compactPayments, getLeftoverBalance, onPaymentDataChange, paymentData]);
   const formatDisplayAmount = (value: string | number) => {
     const s = String(value);
     if (s === '' || s === '0') return '0.0';
@@ -795,6 +795,18 @@ export const PaymentForm = ({
     const isOverLimit = value > availableBalance;
     const availablePercentage = maxAmount > 0 ? Math.min(100, availableBalance / maxAmount * 100) : 0;
     const handleEditSubmit = () => {
+      // CRITICAL: Validate amount before processing
+      if (!isValidAmount(editValue)) {
+        toast({
+          title: "Invalid Amount",
+          description: "Please enter a valid amount",
+          variant: "destructive",
+        });
+        setEditValue(paymentData.amount);
+        setIsEditing(false);
+        return;
+      }
+      
       let numValue = parseFloat(editValue) || 0;
       // Apply decimal constraints based on asset
       if (paymentData.asset === 'XLM') {
@@ -817,7 +829,7 @@ export const PaymentForm = ({
       if (!isEditing) {
         setEditValue(paymentData.amount);
       }
-    }, [paymentData.amount, isEditing]);
+    }, [isEditing]);
     useEffect(() => {
       const endDrag = () => {
         isDraggingRef.current = false;

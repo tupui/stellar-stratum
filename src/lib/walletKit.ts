@@ -10,7 +10,7 @@ export const createWalletKit = (walletId?: string, network: 'mainnet' | 'testnet
   const kit = new StellarWalletsKit({
     modules: [...allowAllModules(), new LedgerModule()],
     // Use passphrase string for compatibility with various wallets (e.g., Freighter)
-    // @ts-ignore - library accepts both enum and passphrase string
+    // @ts-expect-error - Freighter types not available - library accepts both enum and passphrase string
     network: getNetworkPassphrase(network),
     
   });
@@ -26,10 +26,10 @@ export const signWithWallet = async (
   const kit = createWalletKit(walletId, network);
 
   // Try explicit connect when supported by wallet module
-  // @ts-ignore
+  // @ts-expect-error - Freighter types not available
   if (typeof (kit as any).connect === 'function') {
     try {
-      // @ts-ignore
+      // @ts-expect-error - Freighter types not available
       await (kit as any).connect();
     } catch {
       // Some wallets don't require connect, continue

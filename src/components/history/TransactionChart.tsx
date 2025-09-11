@@ -87,7 +87,7 @@ export const TransactionChart = ({
           end: endOfDay(subDays(now, offsetDays))
         };
       case 'all':
-      default:
+      default: {
         const oldestDate = transactions.reduce((earliest, tx) => {
           const d = new Date(tx.createdAt).getTime();
           return d < earliest ? d : earliest;
@@ -97,6 +97,7 @@ export const TransactionChart = ({
           start: Number.isFinite(oldestDate) ? new Date(oldestDate) : subDays(now, 30),
           end: now,
         };
+      }
     }
   }, [selectedRange, currentOffset, transactions]);
 
@@ -211,7 +212,7 @@ export const TransactionChart = ({
     });
 
     return points;
-  }, [transactions, dateRange, selectedRange, currentBalance]);
+  }, [transactions, dateRange, selectedRange, currentBalance, fiatAmountMap, fiatMode]);
 
   // Aggregate data for better visualization on longer time ranges
   const aggregatedData = useMemo((): ChartDataPoint[] => {
@@ -357,7 +358,7 @@ export const TransactionChart = ({
                     fontSize: '12px',
                   }}
                   wrapperStyle={{ fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
-                  formatter={(value: any) => [
+                  formatter={(value: number | string) => [
                     fiatMode ? `${Number(value).toFixed(2)} ${fiatSymbol}` : `${Number(value).toFixed(7)} ${assetSymbol}`,
                     'Balance'
                   ]}

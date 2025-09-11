@@ -43,7 +43,6 @@ export const createStellarKit = (network: 'mainnet' | 'testnet' = 'mainnet') => 
       );
     }
   } catch (e) {
-    if (import.meta.env.DEV) console.warn('WalletConnect module not initialized:', e);
   }
 
   // Trezor (optional)
@@ -52,12 +51,11 @@ export const createStellarKit = (network: 'mainnet' | 'testnet' = 'mainnet') => 
       modules.push(new TrezorModule({ appUrl: trezorConfig.url, email: trezorConfig.email, appName: 'Stellar Multisig' }));
     }
   } catch (e) {
-    if (import.meta.env.DEV) console.warn('Trezor module not initialized:', e);
   }
 
   return new StellarWalletsKit({
     modules,
-    // @ts-ignore - library accepts both enum and passphrase string
+    // @ts-expect-error - Freighter types not available - library accepts both enum and passphrase string
     network: config.passphrase,
   });
 };
@@ -103,7 +101,7 @@ export const connectWallet = async (walletId: string, network: 'mainnet' | 'test
 
     // Try explicit connect when supported by wallet module
     try {
-      // @ts-ignore
+      // @ts-expect-error - Freighter types not available
       if (typeof (kit as any).connect === 'function') {
         await (kit as any).connect();
       }
@@ -123,7 +121,6 @@ export const connectWallet = async (walletId: string, network: 'mainnet' | 'test
       walletName: walletInfo?.name || walletId,
     };
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Wallet connection failed:', error);
 
     const errorMsg = String(error || '').toLowerCase();
     const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
@@ -176,7 +173,6 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
       }))
     };
   } catch (error: any) {
-    if (import.meta.env.DEV) console.error('Failed to fetch account data:', error);
     
     // Check if it's a NotFoundError (account doesn't exist)
     if (error?.name === 'NotFoundError' || 
@@ -215,7 +211,6 @@ export const getSupportedWallets = async (network: 'mainnet' | 'testnet' = 'main
         return a.name.localeCompare(b.name);
       });
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Failed to get supported wallets:', error);
     throw error;
   }
 };
@@ -225,7 +220,6 @@ export const signTransaction = async (xdr: string): Promise<string> => {
     const { signedTxXdr } = await stellarKit.signTransaction(xdr);
     return signedTxXdr;
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Failed to sign transaction:', error);
     throw new Error('Failed to sign transaction');
   }
 };
@@ -238,7 +232,6 @@ export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 
     const result = await server.submitTransaction(transaction);
     return result;
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Failed to submit transaction:', error);
     throw new Error('Failed to submit transaction');
   }
 };
@@ -263,7 +256,6 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
 
     if (!response.ok) {
       const errorText = await response.text();
-      if (import.meta.env.DEV) console.error('Refractor API error:', response.status, errorText);
       throw new Error(`Refractor API error: ${response.status} - ${errorText}`);
     }
 
@@ -274,7 +266,6 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
     
     return txHash;
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Failed to submit to Refractor:', error);
     throw new Error(`Failed to submit to Refractor: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
@@ -290,7 +281,6 @@ export const pullFromRefractor = async (refractorId: string): Promise<string> =>
     const result = await response.json();
     return result.xdr;
   } catch (error) {
-    if (import.meta.env.DEV) console.error('Failed to pull from Refractor:', error);
     throw new Error('Failed to fetch transaction from Refractor');
   }
 };

@@ -188,7 +188,7 @@ export const SwapInterface = ({
     // Delay to avoid blocking asset selection
     const timeoutId = setTimeout(fetchMissingPrices, 100);
     return () => clearTimeout(timeoutId);
-  }, [isPathPayment, fromAsset, toAsset, fromAssetIssuer, toAssetIssuer, onFetchAssetPrice, fromPrice, toPrice]);
+  }, [isPathPayment, fromAsset, toAsset, fromAssetIssuer, toAssetIssuer, onFetchAssetPrice, fromPrice, toPrice, assetPrices]);
   
   // Calculate receive amount based on prices or manual input
   const calculateReceiveAmount = () => {

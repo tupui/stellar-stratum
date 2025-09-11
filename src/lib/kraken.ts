@@ -28,7 +28,9 @@ const loadCache = (): DailyMap => {
 const saveCache = (map: DailyMap) => {
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(map));
-  } catch {}
+  } catch {
+    // Ignore localStorage errors (private mode, quota exceeded)
+  }
 };
 
 // Lightweight minute limiter (~20/min)
@@ -68,7 +70,9 @@ const fetchDaily = async (start: Date): Promise<void> => {
         cache[key] = close;
       }
       saveCache(cache);
-      try { localStorage.setItem(LAST_FETCH_TS_KEY, String(Date.now())); } catch {}
+      try { localStorage.setItem(LAST_FETCH_TS_KEY, String(Date.now())); } catch {
+        // Ignore localStorage errors
+      }
       return;
     } catch {
       // try next pair
@@ -81,7 +85,9 @@ export const primeXlmUsdRates = async (start: Date, end: Date): Promise<void> =>
   try {
     const lastTs = Number(localStorage.getItem(LAST_FETCH_TS_KEY) || '0');
     if (lastTs && (Date.now() - lastTs) < TTL_MS) return;
-  } catch {}
+  } catch {
+    // Ignore localStorage errors (private mode, quota exceeded)
+  }
   if (inFlight) { await inFlight; return; }
   inFlight = (async () => {
     const s = new Date(start.getTime() - 2 * 24 * 3600 * 1000);

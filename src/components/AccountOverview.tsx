@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { HeaderPendingBadge } from '@/components/HeaderPendingBadge';
 import { Separator } from '@/components/ui/separator';
 import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -9,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
+import { TransactionBuilder } from './TransactionBuilder';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
@@ -47,6 +49,8 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
   const [activeTab, setActiveTab] = useState("balances");
   const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
   const [showEditConfirm, setShowEditConfirm] = useState(false);
+  const [pendingMultisigId, setPendingMultisigId] = useState<string | null>(null);
+  const [pendingMultisigXdr, setPendingMultisigXdr] = useState<string | null>(null);
   
   const truncateKey = (key: string) => {
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
@@ -100,6 +104,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             </Button>
           </div>
         </div>
+        <HeaderPendingBadge />
 
         {/* Account Info */}
         <Card className="shadow-card">
@@ -308,6 +313,11 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
                     currentSigners={accountData.signers}
                     currentThresholds={accountData.thresholds}
                     onXdrGenerated={() => {}}
+                    onPendingCreated={(id, xdr) => {
+                      setPendingMultisigId(id);
+                      setPendingMultisigXdr(xdr);
+                      setActiveTab('multisig');
+                    }}
                     onAccountRefresh={onRefreshBalances}
                   />
                 </CardContent>
@@ -342,6 +352,22 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
 
         {/* Thresholds & Signers are now moved to the Multisig tab */}
       </div>
+
+      {/* TransactionBuilder for multisig signing */}
+      {pendingMultisigId && pendingMultisigXdr && (
+        <TransactionBuilder
+          onBack={() => {
+            setPendingMultisigId(null);
+            setPendingMultisigXdr(null);
+          }}
+          accountPublicKey={accountData.publicKey}
+          accountData={accountData}
+          initialTab="import"
+          pendingId={pendingMultisigId}
+          initialXdr={pendingMultisigXdr}
+          onAccountRefresh={onRefreshBalances}
+        />
+      )}
     </div>
   );
 };

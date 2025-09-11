@@ -110,9 +110,6 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
       
       return data;
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.warn('Failed to load transaction history from cache:', error);
-      }
       return null;
     }
   }, [cacheKey]);
@@ -128,9 +125,7 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
       };
       localStorage.setItem(cacheKey, JSON.stringify(data));
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.warn('Failed to save transaction history to cache:', error);
-      }
+      // Ignore localStorage errors - cache is optional
     }
   }, [cacheKey]);
 
@@ -163,24 +158,15 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
   const loadInitial = useCallback(async (force: boolean = false) => {
     if (!publicKey) return;
 
-    if (import.meta.env.DEV) {
-      console.log(`🔍 loadInitial called for ${publicKey}-${network}, force: ${force}`);
-    }
 
     // Prevent concurrent requests for same account+network
     const requestKey = `${publicKey}-${network}`;
     if (!force && requestPromises.has(requestKey)) {
-      if (import.meta.env.DEV) {
-        console.log(`🔄 Request already in flight for ${requestKey}, waiting...`);
-      }
       try {
         return await requestPromises.get(requestKey);
       } catch (error) {
         // If the in-flight request failed, remove it and continue with new request
         requestPromises.delete(requestKey);
-        if (import.meta.env.DEV) {
-          console.log(`❌ In-flight request failed, retrying...`);
-        }
       }
     }
 
@@ -204,9 +190,6 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
               })
               .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
               
-            if (import.meta.env.DEV) {
-              console.log(`✅ Memory cache hit: ${allTransactions.length} transactions`);
-            }
             setTransactions(allTransactions);
             setLastSync(new Date(memoryCached.timestamp));
             if (memoryCached.pages.length > 0) {
@@ -230,9 +213,6 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
               })
               .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
               
-            if (import.meta.env.DEV) {
-              console.log(`✅ localStorage cache hit: ${allTransactions.length} transactions`);
-            }
             setTransactions(allTransactions);
             setLastSync(cachedData.lastSync);
             if (cachedData.pages.length > 0) {
@@ -249,9 +229,6 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
             return;
           }
           
-          if (import.meta.env.DEV) {
-            console.log(`❌ Cache miss - fetching fresh data`);
-          }
         }
 
         // Fetch fresh data using standard horizon for initial load
@@ -308,12 +285,9 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
           });
         }
 
-      } catch (err: any) {
-        const errorMsg = err?.message || 'Failed to load transaction history';
+      } catch (err: unknown) {
+        const errorMsg = (err instanceof Error ? err.message : 'Failed to load transaction history');
         setError(errorMsg);
-        if (import.meta.env.DEV) {
-          console.error('Failed to load transaction history:', err);
-        }
       } finally {
         setIsLoading(false);
         requestPromises.delete(requestKey);
@@ -326,9 +300,6 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     setTimeout(() => {
       if (requestPromises.get(requestKey) === promise) {
         requestPromises.delete(requestKey);
-        if (import.meta.env.DEV) {
-          console.log(`🧹 Cleaned up stale request for ${requestKey}`);
-        }
       }
     }, 30000); // 30 second timeout
     
@@ -402,11 +373,8 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
       });
 
     } catch (err: any) {
-      const errorMsg = err?.message || 'Failed to load more transactions';
+      const errorMsg = (err instanceof Error ? err.message : 'Failed to load more transactions');
       setError(errorMsg);
-      if (import.meta.env.DEV) {
-        console.error('Failed to load more transactions:', err);
-      }
     } finally {
       setIsLoading(false);
     }
@@ -427,9 +395,7 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
         await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
       }
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Progressive loading failed:', error);
-      }
+      // Ignore load more errors - user can retry
     }
   }, [publicKey, loadMore]);
 

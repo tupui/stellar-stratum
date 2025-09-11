@@ -109,11 +109,13 @@ export const SuccessModal = ({
     if (typeof navigator !== 'undefined' && 'share' in navigator) {
       try {
         // If canShare exists and returns false, fallback to copy
-        if (typeof (navigator as any).canShare === 'function' && (navigator as any).canShare && !(navigator as any).canShare(shareData)) {
+        if (typeof (navigator as Navigator & { canShare?: (data: ShareData) => boolean }).canShare === 'function' && 
+            (navigator as Navigator & { canShare?: (data: ShareData) => boolean }).canShare && 
+            !(navigator as Navigator & { canShare?: (data: ShareData) => boolean }).canShare!(shareData)) {
           await copyShareLink();
           return;
         }
-        await (navigator as any).share(shareData);
+        await (navigator as Navigator & { share: (data: ShareData) => Promise<void> }).share(shareData);
       } catch (err) {
         // Fallback to copy if share fails or is cancelled
         await copyShareLink();

@@ -22,7 +22,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
     const operations = transaction.operations.map((op, index) => ({
       index,
       type: op.type,
-      details: op as any,
+      details: op as Operation,
     }));
 
     return {
@@ -63,7 +63,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
     }
   };
 
-  const getOperationSummary = (op: any) => {
+  const getOperationSummary = (op: Operation) => {
     switch (op.type) {
       case 'payment':
         return {
@@ -83,7 +83,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
           target: `into ${op.details.destination.substring(0, 8)}...`,
           severity: 'destructive' as const
         };
-      case 'changeTrust':
+      case 'changeTrust': {
         const asset = op.details.asset;
         const assetCode = asset?.code || asset?.credit_alphanum4?.asset_code || asset?.credit_alphanum12?.asset_code || 'Unknown';
         const limit = op.details.limit;
@@ -92,6 +92,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
           target: `for ${assetCode}`,
           severity: limit === '0' ? 'destructive' as const : 'default' as const
         };
+      }
       case 'setOptions':
         return {
           action: 'Update account settings',
@@ -212,7 +213,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
 
         {/* Warning for destructive operations */}
         {summary.operations.some(op => ['accountMerge', 'changeTrust'].includes(op.type) && 
-          (op.type === 'accountMerge' || (op.details as any).limit === '0')) && (
+          (op.type === 'accountMerge' || (op.details as Operation & { limit?: string }).limit === '0')) && (
           <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />

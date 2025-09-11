@@ -7,6 +7,19 @@ import { ChevronDown, Copy, FileText, Hash, User, Coins, Clock, Signature, Check
 import { generateTransactionFingerprint } from '@/lib/xdr/fingerprint';
 import { useToast } from '@/hooks/use-toast';
 import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
+import { Operation } from '@stellar/stellar-sdk';
+
+// Type helpers for operation details
+type PaymentOp = Operation & { destination?: string; amount?: string; asset?: { code?: string } };
+type PathPaymentOp = Operation & { 
+  destination?: string; 
+  sendAmount?: string; 
+  sendAsset?: { code?: string }; 
+  destMin?: string; 
+  destAsset?: { code?: string } 
+};
+type ChangeTrustOp = Operation & { asset?: { code?: string }; limit?: string };
+type SetOptionsOp = Operation & { signer?: { key?: string } };
 
 interface XdrDetailsProps {
   xdr: string;
@@ -182,10 +195,10 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                             <div className="text-sm space-y-1">
                               <p className="break-words">
                                 <span className="text-muted-foreground">To:</span> 
-                                <span className="font-mono font-address text-xs ml-1 break-all">{(op as any).destination}</span>
+                                <span className="font-mono font-address text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Amount:</span> {(op as any).amount} {(op as any).asset?.code || 'XLM'}
+                                <span className="text-muted-foreground">Amount:</span> {(op as Operation & { amount?: string; asset?: { code?: string } }).amount} {(op as Operation & { amount?: string; asset?: { code?: string } }).asset?.code || 'XLM'}
                               </p>
                             </div>
                           )}
@@ -193,13 +206,13 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                             <div className="text-sm space-y-1">
                               <p className="break-words">
                                 <span className="text-muted-foreground">To:</span> 
-                                <span className="font-mono text-xs ml-1 break-all">{(op as any).destination}</span>
+                                <span className="font-mono text-xs ml-1 break-all">{(op as PathPaymentOp).destination}</span>
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Send:</span> {(op as any).sendAmount} {(op as any).sendAsset?.code || 'XLM'}
+                                <span className="text-muted-foreground">Send:</span> {(op as PathPaymentOp).sendAmount} {(op as PathPaymentOp).sendAsset?.code || 'XLM'}
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Receive (min):</span> {(op as any).destMin} {(op as any).destAsset?.code || 'XLM'}
+                                <span className="text-muted-foreground">Receive (min):</span> {(op as PathPaymentOp).destMin} {(op as PathPaymentOp).destAsset?.code || 'XLM'}
                               </p>
                             </div>
                           )}
@@ -207,7 +220,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                             <div className="text-sm space-y-1">
                               <p className="break-words">
                                 <span className="text-muted-foreground">Into:</span> 
-                                <span className="font-mono text-xs ml-1 break-all">{(op as any).destination}</span>
+                                <span className="font-mono text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
                               </p>
                               <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs">
                                 <div className="flex items-center gap-2">
@@ -220,12 +233,12 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                           {op.type === 'changeTrust' && (
                             <div className="text-sm space-y-1">
                               <p>
-                                <span className="text-muted-foreground">Asset:</span> {(op as any).asset?.code || 'Unknown'}
+                                <span className="text-muted-foreground">Asset:</span> {(op as ChangeTrustOp).asset?.code || 'Unknown'}
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Limit:</span> {(op as any).limit || 'MAX'}
+                                <span className="text-muted-foreground">Limit:</span> {(op as ChangeTrustOp).limit || 'MAX'}
                               </p>
-                              {(op as any).limit === '0' && (
+                              {(op as ChangeTrustOp).limit === '0' && (
                                 <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs">
                                   <div className="flex items-center gap-2">
                                     <AlertTriangle className="h-3 w-3 text-destructive" />
@@ -238,10 +251,10 @@ export const XdrDetails = ({ xdr, defaultExpanded = false }: XdrDetailsProps) =>
                           {op.type === 'setOptions' && (
                             <div className="text-sm space-y-1">
                               <p className="text-muted-foreground">Account settings will be modified</p>
-                              {(op as any).signer && (
+                              {(op as SetOptionsOp).signer && (
                                 <p className="break-words">
                                   <span className="text-muted-foreground">Signer:</span> 
-                                  <span className="font-mono text-xs ml-1 break-all">{(op as any).signer.key}</span>
+                                  <span className="font-mono text-xs ml-1 break-all">{(op as SetOptionsOp).signer?.key}</span>
                                 </p>
                               )}
                             </div>
