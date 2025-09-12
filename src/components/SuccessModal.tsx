@@ -244,23 +244,23 @@ export const SuccessModal = ({
             {type === 'refractor' && refractorId && <div className="space-y-4">
                 {/* Copy Link */}
                 <Button variant="outline" className="w-full h-12 bg-background/50 hover:bg-background/80 border-primary/20" onClick={copyShareLink}>
-                  {copied ? <CheckCircle className="w-4 h-4 mr-2 text-success" /> : <Copy className="w-4 h-4 mr-2" />}
+                  {copied ? <CheckCircle className="w-4 h-4 mr-3 text-success" /> : <Copy className="w-4 h-4 mr-3" />}
                   {copied ? 'Copied!' : 'Copy Link'}
                 </Button>
 
                 {/* Share Options Grid */}
                 <div className="grid grid-cols-3 gap-3">
-                  <Button variant="outline" className="h-20 flex flex-col gap-3 px-6 py-4 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openEmailClient}>
+                  <Button variant="outline" className="h-20 flex flex-col gap-4 px-6 py-5 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openEmailClient}>
                     <Mail className="w-6 h-6" />
                     <span className="text-xs">Email</span>
                   </Button>
                   
-                  <Button variant="outline" className="h-20 flex flex-col gap-3 px-6 py-4 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openWhatsApp}>
+                  <Button variant="outline" className="h-20 flex flex-col gap-4 px-6 py-5 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openWhatsApp}>
                     <MessageCircle className="w-6 h-6" />
                     <span className="text-xs">WhatsApp</span>
                   </Button>
                   
-                  <Button variant="outline" className="h-20 flex flex-col gap-3 px-6 py-4 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openTelegram}>
+                  <Button variant="outline" className="h-20 flex flex-col gap-4 px-6 py-5 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openTelegram}>
                     <Send className="w-6 h-6" />
                     <span className="text-xs">Telegram</span>
                   </Button>

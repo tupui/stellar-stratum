@@ -25,9 +25,10 @@ interface XdrDetailsProps {
   xdr: string;
   defaultExpanded?: boolean;
   networkType?: 'mainnet' | 'testnet';
+  offlineMode?: boolean;
 }
 
-export const XdrDetails = ({ xdr, defaultExpanded = true, networkType }: XdrDetailsProps) => {
+export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMode = false }: XdrDetailsProps) => {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
@@ -313,56 +314,63 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType }: XdrDeta
                 )}
               </div>
 
-              {/* Stellar Lab Verification */}
+              {/* Transaction Verification */}
             <div className="border-t pt-6 mt-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-success/20 flex items-center justify-center ring-1 ring-primary/30">
                     <Shield className="w-5 h-5 text-primary" />
                   </div>
                   <div>
                     <h4 className="font-semibold text-primary">Verify Transaction</h4>
-                    <p className="text-sm text-muted-foreground">Cross-reference with external sources</p>
+                    <p className="text-sm text-muted-foreground">
+                      {offlineMode ? 'Compare transaction details between devices' : 'Cross-reference with external sources'}
+                    </p>
                   </div>
                 </div>
-                <Badge variant="outline" className="text-xs border-primary/30 text-primary bg-primary/10">
-                  {networkType === 'mainnet' ? 'Mainnet' : 'Testnet'}
-                </Badge>
               </div>
               
               <div className="p-4 bg-gradient-to-r from-primary/5 to-success/5 rounded-lg border border-primary/20 mb-4">
                 <p className="text-sm text-foreground mb-2">
-                  <span className="font-medium text-primary">Security Check:</span> Compare the transaction hash above with your signing device and Stellar Lab.
+                  <span className="font-medium text-primary">Security Check:</span> {offlineMode 
+                    ? 'Compare the transaction hash above with your signing device. They must match exactly before signing.'
+                    : 'Compare the transaction hash above with your signing device and Stellar Lab.'
+                  }
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Only proceed if all sources show identical hashes.
+                  {offlineMode 
+                    ? 'This device is offline - only local verification is available.'
+                    : 'Only proceed if all sources show identical hashes.'
+                  }
                 </p>
               </div>
 
-              <Button
-                variant="glow"
-                onClick={() => {
-                  const baseUrl = 'https://lab.stellar.org/xdr/view';
-                  
-                  // XDR encoding rule: Every / becomes //
-                  const encodedXdr = xdr.replace(/\//g, '//');
-                  
-                  let params = '';
-                  
-                  if (networkType === 'mainnet') {
-                    params = `$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=https:////mainnet.sorobanrpc.com//&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
-                  } else {
-                    params = `$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org//&passphrase=Test%20SDF%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
-                  }
-                  
-                  const url = `${baseUrl}?${params}`;
-                  window.open(url, '_blank');
-                }}
-                className="w-full h-11"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Verify on Stellar Lab
-              </Button>
+              {!offlineMode && (
+                <Button
+                  variant="glow"
+                  onClick={() => {
+                    const baseUrl = 'https://lab.stellar.org/xdr/view';
+                    
+                    // XDR encoding rule: Every / becomes //
+                    const encodedXdr = xdr.replace(/\//g, '//');
+                    
+                    let params = '';
+                    
+                    if (networkType === 'mainnet') {
+                      params = `$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=https:////mainnet.sorobanrpc.com//&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
+                    } else {
+                      params = `$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org//&passphrase=Test%20SDF%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
+                    }
+                    
+                    const url = `${baseUrl}?${params}`;
+                    window.open(url, '_blank');
+                  }}
+                  className="w-full h-11"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Verify on Stellar Lab
+                </Button>
+              )}
             </div>
             </div>
           </CardContent>

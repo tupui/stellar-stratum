@@ -26,12 +26,12 @@ export const AnimatedQRScanner = ({
   const { toast } = useToast();
 
   const handleQRScan = (data: string) => {
-    console.log('QR scanned:', data);
+    // QR scanned
     
     // Extract XDR from SEP-7 URI or use raw data
     const xdr = extractXdrFromData(data);
     if (!xdr) {
-      console.log('XDR extraction failed for:', data);
+      // XDR extraction failed
       toast({
         title: 'Invalid QR Code',
         description: 'Expected a SEP-7 transaction URI or base64 XDR. Got: ' + (data.length > 50 ? data.substring(0, 50) + '...' : data),
@@ -41,12 +41,12 @@ export const AnimatedQRScanner = ({
       return;
     }
 
-    console.log('Extracted XDR:', xdr);
+    // Extracted XDR
 
     // Validate XDR can be parsed
     const parsed = tryParseTransaction(xdr);
     if (!parsed) {
-      console.log('Transaction parsing failed for XDR:', xdr);
+      // Transaction parsing failed
       toast({
         title: 'Invalid Transaction',
         description: 'Could not parse as Stellar transaction. Ensure it\'s valid XDR.',
@@ -56,7 +56,7 @@ export const AnimatedQRScanner = ({
       return;
     }
 
-    console.log('Transaction parsed successfully:', parsed);
+    // Transaction parsed successfully
     onDataReceived(xdr, expectedType);
     setIsScanning(false);
   };

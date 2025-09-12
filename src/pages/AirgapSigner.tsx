@@ -78,8 +78,6 @@ export const AirgapSigner = () => {
   }, [setNetwork, toast]);
 
   const handleXdrReceived = (receivedXdr: string) => {
-    console.log('XDR received:', receivedXdr);
-    
     // Validate XDR
     const parsed = tryParseTransaction(receivedXdr);
     if (!parsed) {
@@ -171,7 +169,7 @@ export const AirgapSigner = () => {
     return (
       <div className="space-y-6">
         {/* Advanced Transaction Details - Expanded by default */}
-        <XdrDetails xdr={xdr} defaultExpanded={true} />
+        <XdrDetails xdr={xdr} defaultExpanded={true} networkType={network} offlineMode={true} />
 
         <div className="p-3 border border-border/50 rounded-lg text-sm">
           <p className="font-medium text-foreground">Verify before signing</p>
@@ -191,6 +189,15 @@ export const AirgapSigner = () => {
           onSignWithSigner={handleSignWithSigner}
           isSigning={false}
           freeMode={true}
+          network={network}
+          onSigned={(signedXdr, signerKey) => {
+            // Update the XDR with the new signature
+            setXdr(signedXdr);
+            
+            // Add signature to signedBy array
+            const newSignature = { signerKey, signedAt: new Date() };
+            setSignedBy(prev => [...prev, newSignature]);
+          }}
         />
 
         {/* Transaction Submitter - Offline only mode */}

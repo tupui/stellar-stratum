@@ -157,7 +157,7 @@ export const SignerSelector = ({
   const handleSign = async () => {
     if (freeMode && selectedWalletId) {
       // In free mode, we use the wallet address as the signer key
-      const { signedXDR, signerKey } = await signWithWallet(xdr, contextNetwork);
+      const { signedXDR, signerKey } = await signWithWallet(xdr, selectedWalletId, contextNetwork);
       if (pendingId) appendSignature(pendingId, signedXDR);
       onSigned(signedXDR, signerKey);
       setSelectedWalletId('');

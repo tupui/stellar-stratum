@@ -56,7 +56,7 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
         });
       } catch (error) {
         // User cancelled or share failed
-        if (import.meta.env.DEV) console.log('Share cancelled or failed');
+        // Share cancelled or failed
       }
     } else {
       // Fallback to copy
@@ -136,39 +136,39 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
           {/* Share Options */}
           <div className="space-y-2">
             <Label>Share Options</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {navigator.share && (
                 <Button
                   variant="outline"
                   onClick={handleWebShare}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-3 px-4 py-3"
                 >
-                  <Share2 className="w-4 h-4" />
+                  <Share2 className="w-5 h-5" />
                   Share
                 </Button>
               )}
               <Button
                 variant="outline"
                 onClick={openEmailClient}
-                className="flex items-center gap-2"
+                className="flex items-center gap-3 px-4 py-3"
               >
-                <Mail className="w-4 h-4" />
+                <Mail className="w-5 h-5" />
                 Email
               </Button>
               <Button
                 variant="outline"
                 onClick={openWhatsApp}
-                className="flex items-center gap-2"
+                className="flex items-center gap-3 px-4 py-3"
               >
-                <MessageCircle className="w-4 h-4" />
+                <MessageCircle className="w-5 h-5" />
                 WhatsApp
               </Button>
               <Button
                 variant="outline"
                 onClick={openTelegram}
-                className="flex items-center gap-2"
+                className="flex items-center gap-3 px-4 py-3"
               >
-                <MessageCircle className="w-4 h-4" />
+                <MessageCircle className="w-5 h-5" />
                 Telegram
               </Button>
             </div>

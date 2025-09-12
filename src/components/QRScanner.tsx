@@ -169,7 +169,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
           videoRef.current!,
           (result) => {
             if (result) {
-              console.log('QR code detected:', result.getText());
+              // QR code detected
               onScan(result.getText());
               stopScanner();
               onClose();
