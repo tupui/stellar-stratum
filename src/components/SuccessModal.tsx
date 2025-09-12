@@ -256,24 +256,24 @@ export const SuccessModal = ({
                 </Button>
 
                 {/* Share Options Grid */}
-                <div className="grid grid-cols-3 gap-3">
-                  <Button variant="outline" className="h-20 flex flex-col gap-3 px-4 py-4 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openEmailClient}>
-                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
-                      <Mail className="w-5 h-5 text-blue-500" />
+                <div className="grid grid-cols-3 gap-6">
+                  <Button variant="outline" className="h-16 flex flex-col gap-2 px-2 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openEmailClient}>
+                    <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
+                      <Mail className="w-4 h-4 text-blue-500" />
                     </div>
                     <span className="text-xs font-medium">Email</span>
                   </Button>
                   
-                  <Button variant="outline" className="h-20 flex flex-col gap-3 px-4 py-4 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openWhatsApp}>
-                    <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                      <MessageCircle className="w-5 h-5 text-green-500" />
+                  <Button variant="outline" className="h-16 flex flex-col gap-2 px-2 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openWhatsApp}>
+                    <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
+                      <MessageCircle className="w-4 h-4 text-green-500" />
                     </div>
                     <span className="text-xs font-medium">WhatsApp</span>
                   </Button>
                   
-                  <Button variant="outline" className="h-20 flex flex-col gap-3 px-4 py-4 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openTelegram}>
-                    <div className="w-8 h-8 rounded-full bg-blue-400/20 flex items-center justify-center">
-                      <Send className="w-5 h-5 text-blue-400" />
+                  <Button variant="outline" className="h-16 flex flex-col gap-2 px-2 py-3 bg-background/50 hover:bg-background/80 border-primary/20" onClick={openTelegram}>
+                    <div className="w-6 h-6 rounded-full bg-blue-400/20 flex items-center justify-center">
+                      <Send className="w-4 h-4 text-blue-400" />
                     </div>
                     <span className="text-xs font-medium">Telegram</span>
                   </Button>
