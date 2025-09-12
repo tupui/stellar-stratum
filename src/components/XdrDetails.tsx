@@ -241,30 +241,57 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                 <span className="font-medium">Account Configuration Change</span>
                               </div>
                               
-                              {(op as SetOptionsOp).signer && (
-                                <div className="p-3 bg-secondary/50 rounded-lg">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Users className="w-4 h-4 text-muted-foreground" />
-                                    <span className="font-medium">Signer Modification</span>
+                              {(() => {
+                                // Try to extract signer information from the operation
+                                const setOptionsOp = op as any;
+                                const signer = setOptionsOp.signers?.[0] || setOptionsOp.signer;
+                                
+                                if (signer) {
+                                  return (
+                                    <div className="p-3 bg-secondary/50 rounded-lg">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <Users className="w-4 h-4 text-muted-foreground" />
+                                        <span className="font-medium">Signer Modification</span>
+                                      </div>
+                                      <div className="space-y-1">
+                                        <p className="break-words">
+                                          <span className="text-muted-foreground">Public Key:</span> 
+                                          <span className="font-mono text-xs ml-1 break-all">
+                                            {signer.key || signer.ed25519PublicKey || 'Not specified'}
+                                          </span>
+                                        </p>
+                                        <p>
+                                          <span className="text-muted-foreground">Weight:</span> 
+                                          <span className="ml-1 font-medium">{signer.weight || 0}</span>
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                
+                                // Fallback: show raw operation data if signer info is not available
+                                return (
+                                  <div className="p-3 bg-secondary/50 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Users className="w-4 h-4 text-muted-foreground" />
+                                      <span className="font-medium">Signer Modification</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <p className="text-xs text-muted-foreground">
+                                        Signer configuration details are being processed...
+                                      </p>
+                                      <details className="text-xs">
+                                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                          View raw operation data
+                                        </summary>
+                                        <pre className="mt-2 p-2 bg-background/50 rounded text-xs overflow-auto">
+                                          {JSON.stringify(setOptionsOp, null, 2)}
+                                        </pre>
+                                      </details>
+                                    </div>
                                   </div>
-                                  <div className="space-y-1">
-                                    <p className="break-words">
-                                      <span className="text-muted-foreground">Public Key:</span> 
-                                      <span className="font-mono text-xs ml-1 break-all">{(op as SetOptionsOp).signer?.key}</span>
-                                    </p>
-                                    <p>
-                                      <span className="text-muted-foreground">Weight:</span> 
-                                      <span className="ml-1 font-medium">{(op as SetOptionsOp).signer?.weight}</span>
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {(op as SetOptionsOp).signer?.weight === 0 
-                                        ? "This signer will be removed from the account"
-                                        : "This signer will be added or updated"
-                                      }
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
+                                );
+                              })()}
                               
                               {((op as SetOptionsOp).lowThreshold || (op as SetOptionsOp).medThreshold || (op as SetOptionsOp).highThreshold) && (
                                 <div className="p-3 bg-secondary/50 rounded-lg">
@@ -277,20 +304,26 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                       <p>
                                         <span className="text-muted-foreground">Low Threshold:</span> 
                                         <span className="ml-1 font-medium">{(op as SetOptionsOp).lowThreshold}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">(basic operations)</span>
                                       </p>
                                     )}
                                     {(op as SetOptionsOp).medThreshold !== undefined && (
                                       <p>
                                         <span className="text-muted-foreground">Medium Threshold:</span> 
                                         <span className="ml-1 font-medium">{(op as SetOptionsOp).medThreshold}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">(payment operations)</span>
                                       </p>
                                     )}
                                     {(op as SetOptionsOp).highThreshold !== undefined && (
                                       <p>
                                         <span className="text-muted-foreground">High Threshold:</span> 
                                         <span className="ml-1 font-medium">{(op as SetOptionsOp).highThreshold}</span>
+                                        <span className="ml-2 text-xs text-muted-foreground">(account changes)</span>
                                       </p>
                                     )}
+                                    <p className="text-xs text-muted-foreground">
+                                      These thresholds determine how many signatures are required for different types of operations
+                                    </p>
                                   </div>
                                 </div>
                               )}

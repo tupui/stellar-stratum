@@ -52,7 +52,6 @@
     "date-fns": "^3.6.0",
     "decimal.js": "^10.6.0",
     "embla-carousel-react": "^8.6.0",
-    "idb": "^8.0.0",
     "input-otp": "^1.4.2",
     "jsqr": "^1.4.0",
     "lucide-react": "^0.462.0",

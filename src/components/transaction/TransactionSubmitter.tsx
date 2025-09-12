@@ -96,13 +96,13 @@ export const TransactionSubmitter = ({
                 {/* Send for Signature Button */}
                 <Button className="w-full" size="lg" onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor} disabled={isSubmittingToRefractor}>
                   <Send className="w-4 h-4 mr-2" />
-                  {isSubmittingToRefractor ? 'Sending...' : 'Send for Signature'}
+                  {isSubmittingToRefractor ? 'Sending...' : (isAirgappedMode ? 'Air-gap sync' : 'Send for Signature')}
                 </Button>
               </>}
             
             {offlineOnly && <Button className="w-full" size="lg" onClick={onShowOfflineModal}>
                 <Send className="w-4 h-4 mr-2" />
-                Send for Signature
+                Air-gap sync
               </Button>}
           </>}
     </div>;

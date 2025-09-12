@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { TransactionBuilder as StellarTransactionBuilder, Networks, Keypair } from '@stellar/stellar-sdk';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -13,12 +14,14 @@ import { MultisigConfigBundle } from './MultisigConfigBundle';
 import { TransactionBuilder } from './TransactionBuilder';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
+import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 
 interface AccountData {
   publicKey: string;
@@ -53,6 +56,11 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
   const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
   const [showEditConfirm, setShowEditConfirm] = useState(false);
   const [multisigConfigXdr, setMultisigConfigXdr] = useState<string | null>(null);
+  const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
+  const [isSubmittingToNetwork, setIsSubmittingToNetwork] = useState(false);
+  const [isSubmittingToRefractor, setIsSubmittingToRefractor] = useState(false);
+  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' | 'offline'; xdr?: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const { network: currentNetwork } = useNetwork();
   
   const truncateKey = (key: string) => {
@@ -66,6 +74,126 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
   const getThresholdStatus = (current: number, required: number) => {
     if (current >= required) return { status: 'sufficient', color: 'success' };
     return { status: 'insufficient', color: 'warning' };
+  };
+
+  // Helper functions for TransactionSubmitter (copied from TransactionBuilder)
+  const getExistingSignedKeys = () => {
+    if (!multisigConfigXdr) return [];
+    
+    try {
+      const transaction = StellarTransactionBuilder.fromXDR(multisigConfigXdr, Networks.PUBLIC);
+      const signatures = transaction.signatures || [];
+      const set = new Set<string>();
+      
+      for (const sig of signatures) {
+        for (const signer of accountData.signers) {
+          try {
+            const keypair = Keypair.fromPublicKey(signer.key);
+            if (keypair.verify(transaction.hash(), sig.signature())) {
+              set.add(signer.key);
+              break;
+            }
+          } catch {
+            // Skip invalid signatures
+          }
+        }
+      }
+      return Array.from(set);
+    } catch {
+      // XDR parsing failed
+      return [];
+    }
+  };
+
+  const getCurrentWeight = () => {
+    if (!accountData?.signers) return 0;
+    
+    const existing = getExistingSignedKeys();
+    const allSignedKeys = [...new Set([
+      ...signedBy.map(s => s.signerKey),
+      ...existing
+    ])];
+    return allSignedKeys.reduce((total, signerKey) => {
+      const signer = accountData.signers.find(s => s.key === signerKey);
+      return total + (signer?.weight || 0);
+    }, 0);
+  };
+
+  const getRequiredWeight = () => {
+    if (!accountData?.thresholds) return 1;
+    
+    // For multisig config changes, we need high threshold
+    const threshold = accountData.thresholds.high_threshold;
+    // If threshold is 0, default to 1 signature required
+    return threshold || 1;
+  };
+
+  const canSubmitToNetwork = () => {
+    return getCurrentWeight() >= getRequiredWeight();
+  };
+
+  const canSubmitToRefractor = () => {
+    return multisigConfigXdr && multisigConfigXdr.length > 0;
+  };
+
+  // Computed values for TransactionSubmitter (matching TransactionBuilder pattern)
+  const canSubmitToNetworkValue = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
+  const canSubmitToRefractorValue = Boolean(multisigConfigXdr) && currentNetwork === 'mainnet';
+  
+  
+
+  const handleCopyXdr = () => {
+    if (multisigConfigXdr) {
+      navigator.clipboard.writeText(multisigConfigXdr);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleSubmitToNetwork = async () => {
+    if (!multisigConfigXdr) return;
+    
+    setIsSubmittingToNetwork(true);
+    try {
+      // TODO: Implement network submission
+      console.log('Submitting to network:', multisigConfigXdr);
+      // Simulate success
+      setTimeout(() => {
+        setSuccessData({
+          type: 'network',
+          hash: 'mock-hash-' + Date.now(),
+          network: currentNetwork,
+          xdr: multisigConfigXdr
+        });
+        setIsSubmittingToNetwork(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Network submission failed:', error);
+      setIsSubmittingToNetwork(false);
+    }
+  };
+
+  const handleSubmitToRefractor = async () => {
+    if (!multisigConfigXdr) return;
+    
+    setIsSubmittingToRefractor(true);
+    try {
+      // TODO: Implement Refractor submission
+      console.log('Submitting to Refractor:', multisigConfigXdr);
+      // Simulate success
+      setTimeout(() => {
+        setSuccessData({
+          type: 'refractor',
+          hash: 'mock-refractor-id-' + Date.now(),
+          network: currentNetwork,
+          xdr: multisigConfigXdr
+        });
+        setIsSubmittingToRefractor(false);
+      }, 2000);
+    } catch (error) {
+      console.error('Refractor submission failed:', error);
+      setIsSubmittingToRefractor(false);
+    }
   };
 
   return (
@@ -359,49 +487,82 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
 
       {/* Multisig Config Bundle & Verification */}
       {multisigConfigXdr && (
-        <div className="space-y-6 mt-6">
-          
+        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
           {/* Multisig Config Bundle Summary */}
-          <div className="max-w-4xl mx-auto">
-            <MultisigConfigBundle 
-              xdr={multisigConfigXdr} 
-              onEdit={() => {
-                setMultisigConfigXdr(null);
-                setActiveTab('multisig-edit');
-              }}
-            />
-          </div>
+          <MultisigConfigBundle 
+            xdr={multisigConfigXdr} 
+            onEdit={() => {
+              setMultisigConfigXdr(null);
+              setActiveTab('multisig-edit');
+            }}
+          />
           
           {/* Transaction Verification */}
-          <div className="max-w-4xl mx-auto">
-            <XdrDetails 
-              xdr={multisigConfigXdr} 
-              defaultExpanded={true} 
-              networkType={currentNetwork}
-            />
-          </div>
+          <XdrDetails 
+            xdr={multisigConfigXdr} 
+            defaultExpanded={true} 
+            networkType={currentNetwork}
+          />
           
-          {/* Signature Management */}
-          <div className="max-w-4xl mx-auto">
-            <SignerSelector
-              xdr={multisigConfigXdr}
-              signers={accountData.signers}
-              currentAccountKey={accountData.publicKey}
-              signedBy={[]}
-              requiredWeight={accountData.thresholds.high_threshold}
-              onSignWithSigner={async (signerKey, walletId) => {
-                // Handle signing with specific signer
-                console.log('Signing with:', { signerKey, walletId });
-              }}
-              isSigning={false}
-              freeMode={true}
-              network={currentNetwork}
-              onSigned={(signedXdr, signerKey) => {
-                // Handle signed transaction
-                console.log('Multisig config signed:', { signedXdr, signerKey });
-              }}
-            />
-          </div>
+          {/* Signing */}
+          <Card className="shadow-card">
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg">Sign Transaction</CardTitle>
+              <CardDescription>
+                Connect your wallet to add signatures to this transaction
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SignerSelector
+                xdr={multisigConfigXdr}
+                signers={accountData.signers}
+                currentAccountKey={accountData.publicKey}
+                signedBy={signedBy}
+                requiredWeight={accountData.thresholds.high_threshold}
+                onSignWithSigner={async (signerKey, walletId) => {
+                  // Handle signing with specific signer
+                  console.log('Signing with:', { signerKey, walletId });
+                }}
+                isSigning={false}
+                freeMode={true}
+                network={currentNetwork}
+                onSigned={(signedXdr, signerKey) => {
+                  // Handle signed transaction
+                  console.log('Multisig config signed:', { signedXdr, signerKey });
+                  // Add signature to signedBy array
+                  const newSignature = { signerKey, signedAt: new Date() };
+                  setSignedBy(prev => [...prev, newSignature]);
+                }}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Transaction Submitter with Coordination Mode */}
+          <TransactionSubmitter
+            xdrOutput={multisigConfigXdr || ''}
+            signedBy={signedBy}
+            currentWeight={getCurrentWeight()}
+            requiredWeight={getRequiredWeight()}
+            canSubmitToNetwork={canSubmitToNetworkValue}
+            canSubmitToRefractor={canSubmitToRefractorValue}
+            isSubmittingToNetwork={isSubmittingToNetwork}
+            isSubmittingToRefractor={isSubmittingToRefractor}
+            successData={successData}
+            onCopyXdr={handleCopyXdr}
+            onSubmitToNetwork={handleSubmitToNetwork}
+            onSubmitToRefractor={handleSubmitToRefractor}
+            onShowOfflineModal={() => {
+              const xdrOutput = multisigConfigXdr || '';
+              const fingerprint = generateDetailedFingerprint(xdrOutput, currentNetwork);
+              setSuccessData({ 
+                type: 'offline', 
+                hash: fingerprint.hash, 
+                network: currentNetwork,
+                xdr: xdrOutput
+              });
+            }}
+            copied={copied}
+          />
         </div>
       )}
 
