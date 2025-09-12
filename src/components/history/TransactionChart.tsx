@@ -350,7 +350,7 @@ export const TransactionChart = ({
       <CardContent>
         <div className="h-64 w-full font-amount tabular-nums">
           {aggregatedData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={256} debounce={100}>
               <LineChart data={aggregatedData}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                 <XAxis 
