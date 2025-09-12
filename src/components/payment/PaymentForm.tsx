@@ -61,6 +61,7 @@ interface PaymentFormProps {
   trustlineError: string;
   onBuild: (paymentData?: PaymentData, isAccountMerge?: boolean, payments?: CompactPayment[], pathPayment?: unknown) => void;
   isBuilding: boolean;
+  isTransactionBuilt: boolean;
   accountData: {
     balances: Array<{
       asset_type: string;
@@ -82,6 +83,7 @@ interface PaymentFormProps {
   accountPublicKey: string;
   onClearTransaction?: () => void;
   onTransactionBuilt?: () => void;
+  onResetTransactionBuilt?: () => void;
 }
 export const PaymentForm = ({
   paymentData,
@@ -92,10 +94,12 @@ export const PaymentForm = ({
   trustlineError,
   onBuild,
   isBuilding,
+  isTransactionBuilt,
   accountData,
   accountPublicKey,
   onClearTransaction,
-  onTransactionBuilt
+  onTransactionBuilt,
+  onResetTransactionBuilt
 }: PaymentFormProps) => {
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
   const { network } = useNetwork();
@@ -108,7 +112,6 @@ export const PaymentForm = ({
 
   // State for current payment and flow control
   const [fiatValue, setFiatValue] = useState<string>('');
-  const [isTransactionBuilt, setIsTransactionBuilt] = useState(false);
   const [domainSuggestions, setDomainSuggestions] = useState<{ domain: string; address: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
@@ -132,12 +135,6 @@ export const PaymentForm = ({
     }
   }, [onTransactionBuilt, isTransactionBuilt]);
 
-  // Reset built state when clearing transaction
-  useEffect(() => {
-    if (!paymentData.destination && !paymentData.amount && compactPayments.length === 0) {
-      setIsTransactionBuilt(false);
-    }
-  }, [paymentData.destination, paymentData.amount, compactPayments.length]);
   // Calculate Stellar reserves for XLM
   const calculateXLMReserve = () => {
     const baseReserve = 0.5;
@@ -669,6 +666,7 @@ export const PaymentForm = ({
     });
     setWillCloseAccount(false);
     onClearTransaction?.();
+    onResetTransactionBuilt?.();
   };
 
   const cancelCurrentPayment = () => {
@@ -687,6 +685,7 @@ export const PaymentForm = ({
         slippageTolerance: 0.5
       });
       setWillCloseAccount(false);
+      onResetTransactionBuilt?.();
       return;
     }
 
@@ -720,8 +719,6 @@ export const PaymentForm = ({
     return paymentData.destination && paymentData.amount && paymentData.asset && (paymentData.asset === 'XLM' || paymentData.assetIssuer) && (!trustlineError || trustlineError.includes('will create a new'));
   };
   const handleBuild = () => {
-    // Set transaction as built when building starts
-    setIsTransactionBuilt(true);
 
     if (compactPayments.length > 0 && hasActiveForm) {
       // Build batch transaction with compact payments
@@ -1024,7 +1021,7 @@ export const PaymentForm = ({
         </div>}
 
       {/* Current Payment Form */}
-      {!isTransactionBuilt && (
+      {(!isTransactionBuilt || editingPaymentId) && (
         <div className="space-y-4">
           {/* Only show header when we have an active form (not in bundle mode) */}
           {!hasActiveForm && <div className="flex items-center justify-between">

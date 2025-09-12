@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Copy, FileText, Hash, User, Coins, Clock, Signature, Check, AlertTriangle, ExternalLink, Shield } from 'lucide-react';
+import { ChevronDown, Copy, FileText, Hash, User, Coins, Clock, Signature, Check, AlertTriangle, ExternalLink, Shield, Settings, Users } from 'lucide-react';
 import { generateTransactionFingerprint } from '@/lib/xdr/fingerprint';
 import { useToast } from '@/hooks/use-toast';
 import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
@@ -19,7 +19,12 @@ type PathPaymentOp = Operation & {
   destAsset?: { code?: string } 
 };
 type ChangeTrustOp = Operation & { asset?: { code?: string }; limit?: string };
-type SetOptionsOp = Operation & { signer?: { key?: string } };
+type SetOptionsOp = Operation & { 
+  signer?: { key?: string; weight?: number }; 
+  lowThreshold?: number;
+  medThreshold?: number;
+  highThreshold?: number;
+};
 
 interface XdrDetailsProps {
   xdr: string;
@@ -80,9 +85,6 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                 <Shield className="w-4 h-4" />
                 Transaction Verification
               </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Verify transaction details and hash before signing
-              </p>
             </div>
             <Button
               variant="ghost"
@@ -97,25 +99,6 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
         
         <CollapsibleContent>
           <CardContent className="space-y-4">
-            {/* Transaction Hash */}
-            <div className="p-3 bg-secondary/50 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Hash className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Transaction Hash</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => copyToClipboard(hash)}
-                >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-              </div>
-              <p className="font-mono font-address text-xs break-all text-muted-foreground">
-                {hash}
-              </p>
-            </div>
 
             {/* Raw XDR */}
             <div className="p-3 bg-secondary/50 rounded-lg">
@@ -252,13 +235,64 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                             </div>
                           )}
                           {op.type === 'setOptions' && (
-                            <div className="text-sm space-y-1">
-                              <p className="text-muted-foreground">Account settings will be modified</p>
+                            <div className="text-sm space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Settings className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-medium">Account Configuration Change</span>
+                              </div>
+                              
                               {(op as SetOptionsOp).signer && (
-                                <p className="break-words">
-                                  <span className="text-muted-foreground">Signer:</span> 
-                                  <span className="font-mono text-xs ml-1 break-all">{(op as SetOptionsOp).signer?.key}</span>
-                                </p>
+                                <div className="p-3 bg-secondary/50 rounded-lg">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Users className="w-4 h-4 text-muted-foreground" />
+                                    <span className="font-medium">Signer Modification</span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="break-words">
+                                      <span className="text-muted-foreground">Public Key:</span> 
+                                      <span className="font-mono text-xs ml-1 break-all">{(op as SetOptionsOp).signer?.key}</span>
+                                    </p>
+                                    <p>
+                                      <span className="text-muted-foreground">Weight:</span> 
+                                      <span className="ml-1 font-medium">{(op as SetOptionsOp).signer?.weight}</span>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {(op as SetOptionsOp).signer?.weight === 0 
+                                        ? "This signer will be removed from the account"
+                                        : "This signer will be added or updated"
+                                      }
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {((op as SetOptionsOp).lowThreshold || (op as SetOptionsOp).medThreshold || (op as SetOptionsOp).highThreshold) && (
+                                <div className="p-3 bg-secondary/50 rounded-lg">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Shield className="w-4 h-4 text-muted-foreground" />
+                                    <span className="font-medium">Threshold Changes</span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    {(op as SetOptionsOp).lowThreshold !== undefined && (
+                                      <p>
+                                        <span className="text-muted-foreground">Low Threshold:</span> 
+                                        <span className="ml-1 font-medium">{(op as SetOptionsOp).lowThreshold}</span>
+                                      </p>
+                                    )}
+                                    {(op as SetOptionsOp).medThreshold !== undefined && (
+                                      <p>
+                                        <span className="text-muted-foreground">Medium Threshold:</span> 
+                                        <span className="ml-1 font-medium">{(op as SetOptionsOp).medThreshold}</span>
+                                      </p>
+                                    )}
+                                    {(op as SetOptionsOp).highThreshold !== undefined && (
+                                      <p>
+                                        <span className="text-muted-foreground">High Threshold:</span> 
+                                        <span className="ml-1 font-medium">{(op as SetOptionsOp).highThreshold}</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
                               )}
                             </div>
                           )}
@@ -316,34 +350,46 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
 
               {/* Transaction Verification */}
             <div className="border-t pt-6 mt-6">
-              <div className="mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-success/20 flex items-center justify-center ring-1 ring-primary/30">
-                    <Shield className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-primary">Verify Transaction</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {offlineMode ? 'Compare transaction details between devices' : 'Cross-reference with external sources'}
-                    </p>
-                  </div>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-success/20 flex items-center justify-center ring-1 ring-primary/30">
+                  <Shield className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-primary">Verify Transaction</h4>
                 </div>
               </div>
               
-              <div className="p-4 bg-gradient-to-r from-primary/5 to-success/5 rounded-lg border border-primary/20 mb-4">
-                <p className="text-sm text-foreground mb-2">
-                  <span className="font-medium text-primary">Security Check:</span> {offlineMode 
-                    ? 'Compare the transaction hash above with your signing device. They must match exactly before signing.'
-                    : 'Compare the transaction hash above with your signing device and Stellar Lab.'
-                  }
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {offlineMode 
-                    ? 'This device is offline - only local verification is available.'
-                    : 'Only proceed if all sources show identical hashes.'
-                  }
+              {/* Transaction Hash */}
+              <div className="p-3 bg-secondary/50 rounded-lg mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Hash className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Transaction Hash</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(hash)}
+                  >
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                </div>
+                <p className="font-mono font-address text-xs break-all text-muted-foreground">
+                  {hash}
                 </p>
               </div>
+
+              <p className="text-sm text-foreground mb-4">
+                {offlineMode 
+                  ? 'Compare the transaction hash above with your signing device. They must match exactly before signing.'
+                  : 'Compare the transaction hash above with your signing device and Stellar Lab.'
+                }
+              </p>
+              {offlineMode && (
+                <p className="text-xs text-muted-foreground mb-4">
+                  This device is offline - only local verification is available.
+                </p>
+              )}
 
               {!offlineMode && (
                 <Button
@@ -378,4 +424,4 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
       </Collapsible>
     </Card>
   );
-};
+}; 

@@ -335,11 +335,11 @@ export const MultisigConfigBuilder = ({
       </div>
 
       {/* Safety Alert */}
-      <div className="flex items-start gap-3 p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-        <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+      <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+        <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
         <div className="flex-1">
-          <p className="text-sm font-medium text-foreground mb-1">Operating</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm font-medium text-red-500 mb-1">Operating</p>
+          <p className="text-sm text-red-500">
             Changing multisig configuration can lock you out of your account. 
             Ensure thresholds don't exceed available signer weights and that you maintain access to sufficient signers.
           </p>

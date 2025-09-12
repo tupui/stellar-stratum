@@ -2,19 +2,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
+import { MultisigConfigBundle } from './MultisigConfigBundle';
 import { TransactionBuilder } from './TransactionBuilder';
+import { XdrDetails } from './XdrDetails';
+import { SignerSelector } from './SignerSelector';
 import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface AccountData {
   publicKey: string;
@@ -48,6 +52,8 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
   const [activeTab, setActiveTab] = useState("balances");
   const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
   const [showEditConfirm, setShowEditConfirm] = useState(false);
+  const [multisigConfigXdr, setMultisigConfigXdr] = useState<string | null>(null);
+  const { network: currentNetwork } = useNetwork();
   
   const truncateKey = (key: string) => {
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
@@ -191,7 +197,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           </TabsContent>
 
           <TabsContent value="multisig" className="mt-6">
-            {activeTab === "multisig" && (
+            {activeTab === "multisig" && !multisigConfigXdr && (
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Read-only thresholds */}
                 <Card className="shadow-card">
@@ -285,15 +291,17 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
                 </Card>
               </div>
             )}
-            {/* Edit CTA bar */}
-            <div className="flex justify-end mt-4">
-              <Button
-                variant="destructive"
-                onClick={() => setShowEditConfirm(true)}
-              >
-                Edit Configuration
-              </Button>
-            </div>
+            {/* Edit CTA bar - only show when not in bundle mode */}
+            {activeTab === "multisig" && !multisigConfigXdr && (
+              <div className="flex justify-end mt-4">
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowEditConfirm(true)}
+                >
+                  Edit Configuration
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           {/* Guarded Edit Flow */}
@@ -308,7 +316,9 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
                     accountPublicKey={accountData.publicKey}
                     currentSigners={accountData.signers}
                     currentThresholds={accountData.thresholds}
-                    onXdrGenerated={() => {}}
+                    onXdrGenerated={(xdr) => {
+                      setMultisigConfigXdr(xdr);
+                    }}
                     onPendingCreated={() => {
                       setActiveTab('multisig');
                     }}
@@ -346,6 +356,54 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
 
         {/* Thresholds & Signers are now moved to the Multisig tab */}
       </div>
+
+      {/* Multisig Config Bundle & Verification */}
+      {multisigConfigXdr && (
+        <div className="space-y-6 mt-6">
+          
+          {/* Multisig Config Bundle Summary */}
+          <div className="max-w-4xl mx-auto">
+            <MultisigConfigBundle 
+              xdr={multisigConfigXdr} 
+              onEdit={() => {
+                setMultisigConfigXdr(null);
+                setActiveTab('multisig-edit');
+              }}
+            />
+          </div>
+          
+          {/* Transaction Verification */}
+          <div className="max-w-4xl mx-auto">
+            <XdrDetails 
+              xdr={multisigConfigXdr} 
+              defaultExpanded={true} 
+              networkType={currentNetwork}
+            />
+          </div>
+          
+          {/* Signature Management */}
+          <div className="max-w-4xl mx-auto">
+            <SignerSelector
+              xdr={multisigConfigXdr}
+              signers={accountData.signers}
+              currentAccountKey={accountData.publicKey}
+              signedBy={[]}
+              requiredWeight={accountData.thresholds.high_threshold}
+              onSignWithSigner={async (signerKey, walletId) => {
+                // Handle signing with specific signer
+                console.log('Signing with:', { signerKey, walletId });
+              }}
+              isSigning={false}
+              freeMode={true}
+              network={currentNetwork}
+              onSigned={(signedXdr, signerKey) => {
+                // Handle signed transaction
+                console.log('Multisig config signed:', { signedXdr, signerKey });
+              }}
+            />
+          </div>
+        </div>
+      )}
 
     </div>
   );

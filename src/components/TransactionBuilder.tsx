@@ -84,6 +84,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const [isBuilding, setIsBuilding] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [isSubmittingToNetwork, setIsSubmittingToNetwork] = useState(false);
+  const [isTransactionBuilt, setIsTransactionBuilt] = useState(false);
   const [isSubmittingToRefractor, setIsSubmittingToRefractor] = useState(false);
   const [copied, setCopied] = useState(false);
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
@@ -555,6 +556,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       
       
       setXdrData(prev => ({ ...prev, output: xdr }));
+      setIsTransactionBuilt(true);
       
       let description = "XDR is ready for signing";
       if (isAccountMerge) {
@@ -965,13 +967,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                   isBuilding={isBuilding}
                   accountData={accountData}
                   accountPublicKey={accountPublicKey}
+                  isTransactionBuilt={isTransactionBuilt}
                 onClearTransaction={() => {
                   setXdrData({ input: '', output: '' });
                   setSignedBy([]);
                   setRefractorId('');
                   setSuccessData(null);
+                  setIsTransactionBuilt(false);
                 }}
                 onTransactionBuilt={() => {}}
+                onResetTransactionBuilt={() => setIsTransactionBuilt(false)}
                 />
               </TabsContent>
 

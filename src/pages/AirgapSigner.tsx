@@ -171,13 +171,6 @@ export const AirgapSigner = () => {
         {/* Advanced Transaction Details - Expanded by default */}
         <XdrDetails xdr={xdr} defaultExpanded={true} networkType={network} offlineMode={true} />
 
-        <div className="p-3 border border-border/50 rounded-lg text-sm">
-          <p className="font-medium text-foreground">Verify before signing</p>
-          <p className="text-muted-foreground">
-            Compare the transaction fingerprint and key fields on both devices.
-            They must match exactly before you add your signature.
-          </p>
-        </div>
 
         {/* Signature Management - Use free mode for air-gapped signing */}
         <SignerSelector
