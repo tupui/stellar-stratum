@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +38,11 @@ export const AddressAutocomplete = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const { entries, searchAddresses, syncAddressBook, isLoading: isAddressBookLoading, needsSync } = useAddressBook(accountPublicKey, network);
-  const suggestions = value.trim() ? searchAddresses(value) : entries.slice(0, 10);
+  
+  // Memoize suggestions to prevent unnecessary recalculations
+  const suggestions = useMemo(() => {
+    return value.trim() ? searchAddresses(value) : entries.slice(0, 10);
+  }, [value, searchAddresses, entries]);
 
   // Auto-sync address book on mount or when account/network changes
   useEffect(() => {
@@ -68,41 +72,41 @@ export const AddressAutocomplete = ({
   }, []);
 
   // Resolve Soroban domains
-  useEffect(() => {
-    const resolveDomain = async () => {
-      if (isLikelySorobanDomain(value)) {
-        setIsResolving(true);
-        try {
-          const result = await resolveSorobanDomain(value, network);
-          if (result.success && result.address) {
-            setResolvedAddress(result.address);
-          } else {
-            setResolvedAddress('');
-          }
-        } catch {
+  const resolveDomain = useCallback(async () => {
+    if (isLikelySorobanDomain(value)) {
+      setIsResolving(true);
+      try {
+        const result = await resolveSorobanDomain(value, network);
+        if (result.success && result.address) {
+          setResolvedAddress(result.address);
+        } else {
           setResolvedAddress('');
-        } finally {
-          setIsResolving(false);
         }
-      } else {
+      } catch {
         setResolvedAddress('');
+      } finally {
+        setIsResolving(false);
       }
-    };
-
-    const debounceTimer = setTimeout(resolveDomain, 300);
-    return () => clearTimeout(debounceTimer);
+    } else {
+      setResolvedAddress('');
+    }
   }, [value, network]);
 
-  const handleSelect = (entry: AddressBookEntry) => {
+  useEffect(() => {
+    const debounceTimer = setTimeout(resolveDomain, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [resolveDomain]);
+
+  const handleSelect = useCallback((entry: AddressBookEntry) => {
     onChange(entry.address);
     setIsOpen(false);
-  };
+  }, [onChange]);
 
-  const handleUseDomain = () => {
+  const handleUseDomain = useCallback(() => {
     if (resolvedAddress) {
       onChange(resolvedAddress);
     }
-  };
+  }, [resolvedAddress, onChange]);
 
   const toggleAddressBook = () => {
     const next = !isOpen;

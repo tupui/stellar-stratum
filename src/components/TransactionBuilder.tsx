@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,8 +17,7 @@ import {
   Asset,
   Memo,
   Horizon,
-  StrKey,
-  Signature
+  StrKey
 } from '@stellar/stellar-sdk';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
@@ -28,6 +27,7 @@ import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
 import { RefractorIntegration } from './RefractorIntegration';
 import { SuccessModal } from './SuccessModal';
+import { ErrorHandlers } from '@/lib/error-handling';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -165,7 +165,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
 
 
   // Function to fetch additional asset prices with timeout
-  const fetchAdditionalAssetPrice = async (assetCode: string, assetIssuer?: string) => {
+  const fetchAdditionalAssetPrice = useCallback(async (assetCode: string, assetIssuer?: string) => {
     const key = assetCode;
     try {
       const pricePromise = getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer);
@@ -188,14 +188,17 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       }));
       return 0;
     }
-  };
+  }, []);
+
+  // Memoize account balances to prevent unnecessary re-renders
+  const memoizedBalances = useMemo(() => accountData?.balances || [], [accountData?.balances]);
 
   useEffect(() => {
     // Load asset prices for fiat conversion in parallel for better performance
-    if (!accountData?.balances) return;
+    if (!memoizedBalances.length) return;
     
     const loadPrices = async () => {
-      const pricePromises = accountData.balances.map(async (balance) => {
+      const pricePromises = memoizedBalances.map(async (balance) => {
         const key = balance.asset_code || 'XLM';
         try {
           const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
@@ -217,18 +220,19 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       setAssetPrices(prices);
     };
     loadPrices();
-  }, [accountData?.balances]);
-  const checkAccountExists = async (destination: string) => {
+  }, [memoizedBalances]);
+  const checkAccountExists = useCallback(async (destination: string) => {
     try {
       const server = createHorizonServer(currentNetwork);
       await server.loadAccount(destination);
       return true;
     } catch (error) {
+      ErrorHandlers.accountNotFound(destination);
       return false;
     }
-  };
+  }, [currentNetwork]);
 
-  const checkTrustline = async (destination: string, assetCode: string, assetIssuer: string) => {
+  const checkTrustline = useCallback(async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
     
     try {
@@ -244,9 +248,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       return hasTrustline;
     } catch (error) {
       // If we can't load the account, it doesn't exist
+      ErrorHandlers.accountNotFound(destination);
       throw new Error('Account does not exist');
     }
-  };
+  }, [currentNetwork]);
 
   const createTrustlineRemovalOperations = () => {
     // Create operations to remove all existing trustlines before account merge
@@ -547,6 +552,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       // Build the transaction
       const builtTransaction = transaction.build();
       const xdr = builtTransaction.toXDR();
+      
       
       setXdrData(prev => ({ ...prev, output: xdr }));
       
@@ -983,10 +989,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           </CardContent>
         </Card>
 
-        {/* XDR Details */}
+        {/* Transaction Verification */}
         {(xdrData.output || xdrData.input) && (
           <XdrDetails 
-            xdr={xdrData.output || xdrData.input} 
+            xdr={xdrData.output || xdrData.input}
+            networkType={currentNetwork}
           />
         )}
 

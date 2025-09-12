@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,7 @@ export const AssetBalancePanel = ({
   const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
   const [convertedAssetValues, setConvertedAssetValues] = useState<Record<number, number>>({});
   const [convertedAssetPrices, setConvertedAssetPrices] = useState<Record<number, number>>({});
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     try {
       // Clear price cache but keep asset lists
       clearPriceCache();
@@ -56,8 +56,9 @@ export const AssetBalancePanel = ({
       // Always update timestamp after any operation
       setLastUpdateTime(new Date());
     }
-  };
-  const formatLastUpdate = (date: Date | null): string => {
+  }, [onRefreshBalances, refetch]);
+
+  const formatLastUpdate = useCallback((date: Date | null): string => {
     if (!date) return '';
     const now = new Date();
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
@@ -66,7 +67,7 @@ export const AssetBalancePanel = ({
     const diffInHours = Math.floor(diffInMinutes / 60);
     if (diffInHours < 24) return `${diffInHours}h ago`;
     return date.toLocaleDateString();
-  };
+  }, []);
 
   // Filter assets based on hide small balances toggle (memoized for performance)
   const filteredAssets = useMemo(() => 

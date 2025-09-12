@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getAssetPrice, setLastFetchTimestamp } from '@/lib/reflector';
 
 interface AssetBalance {
@@ -19,9 +19,58 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Memoize balances to prevent unnecessary re-renders
+  const memoizedBalances = useMemo(() => balances, [JSON.stringify(balances)]);
+
+  // Memoize the refetch function to prevent unnecessary re-renders
+  const refetch = useCallback(async () => {
+    if (!memoizedBalances || memoizedBalances.length === 0) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+
+      const assetsWithPricesPromises = memoizedBalances.map(async (balance) => {
+        try {
+          const priceUSD = await getAssetPrice(balance.asset_code, balance.asset_issuer);
+          const balanceNum = parseFloat(balance.balance);
+          const valueUSD = balanceNum * priceUSD;
+          return {
+            ...balance,
+            priceUSD,
+            valueUSD,
+            symbol: balance.asset_code || 'XLM'
+          };
+        } catch {
+          return {
+            ...balance,
+            priceUSD: 0,
+            valueUSD: 0,
+            symbol: balance.asset_code || 'XLM'
+          };
+        }
+      });
+
+      const results = await Promise.allSettled(assetsWithPricesPromises);
+      
+      const successfulResults = results
+        .filter(result => result.status === 'fulfilled')
+        .map(result => (result as PromiseFulfilledResult<any>).value);
+        
+      successfulResults.sort((a, b) => b.valueUSD - a.valueUSD);
+      setAssetsWithPrices(successfulResults);
+      setLastFetchTimestamp();
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch asset prices');
+    } finally {
+      setLoading(false);
+    }
+  }, [memoizedBalances]);
+
   useEffect(() => {
     const fetchPrices = async () => {
-      if (!balances || balances.length === 0) {
+      if (!memoizedBalances || memoizedBalances.length === 0) {
         setAssetsWithPrices([]);
         setLoading(false);
         return;
@@ -32,7 +81,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
 
       try {
         // Initialize assets skeleton
-        const initialAssets: AssetWithPrice[] = balances.map(balance => ({
+        const initialAssets: AssetWithPrice[] = memoizedBalances.map(balance => ({
           ...balance,
           priceUSD: -1,
           valueUSD: 0,
@@ -42,7 +91,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
 
         // Deduplicate price requests by unique asset key to avoid redundant oracle calls
         const uniqueMap = new Map<string, number[]>(); // key -> indices
-        balances.forEach((b, i) => {
+        memoizedBalances.forEach((b, i) => {
           const key = b.asset_issuer ? `${b.asset_code}:${b.asset_issuer}` : (b.asset_code || 'XLM');
           const arr = uniqueMap.get(key) || [];
           arr.push(i);
@@ -66,7 +115,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
           priceMap.set(key, res.status === 'fulfilled' ? res.value.price : 0);
         });
 
-        const finalAssets = balances.map((balance) => {
+        const finalAssets = memoizedBalances.map((balance) => {
           const key = balance.asset_issuer ? `${balance.asset_code}:${balance.asset_issuer}` : (balance.asset_code || 'XLM');
           const priceUSD = priceMap.get(key) || 0;
           const valueUSD = priceUSD * parseFloat(balance.balance);
@@ -93,62 +142,21 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
     };
 
     fetchPrices();
-  }, [balances]);
+  }, [memoizedBalances]);
 
-  const totalValueUSD = assetsWithPrices.reduce((sum, asset) => {
-    // Only count assets that have finished loading (priceUSD >= 0)
-    return asset.priceUSD >= 0 ? sum + (asset.valueUSD || 0) : sum;
-  }, 0);
+  // Memoize total value calculation
+  const totalValueUSD = useMemo(() => {
+    return assetsWithPrices.reduce((sum, asset) => {
+      // Only count assets that have finished loading (priceUSD >= 0)
+      return asset.priceUSD >= 0 ? sum + (asset.valueUSD || 0) : sum;
+    }, 0);
+  }, [assetsWithPrices]);
 
   return {
     assetsWithPrices,
     totalValueUSD,
     loading,
     error,
-    refetch: async () => {
-      if (!balances || balances.length === 0) return;
-      
-      try {
-        setLoading(true);
-        setError(null);
-
-        const assetsWithPricesPromises = balances.map(async (balance) => {
-          try {
-            const priceUSD = await getAssetPrice(balance.asset_code, balance.asset_issuer);
-            const balanceNum = parseFloat(balance.balance);
-            const valueUSD = balanceNum * priceUSD;
-            return {
-              ...balance,
-              priceUSD,
-              valueUSD,
-              symbol: balance.asset_code || 'XLM'
-            };
-          } catch {
-            return {
-              ...balance,
-              priceUSD: 0,
-              valueUSD: 0,
-              symbol: balance.asset_code || 'XLM'
-            };
-          }
-        });
-
-        const results = await Promise.allSettled(assetsWithPricesPromises);
-        
-        const successfulResults = results
-          .filter(result => result.status === 'fulfilled')
-          .map(result => (result as PromiseFulfilledResult<any>).value);
-          
-        successfulResults.sort((a, b) => b.valueUSD - a.valueUSD);
-        setAssetsWithPrices(successfulResults);
-        
-        
-      } catch (err) {
-        
-        setError(err instanceof Error ? err.message : 'Failed to fetch asset prices');
-      } finally {
-        setLoading(false);
-      }
-    }
+    refetch
   };
 };
