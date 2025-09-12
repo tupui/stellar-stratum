@@ -71,7 +71,7 @@ export const LandingPage = ({
             manage signer permissions, and execute secure multi-signature transactions.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center w-full max-w-md sm:max-w-none mx-auto">
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center w-full max-w-md sm:max-w-none mx-auto px-4 sm:px-0">
             <Button size="lg" className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-base sm:text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
               Connect wallet
             </Button>

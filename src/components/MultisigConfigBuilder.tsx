@@ -28,7 +28,6 @@ import {
   Horizon
 } from '@stellar/stellar-sdk';
 import { createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
-import { addPendingTx } from '@/lib/multisig-store';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface Signer {
@@ -291,10 +290,9 @@ export const MultisigConfigBuilder = ({
       const builtTransaction = transaction.build();
       const xdr = builtTransaction.toXDR();
 
-      // Register pending multisig envelope (client-side only)
-      const pending = addPendingTx(xdr, newThresholds.high_threshold);
+      // Transaction built successfully
       onXdrGenerated(xdr);
-      if (onPendingCreated) onPendingCreated(pending.id, xdr);
+      if (onPendingCreated) onPendingCreated('', xdr);
       
       toast({
         title: "Multisig configuration built",

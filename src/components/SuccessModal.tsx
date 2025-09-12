@@ -14,6 +14,7 @@ interface SuccessModalProps {
   xdr?: string;
   network?: 'mainnet' | 'testnet';
   onClose: () => void;
+  onNavigateToDashboard?: () => void;
 }
 export const SuccessModal = ({
   type,
@@ -21,7 +22,8 @@ export const SuccessModal = ({
   refractorId,
   xdr,
   network = 'mainnet',
-  onClose
+  onClose,
+  onNavigateToDashboard
 }: SuccessModalProps) => {
   const [copied, setCopied] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
@@ -166,7 +168,12 @@ export const SuccessModal = ({
                   <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 shrink-0 hover:bg-destructive/10 hover:text-destructive">
+              <Button variant="ghost" size="sm" onClick={() => {
+                onClose();
+                if (onNavigateToDashboard) {
+                  onNavigateToDashboard();
+                }
+              }} className="h-8 w-8 p-0 shrink-0 hover:bg-destructive/10 hover:text-destructive">
                 <X className="w-4 h-4" />
               </Button>
             </div>

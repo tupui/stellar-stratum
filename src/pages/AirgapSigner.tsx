@@ -284,6 +284,7 @@ export const AirgapSigner = () => {
           xdr={successData.xdr}
           network={successData.network}
           onClose={() => setSuccessData(null)}
+          onNavigateToDashboard={() => window.location.href = '/'}
         />
       )}
     </div>

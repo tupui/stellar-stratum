@@ -118,9 +118,16 @@ export const normalizePaymentRecord = (
       return null;
     }
 
+    const createdAt = new Date(record.created_at);
+    // Validate the date to prevent invalid dates from causing chart issues
+    if (isNaN(createdAt.getTime()) || createdAt.getTime() <= 0) {
+      console.warn('Invalid transaction date:', record.created_at, 'for transaction:', record.transaction_hash);
+      return null;
+    }
+
     return {
       id: record.paging_token || `${record.transaction_hash}-${record.type}`,
-      createdAt: new Date(record.created_at),
+      createdAt,
       type: record.type,
       category: 'transfer',
       direction,
@@ -144,6 +151,12 @@ export const normalizeOperationRecord = (
   try {
     const type: string = record.type;
     const createdAt = new Date(record.created_at);
+    
+    // Validate the date to prevent invalid dates from causing chart issues
+    if (isNaN(createdAt.getTime()) || createdAt.getTime() <= 0) {
+      console.warn('Invalid operation date:', record.created_at, 'for operation:', record.transaction_hash);
+      return null;
+    }
 
     // Contract calls
     if (type === 'invoke_host_function') {

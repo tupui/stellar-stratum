@@ -1064,6 +1064,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
             xdr={successData.xdr}
             network={successData.network}
             onClose={() => setSuccessData(null)}
+            onNavigateToDashboard={onBack}
           />
         )}
 

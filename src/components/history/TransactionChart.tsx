@@ -90,11 +90,11 @@ export const TransactionChart = ({
       default: {
         const oldestDate = transactions.reduce((earliest, tx) => {
           const d = new Date(tx.createdAt).getTime();
-          return d < earliest ? d : earliest;
+          return (!isNaN(d) && d > 0 && d < earliest) ? d : earliest;
         }, Number.POSITIVE_INFINITY);
 
         return {
-          start: Number.isFinite(oldestDate) ? new Date(oldestDate) : subDays(now, 30),
+          start: Number.isFinite(oldestDate) && oldestDate !== Number.POSITIVE_INFINITY ? new Date(oldestDate) : subDays(now, 30),
           end: now,
         };
       }
@@ -105,6 +105,10 @@ export const TransactionChart = ({
   const chartData = useMemo((): ChartDataPoint[] => {
     // Get all transactions in chronological order (oldest first)
     const allTxs = transactions
+      .filter(tx => {
+        const date = new Date(tx.createdAt);
+        return !isNaN(date.getTime()) && date.getTime() > 0; // Filter out invalid dates
+      })
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     // Filter for date range
@@ -216,7 +220,16 @@ export const TransactionChart = ({
 
   // Aggregate data for better visualization on longer time ranges
   const aggregatedData = useMemo((): ChartDataPoint[] => {
-    if (selectedRange === '7d' || chartData.length <= 50) {
+    // Define max data points per range for optimal readability
+    const maxDataPoints = {
+      '7d': 14,    // 12-hour intervals
+      '30d': 15,   // 2-day intervals  
+      '90d': 13,   // 1-week intervals
+      '1y': 12,    // 1-month intervals
+      'all': 12    // 1-month intervals
+    };
+    
+    if (chartData.length <= maxDataPoints[selectedRange]) {
       return chartData;
     }
 
@@ -238,7 +251,7 @@ export const TransactionChart = ({
         const lastPoint = points[points.length - 1];
         return {
           ...lastPoint,
-          date: format(new Date(parseInt(key)), getDateFormat(selectedRange)),
+          date: format(new Date(parseInt(key) * getAggregationInterval(selectedRange)), getDateFormat(selectedRange)),
         };
       })
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -344,6 +357,32 @@ export const TransactionChart = ({
                   dataKey="date"
                   tick={{ fontSize: 10, fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
                   tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+                  tickFormatter={(value, index) => {
+                    // Smart tick formatting to avoid overlap and show meaningful dates
+                    const totalTicks = aggregatedData.length;
+                    const maxTicks = {
+                      '7d': 7,    // Show up to 7 ticks for weekly view
+                      '30d': 6,   // Show up to 6 ticks for monthly view
+                      '90d': 5,   // Show up to 5 ticks for quarterly view
+                      '1y': 4,    // Show up to 4 ticks for yearly view
+                      'all': 4    // Show up to 4 ticks for full history
+                    };
+                    
+                    const maxTicksForRange = maxTicks[selectedRange] || 5;
+                    const tickInterval = Math.max(1, Math.ceil(totalTicks / maxTicksForRange));
+                    
+                    // Always show first and last tick
+                    if (index === 0 || index === totalTicks - 1) {
+                      return value;
+                    }
+                    
+                    // Show every nth tick based on data density
+                    if (index % tickInterval === 0) {
+                      return value;
+                    }
+                    
+                    return '';
+                  }}
                 />
                 <YAxis 
                   tick={{ fontSize: 10, fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
@@ -410,21 +449,23 @@ function getOffsetMultiplier(range: TimeRange): number {
 
 function getDateFormat(range: TimeRange): string {
   switch (range) {
-    case '7d': return 'MMM dd HH:mm';
-    case '30d': return 'MMM dd';
-    case '90d': return 'MMM dd';
-    case '1y': return 'MMM yyyy';
-    case 'all': return 'MMM dd, yyyy'; // Include year for full history
-    default: return 'MMM dd, yyyy'; // Include year by default
+    case '7d': return 'MMM dd'; // Show day and month for weekly view
+    case '30d': return 'MMM dd'; // Show day and month for monthly view
+    case '90d': return 'MMM yyyy'; // Show month and year for quarterly view
+    case '1y': return 'MMM yyyy'; // Show month and year for yearly view
+    case 'all': return 'MMM yyyy'; // Show month and year for full history
+    default: return 'MMM yyyy'; // Default to month and year
   }
 }
 
 function getAggregationInterval(range: TimeRange): number {
   switch (range) {
-    case '30d': return 24 * 60 * 60 * 1000; // 1 day
-    case '90d': return 3 * 24 * 60 * 60 * 1000; // 3 days
-    case '1y': return 7 * 24 * 60 * 60 * 1000; // 1 week
-    default: return 24 * 60 * 60 * 1000; // 1 day
+    case '7d': return 12 * 60 * 60 * 1000; // 12 hours
+    case '30d': return 2 * 24 * 60 * 60 * 1000; // 2 days
+    case '90d': return 7 * 24 * 60 * 60 * 1000; // 1 week
+    case '1y': return 30 * 24 * 60 * 60 * 1000; // 1 month
+    case 'all': return 30 * 24 * 60 * 60 * 1000; // 1 month
+    default: return 2 * 24 * 60 * 60 * 1000; // 2 days
   }
 }
 

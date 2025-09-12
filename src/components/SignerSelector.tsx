@@ -11,7 +11,6 @@ import { getSupportedWallets, getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 import { signWithWallet } from '@/lib/walletKit';
-import { appendSignature } from '@/lib/multisig-store';
 
 interface Signer {
   key: string;
@@ -158,7 +157,7 @@ export const SignerSelector = ({
     if (freeMode && selectedWalletId) {
       // In free mode, we use the wallet address as the signer key
       const { signedXDR, signerKey } = await signWithWallet(xdr, selectedWalletId, contextNetwork);
-      if (pendingId) appendSignature(pendingId, signedXDR);
+      // Signature added successfully
       onSigned(signedXDR, signerKey);
       setSelectedWalletId('');
     } else if (selectedSigner && selectedWalletId) {
@@ -281,7 +280,6 @@ export const SignerSelector = ({
                           <div className="flex items-center gap-4">
                             <CheckCircle className="w-4 h-4 text-green-500" />
                             <div>
-                              <p className="font-address font-mono text-sm">{truncateKey(signed.signerKey)}</p>
                               <p className="font-address font-mono text-sm">{truncateKey(signed.signerKey)}</p>
                               <div className="flex gap-2 mt-1">
                                 {signed.signerKey === currentAccountKey && (

@@ -1,7 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { HeaderPendingBadge } from '@/components/HeaderPendingBadge';
 import { Separator } from '@/components/ui/separator';
 import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -49,8 +48,6 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
   const [activeTab, setActiveTab] = useState("balances");
   const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
   const [showEditConfirm, setShowEditConfirm] = useState(false);
-  const [pendingMultisigId, setPendingMultisigId] = useState<string | null>(null);
-  const [pendingMultisigXdr, setPendingMultisigXdr] = useState<string | null>(null);
   
   const truncateKey = (key: string) => {
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
@@ -104,7 +101,6 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             </Button>
           </div>
         </div>
-        <HeaderPendingBadge />
 
         {/* Account Info */}
         <Card className="shadow-card">
@@ -313,9 +309,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
                     currentSigners={accountData.signers}
                     currentThresholds={accountData.thresholds}
                     onXdrGenerated={() => {}}
-                    onPendingCreated={(id, xdr) => {
-                      setPendingMultisigId(id);
-                      setPendingMultisigXdr(xdr);
+                    onPendingCreated={() => {
                       setActiveTab('multisig');
                     }}
                     onAccountRefresh={onRefreshBalances}
@@ -353,21 +347,6 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
         {/* Thresholds & Signers are now moved to the Multisig tab */}
       </div>
 
-      {/* TransactionBuilder for multisig signing */}
-      {pendingMultisigId && pendingMultisigXdr && (
-        <TransactionBuilder
-          onBack={() => {
-            setPendingMultisigId(null);
-            setPendingMultisigXdr(null);
-          }}
-          accountPublicKey={accountData.publicKey}
-          accountData={accountData}
-          initialTab="import"
-          pendingId={pendingMultisigId}
-          initialXdr={pendingMultisigXdr}
-          onAccountRefresh={onRefreshBalances}
-        />
-      )}
     </div>
   );
 };
