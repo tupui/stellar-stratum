@@ -21,7 +21,10 @@ import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useToast } from '@/hooks/use-toast';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
+import { submitToRefractor } from '@/lib/stellar';
+import { SuccessModal } from './SuccessModal';
 
 interface AccountData {
   publicKey: string;
@@ -61,7 +64,11 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
   const [isSubmittingToRefractor, setIsSubmittingToRefractor] = useState(false);
   const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' | 'offline'; xdr?: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isSigning, setIsSigning] = useState(false);
+  
+  const { toast } = useToast();
   const { network: currentNetwork } = useNetwork();
+  
   
   const truncateKey = (key: string) => {
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
@@ -178,20 +185,17 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
     
     setIsSubmittingToRefractor(true);
     try {
-      // TODO: Implement Refractor submission
-      console.log('Submitting to Refractor:', multisigConfigXdr);
-      // Simulate success
-      setTimeout(() => {
-        setSuccessData({
-          type: 'refractor',
-          hash: 'mock-refractor-id-' + Date.now(),
-          network: currentNetwork,
-          xdr: multisigConfigXdr
-        });
-        setIsSubmittingToRefractor(false);
-      }, 2000);
+      const id = await submitToRefractor(multisigConfigXdr, currentNetwork);
+      
+      // Show success modal instead of just toast
+      setSuccessData({ hash: id, network: currentNetwork, type: 'refractor' });
     } catch (error) {
-      console.error('Refractor submission failed:', error);
+      toast({
+        title: "Refractor submission failed",
+        description: error instanceof Error ? error.message : "Failed to submit to Refractor",
+        variant: "destructive",
+      });
+    } finally {
       setIsSubmittingToRefractor(false);
     }
   };
@@ -515,24 +519,22 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             <CardContent>
               <SignerSelector
                 xdr={multisigConfigXdr}
+                network={currentNetwork}
+                onSigned={(signedXdr, signerKey) => {
+                  setMultisigConfigXdr(signedXdr);
+                  setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
+                  toast({ title: 'Signature Added', description: `Signed by ${signerKey.slice(0, 8)}...` });
+                }}
+                pendingId=""
                 signers={accountData.signers}
                 currentAccountKey={accountData.publicKey}
                 signedBy={signedBy}
-                requiredWeight={accountData.thresholds.high_threshold}
+                requiredWeight={getRequiredWeight()}
                 onSignWithSigner={async (signerKey, walletId) => {
-                  // Handle signing with specific signer
+                  // Use the same interface as TransactionBuilder
                   console.log('Signing with:', { signerKey, walletId });
                 }}
-                isSigning={false}
-                freeMode={true}
-                network={currentNetwork}
-                onSigned={(signedXdr, signerKey) => {
-                  // Handle signed transaction
-                  console.log('Multisig config signed:', { signedXdr, signerKey });
-                  // Add signature to signedBy array
-                  const newSignature = { signerKey, signedAt: new Date() };
-                  setSignedBy(prev => [...prev, newSignature]);
-                }}
+                isSigning={isSigning}
               />
             </CardContent>
           </Card>
@@ -564,6 +566,23 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
             copied={copied}
           />
         </div>
+      )}
+
+      {/* Transaction Success Modal */}
+      {successData && (
+        <SuccessModal
+          type={successData.type}
+          hash={successData.type === 'network' || successData.type === 'offline' ? successData.hash : undefined}
+          refractorId={successData.type === 'refractor' ? successData.hash : undefined}
+          xdr={successData.xdr}
+          network={successData.network}
+          onClose={() => setSuccessData(null)}
+          onNavigateToDashboard={() => {
+            setMultisigConfigXdr(null);
+            setSignedBy([]);
+            setSuccessData(null);
+          }}
+        />
       )}
 
     </div>
