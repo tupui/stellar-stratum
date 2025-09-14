@@ -42,33 +42,23 @@ export const WalletConnect = ({
     setNetwork: setSelectedNetwork
   } = useNetwork();
   const loadWallets = useCallback(async () => {
-    try {
-      setLoading(true);
-      // Defer wallet loading to improve TTI
-      setTimeout(async () => {
-        try {
-          const wallets = await getSupportedWallets(selectedNetwork);
-          setSupportedWallets(wallets);
-        } catch (error) {
-          toast({
-            title: 'Failed to load wallets',
-            description: error instanceof Error ? error.message : 'Could not load wallet options',
-            variant: 'destructive',
-          });
-        } finally {
-          setLoading(false);
-        }
-      }, 200); // Small delay to allow UI to render first
-    } catch (error) {
-      toast({
-        title: "Failed to load wallets",
-        description: "Could not load supported wallets",
-        variant: "destructive",
-        duration: 2000
-      });
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    // Defer wallet loading to improve TTI, but keep loading state true
+    setTimeout(async () => {
+      try {
+        const wallets = await getSupportedWallets(selectedNetwork);
+        setSupportedWallets(wallets);
+      } catch (error) {
+        toast({
+          title: 'Failed to load wallets',
+          description: error instanceof Error ? error.message : 'Could not load wallet options',
+          variant: 'destructive',
+        });
+      } finally {
+        // Only set loading to false after wallets are actually loaded/failed
+        setLoading(false);
+      }
+    }, 200); // Small delay to allow UI to render first
   }, [selectedNetwork, toast]);
   useEffect(() => {
     const checkWallets = async () => {
