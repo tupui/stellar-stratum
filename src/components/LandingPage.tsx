@@ -17,27 +17,29 @@ export const LandingPage = ({
     onConnect(walletType, publicKey, network);
   };
   return <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Subtle Background Elements */}
+      {/* Subtle Background Elements - Fixed dimensions to prevent shifts */}
       <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-background to-background/50" />
+        <div className="absolute inset-0 bg-gradient-to-br from-background to-background/50" style={{ contain: 'layout style paint', willChange: 'auto' }} />
         
-        {/* Multi-sig layers visualization */}
-        <div className="absolute right-10 top-1/3 opacity-5 rotate-12">
+        {/* Multi-sig layers visualization - Fixed positioning */}
+        <div className="absolute right-10 top-1/3 opacity-5 rotate-12" style={{ contain: 'layout style paint', willChange: 'auto' }}>
           <div className="flex flex-col gap-4">
             {Array.from({
             length: 5
           }).map((_, i) => <div key={i} className={`h-1 bg-stellar-yellow rounded-full`} style={{
-            width: `${200 - i * 20}px`
+            width: `${200 - i * 20}px`,
+            contain: 'layout style paint'
           }} />)}
           </div>
         </div>
         
-        <div className="absolute left-10 bottom-1/3 opacity-5 -rotate-12">
+        <div className="absolute left-10 bottom-1/3 opacity-5 -rotate-12" style={{ contain: 'layout style paint', willChange: 'auto' }}>
           <div className="flex flex-col gap-4">
             {Array.from({
             length: 4
           }).map((_, i) => <div key={i} className={`h-1 bg-stellar-yellow rounded-full`} style={{
-            width: `${180 - i * 30}px`
+            width: `${180 - i * 30}px`,
+            contain: 'layout style paint'
           }} />)}
           </div>
         </div>

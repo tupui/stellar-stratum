@@ -209,7 +209,23 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-display: swap;
+    font-optical-sizing: auto;
+    text-rendering: optimizeSpeed;
+  }
+  
+  /* Prevent font loading shifts */
+  @font-face {
+    font-family: 'Inter';
+    font-display: swap;
+    font-optical-sizing: auto;
+  }
+  
+  @font-face {
+    font-family: 'JetBrains Mono';
+    font-display: swap;
+    font-optical-sizing: auto;
   }
 }
 
