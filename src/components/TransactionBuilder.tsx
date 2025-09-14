@@ -37,6 +37,10 @@ import { ImportTab } from './ImportTab';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 
 
+interface PaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; memo?: string }
+interface BatchPayment { destination: string; amount?: string; asset?: string; assetIssuer?: string; memo?: string; isAccountClosure?: boolean; receiveAsset?: string; receiveAssetIssuer?: string; slippageTolerance?: number }
+interface PathPaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; receiveAsset: string; receiveAssetIssuer?: string; slippageTolerance?: number; memo?: string }
+
 interface TransactionBuilderProps {
   onBack: () => void;
   accountPublicKey: string;
@@ -257,7 +261,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   const createTrustlineRemovalOperations = () => {
     // Create operations to remove all existing trustlines before account merge
     // Note: XLM (native asset) cannot be closed and is automatically skipped
-    const trustlineRemovalOps: Operation[] = [];
+    const trustlineRemovalOps: any[] = [];
     
     if (!accountData?.balances) return trustlineRemovalOps;
     
@@ -300,7 +304,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     return parseFloat((converted * slippageAdjustment).toFixed(7));
   };
   
-  const handlePaymentBuild = async (paymentData?: unknown, isAccountMerge = false, batchPayments?: unknown[], pathPayment?: unknown) => {
+  const handlePaymentBuild = async (paymentData?: PaymentData, isAccountMerge = false, batchPayments?: BatchPayment[], pathPayment?: PathPaymentData) => {
     setIsBuilding(true);
     setTrustlineError('');
 
@@ -331,10 +335,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
         fee = (100000 * (1 + trustlineCount)).toString();
       }
       
-      const transaction = new StellarTransactionBuilder(sourceAccount, {
-        fee,
-        networkPassphrase,
-      });
+      const transaction = new StellarTransactionBuilder(sourceAccount, { fee, networkPassphrase }) as any;
 
       if (isAccountMerge) {
         // Account merge operation
@@ -768,8 +769,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     const xdrToCheck = xdrData.output || xdrData.input;
     if (!xdrToCheck || !accountData?.signers) return [];
     try {
-      const parsed = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork));
-      const collectHints = (tx: Transaction) => (tx?.signatures || []).map((s: Signature) => s.hint());
+      const parsed = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork)) as any;
+      const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
       const hints: Buffer[] = parsed?.innerTransaction
         ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
         : collectHints(parsed);

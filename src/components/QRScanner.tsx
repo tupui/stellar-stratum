@@ -90,14 +90,15 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               const stream = videoRef.current.srcObject as MediaStream;
               const track = stream.getVideoTracks()[0];
               if (track && 'getCapabilities' in track) {
-                const capabilities = (track.getCapabilities?.() || {}) as MediaTrackCapabilities;
+                const caps = (track.getCapabilities?.() || {}) as MediaTrackCapabilities;
                 const advanced: MediaTrackConstraintSet[] = [];
-                if (capabilities.zoom && capabilities.zoom.max) {
-                  const suggestedZoom = Math.min(capabilities.zoom.max, 2);
-                  advanced.push({ zoom: suggestedZoom } as MediaTrackConstraintSet);
+                const anyCaps = caps as any;
+                if ('zoom' in anyCaps && anyCaps.zoom && typeof anyCaps.zoom.max === 'number') {
+                  const suggestedZoom = Math.min(anyCaps.zoom.max, 2);
+                  advanced.push({ zoom: suggestedZoom } as any);
                 }
-                if (capabilities.focusMode && capabilities.focusMode.length) {
-                  advanced.push({ focusMode: 'continuous' } as MediaTrackConstraintSet);
+                if ('focusMode' in anyCaps && Array.isArray(anyCaps.focusMode) && anyCaps.focusMode.length) {
+                  advanced.push({ focusMode: 'continuous' } as any);
                 }
                 if (advanced.length) {
                   await track.applyConstraints({ advanced });

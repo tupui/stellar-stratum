@@ -198,7 +198,7 @@ export const WalletConnect = ({
         fullError
       } = sanitizeError(error);
       let errorMessage = userMessage;
-      if (error.name === 'Domain404Error') {
+      if ((error as any)?.name === 'Domain404Error') {
         errorMessage = `Domain "${sorobanDomain}" not found`;
       }
       toast({

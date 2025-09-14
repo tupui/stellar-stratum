@@ -72,9 +72,9 @@ export const SignerSelector = ({
   useEffect(() => {
     try {
       const networkPassphrase = getNetworkPassphrase(contextNetwork);
-      const parsed = StellarTransactionBuilder.fromXDR(xdr, networkPassphrase);
+      const parsed = StellarTransactionBuilder.fromXDR(xdr, networkPassphrase) as any;
 
-      const collectHints = (tx: Transaction) => (tx?.signatures || []).map((s) => s.hint());
+      const collectHints = (tx: any) => (tx?.signatures || []).map((s) => s.hint());
       const hints: Buffer[] = parsed?.innerTransaction
         ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
         : collectHints(parsed);
@@ -156,9 +156,9 @@ export const SignerSelector = ({
   const handleSign = async () => {
     if (freeMode && selectedWalletId) {
       // In free mode, we use the wallet address as the signer key
-      const { signedXDR, signerKey } = await signWithWallet(xdr, selectedWalletId, contextNetwork);
+      const { signedXdr, address } = await signWithWallet(xdr, selectedWalletId, contextNetwork);
       // Signature added successfully
-      onSigned(signedXDR, signerKey);
+      onSigned(signedXdr, address);
       setSelectedWalletId('');
     } else if (selectedSigner && selectedWalletId) {
       await onSignWithSigner(selectedSigner, selectedWalletId);
