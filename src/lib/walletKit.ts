@@ -26,10 +26,8 @@ export const signWithWallet = async (
   const kit = createWalletKit(walletId, network);
 
   // Try explicit connect when supported by wallet module
-  // @ts-expect-error - Freighter types not available
   if (typeof (kit as any).connect === 'function') {
     try {
-      // @ts-expect-error - Freighter types not available
       await (kit as any).connect();
     } catch {
       // Some wallets don't require connect, continue

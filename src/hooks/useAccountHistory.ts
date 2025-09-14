@@ -239,24 +239,24 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
 
         const normalizedTransactions: NormalizedTransaction[] = [];
 
-        for (const record of paymentsResp.records) {
+        for (const record of (paymentsResp as any).records) {
           const normalized = normalizePaymentRecord(record, publicKey);
           if (normalized) normalizedTransactions.push(normalized);
         }
 
-        for (const record of opsResp.records) {
+        for (const record of (opsResp as any).records) {
           if (record.type === 'payment' || record.type === 'create_account') continue;
           const normalized = normalizeOperationRecord(record, publicKey);
           if (normalized) normalizedTransactions.push(normalized);
         }
 
         // Update cursor and hasMore
-        if (paymentsResp.records.length > 0) {
-          const lastRecord = paymentsResp.records[paymentsResp.records.length - 1];
+        if ((paymentsResp as any).records.length > 0) {
+          const lastRecord = (paymentsResp as any).records[(paymentsResp as any).records.length - 1];
           setCursor(lastRecord.paging_token);
         }
         
-        const horizonHasMore = paymentsResp.records.length === INITIAL_LIMIT || opsResp.records.length === INITIAL_LIMIT;
+        const horizonHasMore = (paymentsResp as any).records.length === INITIAL_LIMIT || (opsResp as any).records.length === INITIAL_LIMIT;
         setHasMore(horizonHasMore);
 
         const now = new Date();
@@ -321,24 +321,24 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
 
       const normalizedTransactions: NormalizedTransaction[] = [];
 
-      for (const record of paymentsResp.records) {
+      for (const record of (paymentsResp as any).records) {
         const normalized = normalizePaymentRecord(record, publicKey);
         if (normalized) normalizedTransactions.push(normalized);
       }
 
-      for (const record of opsResp.records) {
+      for (const record of (opsResp as any).records) {
         if (record.type === 'payment' || record.type === 'create_account') continue;
         const normalized = normalizeOperationRecord(record, publicKey);
         if (normalized) normalizedTransactions.push(normalized);
       }
 
       // Update cursor and hasMore
-      if (paymentsResp.records.length > 0) {
-        const lastRecord = paymentsResp.records[paymentsResp.records.length - 1];
+      if ((paymentsResp as any).records.length > 0) {
+        const lastRecord = (paymentsResp as any).records[(paymentsResp as any).records.length - 1];
         setCursor(lastRecord.paging_token);
       }
       
-      const horizonHasMore = paymentsResp.records.length === LOAD_MORE_LIMIT || opsResp.records.length === LOAD_MORE_LIMIT;
+      const horizonHasMore = (paymentsResp as any).records.length === LOAD_MORE_LIMIT || (opsResp as any).records.length === LOAD_MORE_LIMIT;
       setHasMore(horizonHasMore);
       
       setTransactions(prev => {

@@ -101,7 +101,6 @@ export const connectWallet = async (walletId: string, network: 'mainnet' | 'test
 
     // Try explicit connect when supported by wallet module
     try {
-      // @ts-expect-error - Freighter types not available
       if (typeof (kit as any).connect === 'function') {
         await (kit as any).connect();
       }

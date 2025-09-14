@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, ArrowRight, DollarSign, Users, Settings, Merge, CreditCard, Fingerprint } from 'lucide-react';
 import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { Operation } from '@stellar/stellar-sdk';
 
 interface TransactionSummaryProps {
   xdr: string;
@@ -63,7 +64,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
     }
   };
 
-  const getOperationSummary = (op: Operation) => {
+  const getOperationSummary = (op: any) => {
     switch (op.type) {
       case 'payment':
         return {
@@ -213,7 +214,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
 
         {/* Warning for destructive operations */}
         {summary.operations.some(op => ['accountMerge', 'changeTrust'].includes(op.type) && 
-          (op.type === 'accountMerge' || (op.details as Operation & { limit?: string }).limit === '0')) && (
+          (op.type === 'accountMerge' || (op.details as any)?.limit === '0')) && (
           <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />

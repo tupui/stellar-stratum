@@ -960,7 +960,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
                       handlePaymentBuild(undefined, false, batchPayments);
                     } else if (pathPayment) {
                       // Single path payment
-                      handlePaymentBuild(undefined, false, undefined, pathPayment);
+                      handlePaymentBuild(undefined, false, undefined, pathPayment as PathPaymentData);
                     } else {
                       handlePaymentBuild(paymentData);
                     }

@@ -39,10 +39,10 @@ export const mergeSignatures = (
       try {
         const signedTransaction = new Transaction(signedXdr, networkPassphrase);
         
-        // CRITICAL: Verify this is the same transaction by comparing operation hashes
+        // CRITICAL: Verify this is the same transaction by comparing operation sources
         // (not transaction hashes which include signatures)
-        const baseOpsHash = baseTransaction.operations.map(op => op.hash().toString('hex')).join('');
-        const signedOpsHash = signedTransaction.operations.map(op => op.hash().toString('hex')).join('');
+        const baseOpsHash = baseTransaction.operations.map((op: any) => `${op.type}-${op.source || ''}`).join('');
+        const signedOpsHash = signedTransaction.operations.map((op: any) => `${op.type}-${op.source || ''}`).join('');
         
         if (baseOpsHash !== signedOpsHash) {
           // Different transaction - skip to prevent signature confusion
@@ -64,23 +64,29 @@ export const mergeSignatures = (
         
       } catch (error) {
         // CRITICAL: Skip invalid XDRs to prevent corruption
-        continue;
+        return;
       }
     });
     
     // CRITICAL: Rebuild transaction with all signatures
-    const builder = TransactionBuilder.fromXDR(baseXdr, networkPassphrase);
+    const rebuiltTransaction = new Transaction(baseXdr, networkPassphrase);
     
     // CRITICAL: Clear existing signatures and add all collected ones
-    builder.clearSignatures();
+    rebuiltTransaction.signatures.length = 0;
     
-    // Add all signatures to the builder
+    // Add all signatures to the transaction
     Array.from(allSignatures.keys()).forEach(sigString => {
       const sigBuffer = Buffer.from(sigString, 'base64');
-      builder.addSignature(sigBuffer);
+      const hintBuffer = sigBuffer.slice(-4); // Last 4 bytes as hint
+      rebuiltTransaction.signatures.push(
+        new xdr.DecoratedSignature({
+          hint: hintBuffer,
+          signature: sigBuffer
+        })
+      );
     });
     
-    const mergedXdr = builder.build().toXDR();
+    const mergedXdr = rebuiltTransaction.toXDR();
     
     return {
       mergedXdr,

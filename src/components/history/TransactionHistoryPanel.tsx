@@ -513,7 +513,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 <Label className="text-xs">Direction</Label>
                 <Select 
                   value={filters.direction} 
-                  onValueChange={(value: string) => setFilters(prev => ({ ...prev, direction: value }))}
+                  onValueChange={(value: 'all' | 'in' | 'out') => setFilters(prev => ({ ...prev, direction: value }))}
                 >
                   <SelectTrigger className="h-8">
                     <SelectValue />
@@ -530,7 +530,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 <Label className="text-xs">Category</Label>
                 <Select 
                   value={filters.category} 
-                  onValueChange={(value: string) => setFilters(prev => ({ ...prev, category: value }))}
+                  onValueChange={(value: 'all' | 'transfer' | 'swap' | 'contract' | 'config') => setFilters(prev => ({ ...prev, category: value }))}
                 >
                   <SelectTrigger className="h-8">
                     <SelectValue />

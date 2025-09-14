@@ -53,7 +53,7 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
           accountId: destination
         });
       } catch (err: unknown) {
-        if (err.response?.status === 404) {
+        if ((err as any)?.response?.status === 404) {
           setAccountData({
             exists: false,
             balances: [],
@@ -121,7 +121,7 @@ export const DestinationAccountInfo = ({ destination }: DestinationAccountInfoPr
     });
   };
 
-  const getAssetDisplay = (bal: { asset_code: string; asset_issuer?: string; balance: string }) => {
+  const getAssetDisplay = (bal: { asset_code?: string; asset_issuer?: string; balance: string; asset_type?: string }) => {
     if (bal.asset_type === 'native') return 'XLM';
     return bal.asset_code;
   };
