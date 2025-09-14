@@ -44,8 +44,21 @@ export const WalletConnect = ({
   const loadWallets = useCallback(async () => {
     try {
       setLoading(true);
-      const wallets = await getSupportedWallets(selectedNetwork);
-      setSupportedWallets(wallets);
+      // Defer wallet loading to improve TTI
+      setTimeout(async () => {
+        try {
+          const wallets = await getSupportedWallets(selectedNetwork);
+          setSupportedWallets(wallets);
+        } catch (error) {
+          toast({
+            title: 'Failed to load wallets',
+            description: error instanceof Error ? error.message : 'Could not load wallet options',
+            variant: 'destructive',
+          });
+        } finally {
+          setLoading(false);
+        }
+      }, 200); // Small delay to allow UI to render first
     } catch (error) {
       toast({
         title: "Failed to load wallets",

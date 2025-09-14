@@ -3,35 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stellar Multisig Wallet - Secure Multi-Signature Management</title>
-    <meta name="description" content="Professional Stellar multisig wallet for secure multi-signature transaction management. Connect wallets, manage thresholds, and sign XDR operations." />
-    <meta name="author" content="Stellar Multisig" />
-    <meta name="keywords" content="Stellar, multisig, wallet, cryptocurrency, blockchain, XDR, signatures" />
+    <title>Stratum - Multi-Signature Stellar Transactions</title>
+    <meta name="description" content="Stellar's threshold-based authorization system. Configure signature weights, manage signer permissions, and execute secure multi-signature transactions." />
+    <meta name="author" content="Consulting Manao GmbH" />
+    <meta name="keywords" content="stellar, multisig, multi-signature, transactions, blockchain, cryptocurrency, stellar lumens, threshold, authorization" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://stratum.consulting-manao.com/" />
+    
+    <!-- Open Graph / Social Media Meta Tags -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Stratum - Multi-Signature Stellar Transactions" />
+    <meta property="og:description" content="Stellar's threshold-based authorization system. Configure signature weights, manage signer permissions, and execute secure multi-signature transactions." />
+    <meta property="og:url" content="https://stratum.consulting-manao.com/" />
+    <meta property="og:site_name" content="Stratum" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Stratum - Multi-Signature Stellar Transactions" />
+    <meta name="twitter:description" content="Stellar's threshold-based authorization system. Configure signature weights, manage signer permissions, and execute secure multi-signature transactions." />
+    
     <link rel="icon" href="/favicon.png" type="image/png">
     <link rel="apple-touch-icon" href="/favicon.png">
     
-    <!-- Async font loading to prevent render blocking -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600&display=swap"></noscript>
+    <!-- Performance optimizations for TTI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="dns-prefetch" href="https://horizon.stellar.org" />
+    <link rel="dns-prefetch" href="https://horizon-testnet.stellar.org" />
+    <link rel="dns-prefetch" href="https://soroban-domains.nftkey.app" />
     
-    <!-- Async font loading script with fallback -->
-    <script>
-      (function() {
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro:wght@400;500;600&display=swap';
-        link.media = 'print';
-        link.onload = function() { this.media = 'all'; };
-        document.head.appendChild(link);
-        
-        // Add fallback timer
-        setTimeout(function() {
-          if (link.media !== 'all') {
-            link.media = 'all';
-          }
-        }, 100);
-      })();
+    <!-- Preload critical fonts -->
+    <link rel="preload" href="https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2" as="font" type="font/woff2" crossorigin />
+    
+    <!-- Load Inter font with optimized loading -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Stratum",
+      "description": "Stellar's threshold-based authorization system for multi-signature transactions",
+      "url": "https://stratum.consulting-manao.com/",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Web",
+      "creator": {
+        "@type": "Organization",
+        "name": "Consulting Manao GmbH",
+        "url": "https://consulting-manao.com/"
+      },
+      "keywords": "stellar, multisig, multi-signature, transactions, blockchain, cryptocurrency"
+    }
     </script>
     
     <!-- Critical CSS optimized for LCP -->

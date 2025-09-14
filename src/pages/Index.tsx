@@ -1,9 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { LandingPage } from '@/components/LandingPage';
-import { AccountOverview } from '@/components/AccountOverview';
-import { TransactionBuilder } from '@/components/TransactionBuilder';
+import { LoadingPill } from '@/components/ui/loading-pill';
 import { Footer } from '@/components/Footer';
 import { DeepLinkHandler } from '@/components/DeepLinkHandler';
+
+// Lazy load heavy components to improve TTI
+const AccountOverview = lazy(() => import('@/components/AccountOverview').then(module => ({
+  default: module.AccountOverview
+})));
+const TransactionBuilder = lazy(() => import('@/components/TransactionBuilder').then(module => ({
+  default: module.TransactionBuilder
+})));
 import { fetchAccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
@@ -79,34 +86,35 @@ const Index = () => {
     setNetwork(selectedNetwork);
     setLoading(true);
     
-    try {
-      // Fetch real account data from Horizon
-      const realAccountData = await fetchAccountData(publicKey, selectedNetwork);
-      setAccountData(realAccountData);
-      setLoading(false);
-      
-      // Check if we have deep link data and should go directly to transaction
-      const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
-      if (deepLinkXdr) {
-        setDeepLinkReady(true);
-        setAppState('transaction');
-      } else {
-        setDeepLinkReady(false);
-        setAppState('dashboard');
-      }
-      
-    } catch (error) {
-      console.error('Failed to load account:', error);
-      toast({
-        title: 'Failed to load account',
-        description: error instanceof Error ? error.message : 'Could not load account data',
-        variant: 'destructive',
-      });
-      
-      // Fall back to connection screen
-      setAppState('connecting');
-      setLoading(false);
+    // Immediately switch to appropriate state for better perceived performance
+    const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
+    if (deepLinkXdr) {
+      setDeepLinkReady(true);
+      setAppState('transaction');
+    } else {
+      setDeepLinkReady(false);
+      setAppState('dashboard');
     }
+    
+    // Defer account data fetching to not block TTI
+    setTimeout(async () => {
+      try {
+        const realAccountData = await fetchAccountData(publicKey, selectedNetwork);
+        setAccountData(realAccountData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Failed to load account:', error);
+        toast({
+          title: 'Failed to load account',
+          description: error instanceof Error ? error.message : 'Could not load account data',
+          variant: 'destructive',
+        });
+        
+        // Fall back to connection screen
+        setAppState('connecting');
+        setLoading(false);
+      }
+    }, 100); // Small delay to allow UI transition first
   };
 
 
@@ -147,33 +155,51 @@ const Index = () => {
 
           {/* Transaction Builder */}
           {(appState === 'transaction' || appState === 'multisig-config') && (
-            <TransactionBuilder
-              key={`${appState}-${publicKey}`}
-              onBack={handleBackToDashboard}
-              accountPublicKey={publicKey || ''}
-              accountData={accountData}
-              initialTab={appState === 'multisig-config' ? 'multisig' : (deepLinkReady ? 'import' : 'payment')}
-              onAccountRefresh={async () => {
-                if (!publicKey) return;
-                const realAccountData = await fetchAccountData(publicKey, network);
-                setAccountData(realAccountData);
-              }}
-            />
+            <Suspense fallback={
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                  <LoadingPill size="lg" glowColor="primary" />
+                  <span className="text-muted-foreground">Loading transaction builder...</span>
+                </div>
+              </div>
+            }>
+              <TransactionBuilder
+                key={`${appState}-${publicKey}`}
+                onBack={handleBackToDashboard}
+                accountPublicKey={publicKey || ''}
+                accountData={accountData}
+                initialTab={appState === 'multisig-config' ? 'multisig' : (deepLinkReady ? 'import' : 'payment')}
+                onAccountRefresh={async () => {
+                  if (!publicKey) return;
+                  const realAccountData = await fetchAccountData(publicKey, network);
+                  setAccountData(realAccountData);
+                }}
+              />
+            </Suspense>
           )}
 
           {/* Account Dashboard */}
-          {appState === 'dashboard' && publicKey && accountData && (
-            <AccountOverview
-              accountData={accountData}
-              onInitiateTransaction={handleInitiateTransaction}
-              onSignTransaction={() => {}}
-              onRefreshBalances={async () => {
-                if (!publicKey) return;
-                const realAccountData = await fetchAccountData(publicKey, network);
-                setAccountData(realAccountData);
-              }}
-              onDisconnect={handleDisconnect}
-            />
+          {appState === 'dashboard' && publicKey && (
+            <Suspense fallback={
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                  <LoadingPill size="lg" glowColor="primary" />
+                  <span className="text-muted-foreground">Loading dashboard...</span>
+                </div>
+              </div>
+            }>
+              <AccountOverview
+                accountData={accountData}
+                onInitiateTransaction={handleInitiateTransaction}
+                onSignTransaction={() => {}}
+                onRefreshBalances={async () => {
+                  if (!publicKey) return;
+                  const realAccountData = await fetchAccountData(publicKey, network);
+                  setAccountData(realAccountData);
+                }}
+                onDisconnect={handleDisconnect}
+              />
+            </Suspense>
           )}
         </div>
         
