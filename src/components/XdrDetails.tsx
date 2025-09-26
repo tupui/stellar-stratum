@@ -184,7 +184,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                 <span className="font-address text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Amount:</span> {(op as Operation & { amount?: string; asset?: { code?: string } }).amount} {(op as Operation & { amount?: string; asset?: { code?: string } }).asset?.code || 'XLM'}
+                                <span className="text-muted-foreground">Amount:</span> <span className="font-amount">{(op as Operation & { amount?: string; asset?: { code?: string } }).amount} {(op as Operation & { amount?: string; asset?: { code?: string } }).asset?.code || 'XLM'}</span>
                               </p>
                             </div>
                           )}
@@ -195,10 +195,10 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                 <span className="font-address text-xs ml-1 break-all">{(op as PathPaymentOp).destination}</span>
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Send:</span> {(op as PathPaymentOp).sendAmount} {(op as PathPaymentOp).sendAsset?.code || 'XLM'}
+                                <span className="text-muted-foreground">Send:</span> <span className="font-amount">{(op as PathPaymentOp).sendAmount} {(op as PathPaymentOp).sendAsset?.code || 'XLM'}</span>
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Receive (min):</span> {(op as PathPaymentOp).destMin} {(op as PathPaymentOp).destAsset?.code || 'XLM'}
+                                <span className="text-muted-foreground">Receive (min):</span> <span className="font-amount">{(op as PathPaymentOp).destMin} {(op as PathPaymentOp).destAsset?.code || 'XLM'}</span>
                               </p>
                             </div>
                           )}

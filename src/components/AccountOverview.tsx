@@ -359,10 +359,10 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
                           <div key={index} className="flex justify-between items-center">
                             <div>
                               <p className="font-medium">{threshold.label}</p>
-                              <p className="text-sm text-muted-foreground">Required: {threshold.value}</p>
+                              <p className="text-sm text-muted-foreground">Required: <span className="font-amount">{threshold.value}</span></p>
                             </div>
                             <Badge variant={status.color === 'success' ? 'default' : 'secondary'}>
-                              {currentWeight}/{threshold.value}
+                              <span className="font-amount">{currentWeight}/{threshold.value}</span>
                             </Badge>
                           </div>
                         );
@@ -413,7 +413,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
                               </Button>
                             </div>
                             <Badge variant="outline">
-                              Weight: {signer.weight}
+                              Weight: <span className="font-amount">{signer.weight}</span>
                             </Badge>
                           </div>
                         ))}

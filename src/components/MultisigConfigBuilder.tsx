@@ -386,15 +386,15 @@ export const MultisigConfigBuilder = ({
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">Low</p>
-                <p className="text-lg font-semibold">{currentThresholds.low_threshold}</p>
+                <p className="text-lg font-semibold font-amount">{currentThresholds.low_threshold}</p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">Medium</p>
-                <p className="text-lg font-semibold">{currentThresholds.med_threshold}</p>
+                <p className="text-lg font-semibold font-amount">{currentThresholds.med_threshold}</p>
               </div>
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">High</p>
-                <p className="text-lg font-semibold">{currentThresholds.high_threshold}</p>
+                <p className="text-lg font-semibold font-amount">{currentThresholds.high_threshold}</p>
               </div>
             </div>
           </div>

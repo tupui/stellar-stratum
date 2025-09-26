@@ -205,7 +205,7 @@ export const AssetBalancePanel = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground/80">Total Portfolio Value</p>
-              <p className="text-2xl font-bold">
+              <p className="text-2xl font-bold font-amount">
                 {loading ? <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span> : <span className="text-primary">{formatValueSync(totalValueUSD)}</span>}
               </p>
             </div>

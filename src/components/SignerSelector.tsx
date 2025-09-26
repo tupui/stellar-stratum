@@ -180,7 +180,7 @@ export const SignerSelector = ({
               {!freeMode && (
                 <div className="flex items-center gap-4 mt-2">
                   <Badge variant={hasMinimumSignatures ? 'default' : 'secondary'}>
-                    Weight: {currentWeight}/{requiredWeight}
+                    Weight: <span className="font-amount">{currentWeight}/{requiredWeight}</span>
                   </Badge>
                   <Badge variant="outline">
                     {signedBy.length} of {signers.length} signers
@@ -290,7 +290,7 @@ export const SignerSelector = ({
                           </div>
                           {!freeMode && (
                             <Badge variant="outline">
-                              Weight: {signer?.weight || 0}
+                              Weight: <span className="font-amount">{signer?.weight || 0}</span>
                             </Badge>
                           )}
                         </div>
@@ -323,7 +323,7 @@ export const SignerSelector = ({
                                       <Badge variant="outline" className="text-xs">Current</Badge>
                                     )}
                                     <Badge variant="outline" className="text-xs hidden">
-                                      Weight: {signer.weight}
+                                      Weight: <span className="font-amount">{signer.weight}</span>
                                     </Badge>
                                   </div>
                                 </div>
@@ -378,7 +378,7 @@ export const SignerSelector = ({
                               </div>
                             </div>
                             <Badge variant="outline" className="hidden">
-                              Weight: {signer.weight}
+                              Weight: <span className="font-amount">{signer.weight}</span>
                             </Badge>
                           </div>
                         ))}

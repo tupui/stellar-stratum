@@ -115,7 +115,7 @@ export const MultisigConfigBundle = ({ xdr, onEdit }: MultisigConfigBundleProps)
                   
                   <div className="space-y-1">
                     {summary.changes.map((change, changeIndex) => (
-                      <p key={changeIndex} className="text-sm text-muted-foreground">
+                      <p key={changeIndex} className="text-sm text-muted-foreground font-amount">
                         • {change}
                       </p>
                     ))}
