@@ -160,7 +160,7 @@ export const ImportTab = ({
                 </Button>
               </div>
             </div>
-            <p className="font-mono text-sm text-muted-foreground">
+            <p className="font-address text-sm text-muted-foreground">
               ID: {lastRefractorId}
             </p>
             <Button variant="outline" size="sm" className="mt-2 inline-flex items-center gap-2" onClick={openRefractor}>

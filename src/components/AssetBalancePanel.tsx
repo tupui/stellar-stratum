@@ -268,7 +268,7 @@ export const AssetBalancePanel = ({
                     }}>
                       {formatBalance(asset.balance)}
                     </p>
-                    <p className="text-sm text-muted-foreground/70 font-address">{asset.symbol}</p>
+                    <p className="text-sm text-muted-foreground/70 font-amount">{asset.symbol}</p>
                       <div className="text-sm font-medium text-primary flex justify-end">
                         {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValueForAsset(asset.valueUSD, index)}
                       </div>

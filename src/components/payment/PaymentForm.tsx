@@ -1003,7 +1003,7 @@ export const PaymentForm = ({
                   <div className="space-y-2">
                     <div className="text-xs">
                       <span className="text-muted-foreground font-medium">Destination:</span>
-                      <div className="font-mono text-foreground mt-1 break-all">
+                      <div className="font-address text-foreground mt-1 break-all">
                         <span className="sm:hidden">{payment.destination.slice(0, 20)}...{payment.destination.slice(-8)}</span>
                         <span className="hidden sm:inline">{payment.destination}</span>
                       </div>
@@ -1011,7 +1011,7 @@ export const PaymentForm = ({
                     {payment.memo && (
                       <div className="text-xs">
                         <span className="text-muted-foreground font-medium">Memo:</span>
-                        <div className="font-mono text-foreground mt-1 break-words">{payment.memo}</div>
+                        <div className="font-address text-foreground mt-1 break-words">{payment.memo}</div>
                       </div>
                     )}
                   </div>
@@ -1095,7 +1095,7 @@ export const PaymentForm = ({
         {/* Memo */}
         <div className="space-y-2">
           <Label htmlFor="memo" className="text-sm font-medium">Memo (Optional)</Label>
-          <Input id="memo" placeholder="Payment description" className="font-mono text-xs bg-background border-border/60 focus:border-primary" value={paymentData.memo} onChange={e => onPaymentDataChange({
+          <Input id="memo" placeholder="Payment description" className="font-address text-xs bg-background border-border/60 focus:border-primary" value={paymentData.memo} onChange={e => onPaymentDataChange({
             ...paymentData,
             memo: e.target.value
           })} />

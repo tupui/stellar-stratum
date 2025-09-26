@@ -98,7 +98,7 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
           <div className="space-y-2">
             <Label>Refractor Transaction ID</Label>
             <div className="p-3 bg-secondary/50 rounded-lg">
-              <p className="font-mono text-sm text-muted-foreground break-all">
+              <p className="font-address text-sm text-muted-foreground break-all">
                 {refractorId}
               </p>
             </div>
@@ -111,7 +111,7 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
               <Input
                 value={shareUrl}
                 readOnly
-                className="font-mono text-sm"
+                className="font-address text-sm"
               />
               <Button
                 variant="outline"

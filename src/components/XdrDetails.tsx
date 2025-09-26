@@ -115,7 +115,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </Button>
               </div>
-              <p className="font-mono font-address text-xs break-all text-muted-foreground">
+              <p className="font-address text-xs break-all text-muted-foreground">
                 {xdr}
               </p>
             </div>
@@ -138,7 +138,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     <User className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium">Source Account:</span>
                   </div>
-                  <p className="font-mono font-address text-xs bg-muted p-2 rounded break-all">{sourceAccount}</p>
+                  <p className="font-address text-xs bg-muted p-2 rounded break-all">{sourceAccount}</p>
                 </div>
                 
                 <div className="space-y-2">
@@ -181,7 +181,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                             <div className="text-sm space-y-1">
                               <p className="break-words">
                                 <span className="text-muted-foreground">To:</span> 
-                                <span className="font-mono font-address text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
+                                <span className="font-address text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
                               </p>
                               <p>
                                 <span className="text-muted-foreground">Amount:</span> {(op as Operation & { amount?: string; asset?: { code?: string } }).amount} {(op as Operation & { amount?: string; asset?: { code?: string } }).asset?.code || 'XLM'}
@@ -192,7 +192,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                             <div className="text-sm space-y-1">
                               <p className="break-words">
                                 <span className="text-muted-foreground">To:</span> 
-                                <span className="font-mono text-xs ml-1 break-all">{(op as PathPaymentOp).destination}</span>
+                                <span className="font-address text-xs ml-1 break-all">{(op as PathPaymentOp).destination}</span>
                               </p>
                               <p>
                                 <span className="text-muted-foreground">Send:</span> {(op as PathPaymentOp).sendAmount} {(op as PathPaymentOp).sendAsset?.code || 'XLM'}
@@ -206,7 +206,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                             <div className="text-sm space-y-1">
                               <p className="break-words">
                                 <span className="text-muted-foreground">Into:</span> 
-                                <span className="font-mono text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
+                                <span className="font-address text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
                               </p>
                               <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs">
                                 <div className="flex items-center gap-2">
@@ -256,7 +256,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                       <div className="space-y-1">
                                         <p className="break-words">
                                           <span className="text-muted-foreground">Public Key:</span> 
-                                          <span className="font-mono text-xs ml-1 break-all">
+                                          <span className="font-address text-xs ml-1 break-all">
                                             {signer.key || signer.ed25519PublicKey || 'Not specified'}
                                           </span>
                                         </p>
@@ -407,7 +407,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </Button>
                 </div>
-                <p className="font-mono font-address text-xs break-all text-muted-foreground">
+                <p className="font-address text-xs break-all text-muted-foreground">
                   {hash}
                 </p>
               </div>

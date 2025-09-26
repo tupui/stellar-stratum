@@ -742,7 +742,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span className="font-mono">
+                          <span className="font-amount">
                             {truncateAddress(tx.counterparty)}
                           </span>
                           <span>•</span>

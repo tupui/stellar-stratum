@@ -899,7 +899,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="min-w-0 flex-1">
                   <Label className="text-sm text-muted-foreground">Source Account</Label>
-                  <p className="font-address font-mono text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
+                  <p className="font-address text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
                 </div>
                 <Badge variant="outline" className="shrink-0">Connected</Badge>
               </div>

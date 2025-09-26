@@ -130,7 +130,7 @@ export const TransactionSummary = ({ xdr }: TransactionSummaryProps) => {
         <div className="grid grid-cols-2 gap-4 p-4 bg-secondary/30 rounded-lg">
           <div>
             <p className="text-sm text-muted-foreground">From Account</p>
-            <p className="font-mono font-address text-sm font-medium">{summary.source.substring(0, 12)}...</p>
+            <p className="font-address text-sm font-medium">{summary.source.substring(0, 12)}...</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Network Fee</p>

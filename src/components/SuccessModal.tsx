@@ -222,7 +222,7 @@ export const SuccessModal = ({
                   </div>
                   <div className="rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm p-2">
                     <div className="flex items-center justify-between">
-                      <p className="font-mono text-xs break-all text-foreground/80 flex-1">{displayValue}</p>
+                      <p className="font-address text-xs break-all text-foreground/80 flex-1">{displayValue}</p>
                       <Button variant="ghost" size="sm" onClick={() => copyToClipboard(displayValue || '', label)} className="h-6 w-6 p-0 ml-2 shrink-0">
                         {copied ? <CheckCircle className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
                       </Button>
@@ -243,7 +243,7 @@ export const SuccessModal = ({
                   </Button>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-background/40 backdrop-blur-sm p-3">
-                  <p className="font-mono text-sm break-all text-foreground">{displayValue}</p>
+                  <p className="font-address text-sm break-all text-foreground">{displayValue}</p>
                 </div>
               </div>}
             

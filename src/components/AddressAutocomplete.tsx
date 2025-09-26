@@ -145,7 +145,7 @@ export const AddressAutocomplete = ({
             onFocus={onFocus}
             onBlur={onBlur}
             placeholder={placeholder}
-            className={cn("font-mono", isResolving ? "pr-8" : "", className)}
+            className={cn("font-address", isResolving ? "pr-8" : "", className)}
           />
           {isResolving && (
             <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -208,7 +208,7 @@ export const AddressAutocomplete = ({
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono font-address text-sm truncate">
+                        <span className="font-address text-sm truncate">
                           {entry.sorobanDomain || formatAddress(entry.address)}
                         </span>
                         {entry.sorobanDomain && (
@@ -218,7 +218,7 @@ export const AddressAutocomplete = ({
                         )}
                       </div>
                       {entry.sorobanDomain && (
-                        <div className="font-mono font-address text-xs text-muted-foreground truncate">
+                        <div className="font-address text-xs text-muted-foreground truncate">
                           {formatAddress(entry.address)}
                         </div>
                       )}

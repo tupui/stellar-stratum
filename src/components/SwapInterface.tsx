@@ -305,7 +305,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="ml-4 w-40 shrink-0 text-right font-mono tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
+                    <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
                       {formatBalanceAligned(asset.balance)}
                     </span>
                   </div>
@@ -321,7 +321,7 @@ export const SwapInterface = ({
             if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
             if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
             setEditValue(sanitized);
-          }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount w-full" placeholder="0.0" autoFocus /> : <div className="text-right sm:text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount w-full" onClick={() => setIsEditingAmount(true)}>
+          }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full" placeholder="0.0" autoFocus /> : <div className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors w-full" onClick={() => setIsEditingAmount(true)}>
                 {amount ? formatAmount(amount) : '0.0'}
               </div>}
             {fiatValue && <div className="text-sm text-muted-foreground mt-1 text-right font-amount">
@@ -407,7 +407,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
                       <span className="text-muted-foreground">{fromAsset}</span>
                     </div>
-                    <span className="ml-4 w-40 shrink-0 text-right font-mono tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
+                    <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
                       {formatBalanceAligned(toAssetBalance)}
                     </span>
                   </div>
@@ -420,7 +420,7 @@ export const SwapInterface = ({
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
                       <span className="font-medium">{asset.code}</span>
                     </div>
-                    <span className="ml-4 w-40 shrink-0 text-right font-mono tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
+                    <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
                       {formatBalanceAligned(asset.balance)}
                     </span>
                   </div>
@@ -447,13 +447,13 @@ export const SwapInterface = ({
                     onBlur={handleReceiveAmountSubmit}
                     onKeyDown={handleReceiveAmountKeyDown}
                     onFocus={e => e.currentTarget.select()}
-                    className="text-right text-xl font-mono border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 font-amount w-full"
+                    className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full"
                     placeholder="0.0"
                     autoFocus
                   />
                 ) : (
                   <div 
-                    className="text-right sm:text-right text-xl font-mono cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors font-amount text-white w-full"
+                    className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors text-white w-full"
                     onClick={() => {
                       setEditReceiveValue(displayReceiveAmount);
                       setIsEditingReceiveAmount(true);
@@ -465,7 +465,7 @@ export const SwapInterface = ({
                 <div className="text-xs text-muted-foreground mt-1 text-right">Manual input</div>
               </div>
             ) : (
-              <div className="text-right sm:text-right text-xl font-mono text-white font-amount w-full">
+              <div className="text-right sm:text-right text-xl font-amount text-white w-full">
                 {isPathPayment ? `Min ${displayReceiveAmount ? formatAmount(displayReceiveAmount) : '0.0'}` : amount ? formatAmount(amount) : '0.0'}
               </div>
             )}
