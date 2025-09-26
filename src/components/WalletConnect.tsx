@@ -226,10 +226,12 @@ export const WalletConnect = ({
     }
     
     try {
-      const {
-        publicKey
-      } = await connectWallet(walletId, selectedNetwork);
-      onConnect(walletName, publicKey, selectedNetwork);
+      const result = await connectWallet(walletId, selectedNetwork);
+      if (result && result.publicKey) {
+        onConnect(walletName, result.publicKey, selectedNetwork);
+      } else {
+        throw new Error('Failed to get wallet address');
+      }
     } catch (error) {
       // If hardware wallet connection fails, reopen the main modal
       if (isHardware && onModalControl && isModal) {
