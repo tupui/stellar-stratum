@@ -179,7 +179,7 @@ const Index = () => {
           )}
 
           {/* Account Dashboard */}
-          {appState === 'dashboard' && publicKey && (
+          {appState === 'dashboard' && publicKey && accountData && (
             <Suspense fallback={
               <div className="min-h-screen flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
@@ -200,6 +200,15 @@ const Index = () => {
                 onDisconnect={handleDisconnect}
               />
             </Suspense>
+          )}
+
+          {appState === 'dashboard' && publicKey && !accountData && (
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <LoadingPill size="lg" glowColor="primary" />
+                <span className="text-muted-foreground">Loading dashboard...</span>
+              </div>
+            </div>
           )}
         </div>
         
