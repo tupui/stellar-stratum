@@ -19,10 +19,12 @@ import { resolveSorobanDomain } from '@/lib/soroban-domains';
 import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
+  onModalControl?: (isOpen: boolean) => void;
   isModal?: boolean;
 }
 export const WalletConnect = ({
   onConnect,
+  onModalControl,
   isModal = false
 }: WalletConnectProps) => {
   const {
@@ -216,17 +218,28 @@ export const WalletConnect = ({
   };
   const handleConnect = async (walletId: string, walletName: string) => {
     setConnecting(walletId);
+    const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
+    
+    // For hardware wallets, close the main modal to allow their native modal to be interactive
+    if (isHardware && onModalControl && isModal) {
+      onModalControl(false);
+    }
+    
     try {
       const {
         publicKey
       } = await connectWallet(walletId, selectedNetwork);
       onConnect(walletName, publicKey, selectedNetwork);
     } catch (error) {
+      // If hardware wallet connection fails, reopen the main modal
+      if (isHardware && onModalControl && isModal) {
+        onModalControl(true);
+      }
+      
       const {
         userMessage,
         fullError
       } = sanitizeError(error);
-      const isHardware = walletId.toLowerCase().includes('ledger') || walletId.toLowerCase().includes('trezor');
       toast({
         title: "Connection failed",
         description: userMessage,

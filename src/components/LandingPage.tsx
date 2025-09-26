@@ -12,9 +12,14 @@ export const LandingPage = ({
   onConnect
 }: LandingPageProps) => {
   const [showWalletModal, setShowWalletModal] = useState(false);
+  
   const handleConnect = (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => {
     setShowWalletModal(false);
     onConnect(walletType, publicKey, network);
+  };
+
+  const handleModalControl = (isOpen: boolean) => {
+    setShowWalletModal(isOpen);
   };
   return <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Subtle Background Elements - Fixed dimensions to prevent shifts */}
@@ -112,7 +117,7 @@ export const LandingPage = ({
                 <span>Loading wallets...</span>
               </div>
             </div>}>
-            <WalletConnect onConnect={handleConnect} isModal />
+            <WalletConnect onConnect={handleConnect} onModalControl={handleModalControl} isModal />
           </Suspense>
         </DialogContent>
       </Dialog>
