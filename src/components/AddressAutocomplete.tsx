@@ -227,7 +227,7 @@ export const AddressAutocomplete = ({
                           <Users className="w-3 h-3" />
                           {entry.transactionCount} tx
                         </div>
-                        <span>{formatAmount(entry.totalAmount)}</span>
+                        <span className="font-amount">{formatAmount(entry.totalAmount)}</span>
                         <span>{entry.lastUsed.toLocaleDateString()}</span>
                       </div>
                     </div>

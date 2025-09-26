@@ -911,7 +911,7 @@ export const PaymentForm = ({
                     
                     <div className="flex items-center gap-3">
                       {compactPaymentFiatValues[payment.id] && (
-                        <span className="text-sm font-semibold text-primary">≈ {compactPaymentFiatValues[payment.id]}</span>
+                        <span className="text-sm font-semibold text-primary font-amount">≈ {compactPaymentFiatValues[payment.id]}</span>
                       )}
                       <div className="flex gap-2">
                         <Button 

@@ -252,7 +252,7 @@ export const AssetBalancePanel = ({
                       <p className="text-sm text-muted-foreground/80">
                         {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_code}
                       </p>
-                        {asset.priceUSD === -1 ? <LoadingPill size="sm" className="mt-1" /> : asset.priceUSD > 0 ? <p className="text-xs text-muted-foreground/70">
+                        {asset.priceUSD === -1 ? <LoadingPill size="sm" className="mt-1" /> : asset.priceUSD > 0 ? <p className="text-xs text-muted-foreground/70 font-amount">
                             {formatPriceSync(asset.priceUSD, index)} per {asset.symbol}
                           </p> : <p className="text-xs text-muted-foreground/70">
                             Price unavailable
@@ -268,8 +268,7 @@ export const AssetBalancePanel = ({
                     }}>
                       {formatBalance(asset.balance)}
                     </p>
-                    <p className="text-sm text-muted-foreground/70 font-amount">{asset.symbol}</p>
-                      <div className="text-sm font-medium text-primary flex justify-end">
+                      <div className="text-sm font-medium text-primary flex justify-end font-amount">
                         {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValueForAsset(asset.valueUSD, index)}
                       </div>
                   </div>
