@@ -34,9 +34,8 @@ export const WalletConnect = ({
   const [supportedWallets, setSupportedWallets] = useState<ISupportedWallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [manualAddress, setManualAddress] = useState('');
-  const [showManualInput, setShowManualInput] = useState(false);
+  const [activeInput, setActiveInput] = useState<'manual' | 'soroban' | null>(null);
   const [sorobanDomain, setSorobanDomain] = useState('');
-  const [showSorobanInput, setShowSorobanInput] = useState(false);
   const [resolvingDomain, setResolvingDomain] = useState(false);
   const [showMoreWallets, setShowMoreWallets] = useState(false);
   const {
@@ -283,7 +282,7 @@ export const WalletConnect = ({
           </Button>
         </div> : <div className="space-y-3">
           {/* Manual Address as a card option */}
-          <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => setShowManualInput(!showManualInput)}>
+          <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => setActiveInput(activeInput === 'manual' ? null : 'manual')}>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center">
                 <KeyRound className="w-4 h-4 text-primary-foreground" />
@@ -295,24 +294,8 @@ export const WalletConnect = ({
             <ArrowRight className="w-4 h-4" />
           </Button>
 
-          {showManualInput && <div className="p-4 border border-border rounded-lg bg-secondary/20">
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="manual-address" className="text-sm font-medium">Stellar Public Key</Label>
-                  <p className="text-xs text-muted-foreground mt-1">Enter a Stellar address to view account details (no signing required)</p>
-                </div>
-                <div className="flex gap-2">
-                  <Input id="manual-address" placeholder="GABC...XYZ" value={manualAddress} onChange={e => setManualAddress(e.target.value)} className="font-address text-sm" maxLength={56} />
-                  <Button onClick={handleManualConnect} disabled={!manualAddress.trim()} size="sm">
-                    <Plus className="w-4 h-4 mr-1" />
-                    Connect
-                  </Button>
-                </div>
-              </div>
-            </div>}
-
           {/* Soroban Domains Option */}
-          <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => setShowSorobanInput(!showSorobanInput)}>
+          <Button variant="outline" className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth" onClick={() => setActiveInput(activeInput === 'soroban' ? null : 'soroban')}>
             <div className="flex items-center gap-3">
               <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-8 h-8 rounded" />
               <div className="text-left">
@@ -322,21 +305,42 @@ export const WalletConnect = ({
             <ArrowRight className="w-4 h-4" />
           </Button>
 
-          {showSorobanInput && <div className="p-4 border border-border rounded-lg bg-secondary/20">
+          {/* Single input card that shows based on activeInput */}
+          {activeInput && (
+            <div className="p-4 border border-border rounded-lg bg-secondary/20">
               <div className="space-y-3">
-                <div>
-                  <Label htmlFor="soroban-domain" className="text-sm font-medium">Soroban Domain</Label>
-                  <p className="text-xs text-muted-foreground mt-1">Enter a domain name to resolve to Stellar address</p>
-                </div>
-                <div className="flex gap-2">
-                  <Input id="soroban-domain" placeholder="mydomain" value={sorobanDomain} onChange={e => setSorobanDomain(e.target.value)} className="text-sm" />
-                  <Button onClick={handleSorobanConnect} disabled={!sorobanDomain.trim() || resolvingDomain} size="sm">
-                    {resolvingDomain ? <RefreshCw className="w-4 h-4 mr-1 animate-spin spinner-glow" /> : <Plus className="w-4 h-4 mr-1" />}
-                    Resolve
-                  </Button>
-                </div>
+                {activeInput === 'manual' ? (
+                  <>
+                    <div>
+                      <Label htmlFor="manual-address" className="text-sm font-medium">Stellar Public Key</Label>
+                      <p className="text-xs text-muted-foreground mt-1">Enter a Stellar address to view account details (no signing required)</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input id="manual-address" placeholder="GABC...XYZ" value={manualAddress} onChange={e => setManualAddress(e.target.value)} className="font-address text-sm" maxLength={56} />
+                      <Button onClick={handleManualConnect} disabled={!manualAddress.trim()} size="sm">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Connect
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label htmlFor="soroban-domain" className="text-sm font-medium">Soroban Domain</Label>
+                      <p className="text-xs text-muted-foreground mt-1">Enter a domain name to resolve to Stellar address</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input id="soroban-domain" placeholder="mydomain" value={sorobanDomain} onChange={e => setSorobanDomain(e.target.value)} className="text-sm" />
+                      <Button onClick={handleSorobanConnect} disabled={!sorobanDomain.trim() || resolvingDomain} size="sm">
+                        {resolvingDomain ? <RefreshCw className="w-4 h-4 mr-1 animate-spin spinner-glow" /> : <Plus className="w-4 h-4 mr-1" />}
+                        Resolve
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
-            </div>}
+            </div>
+          )}
 
           {(() => {
         const isMobile = window.innerWidth < 768;
