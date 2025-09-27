@@ -436,9 +436,9 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     let params = '';
                     
                     if (networkType === 'mainnet') {
-                      params = `$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=https:////mainnet.sorobanrpc.com//&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
+                      params = `$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=https:////rpc.lightsail.network//&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
                     } else {
-                      params = `$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org//&passphrase=Test%20SDF%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
+                      params = `$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////rpc.lightsail.network//&passphrase=Test%20SDF%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
                     }
                     
                     const url = `${baseUrl}?${params}`;

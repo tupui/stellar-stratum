@@ -60,7 +60,7 @@ export class OracleClient {
   private static ASSETS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
   private static PRICE_TTL_MS = 60 * 1000; // 60s
 
-  constructor(contractId: string, rpcUrl: string = 'https://mainnet.sorobanrpc.com') {
+  constructor(contractId: string, rpcUrl: string = 'https://rpc.lightsail.network') {
     this.contractId = contractId;
     this.contract = new Contract(contractId);
     this.rpcServer = new rpc.Server(rpcUrl);
