@@ -230,37 +230,49 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
         }
 
         // Fetch fresh data using RPC for initial load
+        console.log('Fetching transactions via RPC for account:', publicKey, 'network:', network);
         const rpcResp = await fetchAccountTransactionsViaRpc(publicKey, network, undefined, INITIAL_LIMIT);
+        console.log('RPC response received:', rpcResp);
         
         const normalizedTransactions: NormalizedTransaction[] = [];
 
         // Process all transactions from RPC response
-        for (const transaction of rpcResp.transactions || []) {
-          const normalized = normalizeRpcTransaction(transaction, publicKey);
-          normalizedTransactions.push(...normalized);
+        if (rpcResp.transactions) {
+          console.log('Processing', rpcResp.transactions.length, 'transactions from RPC');
+          for (const transaction of rpcResp.transactions) {
+            const normalized = normalizeRpcTransaction(transaction, publicKey);
+            normalizedTransactions.push(...normalized);
+          }
+        } else {
+          console.log('No transactions in RPC response');
         }
 
         // Sort by creation date (newest first)
         normalizedTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         // Update cursor and hasMore from RPC response
+        let newCursor: string | undefined;
         if (rpcResp.transactions && rpcResp.transactions.length > 0) {
           // RPC uses cursor for pagination
-          setCursor(rpcResp.cursor);
+          newCursor = rpcResp.cursor;
+          setCursor(newCursor);
+          console.log('Set cursor to:', newCursor);
         }
         
         const rpcHasMore = rpcResp.transactions && rpcResp.transactions.length === INITIAL_LIMIT;
         setHasMore(!!rpcHasMore);
+        console.log('Has more transactions:', rpcHasMore);
 
         const now = new Date();
         setTransactions(normalizedTransactions);
         setLastSync(now);
+        console.log('Set', normalizedTransactions.length, 'transactions in state');
 
         // Save to cache immediately after each batch
         if (normalizedTransactions.length > 0) {
           const newPage: CachedPage = {
             transactions: normalizedTransactions,
-            cursor: cursor || '',
+            cursor: newCursor || '',
             timestamp: now.getTime(),
           };
           

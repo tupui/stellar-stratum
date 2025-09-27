@@ -159,9 +159,11 @@ export const fetchAccountTransactionsViaRpc = async (
   // Check cache first
   const cached = getCachedResponse(cacheKey);
   if (cached) {
+    console.log('Returning cached RPC result for:', cacheKey);
     return cached as any;
   }
   
+  console.log('Making RPC call with params:', { publicKey, network, cursor, limit, startLedger });
   const server = createHistoryRpcServer(network);
   
   // Build RPC request parameters
@@ -185,12 +187,21 @@ export const fetchAccountTransactionsViaRpc = async (
     params.startLedger = startLedger;
   }
   
-  const result = await retryWithBackoff(() => 
-    runRpcLimited(() => server.getTransactions(params))
-  );
+  console.log('Final RPC params:', params);
   
-  // Cache the result
-  setCachedResponse(cacheKey, result);
-  
-  return result;
+  try {
+    const result = await retryWithBackoff(() => 
+      runRpcLimited(() => server.getTransactions(params))
+    );
+    
+    console.log('RPC call successful, result:', result);
+    
+    // Cache the result
+    setCachedResponse(cacheKey, result);
+    
+    return result;
+  } catch (error) {
+    console.error('RPC call failed:', error);
+    throw error;
+  }
 };
