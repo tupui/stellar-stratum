@@ -32,7 +32,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
       setError(null);
       
       // Clear price cache to force fresh data
-      clearPriceCache();
+      await clearPriceCache();
       pricingLogger.log({ type: 'cache_miss', asset: 'refresh_all' });
 
       const assetsWithPricesPromises = memoizedBalances.map(async (balance) => {

@@ -45,7 +45,7 @@ export const AssetBalancePanel = ({
   const handleRefresh = useCallback(async () => {
     try {
       // Clear price cache but keep asset lists
-      clearPriceCache();
+      await clearPriceCache();
       if (onRefreshBalances) {
         await onRefreshBalances();
       }

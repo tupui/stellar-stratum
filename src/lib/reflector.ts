@@ -61,9 +61,20 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
       // Try Reflector oracles for all assets
       const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
       if (reflectorPrice > 0) {
-        pricingLogger.log({ type: 'price_fetch', asset: assetKey, price: reflectorPrice });
+        pricingLogger.log({ type: 'price_fetch', asset: assetKey, price: reflectorPrice, oracle: 'reflector' });
         setCachedPrice(assetKey, reflectorPrice);
         return reflectorPrice;
+      }
+
+      // Fallback to orderbook pricing (only for non-XLM assets)
+      if (assetCode && assetCode !== 'XLM') {
+        const { getOrderbookPrice } = await import('./orderbook-pricing');
+        const orderbookPrice = await getOrderbookPrice(assetCode, assetIssuer);
+        if (orderbookPrice > 0) {
+          pricingLogger.log({ type: 'price_fetch', asset: assetKey, price: orderbookPrice, oracle: 'orderbook' });
+          setCachedPrice(assetKey, orderbookPrice);
+          return orderbookPrice;
+        }
       }
 
       // Fallback to cached price
@@ -494,7 +505,7 @@ export const getLastPriceUpdate = (): Date | null => {
 };
 
 // Clear price cache and reset mapping (for refresh functionality)
-export const clearPriceCache = (): void => {
+export const clearPriceCache = async (): Promise<void> => {
   try {
     // Clear in-memory price cache
     Object.keys(oraclePriceCache).forEach(key => delete oraclePriceCache[key]);
@@ -516,6 +527,10 @@ export const clearPriceCache = (): void => {
     
     // Clear assets cache as well
     Object.keys(oracleAssetsCache).forEach(key => delete oracleAssetsCache[key]);
+    
+    // Clear orderbook cache as well
+    const { clearOrderbookCache } = await import('./orderbook-pricing');
+    clearOrderbookCache();
     
   } catch (error) {
     // Ignore localStorage errors (private mode, quota exceeded)
