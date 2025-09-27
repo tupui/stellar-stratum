@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { 
-  fetchAccountTransactionsViaRpc,
-  normalizeRpcTransaction,
-  RPC_TRANSACTION_CACHE_DURATION 
-} from '@/lib/rpc-history-utils';
+  fetchAccountPayments,
+  fetchAccountOperations,
+  normalizePaymentRecord,
+  normalizeOperationRecord,
+  TRANSACTION_CACHE_DURATION 
+} from '@/lib/horizon-utils';
 import type { NormalizedTransaction } from '@/lib/horizon-utils';
 
 // Historical transactions are immutable, cache them for much longer
@@ -148,7 +150,7 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
   // Check if we need to sync
   const needsSync = useCallback((): boolean => {
     if (!lastSync) return true;
-    return Date.now() - lastSync.getTime() > RPC_TRANSACTION_CACHE_DURATION;
+    return Date.now() - lastSync.getTime() > TRANSACTION_CACHE_DURATION;
   }, [lastSync]);
 
 
@@ -229,50 +231,54 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
           
         }
 
-        // Fetch fresh data using RPC for initial load
-        console.log('Fetching transactions via RPC for account:', publicKey, 'network:', network);
-        const rpcResp = await fetchAccountTransactionsViaRpc(publicKey, network, undefined, INITIAL_LIMIT);
-        console.log('RPC response received:', rpcResp);
+        // Fetch fresh data using Horizon (payments + selected operations)
+        console.log('Fetching transactions via Horizon for account:', publicKey, 'network:', network);
+        const [paymentsResp, opsResp] = await Promise.all([
+          fetchAccountPayments(publicKey, network, undefined, INITIAL_LIMIT),
+          fetchAccountOperations(publicKey, network, undefined, INITIAL_LIMIT),
+        ]);
+        console.log('Horizon responses received');
         
         const normalizedTransactions: NormalizedTransaction[] = [];
 
-        // Process all transactions from RPC response
-        if (rpcResp.transactions) {
-          console.log('Processing', rpcResp.transactions.length, 'transactions from RPC');
-          for (const transaction of rpcResp.transactions) {
-            const normalized = normalizeRpcTransaction(transaction, publicKey);
-            normalizedTransactions.push(...normalized);
-          }
-        } else {
-          console.log('No transactions in RPC response');
+        const paymentRecords: any[] = (paymentsResp as any)?.records || (paymentsResp as any)?._embedded?.records || [];
+        const opRecords: any[] = (opsResp as any)?.records || (opsResp as any)?._embedded?.records || [];
+
+        // Process payments
+        for (const record of paymentRecords) {
+          const n = normalizePaymentRecord(record, publicKey);
+          if (n) normalizedTransactions.push(n);
+        }
+        // Process operations
+        for (const record of opRecords) {
+          const n = normalizeOperationRecord(record, publicKey);
+          if (n) normalizedTransactions.push(n);
         }
 
         // Sort by creation date (newest first)
         normalizedTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-        // Update cursor and hasMore from RPC response
-        let newCursor: string | undefined;
-        if (rpcResp.transactions && rpcResp.transactions.length > 0 && rpcResp.cursor) {
-          // Use RPC-provided cursor for pagination when available
-          newCursor = rpcResp.cursor;
-          setCursor(newCursor);
-          console.log('Set cursor to:', newCursor);
-        }
+        // Update cursors and hasMore from Horizon responses
+        const paymentsCursor = paymentRecords.length ? paymentRecords[paymentRecords.length - 1].paging_token : '';
+        const opsCursor = opRecords.length ? opRecords[opRecords.length - 1].paging_token : '';
+        const combinedCursor = `p:${paymentsCursor}|o:${opsCursor}`;
+        setCursor(combinedCursor);
+        console.log('Set combined cursor:', combinedCursor);
         
-        const rpcHasMore = !!rpcResp.cursor;
-        setHasMore(rpcHasMore);
-        console.log('Has more transactions:', rpcHasMore);
+        const horizonHasMore = (paymentRecords.length === INITIAL_LIMIT) || (opRecords.length === INITIAL_LIMIT);
+        setHasMore(horizonHasMore);
+        console.log('Has more transactions (Horizon):', horizonHasMore);
 
         const now = new Date();
         setTransactions(normalizedTransactions);
         setLastSync(now);
-        console.log('Set', normalizedTransactions.length, 'transactions in state');
+        console.log('Set', normalizedTransactions.length, 'transactions in state (Horizon)');
 
         // Save to cache immediately after each batch
         if (normalizedTransactions.length > 0) {
           const newPage: CachedPage = {
             transactions: normalizedTransactions,
-            cursor: newCursor || '',
+            cursor: combinedCursor,
             timestamp: now.getTime(),
           };
           
@@ -319,26 +325,39 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     setError(null);
 
     try {
-      const rpcResp = await fetchAccountTransactionsViaRpc(publicKey, network, cursor, LOAD_MORE_LIMIT);
+      const currentPaymentsCursor = (cursor || '').split('|').find(s => s.startsWith('p:'))?.slice(2) || undefined;
+      const currentOpsCursor = (cursor || '').split('|').find(s => s.startsWith('o:'))?.slice(2) || undefined;
+
+      const [paymentsResp, opsResp] = await Promise.all([
+        fetchAccountPayments(publicKey, network, currentPaymentsCursor, LOAD_MORE_LIMIT),
+        fetchAccountOperations(publicKey, network, currentOpsCursor, LOAD_MORE_LIMIT),
+      ]);
       
       const normalizedTransactions: NormalizedTransaction[] = [];
 
-      // Process all transactions from RPC response
-      for (const transaction of rpcResp.transactions || []) {
-        const normalized = normalizeRpcTransaction(transaction, publicKey);
-        normalizedTransactions.push(...normalized);
+      const paymentRecords: any[] = (paymentsResp as any)?.records || (paymentsResp as any)?._embedded?.records || [];
+      const opRecords: any[] = (opsResp as any)?.records || (opsResp as any)?._embedded?.records || [];
+
+      for (const record of paymentRecords) {
+        const n = normalizePaymentRecord(record, publicKey);
+        if (n) normalizedTransactions.push(n);
+      }
+      for (const record of opRecords) {
+        const n = normalizeOperationRecord(record, publicKey);
+        if (n) normalizedTransactions.push(n);
       }
 
       // Sort by creation date (newest first)
       normalizedTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      // Update cursor and hasMore from RPC response
-      if (rpcResp.cursor) {
-        setCursor(rpcResp.cursor);
-      }
+      // Update cursors and hasMore
+      const nextPaymentsCursor = paymentRecords.length ? paymentRecords[paymentRecords.length - 1].paging_token : currentPaymentsCursor || '';
+      const nextOpsCursor = opRecords.length ? opRecords[opRecords.length - 1].paging_token : currentOpsCursor || '';
+      const combinedCursor = `p:${nextPaymentsCursor}|o:${nextOpsCursor}`;
+      setCursor(combinedCursor);
       
-      const rpcHasMore = !!rpcResp.cursor;
-      setHasMore(rpcHasMore);
+      const horizonHasMore = (paymentRecords.length === LOAD_MORE_LIMIT) || (opRecords.length === LOAD_MORE_LIMIT);
+      setHasMore(horizonHasMore);
       
       setTransactions(prev => {
         // Deduplicate based on transaction ID
@@ -350,7 +369,7 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
         if (newTransactions.length > 0) {
           const newPage: CachedPage = {
             transactions: newTransactions,
-            cursor: rpcResp.cursor || cursor || '',
+            cursor: combinedCursor,
             timestamp: Date.now(),
           };
           
