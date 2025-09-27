@@ -109,6 +109,7 @@ export const normalizeRpcTransaction = (
   const results: NormalizedTransaction[] = [];
   
   try {
+    // All transactions from RPC with account filter should be successful and related to the account
     const createdAt = new Date(transaction.createdAt * 1000); // RPC returns unix timestamp
     
     // Validate the date
@@ -118,6 +119,9 @@ export const normalizeRpcTransaction = (
       }
       return results;
     }
+    
+    // Add debug logging to understand what we're getting
+    console.log('Processing transaction:', transaction.txHash, 'for account:', accountPublicKey);
 
     // For now, create individual contract transactions with unique IDs to prevent grouping
     // This avoids the "Contract calls (50x)" issue by making each transaction unique
@@ -265,7 +269,7 @@ export const fetchAccountTransactionsViaRpc = async (
     }
   }
   
-  // Build RPC request parameters
+  // Build RPC request parameters with proper filtering
   const params: any = {
     filters: [
       {
@@ -274,6 +278,8 @@ export const fetchAccountTransactionsViaRpc = async (
       }
     ],
     limit,
+    // Only return successful transactions
+    includeFailedTransactions: false,
   };
 
   // Add cursor for pagination if provided
@@ -293,14 +299,21 @@ export const fetchAccountTransactionsViaRpc = async (
       runRpcLimited(() => server.getTransactions(params))
     );
     
-    console.log('RPC call successful, result:', result);
+    console.log('RPC call successful for account:', publicKey);
+    console.log('Total transactions returned:', result.transactions?.length || 0);
+    
+    // Log basic info for debugging without accessing potentially undefined properties
+    if (result.transactions && result.transactions.length > 0) {
+      console.log('First transaction hash:', result.transactions[0].txHash);
+      console.log('First transaction created at:', result.transactions[0].createdAt);
+    }
     
     // Cache the result
     setCachedResponse(cacheKey, result);
     
     return result;
   } catch (error) {
-    console.error('RPC call failed:', error);
+    console.error('RPC call failed for account:', publicKey, 'Error:', error);
     throw error;
   }
 };
