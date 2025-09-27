@@ -121,7 +121,9 @@ export const normalizePaymentRecord = (
     const createdAt = new Date(record.created_at);
     // Validate the date to prevent invalid dates from causing chart issues
     if (isNaN(createdAt.getTime()) || createdAt.getTime() <= 0) {
-      console.warn('Invalid transaction date:', record.created_at, 'for transaction:', record.transaction_hash);
+      if (import.meta.env.DEV) {
+        console.warn('Invalid transaction date:', record.created_at, 'for transaction:', record.transaction_hash);
+      }
       return null;
     }
 
@@ -154,7 +156,9 @@ export const normalizeOperationRecord = (
     
     // Validate the date to prevent invalid dates from causing chart issues
     if (isNaN(createdAt.getTime()) || createdAt.getTime() <= 0) {
-      console.warn('Invalid operation date:', record.created_at, 'for operation:', record.transaction_hash);
+      if (import.meta.env.DEV) {
+        console.warn('Invalid operation date:', record.created_at, 'for operation:', record.transaction_hash);
+      }
       return null;
     }
 

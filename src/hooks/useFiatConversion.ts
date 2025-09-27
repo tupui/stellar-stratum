@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getFxRate } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { getAssetPrice } from '@/lib/reflector';
 
 interface FiatConversionHook {
   convertXLMToFiat: (xlmAmount: number) => Promise<number>;
@@ -43,10 +44,8 @@ export const useFiatConversion = (): FiatConversionHook => {
 
   const convertXLMToFiat = useCallback(async (xlmAmount: number): Promise<number> => {
     try {
-      // First, we need to get USD price of XLM (this would require a price API)
-      // For now, we'll use a placeholder - in a real implementation,
-      // you'd fetch XLM/USD rate from a crypto API like CoinGecko
-      const xlmToUsdRate = 0.12; // Placeholder XLM/USD rate
+      // Get current XLM/USD rate from oracle
+      const xlmToUsdRate = await getAssetPrice('XLM');
       const usdAmount = xlmAmount * xlmToUsdRate;
 
       if (quoteCurrency === 'USD') {

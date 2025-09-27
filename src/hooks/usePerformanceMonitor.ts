@@ -32,7 +32,7 @@ export const useRenderPerformance = (componentName: string, threshold = 16) => {
     
     if (renderTime > threshold) {
       metrics.slowRenders++;
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.warn(`Slow render detected in ${componentName}: ${renderTime.toFixed(2)}ms`);
       }
     }
@@ -48,7 +48,7 @@ export const useMemoryMonitor = () => {
     if ('memory' in performance && process.env.NODE_ENV === 'development') {
       const checkMemory = () => {
         const memory = (performance as any).memory;
-        if (memory.usedJSHeapSize > memory.totalJSHeapSize * 0.9) {
+        if (memory.usedJSHeapSize > memory.totalJSHeapSize * 0.9 && import.meta.env.DEV) {
           console.warn('High memory usage detected', {
             used: (memory.usedJSHeapSize / 1024 / 1024).toFixed(2) + 'MB',
             total: (memory.totalJSHeapSize / 1024 / 1024).toFixed(2) + 'MB'

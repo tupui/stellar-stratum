@@ -48,8 +48,10 @@ class EnhancedCache {
       try {
         localStorage.setItem(`cache_${key}`, JSON.stringify(entry));
       } catch (error) {
-        // Ignore localStorage errors (quota exceeded, etc.)
-        console.warn('Failed to save to localStorage:', error);
+        // Cache operation failed - continue without caching
+        if (import.meta.env.DEV) {
+          console.warn('Failed to save to localStorage:', error);
+        }
       }
     }
 
@@ -74,8 +76,10 @@ class EnhancedCache {
           this.memoryCache.set(key, entry);
         }
       } catch (error) {
-        // Ignore localStorage errors
-        console.warn('Failed to read from localStorage:', error);
+        // Cache read failed - continue without cached data
+        if (import.meta.env.DEV) {
+          console.warn('Failed to read from localStorage:', error);
+        }
       }
     }
 
@@ -102,7 +106,9 @@ class EnhancedCache {
       try {
         localStorage.removeItem(`cache_${key}`);
       } catch (error) {
-        console.warn('Failed to delete from localStorage:', error);
+        if (import.meta.env.DEV) {
+          console.warn('Failed to delete from localStorage:', error);
+        }
       }
     }
   }
@@ -123,7 +129,9 @@ class EnhancedCache {
           }
         });
       } catch (error) {
-        console.warn('Failed to clear localStorage:', error);
+        if (import.meta.env.DEV) {
+          console.warn('Failed to clear localStorage:', error);
+        }
       }
     }
   }
@@ -139,7 +147,9 @@ class EnhancedCache {
         const keys = Object.keys(localStorage);
         localStorageSize = keys.filter(key => key.startsWith('cache_')).length;
       } catch (error) {
-        console.warn('Failed to get localStorage stats:', error);
+        if (import.meta.env.DEV) {
+          console.warn('Failed to get localStorage stats:', error);
+        }
       }
     }
 

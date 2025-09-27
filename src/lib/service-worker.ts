@@ -12,7 +12,7 @@ export const registerServiceWorker = () => {
           scope: '/'
         });
 
-        if (import.meta.env.DEV) console.log('ServiceWorker registered successfully:', registration.scope);
+        // Service worker registered successfully
 
         // Handle updates
         registration.addEventListener('updatefound', () => {
@@ -31,13 +31,14 @@ export const registerServiceWorker = () => {
 
         // Listen for messages from service worker
         navigator.serviceWorker.addEventListener('message', (event) => {
-          if (event.data.type === 'CACHE_UPDATED' && import.meta.env.DEV) {
-            console.log('Cache updated:', event.data.url);
+          // Handle cache update events
+          if (event.data.type === 'CACHE_UPDATED') {
+            // Cache was updated for the specified URL
           }
         });
 
       } catch (error) {
-        if (import.meta.env.DEV) console.log('ServiceWorker registration failed:', error);
+        // Service worker registration failed - application will continue without SW
       }
     });
   }
@@ -90,7 +91,7 @@ export const clearAppCaches = async () => {
       }
     });
 
-    if (import.meta.env.DEV) console.log('All app caches cleared');
+    // All application caches have been cleared
   } catch (error) {
     console.error('Failed to clear caches:', error);
   }
@@ -111,16 +112,16 @@ export const trackPerformance = () => {
           'First Contentful Paint': performance.getEntriesByName('first-contentful-paint')[0]?.startTime || 0
         };
 
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.table(metrics);
         }
       }, 0);
     });
 
-    // Track resource loading
+    // Track resource loading performance in development
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
-        if (entry.duration > 1000) { // Log slow resources
+        if (entry.duration > 1000 && import.meta.env.DEV) {
           console.warn(`Slow resource: ${entry.name} took ${entry.duration}ms`);
         }
       }
