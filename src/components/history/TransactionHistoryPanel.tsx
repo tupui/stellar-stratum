@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   RefreshCw, 
   ArrowUpRight, 
@@ -51,7 +52,7 @@ interface TransactionHistoryPanelProps {
 
 interface Filters {
   direction: 'all' | 'in' | 'out';
-  category: 'all' | 'transfer' | 'swap' | 'contract' | 'config';
+  categories: string[];
   minAmount: string;
   maxAmount: string;
   dateFrom: Date | undefined;
@@ -89,7 +90,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
   // Filter and selection state
   const [filters, setFilters] = useState<Filters>({
     direction: 'all',
-    category: 'all',
+    categories: [],
     minAmount: '',
     maxAmount: '',
     dateFrom: undefined,
@@ -285,8 +286,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
       // Category filter
-      if (filters.category !== 'all') {
-        if (tx.category !== filters.category) return false;
+      if (filters.categories.length > 0) {
+        if (tx.category && !filters.categories.includes(tx.category)) return false;
       }
       // Asset filter
       if (selectedAsset.code !== 'PORTFOLIO') {
@@ -390,7 +391,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
   const clearFilters = () => {
     setFilters({
       direction: 'all',
-      category: 'all',
+      categories: [],
       minAmount: '',
       maxAmount: '',
       dateFrom: undefined,
@@ -506,136 +507,184 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* Filters Panel */}
+        {/* Enhanced Filter Panel */}
         {showFilters && (
-          <div className="p-4 bg-secondary/50 rounded-lg space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium text-sm">Filters</h3>
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Clear All
-              </Button>
+          <div className="border rounded-lg bg-card/50 backdrop-blur-sm">
+            <div className="p-4 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Filters</h3>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={clearFilters}
+                  className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear All
+                </Button>
+              </div>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs">Direction</Label>
-                <Select 
-                  value={filters.direction} 
-                  onValueChange={(value: 'all' | 'in' | 'out') => setFilters(prev => ({ ...prev, direction: value }))}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="in">Received</SelectItem>
-                    <SelectItem value="out">Sent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="p-4 space-y-6">
+              {/* Row 1: Direction and Categories */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Direction</Label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: 'all', label: 'All', icon: Hash },
+                      { value: 'in', label: 'In', icon: ArrowDownLeft },
+                      { value: 'out', label: 'Out', icon: ArrowUpRight }
+                    ].map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={filters.direction === option.value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilters(prev => ({ ...prev, direction: option.value as any }))}
+                        className="flex-1 h-8 text-xs"
+                      >
+                        <option.icon className="w-3 h-3 mr-1" />
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs">Category</Label>
-                <Select 
-                  value={filters.category} 
-                  onValueChange={(value: 'all' | 'transfer' | 'swap' | 'contract' | 'config') => setFilters(prev => ({ ...prev, category: value }))}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="transfer">Transfers</SelectItem>
-                    <SelectItem value="swap">Swaps</SelectItem>
-                    <SelectItem value="contract">Contract Calls</SelectItem>
-                    <SelectItem value="config">Configuration</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs">Amount (XLM)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Min"
-                    type="number"
-                    step="0.01"
-                    value={filters.minAmount}
-                    onChange={(e) => setFilters(prev => ({ ...prev, minAmount: e.target.value }))}
-                    className="h-8"
-                  />
-                  <Input
-                    placeholder="Max"
-                    type="number"
-                    step="0.01"
-                    value={filters.maxAmount}
-                    onChange={(e) => setFilters(prev => ({ ...prev, maxAmount: e.target.value }))}
-                    className="h-8"
-                  />
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Categories</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'transfer', label: 'Transfers', icon: ArrowUpRight },
+                      { value: 'swap', label: 'Swaps', icon: Replace },
+                      { value: 'contract', label: 'Contracts', icon: Code2 },
+                      { value: 'config', label: 'Config', icon: Settings }
+                    ].map((category) => (
+                      <div key={category.value} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={category.value}
+                          checked={filters.categories.includes(category.value)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFilters(prev => ({ 
+                                ...prev, 
+                                categories: [...prev.categories, category.value] 
+                              }));
+                            } else {
+                              setFilters(prev => ({ 
+                                ...prev, 
+                                categories: prev.categories.filter(c => c !== category.value) 
+                              }));
+                            }
+                          }}
+                          className="rounded border-border"
+                        />
+                        <Label htmlFor={category.value} className="text-xs flex items-center gap-1 cursor-pointer">
+                          <category.icon className="w-3 h-3" />
+                          {category.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs">Date From</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "h-8 justify-start text-left font-normal",
-                        !filters.dateFrom && "text-muted-foreground"
-                      )}
-                    >
-                      <Calendar className="mr-2 h-3 w-3" />
-                      {filters.dateFrom ? format(filters.dateFrom, "PPP") : "Pick date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={filters.dateFrom}
-                      onSelect={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
+              {/* Row 2: Amount Range */}
+              <div className="space-y-3">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount Range</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Minimum</Label>
+                    <Input
+                      placeholder="0.00"
+                      type="number"
+                      step="0.01"
+                      value={filters.minAmount}
+                      onChange={(e) => setFilters(prev => ({ ...prev, minAmount: e.target.value }))}
+                      className="h-8 text-sm"
                     />
-                  </PopoverContent>
-                </Popover>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Maximum</Label>
+                    <Input
+                      placeholder="∞"
+                      type="number"
+                      step="0.01"
+                      value={filters.maxAmount}
+                      onChange={(e) => setFilters(prev => ({ ...prev, maxAmount: e.target.value }))}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs">Date To</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "h-8 justify-start text-left font-normal",
-                        !filters.dateTo && "text-muted-foreground"
-                      )}
-                    >
-                      <Calendar className="mr-2 h-3 w-3" />
-                      {filters.dateTo ? format(filters.dateTo, "PPP") : "Pick date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={filters.dateTo}
-                      onSelect={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
+              {/* Row 3: Date Range */}
+              <div className="space-y-3">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">From</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "h-8 justify-start text-left font-normal text-sm",
+                            !filters.dateFrom && "text-muted-foreground"
+                          )}
+                        >
+                          <Calendar className="mr-2 h-3 w-3" />
+                          {filters.dateFrom ? format(filters.dateFrom, "MMM dd, yyyy") : "Pick date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={filters.dateFrom}
+                          onSelect={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">To</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "h-8 justify-start text-left font-normal text-sm",
+                            !filters.dateTo && "text-muted-foreground"
+                          )}
+                        >
+                          <Calendar className="mr-2 h-3 w-3" />
+                          {filters.dateTo ? format(filters.dateTo, "MMM dd, yyyy") : "Pick date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={filters.dateTo}
+                          onSelect={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-xs">Address</Label>
+              {/* Row 4: Address Filter */}
+              <div className="space-y-3">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Address Filter</Label>
                 <Input
-                  placeholder="Search address..."
+                  placeholder="Search by address..."
                   value={filters.addressFilter}
                   onChange={(e) => setFilters(prev => ({ ...prev, addressFilter: e.target.value }))}
-                  className="h-8"
+                  className="h-8 text-sm"
                 />
               </div>
             </div>
