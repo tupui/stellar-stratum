@@ -9,12 +9,15 @@ import {
   Replace,
   Code2,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Copy,
+  Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { GroupedTransaction } from '@/hooks/useTransactionGrouping';
 import { LoadingPill } from '@/components/ui/loading-pill';
+import { useToast } from '@/hooks/use-toast';
 
 interface GroupedTransactionItemProps {
   groupedTx: GroupedTransaction;
@@ -34,6 +37,8 @@ export const GroupedTransactionItem = ({
   network
 }: GroupedTransactionItemProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const mainFiatAmount = fiatAmounts.get(groupedTx.id) || 0;
   const showNA = (groupedTx.amount || 0) > 0 && mainFiatAmount === 0;
@@ -111,14 +116,49 @@ export const GroupedTransactionItem = ({
           </div>
         </div>
         
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
-          <span className="font-amount break-all">
-            {truncateAddress(tx.counterparty)}
-          </span>
-        </div>
+        {tx.counterparty && (
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+            <span className="font-mono break-all">
+              {truncateAddress(tx.counterparty)}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                copyAddress(tx.counterparty!);
+              }}
+              className="h-6 w-6 p-0 hover:bg-secondary shrink-0"
+            >
+              {copiedAddress === tx.counterparty ? (
+                <Check className="w-3 h-3 text-success" />
+              ) : (
+                <Copy className="w-3 h-3" />
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </>
   );
+
+  const copyAddress = async (address: string) => {
+    if (!address) return;
+    
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopiedAddress(address);
+      setTimeout(() => setCopiedAddress(null), 2000);
+      toast({
+        description: "Address copied to clipboard",
+      });
+    } catch (err) {
+      toast({
+        description: "Failed to copy address",
+        variant: "destructive",
+      });
+    }
+  };
 
   const openTransactionExplorer = (hash: string) => {
     const expertUrl = network === 'testnet' 
@@ -130,44 +170,47 @@ export const GroupedTransactionItem = ({
   return (
     <div className="rounded-lg border transition-colors hover:bg-secondary/50">
       {/* Main transaction row */}
-      <div className="p-3 space-y-2 sm:space-y-0">
-        <div className="flex items-start sm:items-center gap-3">
+      <div className="p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {renderTransactionContent(groupedTx)}
           
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
-            <div className="text-right">
-              <div className="font-medium text-sm sm:text-base font-amount tabular-nums">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 w-full sm:w-auto">
+            <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2 sm:gap-1">
+              <div className="font-medium text-base sm:text-lg font-amount tabular-nums">
                 {fiatLoading ? (
                   <LoadingPill size="sm" />
                 ) : showNA ? (
-                  'N/A'
+                  <span className="text-muted-foreground">N/A</span>
                 ) : (
                   formatFiatAmount(groupedTx.isGrouped ? totalFiatAmount : mainFiatAmount)
                 )}
               </div>
-              <div className="text-xs text-muted-foreground whitespace-nowrap">
+              <div className="text-xs sm:text-sm text-muted-foreground">
                 {groupedTx.isGrouped && groupedTx.oldestTransaction && groupedTx.latestTransaction ? (
-                  <>
-                    {format(groupedTx.latestTransaction.createdAt, 'MMM dd, HH:mm')}
+                  <div className="text-right">
+                    <div>{format(groupedTx.latestTransaction.createdAt, 'MMM dd, HH:mm')}</div>
                     {groupedTx.oldestTransaction.id !== groupedTx.latestTransaction.id && (
-                      <> - {format(groupedTx.oldestTransaction.createdAt, 'MMM dd, HH:mm')}</>
+                      <div className="text-xs opacity-75">to {format(groupedTx.oldestTransaction.createdAt, 'MMM dd, HH:mm')}</div>
                     )}
-                  </>
+                  </div>
                 ) : (
                   format(groupedTx.createdAt, 'MMM dd, HH:mm')
                 )}
               </div>
             </div>
             
-            <div className="flex gap-1">
+            <div className="flex gap-2 sm:gap-1 justify-end">
               {groupedTx.isGrouped ? (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="shrink-0 self-start sm:self-center"
+                  className="h-8 px-3 shrink-0"
                 >
                   {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  <span className="ml-1 sm:hidden">
+                    {isExpanded ? 'Hide' : 'Show'} {groupedTx.count}
+                  </span>
                 </Button>
               ) : (
                 <Button
@@ -177,9 +220,10 @@ export const GroupedTransactionItem = ({
                     e.stopPropagation();
                     openTransactionExplorer(groupedTx.transactionHash);
                   }}
-                  className="shrink-0 self-start sm:self-center"
+                  className="h-8 px-3 shrink-0"
                 >
                   <ExternalLink className="w-4 h-4" />
+                  <span className="ml-1 sm:hidden">View</span>
                 </Button>
               )}
             </div>
@@ -201,49 +245,71 @@ export const GroupedTransactionItem = ({
               const txShowNA = (tx.amount || 0) > 0 && txFiatAmount === 0;
               
               return (
-                <div key={tx.id} className="p-3 bg-secondary/10">
-                  <div className="flex items-start sm:items-center gap-3">
-                    <div className={cn(
-                      "p-1.5 rounded-full transition-colors shrink-0",
-                      tx.direction === 'out' 
-                        ? "bg-destructive/20 text-destructive"
-                        : "bg-success/20 text-success"
-                    )}>
-                      {tx.direction === 'out' ? 
-                        <ArrowUpRight className="w-3 h-3" /> : 
-                        <ArrowDownLeft className="w-3 h-3" />
-                      }
-                    </div>
-                    
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm">
-                        {tx.category === 'transfer' && (
-                          <span className="font-medium font-amount tabular-nums">
-                            {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
-                          </span>
-                        )}
-                        {tx.category !== 'transfer' && (
-                          <span className="font-medium">
-                            {tx.type}
-                          </span>
-                        )}
+                <div key={tx.id} className="p-3 sm:p-4 bg-secondary/10">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className={cn(
+                        "p-1.5 rounded-full transition-colors shrink-0",
+                        tx.direction === 'out' 
+                          ? "bg-destructive/20 text-destructive"
+                          : "bg-success/20 text-success"
+                      )}>
+                        {tx.direction === 'out' ? 
+                          <ArrowUpRight className="w-3 h-3" /> : 
+                          <ArrowDownLeft className="w-3 h-3" />
+                        }
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {format(tx.createdAt, 'MMM dd, HH:mm:ss')}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <div className="font-medium text-sm font-amount tabular-nums">
-                          {fiatLoading ? (
-                            <LoadingPill size="sm" />
-                          ) : txShowNA ? (
-                            'N/A'
-                          ) : (
-                            formatFiatAmount(txFiatAmount)
+                      
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="text-sm">
+                          {tx.category === 'transfer' && (
+                            <span className="font-medium font-amount tabular-nums">
+                              {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
+                            </span>
+                          )}
+                          {tx.category !== 'transfer' && (
+                            <span className="font-medium">
+                              {tx.type}
+                            </span>
                           )}
                         </div>
+                        {tx.counterparty && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-mono break-all">
+                              {truncateAddress(tx.counterparty)}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyAddress(tx.counterparty!);
+                              }}
+                              className="h-5 w-5 p-0 hover:bg-secondary shrink-0"
+                            >
+                              {copiedAddress === tx.counterparty ? (
+                                <Check className="w-2.5 h-2.5 text-success" />
+                              ) : (
+                                <Copy className="w-2.5 h-2.5" />
+                              )}
+                            </Button>
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground">
+                          {format(tx.createdAt, 'MMM dd, HH:mm:ss')}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2 sm:gap-1">
+                      <div className="font-medium text-sm font-amount tabular-nums">
+                        {fiatLoading ? (
+                          <LoadingPill size="sm" />
+                        ) : txShowNA ? (
+                          <span className="text-muted-foreground">N/A</span>
+                        ) : (
+                          formatFiatAmount(txFiatAmount)
+                        )}
                       </div>
                       
                       <Button
@@ -253,9 +319,10 @@ export const GroupedTransactionItem = ({
                           e.stopPropagation();
                           openTransactionExplorer(tx.transactionHash);
                         }}
-                        className="shrink-0"
+                        className="h-7 px-2 shrink-0"
                       >
                         <ExternalLink className="w-3 h-3" />
+                        <span className="ml-1 sm:hidden text-xs">View</span>
                       </Button>
                     </div>
                   </div>
