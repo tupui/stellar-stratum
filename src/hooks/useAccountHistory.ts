@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { 
-  fetchAccountPayments,
-  fetchAccountOperations,
-  normalizePaymentRecord,
-  normalizeOperationRecord,
-  NormalizedTransaction,
-  TRANSACTION_CACHE_DURATION 
-} from '@/lib/horizon-utils';
+  fetchAccountTransactionsViaRpc,
+  normalizeRpcTransaction,
+  RPC_TRANSACTION_CACHE_DURATION 
+} from '@/lib/rpc-history-utils';
+import type { NormalizedTransaction } from '@/lib/horizon-utils';
 
 // Historical transactions are immutable, cache them for much longer
 const HISTORICAL_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -150,7 +148,7 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
   // Check if we need to sync
   const needsSync = useCallback((): boolean => {
     if (!lastSync) return true;
-    return Date.now() - lastSync.getTime() > TRANSACTION_CACHE_DURATION;
+    return Date.now() - lastSync.getTime() > RPC_TRANSACTION_CACHE_DURATION;
   }, [lastSync]);
 
 
@@ -231,33 +229,28 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
           
         }
 
-        // Fetch fresh data using standard horizon for initial load
-        const [paymentsResp, opsResp] = await Promise.all([
-          fetchAccountPayments(publicKey, network, undefined, INITIAL_LIMIT),
-          fetchAccountOperations(publicKey, network, undefined, INITIAL_LIMIT),
-        ]);
-
+        // Fetch fresh data using RPC for initial load
+        const rpcResp = await fetchAccountTransactionsViaRpc(publicKey, network, undefined, INITIAL_LIMIT);
+        
         const normalizedTransactions: NormalizedTransaction[] = [];
 
-        for (const record of (paymentsResp as any).records) {
-          const normalized = normalizePaymentRecord(record, publicKey);
-          if (normalized) normalizedTransactions.push(normalized);
+        // Process all transactions from RPC response
+        for (const transaction of rpcResp.transactions || []) {
+          const normalized = normalizeRpcTransaction(transaction, publicKey);
+          normalizedTransactions.push(...normalized);
         }
 
-        for (const record of (opsResp as any).records) {
-          if (record.type === 'payment' || record.type === 'create_account') continue;
-          const normalized = normalizeOperationRecord(record, publicKey);
-          if (normalized) normalizedTransactions.push(normalized);
-        }
+        // Sort by creation date (newest first)
+        normalizedTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-        // Update cursor and hasMore
-        if ((paymentsResp as any).records.length > 0) {
-          const lastRecord = (paymentsResp as any).records[(paymentsResp as any).records.length - 1];
-          setCursor(lastRecord.paging_token);
+        // Update cursor and hasMore from RPC response
+        if (rpcResp.transactions && rpcResp.transactions.length > 0) {
+          // RPC uses cursor for pagination
+          setCursor(rpcResp.cursor);
         }
         
-        const horizonHasMore = (paymentsResp as any).records.length === INITIAL_LIMIT || (opsResp as any).records.length === INITIAL_LIMIT;
-        setHasMore(horizonHasMore);
+        const rpcHasMore = rpcResp.transactions && rpcResp.transactions.length === INITIAL_LIMIT;
+        setHasMore(!!rpcHasMore);
 
         const now = new Date();
         setTransactions(normalizedTransactions);
@@ -306,7 +299,7 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     return promise;
   }, [publicKey, network, loadFromCache, needsSync, saveToCache]);
 
-  // Load more transactions (pagination) - use standard Horizon for now
+  // Load more transactions (pagination) - use RPC
   const loadMore = useCallback(async () => {
     if (!publicKey || !hasMore || isLoading) return;
 
@@ -314,32 +307,26 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     setError(null);
 
     try {
-      const [paymentsResp, opsResp] = await Promise.all([
-        fetchAccountPayments(publicKey, network, cursor, LOAD_MORE_LIMIT),
-        fetchAccountOperations(publicKey, network, cursor, LOAD_MORE_LIMIT),
-      ]);
-
+      const rpcResp = await fetchAccountTransactionsViaRpc(publicKey, network, cursor, LOAD_MORE_LIMIT);
+      
       const normalizedTransactions: NormalizedTransaction[] = [];
 
-      for (const record of (paymentsResp as any).records) {
-        const normalized = normalizePaymentRecord(record, publicKey);
-        if (normalized) normalizedTransactions.push(normalized);
+      // Process all transactions from RPC response
+      for (const transaction of rpcResp.transactions || []) {
+        const normalized = normalizeRpcTransaction(transaction, publicKey);
+        normalizedTransactions.push(...normalized);
       }
 
-      for (const record of (opsResp as any).records) {
-        if (record.type === 'payment' || record.type === 'create_account') continue;
-        const normalized = normalizeOperationRecord(record, publicKey);
-        if (normalized) normalizedTransactions.push(normalized);
-      }
+      // Sort by creation date (newest first)
+      normalizedTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-      // Update cursor and hasMore
-      if ((paymentsResp as any).records.length > 0) {
-        const lastRecord = (paymentsResp as any).records[(paymentsResp as any).records.length - 1];
-        setCursor(lastRecord.paging_token);
+      // Update cursor and hasMore from RPC response
+      if (rpcResp.transactions && rpcResp.transactions.length > 0) {
+        setCursor(rpcResp.cursor);
       }
       
-      const horizonHasMore = (paymentsResp as any).records.length === LOAD_MORE_LIMIT || (opsResp as any).records.length === LOAD_MORE_LIMIT;
-      setHasMore(horizonHasMore);
+      const rpcHasMore = rpcResp.transactions && rpcResp.transactions.length === LOAD_MORE_LIMIT;
+      setHasMore(!!rpcHasMore);
       
       setTransactions(prev => {
         // Deduplicate based on transaction ID
