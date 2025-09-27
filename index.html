@@ -81,22 +81,22 @@
         --primary: 48 96% 53%;
         --muted: 220 13% 15%;
         --muted-foreground: 217 12% 72%;
+        --border: 220 13% 26%;
+        --stellar-yellow: 45 100% 60%;
       }
       
       body {
         margin: 0;
         background: hsl(var(--background));
         color: hsl(var(--foreground));
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
         font-display: swap;
-        font-optical-sizing: auto;
         text-rendering: optimizeSpeed;
       }
       
-      /* Critical hero styles optimized for LCP - Fixed dimensions to prevent shifts */
+      /* Critical hero styles optimized for LCP */
       .hero-container {
         min-height: 100vh;
-        height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -104,8 +104,6 @@
         padding: 1.5rem;
         position: relative;
         overflow: hidden;
-        contain: layout style paint;
-        will-change: auto;
       }
       
       .hero-content {
@@ -113,8 +111,6 @@
         max-width: 1152px;
         width: 100%;
         margin: 0 auto;
-        contain: layout style;
-        will-change: auto;
       }
       
       .hero-title {
@@ -124,12 +120,6 @@
         margin: 0 0 2rem 0;
         letter-spacing: -0.025em;
         color: hsl(var(--foreground));
-        will-change: auto;
-        transform: translateZ(0);
-        display: block;
-        font-display: swap;
-        min-height: 1em;
-        contain: layout;
       }
       
       .hero-title-accent {
@@ -165,12 +155,10 @@
         background: hsl(48 96% 48%);
         transform: scale(1.05);
       }
-      
-      /* Background decoration */
-      .hero-bg {
-        position: absolute;
-        inset: 0;
-        z-index: -1;
+
+      /* Text glow effect for logo */
+      .text-glow-yellow {
+        text-shadow: 0 0 10px hsl(var(--stellar-yellow)), 0 0 20px hsl(var(--stellar-yellow));
       }
       
       /* Loading states - Fixed positioning to prevent CLS */
@@ -184,16 +172,15 @@
         align-items: center;
         justify-content: center;
         background: hsl(var(--background));
-        overflow: hidden;
-        contain: strict;
-        will-change: transform, opacity;
         z-index: 9999;
         pointer-events: auto;
       }
 
       #app-loader.hidden {
         pointer-events: none;
+        opacity: 0;
         transform: translateZ(0);
+        transition: opacity 0.4s ease-out, transform 0.4s ease-out;
       }
       
       .loader-content {
@@ -202,8 +189,6 @@
         width: 100%;
         padding: 2rem;
         position: relative;
-        contain: layout style paint;
-        will-change: transform;
       }
       
       .loader-title {
@@ -211,9 +196,6 @@
         font-weight: 700;
         margin-bottom: 1rem;
         color: hsl(var(--primary));
-        min-height: 1em;
-        contain: layout;
-        font-display: swap;
       }
       
       .loader-subtitle {
@@ -222,14 +204,12 @@
         margin-bottom: 3rem;
       }
 
-      /* Node Network Animation - Fixed container to prevent shifts */
+      /* Essential node network styles */
       .node-network {
         position: relative;
         width: min(400px, 85vw);
         height: min(300px, 60vh);
         margin: 0 auto 2rem auto;
-        contain: layout style paint;
-        will-change: transform;
       }
 
       .node {
@@ -239,11 +219,7 @@
         border-radius: 50%;
         background: hsl(var(--muted-foreground));
         border: 2px solid hsl(var(--border));
-        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        transform-origin: center;
-        contain: layout style paint;
-        backface-visibility: hidden;
-        will-change: transform;
+        transition: all 0.6s ease;
       }
 
       .node.center {
@@ -254,7 +230,6 @@
         transform: translate(-50%, -50%);
         background: hsl(var(--primary));
         border-color: hsl(var(--primary));
-        animation: centerPulse 2s ease-in-out infinite;
         z-index: 10;
       }
 
@@ -262,39 +237,14 @@
         background: hsl(var(--primary));
         border-color: hsl(var(--primary));
         box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
-        animation: none !important;
       }
 
-      /* Node positions with responsive oscillation */
-      .node:nth-child(1):not(.connected) { left: 15%; top: 15%; animation: bigOscillate1 3.2s ease-in-out infinite; }
-      .node:nth-child(2):not(.connected) { left: 85%; top: 18%; animation: bigOscillate2 2.8s ease-in-out infinite; }
-      .node:nth-child(3):not(.connected) { left: 8%; top: 52%; animation: bigOscillate3 3.6s ease-in-out infinite; }
-      .node:nth-child(4):not(.connected) { left: 92%; top: 58%; animation: bigOscillate4 2.9s ease-in-out infinite; }
-      .node:nth-child(5):not(.connected) { left: 25%; top: 88%; animation: bigOscillate5 3.4s ease-in-out infinite; }
-      .node:nth-child(6):not(.connected) { left: 75%; top: 85%; animation: bigOscillate6 3.1s ease-in-out infinite; }
-      .node:nth-child(7):not(.connected) { left: 48%; top: 8%; animation: bigOscillate7 2.7s ease-in-out infinite; }
-      .node:nth-child(8):not(.connected) { left: 12%; top: 35%; animation: bigOscillate8 3.5s ease-in-out infinite; }
-      .node:nth-child(9):not(.connected) { left: 88%; top: 38%; animation: bigOscillate9 2.6s ease-in-out infinite; }
-
-      /* Static positions when connected */
-      .node:nth-child(1).connected { left: 15%; top: 15%; }
-      .node:nth-child(2).connected { left: 85%; top: 18%; }
-      .node:nth-child(3).connected { left: 8%; top: 52%; }
-      .node:nth-child(4).connected { left: 92%; top: 58%; }
-      .node:nth-child(5).connected { left: 25%; top: 88%; }
-      .node:nth-child(6).connected { left: 75%; top: 85%; }
-      .node:nth-child(7).connected { left: 48%; top: 8%; }
-      .node:nth-child(8).connected { left: 12%; top: 35%; }
-      .node:nth-child(9).connected { left: 88%; top: 38%; }
-
-      /* Connection lines - dynamically positioned from center to target nodes */
       .connection {
         position: absolute;
         height: 2px;
         background: hsl(var(--border));
-        transform-origin: left center;
         opacity: 0;
-        transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.6s ease;
         z-index: 5;
       }
 
@@ -304,162 +254,11 @@
         box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
       }
 
-      /* Connection base positioning - will be computed dynamically */
-      .connection {
-        position: absolute;
-        height: 2px;
-        background: hsl(var(--border));
-        transform-origin: 0 50%;
-        opacity: 0;
-        transition: background 0.4s ease, opacity 0.4s ease;
-        z-index: 5;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%) rotate(0deg);
-        width: 0;
+      /* Hide loader once React loads */
+      .app-loaded #app-loader {
+        pointer-events: none !important;
       }
-
-      .connection.active {
-        background: hsl(var(--primary));
-        opacity: 1;
-        box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
-      }
-
-      /* Neon yellow effect for completed network */
-      .node-network.neon-yellow .node {
-        background: hsl(var(--primary));
-        border-color: hsl(var(--primary));
-        box-shadow: 0 0 14px hsl(var(--primary) / 0.95), 0 0 34px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.35);
-        animation: neonFlicker 2.2s ease-in-out infinite;
-      }
-
-      .node-network.neon-yellow .node.center {
-        width: 22px;
-        height: 22px;
-        animation: centerNeon 1.8s ease-in-out infinite;
-        box-shadow: 0 0 20px hsl(var(--primary) / 1), 0 0 40px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.45);
-      }
-
-      .node-network.neon-yellow .connection.active {
-        background: hsl(var(--primary));
-        box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 36px hsl(var(--primary) / 0.55), 0 0 60px hsl(var(--primary) / 0.35);
-        animation: neonFlow 2.4s linear infinite;
-      }
-
-      /* Propagation animation - outward from center */
-      .connection::after {
-        content: '';
-        position: absolute;
-        width: 6px;
-        height: 6px;
-        background: hsl(var(--primary));
-        border-radius: 50%;
-        top: -2px;
-        left: 0;
-        opacity: 0;
-        animation: propagateOutward 1.2s ease-out;
-      }
-
-      .connection.active::after {
-        opacity: 1;
-      }
-
-      /* Keyframe animations */
-      @keyframes centerPulse {
-        0%, 100% { 
-          transform: translate(-50%, -50%) scale(1);
-          box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
-        }
-        50% { 
-          transform: translate(-50%, -50%) scale(1.3);
-          box-shadow: 0 0 30px hsl(var(--primary) / 0.8);
-        }
-      }
-
-      @keyframes propagateOutward {
-        0% { left: 0; opacity: 0; transform: scale(0.5); }
-        15% { opacity: 1; transform: scale(1); }
-        85% { opacity: 1; transform: scale(1); }
-        100% { left: 100%; opacity: 0; transform: scale(0.5); }
-      }
-
-      @keyframes neonFlicker {
-        0%, 100% {
-          box-shadow: 0 0 14px hsl(var(--primary) / 0.95), 0 0 34px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.35);
-        }
-        45% {
-          box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 28px hsl(var(--primary) / 0.5), 0 0 50px hsl(var(--primary) / 0.3);
-        }
-        50% {
-          box-shadow: 0 0 8px hsl(var(--primary) / 0.85), 0 0 18px hsl(var(--primary) / 0.45), 0 0 38px hsl(var(--primary) / 0.25);
-        }
-        55% {
-          box-shadow: 0 0 16px hsl(var(--primary) / 1), 0 0 40px hsl(var(--primary) / 0.65), 0 0 70px hsl(var(--primary) / 0.4);
-        }
-        70% {
-          box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 30px hsl(var(--primary) / 0.55), 0 0 52px hsl(var(--primary) / 0.32);
-        }
-      }
-
-      @keyframes centerNeon {
-        0%, 100% {
-          transform: translate(-50%, -50%) scale(1);
-          box-shadow: 0 0 20px hsl(var(--primary) / 1), 0 0 42px hsl(var(--primary) / 0.7), 0 0 90px hsl(var(--primary) / 0.45);
-        }
-        50% {
-          transform: translate(-50%, -50%) scale(1.25);
-          box-shadow: 0 0 28px hsl(var(--primary) / 1), 0 0 60px hsl(var(--primary) / 0.75), 0 0 120px hsl(var(--primary) / 0.5);
-        }
-      }
-
-      @keyframes neonFlow {
-        0%, 100% {
-          box-shadow: 0 0 12px hsl(var(--primary) / 0.9), 0 0 36px hsl(var(--primary) / 0.55), 0 0 60px hsl(var(--primary) / 0.35);
-          filter: brightness(1);
-        }
-        50% {
-          box-shadow: 0 0 18px hsl(var(--primary) / 1), 0 0 48px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.45);
-          filter: brightness(1.15);
-        }
-      }
-
-      /* Large oscillation patterns - responsive movement with contain */
-      @keyframes bigOscillate1 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        20% { transform: translate3d(min(15px, 3vw), min(-12px, -2.5vw), 0) rotate(8deg); }
-        40% { transform: translate3d(min(-8px, -1.5vw), min(18px, 3.5vw), 0) rotate(-6deg); }
-        60% { transform: translate3d(min(12px, 2.5vw), min(-6px, -1vw), 0) rotate(10deg); }
-        80% { transform: translate3d(min(-10px, -2vw), min(14px, 3vw), 0) rotate(-4deg); }
-      }
-
-      @keyframes bigOscillate2 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        25% { transform: translate3d(min(-14px, -3vw), min(10px, 2vw), 0) rotate(-8deg); }
-        50% { transform: translate3d(min(6px, 1vw), min(-16px, -3vw), 0) rotate(12deg); }
-        75% { transform: translate3d(min(-4px, -1vw), min(8px, 1.5vw), 0) rotate(-10deg); }
-      }
-
-      @keyframes bigOscillate3 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        15% { transform: translate3d(min(10px, 2vw), min(8px, 1.5vw), 0) rotate(6deg); }
-        35% { transform: translate3d(min(-12px, -2.5vw), min(-14px, -3vw), 0) rotate(-12deg); }
-        55% { transform: translate3d(min(-6px, -1vw), min(4px, 1vw), 0) rotate(4deg); }
-        75% { transform: translate3d(min(14px, 3vw), min(12px, 2.5vw), 0) rotate(8deg); }
-      }
-
-      @keyframes bigOscillate4 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        30% { transform: translate3d(min(-10px, -2vw), min(-8px, -1.5vw), 0) rotate(-6deg); }
-        60% { transform: translate3d(min(16px, 3vw), min(4px, 1vw), 0) rotate(10deg); }
-        80% { transform: translate3d(min(-4px, -1vw), min(12px, 2.5vw), 0) rotate(-8deg); }
-      }
-
-      @keyframes bigOscillate5 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        20% { transform: translate3d(min(8px, 1.5vw), min(-10px, -2vw), 0) rotate(4deg); }
-        45% { transform: translate3d(min(-14px, -3vw), min(6px, 1vw), 0) rotate(-10deg); }
-        70% { transform: translate3d(min(4px, 1vw), min(14px, 3vw), 0) rotate(6deg); }
-      }
+    </style>
 
       @keyframes bigOscillate6 {
         0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
@@ -613,7 +412,27 @@
     
     <div id="root"></div>
     <link rel="modulepreload" href="/src/main.tsx">
-    <script type="module" src="/src/main.tsx"></script>
+  <script type="module" src="/src/main.tsx"></script>
+  
+  <!-- Load non-critical CSS asynchronously after page load -->
+  <script>
+    window.addEventListener('load', function() {
+      // Create link element for the main CSS file
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/src/index.css';
+      link.media = 'print';
+      link.onload = function() {
+        this.media = 'all';
+      };
+      document.head.appendChild(link);
+      
+      // Fallback for browsers that don't support onload
+      setTimeout(function() {
+        link.media = 'all';
+      }, 100);
+    });
+  </script>
     
     <!-- Hide loader once React content loads -->
     <script>
