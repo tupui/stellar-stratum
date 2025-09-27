@@ -207,9 +207,6 @@ export const GroupedTransactionItem = ({
                 className="h-7 px-2 shrink-0"
               >
                 {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                <span className="ml-1 text-xs">
-                  {groupedTx.count}
-                </span>
               </Button>
             ) : (
               <Button
