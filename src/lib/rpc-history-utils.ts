@@ -145,6 +145,21 @@ export const normalizeRpcTransaction = (
 // returns raw XDR that would need to be parsed to extract individual operations.
 // This is a complete migration focused on getting transaction history beyond 1 year limit.
 
+// Get latest ledger info to set proper bounds
+export const getLatestLedger = async (network: 'mainnet' | 'testnet') => {
+  const server = createHistoryRpcServer(network);
+  
+  try {
+    const latestLedger = await retryWithBackoff(() => 
+      runRpcLimited(() => server.getLatestLedger())
+    );
+    return latestLedger;
+  } catch (error) {
+    console.error('Failed to get latest ledger:', error);
+    throw error;
+  }
+};
+
 // Fetch transactions using RPC getTransactions
 export const fetchAccountTransactionsViaRpc = async (
   publicKey: string,
@@ -165,6 +180,18 @@ export const fetchAccountTransactionsViaRpc = async (
   
   console.log('Making RPC call with params:', { publicKey, network, cursor, limit, startLedger });
   const server = createHistoryRpcServer(network);
+  
+  // If no startLedger provided and no cursor, get latest ledger to set proper bounds
+  if (!startLedger && !cursor) {
+    try {
+      const latestLedgerInfo = await getLatestLedger(network);
+      console.log('Latest ledger info:', latestLedgerInfo);
+      // Use latest ledger as end point, let RPC determine appropriate start
+      startLedger = latestLedgerInfo.sequence;
+    } catch (error) {
+      console.warn('Could not get latest ledger, proceeding without startLedger:', error);
+    }
+  }
   
   // Build RPC request parameters
   const params: any = {
