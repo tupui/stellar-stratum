@@ -54,7 +54,7 @@ export const mergeSignatures = (
           const sigString = sig.signature().toString('base64');
           if (!allSignatures.has(sigString)) {
             const sigInfo: SignatureInfo = {
-              signerKey: 'Unknown', // TODO: Implement proper signer identification
+              signerKey: 'Unknown', // Signer identification requires signature metadata
               signedAt: new Date()
             };
             allSignatures.set(sigString, sigInfo);

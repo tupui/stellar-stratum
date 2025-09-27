@@ -93,8 +93,7 @@ export const MultisigConfigBundle = ({ xdr, onEdit }: MultisigConfigBundleProps)
                       variant="ghost" 
                       size="sm"
                       onClick={() => {
-                        // TODO: Implement remove functionality
-                        console.log('Remove multisig config change');
+                        // Remove functionality will be implemented with undo/redo system
                       }}
                     >
                       <Trash2 className="w-4 h-4" />

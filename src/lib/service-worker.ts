@@ -12,7 +12,7 @@ export const registerServiceWorker = () => {
           scope: '/'
         });
 
-        console.log('ServiceWorker registered successfully:', registration.scope);
+        if (import.meta.env.DEV) console.log('ServiceWorker registered successfully:', registration.scope);
 
         // Handle updates
         registration.addEventListener('updatefound', () => {
@@ -31,13 +31,13 @@ export const registerServiceWorker = () => {
 
         // Listen for messages from service worker
         navigator.serviceWorker.addEventListener('message', (event) => {
-          if (event.data.type === 'CACHE_UPDATED') {
+          if (event.data.type === 'CACHE_UPDATED' && import.meta.env.DEV) {
             console.log('Cache updated:', event.data.url);
           }
         });
 
       } catch (error) {
-        console.log('ServiceWorker registration failed:', error);
+        if (import.meta.env.DEV) console.log('ServiceWorker registration failed:', error);
       }
     });
   }
@@ -90,7 +90,7 @@ export const clearAppCaches = async () => {
       }
     });
 
-    console.log('All app caches cleared');
+    if (import.meta.env.DEV) console.log('All app caches cleared');
   } catch (error) {
     console.error('Failed to clear caches:', error);
   }
