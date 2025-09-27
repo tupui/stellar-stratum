@@ -1,5 +1,6 @@
 import { Contract, rpc, Networks, TransactionBuilder } from '@stellar/stellar-sdk';
 import { buildAssetScVal, type Asset } from './xdr-helper';
+import { createOracleRpcServer } from '../rpc-client';
 
 export interface OracleConfig {
   contract: string;
@@ -60,10 +61,10 @@ export class OracleClient {
   private static ASSETS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
   private static PRICE_TTL_MS = 60 * 1000; // 60s
 
-  constructor(contractId: string, rpcUrl: string = 'https://rpc.lightsail.network') {
+  constructor(contractId: string, network: 'mainnet' | 'testnet' = 'mainnet') {
     this.contractId = contractId;
     this.contract = new Contract(contractId);
-    this.rpcServer = new rpc.Server(rpcUrl);
+    this.rpcServer = createOracleRpcServer(network);
   }
 
   /**

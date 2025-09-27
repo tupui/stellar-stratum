@@ -1,5 +1,5 @@
 import { rpc, Horizon } from '@stellar/stellar-sdk';
-import { appConfig } from './appConfig';
+import { createHistoryRpcServer } from './rpc-client';
 import type { NormalizedTransaction, ActivityCategory } from './horizon-utils';
 
 // Shared constants for filtering transactions/payments
@@ -59,11 +59,7 @@ function runRpcLimited<T>(fn: () => Promise<T>): Promise<T> {
   return task;
 }
 
-// Create RPC server for specific network - using archive endpoints for historical data
-export const createRpcServer = (network: 'mainnet' | 'testnet') => {
-  const rpcUrl = network === 'testnet' ? appConfig.TESTNET_ARCHIVE_RPC : appConfig.MAINNET_ARCHIVE_RPC;
-  return new rpc.Server(rpcUrl);
-};
+// Note: RPC server creation moved to centralized rpc-client.ts
 
 // Helper to get/set cache with TTL
 const getCachedResponse = (key: string): unknown | null => {
@@ -166,7 +162,7 @@ export const fetchAccountTransactionsViaRpc = async (
     return cached as any;
   }
   
-  const server = createRpcServer(network);
+  const server = createHistoryRpcServer(network);
   
   // Build RPC request parameters
   const params: any = {

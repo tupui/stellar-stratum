@@ -4,6 +4,7 @@
 
 import { isValidDomain } from './validation';
 import { appConfig } from './appConfig';
+import { createDomainsRpcServer } from './rpc-client';
 
 interface SorobanDomainResult {
   address: string;
@@ -35,8 +36,7 @@ export const resolveSorobanDomain = async (
 
     // Use proper SDK structure with consistent config
     const networkPassphrase = network === 'testnet' ? StellarSDK.Networks.TESTNET : StellarSDK.Networks.PUBLIC;
-    const rpcUrl = network === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC;
-    const rpcServer = new StellarSDK.rpc.Server(rpcUrl);
+    const rpcServer = createDomainsRpcServer(network);
     
     const sdk = new SorobanDomainsSDK({
       stellarSDK: StellarSDK,
