@@ -8,9 +8,9 @@ export const appConfig = {
   MAINNET_HORIZON: 'https://horizon.stellar.org',
   TESTNET_HORIZON: 'https://horizon-testnet.stellar.org',
   
-  // Soroban RPC URLs
-  MAINNET_SOROBAN_RPC: 'https://mainnet.sorobanrpc.com',
-  TESTNET_SOROBAN_RPC: 'https://testnet.sorobanrpc.com',
+  // Soroban RPC URLs - Using Quasar Lightsail for better historical data access
+  MAINNET_SOROBAN_RPC: 'https://archive-rpc.lightsail.network',
+  TESTNET_SOROBAN_RPC: 'https://archive-rpc.lightsail.network',
   
   // API endpoints
   REFRACTOR_API_BASE: 'https://api.refractor.space/tx',
