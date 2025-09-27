@@ -19,9 +19,9 @@ interface RpcCacheEntry {
 const rpcCache = new Map<string, RpcCacheEntry>();
 const RPC_CACHE_TTL = 5 * 60 * 1000; // 5 minutes for API responses
 
-// RPC rate limiting (similar to oracle client pattern)
+// RPC rate limiting - Quasar Lightsail Network limits
 const WINDOW_MS = 10_000; // 10 seconds
-const BURST_LIMIT = 30; // Conservative limit for getTransactions
+const BURST_LIMIT = 60; // Quasar Lightsail limit: 60 requests per 10 seconds
 let rpcTimestamps: number[] = [];
 let rpcQueue: Promise<any> = Promise.resolve();
 
