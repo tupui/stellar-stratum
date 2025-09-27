@@ -51,25 +51,25 @@ export const GroupedTransactionItem = ({
   const renderTransactionContent = (tx: GroupedTransaction, isMain = true) => (
     <>
       <div className={cn(
-        "p-2 rounded-full transition-colors shrink-0",
+        "p-1.5 sm:p-2 rounded-full transition-colors shrink-0",
         tx.direction === 'out' 
           ? "bg-destructive/20 text-destructive"
           : "bg-success/20 text-success"
       )}>
         {tx.direction === 'out' ? 
-          <ArrowUpRight className="w-4 h-4" /> : 
-          <ArrowDownLeft className="w-4 h-4" />
+          <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" /> : 
+          <ArrowDownLeft className="w-3 h-3 sm:w-4 sm:h-4" />
         }
       </div>
       
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
+      <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
             {tx.category === 'transfer' && (
-              <span className="font-medium text-sm sm:text-base font-amount tabular-nums">
+              <span className="font-medium text-sm font-amount tabular-nums">
                 {tx.isGrouped && isMain ? (
                   <>
-                    {tx.direction === 'out' ? 'Sent combined' : 'Received combined'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
+                    {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
                     <span className="text-muted-foreground ml-1">({tx.count}×)</span>
                   </>
                 ) : (
@@ -80,10 +80,10 @@ export const GroupedTransactionItem = ({
               </span>
             )}
             {tx.category === 'swap' && (
-              <span className="font-medium text-sm sm:text-base flex items-center gap-1 flex-wrap">
-                <Replace className="w-4 h-4 shrink-0" />
+              <span className="font-medium text-sm flex items-center gap-1 flex-wrap">
+                <Replace className="w-3 h-3 shrink-0" />
                 <span className="font-amount tabular-nums break-all">
-                  {tx.isGrouped && isMain ? 'Combined swaps' : (
+                  {tx.isGrouped && isMain ? 'Swaps' : (
                     `${(tx.swapFromAmount ?? 0).toFixed(2)} ${tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}`
                   )} {!tx.isGrouped || !isMain ? '→ ' + `${(tx.swapToAmount ?? 0).toFixed(2)} ${tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}` : ''}
                 </span>
@@ -93,31 +93,31 @@ export const GroupedTransactionItem = ({
               </span>
             )}
             {tx.category === 'contract' && (
-              <span className="font-medium text-sm sm:text-base flex items-center gap-1">
-                <Code2 className="w-4 h-4 shrink-0" />
-                {tx.isGrouped && isMain ? 'Combined contract calls' : 'Contract call'}
+              <span className="font-medium text-sm flex items-center gap-1">
+                <Code2 className="w-3 h-3 shrink-0" />
+                {tx.isGrouped && isMain ? 'Contract calls' : 'Contract call'}
                 {tx.isGrouped && isMain && (
                   <span className="text-muted-foreground ml-1">({tx.count}×)</span>
                 )}
               </span>
             )}
             {tx.category === 'config' && (
-              <span className="font-medium text-sm sm:text-base flex items-center gap-1">
-                <Settings className="w-4 h-4 shrink-0" />
-                {tx.isGrouped && isMain ? 'Combined configuration changes' : 'Configuration change'}
+              <span className="font-medium text-sm flex items-center gap-1">
+                <Settings className="w-3 h-3 shrink-0" />
+                {tx.isGrouped && isMain ? 'Config changes' : 'Config change'}
                 {tx.isGrouped && isMain && (
                   <span className="text-muted-foreground ml-1">({tx.count}×)</span>
                 )}
               </span>
             )}
-            <Badge variant="secondary" className="text-xs shrink-0">
+            <Badge variant="secondary" className="text-xs shrink-0 hidden sm:inline-flex">
               {tx.type}
             </Badge>
           </div>
         </div>
         
         {tx.counterparty && (
-          <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span className="font-mono break-all">
               {truncateAddress(tx.counterparty)}
             </span>
@@ -128,12 +128,12 @@ export const GroupedTransactionItem = ({
                 e.stopPropagation();
                 copyAddress(tx.counterparty!);
               }}
-              className="h-6 w-6 p-0 hover:bg-secondary shrink-0"
+              className="h-4 w-4 p-0 hover:bg-secondary shrink-0"
             >
               {copiedAddress === tx.counterparty ? (
-                <Check className="w-3 h-3 text-success" />
+                <Check className="w-2.5 h-2.5 text-success" />
               ) : (
-                <Copy className="w-3 h-3" />
+                <Copy className="w-2.5 h-2.5" />
               )}
             </Button>
           </div>
@@ -170,13 +170,13 @@ export const GroupedTransactionItem = ({
   return (
     <div className="rounded-lg border transition-colors hover:bg-secondary/50">
       {/* Main transaction row */}
-      <div className="p-3 sm:p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="p-2 sm:p-4">
+        <div className="flex items-center gap-2 sm:gap-3">
           {renderTransactionContent(groupedTx)}
           
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 w-full sm:w-auto">
-            <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2 sm:gap-1">
-              <div className="font-medium text-base sm:text-lg font-amount tabular-nums">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="text-right">
+              <div className="font-medium text-sm sm:text-lg font-amount tabular-nums">
                 {fiatLoading ? (
                   <LoadingPill size="sm" />
                 ) : showNA ? (
@@ -185,48 +185,45 @@ export const GroupedTransactionItem = ({
                   formatFiatAmount(groupedTx.isGrouped ? totalFiatAmount : mainFiatAmount)
                 )}
               </div>
-              <div className="text-xs sm:text-sm text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 {groupedTx.isGrouped && groupedTx.oldestTransaction && groupedTx.latestTransaction ? (
-                  <div className="text-right">
-                    <div>{format(groupedTx.latestTransaction.createdAt, 'MMM dd, HH:mm')}</div>
+                  <>
+                    <div>{format(groupedTx.latestTransaction.createdAt, 'MMM dd')}</div>
                     {groupedTx.oldestTransaction.id !== groupedTx.latestTransaction.id && (
-                      <div className="text-xs opacity-75">to {format(groupedTx.oldestTransaction.createdAt, 'MMM dd, HH:mm')}</div>
+                      <div className="opacity-75">to {format(groupedTx.oldestTransaction.createdAt, 'MMM dd')}</div>
                     )}
-                  </div>
+                  </>
                 ) : (
-                  format(groupedTx.createdAt, 'MMM dd, HH:mm')
+                  format(groupedTx.createdAt, 'MMM dd')
                 )}
               </div>
             </div>
             
-            <div className="flex gap-2 sm:gap-1 justify-end">
-              {groupedTx.isGrouped ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="h-8 px-3 shrink-0"
-                >
-                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  <span className="ml-1 sm:hidden">
-                    {isExpanded ? 'Hide' : 'Show'} {groupedTx.count}
-                  </span>
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openTransactionExplorer(groupedTx.transactionHash);
-                  }}
-                  className="h-8 px-3 shrink-0"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span className="ml-1 sm:hidden">View</span>
-                </Button>
-              )}
-            </div>
+            {groupedTx.isGrouped ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="h-7 px-2 shrink-0"
+              >
+                {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                <span className="ml-1 text-xs">
+                  {groupedTx.count}
+                </span>
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openTransactionExplorer(groupedTx.transactionHash);
+                }}
+                className="h-7 px-2 shrink-0"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
