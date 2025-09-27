@@ -697,11 +697,11 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 return (
                   <div
                     key={tx.id}
-                    className="flex items-center justify-between p-3 rounded-lg border transition-colors hover:bg-secondary/50"
+                    className="p-3 rounded-lg border transition-colors hover:bg-secondary/50 space-y-2 sm:space-y-0"
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="flex items-start sm:items-center gap-3">
                       <div className={cn(
-                        "p-2 rounded-full transition-colors",
+                        "p-2 rounded-full transition-colors shrink-0",
                         tx.direction === 'out' 
                           ? "bg-destructive/20 text-destructive"
                           : "bg-success/20 text-success"
@@ -712,77 +712,80 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                         }
                       </div>
                       
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          {tx.category === 'transfer' && (
-                            <span className="font-medium text-sm font-amount tabular-nums">
-                              {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
-                            </span>
-                          )}
-                          {tx.category === 'swap' && (
-                            <span className="font-medium text-sm flex items-center gap-1">
-                              <Replace className="w-4 h-4" />
-                              <span className="font-amount tabular-nums">
-                                {`${(tx.swapFromAmount ?? 0).toFixed(2)} ${tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}`} → {`${(tx.swapToAmount ?? 0).toFixed(2)} ${tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}`}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {tx.category === 'transfer' && (
+                              <span className="font-medium text-sm sm:text-base font-amount tabular-nums">
+                                {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
                               </span>
-                            </span>
-                          )}
-                          {tx.category === 'contract' && (
-                            <span className="font-medium text-sm flex items-center gap-1">
-                              <Code2 className="w-4 h-4" /> Contract call
-                            </span>
-                          )}
-                          {tx.category === 'config' && (
-                            <span className="font-medium text-sm flex items-center gap-1">
-                              <Settings className="w-4 h-4" /> Configuration change
-                          </span>
-                          )}
-                          <Badge variant="secondary" className="text-xs">
-                            {tx.type}
-                          </Badge>
+                            )}
+                            {tx.category === 'swap' && (
+                              <span className="font-medium text-sm sm:text-base flex items-center gap-1 flex-wrap">
+                                <Replace className="w-4 h-4 shrink-0" />
+                                <span className="font-amount tabular-nums break-all">
+                                  {`${(tx.swapFromAmount ?? 0).toFixed(2)} ${tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}`} → {`${(tx.swapToAmount ?? 0).toFixed(2)} ${tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}`}
+                                </span>
+                              </span>
+                            )}
+                            {tx.category === 'contract' && (
+                              <span className="font-medium text-sm sm:text-base flex items-center gap-1">
+                                <Code2 className="w-4 h-4 shrink-0" /> Contract call
+                              </span>
+                            )}
+                            {tx.category === 'config' && (
+                              <span className="font-medium text-sm sm:text-base flex items-center gap-1">
+                                <Settings className="w-4 h-4 shrink-0" /> Configuration change
+                              </span>
+                            )}
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              {tx.type}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span className="font-amount">
+                        
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+                          <span className="font-amount break-all">
                             {truncateAddress(tx.counterparty)}
                           </span>
-                          <span>•</span>
-                          <span>
+                          <span className="hidden sm:inline">•</span>
+                          <span className="text-xs">
                             {formatDistanceToNow(tx.createdAt, { addSuffix: true })}
                           </span>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
-                        <div className="font-medium text-sm font-amount tabular-nums">
-                          {fiatLoading ? (
-                            <LoadingPill size="sm" />
-                          ) : showNA ? (
-                            'N/A'
-                          ) : (
-                            formatFiatAmount(fiatAmount)
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {format(tx.createdAt, 'MMM dd, HH:mm')}
-                        </div>
-                      </div>
                       
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const expertUrl = network === 'testnet' 
-                            ? `https://stellar.expert/explorer/testnet/tx/${tx.transactionHash}`
-                            : `https://stellar.expert/explorer/public/tx/${tx.transactionHash}`;
-                          window.open(expertUrl, '_blank');
-                        }}
-                        className="shrink-0"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </Button>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
+                        <div className="text-right">
+                          <div className="font-medium text-sm sm:text-base font-amount tabular-nums">
+                            {fiatLoading ? (
+                              <LoadingPill size="sm" />
+                            ) : showNA ? (
+                              'N/A'
+                            ) : (
+                              formatFiatAmount(fiatAmount)
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground whitespace-nowrap">
+                            {format(tx.createdAt, 'MMM dd, HH:mm')}
+                          </div>
+                        </div>
+                        
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const expertUrl = network === 'testnet' 
+                              ? `https://stellar.expert/explorer/testnet/tx/${tx.transactionHash}`
+                              : `https://stellar.expert/explorer/public/tx/${tx.transactionHash}`;
+                            window.open(expertUrl, '_blank');
+                          }}
+                          className="shrink-0 self-start sm:self-center"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
