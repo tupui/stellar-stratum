@@ -50,7 +50,7 @@ const groupTransactions = (transactions: NormalizedTransaction[]): GroupedTransa
     const similarTransactions = sortedTransactions.filter(otherTx => {
       if (processedIds.has(otherTx.id) || otherTx.id === tx.id) return false;
       
-      // Group by identical properties
+      // Group by identical properties (no time restriction)
       return (
         tx.type === otherTx.type &&
         tx.category === otherTx.category &&
@@ -64,9 +64,7 @@ const groupTransactions = (transactions: NormalizedTransaction[]): GroupedTransa
           tx.swapFromAssetIssuer === otherTx.swapFromAssetIssuer &&
           tx.swapToAssetCode === otherTx.swapToAssetCode &&
           tx.swapToAssetIssuer === otherTx.swapToAssetIssuer
-        )) &&
-        // Group transactions that occur within the same hour (for batch operations)
-        Math.abs(new Date(tx.createdAt).getTime() - new Date(otherTx.createdAt).getTime()) < 60 * 60 * 1000
+        ))
       );
     });
 
