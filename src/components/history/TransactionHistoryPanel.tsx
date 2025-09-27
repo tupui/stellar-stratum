@@ -512,7 +512,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                   onClick={clearFilters}
                   className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  Clear All
+                  Reset
                 </Button>
               </div>
             </div>
