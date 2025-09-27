@@ -252,15 +252,15 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
 
         // Update cursor and hasMore from RPC response
         let newCursor: string | undefined;
-        if (rpcResp.transactions && rpcResp.transactions.length > 0) {
-          // RPC uses cursor for pagination
+        if (rpcResp.transactions && rpcResp.transactions.length > 0 && rpcResp.cursor) {
+          // Use RPC-provided cursor for pagination when available
           newCursor = rpcResp.cursor;
           setCursor(newCursor);
           console.log('Set cursor to:', newCursor);
         }
         
-        const rpcHasMore = rpcResp.transactions && rpcResp.transactions.length === INITIAL_LIMIT;
-        setHasMore(!!rpcHasMore);
+        const rpcHasMore = !!rpcResp.cursor;
+        setHasMore(rpcHasMore);
         console.log('Has more transactions:', rpcHasMore);
 
         const now = new Date();
@@ -333,12 +333,12 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
       normalizedTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       // Update cursor and hasMore from RPC response
-      if (rpcResp.transactions && rpcResp.transactions.length > 0) {
+      if (rpcResp.cursor) {
         setCursor(rpcResp.cursor);
       }
       
-      const rpcHasMore = rpcResp.transactions && rpcResp.transactions.length === LOAD_MORE_LIMIT;
-      setHasMore(!!rpcHasMore);
+      const rpcHasMore = !!rpcResp.cursor;
+      setHasMore(rpcHasMore);
       
       setTransactions(prev => {
         // Deduplicate based on transaction ID
@@ -350,7 +350,7 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
         if (newTransactions.length > 0) {
           const newPage: CachedPage = {
             transactions: newTransactions,
-            cursor: cursor || '',
+            cursor: rpcResp.cursor || cursor || '',
             timestamp: Date.now(),
           };
           

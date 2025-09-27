@@ -1,10 +1,11 @@
-import { Transaction, FeeBumpTransaction, TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+import { Transaction, FeeBumpTransaction, TransactionBuilder, Networks, xdr } from '@stellar/stellar-sdk';
 
 export interface ParsedTransaction {
   tx: Transaction | FeeBumpTransaction;
   network: 'public' | 'testnet';
   isFeeBump: boolean;
 }
+
 
 /**
  * Robust XDR parsing that supports both classic and fee-bump transactions
@@ -65,4 +66,18 @@ export const getInnerTransaction = (tx: Transaction | FeeBumpTransaction): Trans
 export const getSourceAccount = (tx: Transaction | FeeBumpTransaction): string => {
   const innerTx = getInnerTransaction(tx);
   return innerTx.source;
+};
+
+/**
+ * Check if TransactionResult XDR indicates success
+ */
+export const isSuccessfulResultXdr = (resultXdr: string): boolean => {
+  try {
+    const res = xdr.TransactionResult.fromXDR(resultXdr, 'base64');
+    const code = res.result().switch().name as string;
+    return code === 'txSuccess' || code === 'txFeeBumpInnerSuccess';
+  } catch {
+    // If we can't parse, don't block listing; treat as success
+    return true;
+  }
 };

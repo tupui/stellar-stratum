@@ -1,6 +1,7 @@
 import { rpc, Horizon } from '@stellar/stellar-sdk';
 import { createHistoryRpcServer } from './rpc-client';
 import type { NormalizedTransaction, ActivityCategory } from './horizon-utils';
+import { tryParseTransaction, getSourceAccount, isSuccessfulResultXdr } from './xdr/parse';
 
 // Shared constants for filtering transactions/payments
 export const MIN_NATIVE_PAYMENT_XLM = 1; // Minimum XLM amount to avoid spam
@@ -109,9 +110,25 @@ export const normalizeRpcTransaction = (
   const results: NormalizedTransaction[] = [];
   
   try {
-    // All transactions from RPC with account filter should be successful and related to the account
+    // Validate fields and ensure this transaction was initiated by our account
+    const envelopeXdr: unknown = transaction.envelopeXdr;
+    if (typeof envelopeXdr !== 'string' || envelopeXdr.length === 0) {
+      return results;
+    }
+
+    const parsed = tryParseTransaction(envelopeXdr);
+    if (!parsed) {
+      return results;
+    }
+
+    const source = getSourceAccount(parsed.tx);
+    if (source !== accountPublicKey) {
+      // Not our transaction, skip to avoid unrelated contract calls
+      return results;
+    }
+
     const createdAt = new Date(transaction.createdAt * 1000); // RPC returns unix timestamp
-    
+
     // Validate the date
     if (isNaN(createdAt.getTime()) || createdAt.getTime() <= 0) {
       if (import.meta.env.DEV) {
@@ -119,27 +136,26 @@ export const normalizeRpcTransaction = (
       }
       return results;
     }
-    
-    // Add debug logging to understand what we're getting
-    console.log('Processing transaction:', transaction.txHash, 'for account:', accountPublicKey);
 
-    // For now, create individual contract transactions with unique IDs to prevent grouping
-    // This avoids the "Contract calls (50x)" issue by making each transaction unique
-    const randomSuffix = Math.random().toString(36).substring(7);
-    const uniqueTransaction: NormalizedTransaction = {
-      id: `${transaction.txHash}-${randomSuffix}-rpc`,
+    // Only include successful transactions when possible
+    if (typeof transaction.resultXdr === 'string') {
+      const ok = isSuccessfulResultXdr(transaction.resultXdr);
+      if (!ok) {
+        return results;
+      }
+    }
+
+    // Minimal normalized record for our own contract transactions
+    const normalized: NormalizedTransaction = {
+      id: `${transaction.txHash}-rpc`,
       createdAt,
       type: 'invoke_host_function',
       category: 'contract',
       transactionHash: transaction.txHash,
-      // Add a small random amount to differentiate transactions
-      amount: Math.random() * 0.001, // Very small amount just to make them different
-      assetType: 'native',
-      assetCode: 'XLM',
     };
-    
-    results.push(uniqueTransaction);
-    
+
+    results.push(normalized);
+
     return results;
   } catch (error) {
     if (import.meta.env.DEV) {
