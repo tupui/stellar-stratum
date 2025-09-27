@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAccountHistory } from '@/hooks/useAccountHistory';
 import { useFiatConversion } from '@/hooks/useFiatConversion';
-import { getXlmUsdRateForDate, primeXlmUsdRates } from '@/lib/kraken';
+import { getXlmUsdRateForDate, primeXlmUsdRates, getUsdRateForDateByAsset, primeUsdRatesForAsset } from '@/lib/kraken';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -146,9 +146,23 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         // Ignore rate fetching errors, continue with current prices
       }
 
-      // We compute fiat at transaction time:
-      // - For XLM: use CF Benchmarks XLMUSD_RR for the transaction date
-      // - For other assets: fall back to current Reflector price (best-effort)
+      // We compute fiat at transaction time using Kraken OHLC USD rates per asset and the transaction date
+      // Prime non-XLM asset OHLC windows upfront so per-tx lookups hit cache as well
+      try {
+        const end = new Date();
+        const assets = Array.from(new Set(transactions
+          .filter(t => t.assetType !== 'native' && t.assetCode)
+          .map(t => t.assetCode!)));
+        await Promise.all(assets.map(code => {
+          const earliestForAsset = transactions
+            .filter(t => t.assetCode === code)
+            .reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
+          const s = new Date(earliestForAsset);
+          return primeUsdRatesForAsset(code, s, end);
+        }));
+      } catch {
+        // Ignore asset priming errors; we'll fall back to per-tx fetch
+      }
 
       // Pre-compute FX factor once (USD -> target fiat)
       let fxFactor = 1;
@@ -160,25 +174,14 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         fxFactor = 1;
       }
 
-      // Cache for non-XLM asset prices to avoid N calls
-      const otherPriceCache = new Map<string, number>();
       for (const tx of transactions) {
         const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
         let usdPrice = 0;
         if (tx.assetType === 'native') {
           usdPrice = await getXlmUsdRateForDate(txDate);
         } else {
-          // For non-XLM assets, use current smart contract prices
-          const key = `${tx.assetCode}:${tx.assetIssuer}`;
-          if (!otherPriceCache.has(key)) {
-            try {
-              const p = await getAssetPrice(tx.assetCode!, tx.assetIssuer);
-              otherPriceCache.set(key, p || 0);
-            } catch {
-              otherPriceCache.set(key, 0);
-            }
-          }
-          usdPrice = otherPriceCache.get(key) || 0;
+          // Non-XLM assets: use Kraken USD OHLC for the transaction date
+          usdPrice = await getUsdRateForDateByAsset(tx.assetCode!, txDate);
         }
 
         if (!usdPrice || !tx.amount) {

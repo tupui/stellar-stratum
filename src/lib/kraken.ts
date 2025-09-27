@@ -43,12 +43,43 @@ function cleanup() { const now = Date.now(); stamps = stamps.filter(t => now - t
 async function acquire() { cleanup(); const now = Date.now(); if (stamps.length < LIMIT) { stamps.push(now); return; } const wait = Math.max(0, WINDOW_MS - (now - stamps[0])); if (wait > 0) await sleep(wait); cleanup(); stamps.push(Date.now()); }
 function runLimited<T>(fn: () => Promise<T>): Promise<T> { const task = q.then(async () => { await acquire(); return await fn(); }); q = task.then(() => undefined).catch(() => undefined); return task; }
 
-// Fetch daily candles between start..now (Kraken supports `since` and returns recent candles). Interval=1440 (1D)
-const fetchDaily = async (start: Date): Promise<void> => {
+// Generic helpers for per-asset caching
+const getAssetCacheKeys = (asset: string) => {
+  const code = (asset || 'XLM').toUpperCase();
+  return {
+    cacheKey: `kraken_${code}_usd_ohlc_daily_v1`,
+    lastKey: `kraken_${code}_usd_last_fetch_ts`
+  };
+};
+const loadCacheFor = (asset: string): DailyMap => {
+  try {
+    const { cacheKey } = getAssetCacheKeys(asset);
+    const raw = localStorage.getItem(cacheKey);
+    return raw ? (JSON.parse(raw) as DailyMap) : {};
+  } catch {
+    return {};
+  }
+};
+const saveCacheFor = (asset: string, map: DailyMap) => {
+  try {
+    const { cacheKey } = getAssetCacheKeys(asset);
+    localStorage.setItem(cacheKey, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+};
+
+const PAIRS_MAP: Record<string, string[]> = {
+  XLM: ['XLMUSD', 'XXLMZUSD'],
+  USDC: ['USDCUSD', 'USDCZUSD'],
+};
+
+// Generic fetcher per asset
+const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => {
   const since = Math.floor(start.getTime() / 1000);
   const baseUrl = 'https://api.kraken.com/0/public/OHLC';
-  const pairs = ['XLMUSD', 'XXLMZUSD']; // try both, first succeeds on most setups
-
+  const code = (asset || 'XLM').toUpperCase();
+  const pairs = PAIRS_MAP[code] || [`${code}USD`, `${code}ZUSD`];
   for (const pair of pairs) {
     try {
       const url = `${baseUrl}?pair=${encodeURIComponent(pair)}&interval=1440&since=${since}`;
@@ -60,7 +91,7 @@ const fetchDaily = async (start: Date): Promise<void> => {
       if (keys.length === 0) continue;
       const arr: any[] = json.result[keys[0]];
       if (!Array.isArray(arr)) continue;
-      const cache = loadCache();
+      const cache = loadCacheFor(code);
       for (const row of arr) {
         // row: [time, open, high, low, close, vwap, volume, count]
         const ts = row[0];
@@ -69,10 +100,8 @@ const fetchDaily = async (start: Date): Promise<void> => {
         const key = toDateKey(new Date(ts * 1000));
         cache[key] = close;
       }
-      saveCache(cache);
-      try { localStorage.setItem(LAST_FETCH_TS_KEY, String(Date.now())); } catch {
-        // Ignore localStorage errors
-      }
+      saveCacheFor(code, cache);
+      try { const { lastKey } = getAssetCacheKeys(code); localStorage.setItem(lastKey, String(Date.now())); } catch {}
       return;
     } catch {
       // try next pair
@@ -80,30 +109,51 @@ const fetchDaily = async (start: Date): Promise<void> => {
   }
 };
 
-export const primeXlmUsdRates = async (start: Date, end: Date): Promise<void> => {
-  // Avoid re-fetching if recently populated
+
+export const primeUsdRatesForAsset = async (asset: string, start: Date, end: Date): Promise<void> => {
+  const code = (asset || 'XLM').toUpperCase();
+  const LAST_KEY = `kraken_${code}_usd_last_fetch_ts`;
   try {
-    const lastTs = Number(localStorage.getItem(LAST_FETCH_TS_KEY) || '0');
+    const lastTs = Number(localStorage.getItem(LAST_KEY) || '0');
     if (lastTs && (Date.now() - lastTs) < TTL_MS) return;
   } catch {
     // Ignore localStorage errors (private mode, quota exceeded)
   }
-  if (inFlight) { await inFlight; return; }
-  inFlight = (async () => {
+  // Per-asset in-flight deduplication
+  const mapKey = `__inflight_${code}` as const;
+  // @ts-ignore - attach dynamically on window to persist between HMRs
+  (window as any)[mapKey] = (window as any)[mapKey] || null;
+  const inflightRef: { current: Promise<void> | null } = { current: (window as any)[mapKey] };
+  if (inflightRef.current) { await inflightRef.current; return; }
+  inflightRef.current = (async () => {
     const s = new Date(start.getTime() - 2 * 24 * 3600 * 1000);
-    await fetchDaily(s);
-    inFlight = null;
+    await fetchDailyForAsset(code, s);
+    // @ts-ignore
+    (window as any)[mapKey] = null;
   })();
-  await inFlight;
+  // @ts-ignore
+  (window as any)[mapKey] = inflightRef.current;
+  await inflightRef.current;
+};
+
+export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promise<number> => {
+  const code = (asset || 'XLM').toUpperCase();
+  const key = toDateKey(date);
+  const cache = loadCacheFor(code);
+  if (cache[key]) return cache[key];
+  await primeUsdRatesForAsset(code, new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
+  const updated = loadCacheFor(code);
+  return updated[key] || 0;
+};
+
+// Backwards-compatible XLM wrappers
+export const primeXlmUsdRates = async (start: Date, end: Date): Promise<void> => {
+  await primeUsdRatesForAsset('XLM', start, end);
 };
 
 export const getXlmUsdRateForDate = async (date: Date): Promise<number> => {
-  const key = toDateKey(date);
-  const cache = loadCache();
-  if (cache[key]) return cache[key];
-  await primeXlmUsdRates(new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
-  const updated = loadCache();
-  return updated[key] || 0;
+  return getUsdRateForDateByAsset('XLM', date);
 };
+
 
 
