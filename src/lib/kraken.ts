@@ -4,6 +4,7 @@
 type DailyMap = Record<string, number>; // yyyy-mm-dd -> USD close
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6h cache for a full sweep
+const PAIRS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h cache for supported pairs
 
 const toDateKey = (d: Date): string => {
   const y = d.getUTCFullYear();
@@ -24,6 +25,82 @@ function runLimited<T>(fn: () => Promise<T>): Promise<T> { const task = q.then(a
 
 // Request deduplication for Kraken fetches
 const inflightKrakenRequests = new Map<string, Promise<void>>();
+
+// Cache for supported Kraken pairs
+const SUPPORTED_PAIRS_CACHE_KEY = 'kraken_supported_pairs_v1';
+const SUPPORTED_PAIRS_TIMESTAMP_KEY = 'kraken_supported_pairs_timestamp_v1';
+let supportedPairsCache: Set<string> | null = null;
+
+// Fetch supported pairs from Kraken API
+const fetchSupportedPairs = async (): Promise<Set<string>> => {
+  try {
+    // Check if we have cached pairs and they're still fresh
+    const cachedTimestamp = localStorage.getItem(SUPPORTED_PAIRS_TIMESTAMP_KEY);
+    const cachedPairs = localStorage.getItem(SUPPORTED_PAIRS_CACHE_KEY);
+    
+    if (cachedTimestamp && cachedPairs) {
+      const timestamp = Number(cachedTimestamp);
+      if (Date.now() - timestamp < PAIRS_CACHE_TTL_MS) {
+        try {
+          const pairs = new Set(JSON.parse(cachedPairs) as string[]);
+          supportedPairsCache = pairs;
+          return pairs;
+        } catch {
+          // Invalid cached data, continue to fetch fresh
+        }
+      }
+    }
+
+    // Fetch fresh data from Kraken
+    const resp = await runLimited(() => 
+      fetch('https://api.kraken.com/0/public/AssetPairs', { mode: 'cors' as RequestMode })
+    );
+    
+    if (!resp.ok) {
+      // Fallback to cached data if API fails
+      if (cachedPairs) {
+        try {
+          const pairs = new Set(JSON.parse(cachedPairs) as string[]);
+          supportedPairsCache = pairs;
+          return pairs;
+        } catch {
+          // Invalid cached data, return empty set
+        }
+      }
+      throw new Error(`Failed to fetch supported pairs: ${resp.status}`);
+    }
+
+    const json: any = await resp.json();
+    if (!json?.result) {
+      throw new Error('Invalid response from Kraken AssetPairs API');
+    }
+
+    const pairs = new Set(Object.keys(json.result));
+    
+    // Cache the results
+    try {
+      localStorage.setItem(SUPPORTED_PAIRS_CACHE_KEY, JSON.stringify([...pairs]));
+      localStorage.setItem(SUPPORTED_PAIRS_TIMESTAMP_KEY, String(Date.now()));
+    } catch {
+      // Ignore localStorage errors
+    }
+    
+    supportedPairsCache = pairs;
+    return pairs;
+  } catch (error) {
+    console.warn('Failed to fetch Kraken supported pairs:', error);
+    // Return empty set on error to avoid trying invalid pairs
+    return new Set<string>();
+  }
+};
+
+// Get supported pairs (with caching)
+const getSupportedPairs = async (): Promise<Set<string>> => {
+  if (supportedPairsCache) {
+    return supportedPairsCache;
+  }
+  return await fetchSupportedPairs();
+};
 
 // Generic helpers for per-asset caching
 const getAssetCacheKeys = (asset: string) => {
@@ -51,28 +128,40 @@ const saveCacheFor = (asset: string, map: DailyMap) => {
   }
 };
 
-const PAIRS_MAP: Record<string, string[]> = {
-  XLM: ['XLMUSD', 'XXLMZUSD'],
-  USDC: ['USDCUSD', 'USDCZUSD'],
-  BTC: ['XBTUSD', 'XXBTZUSD'],
-  ETH: ['ETHUSD', 'XETHZUSD'],
-  ADA: ['ADAUSD', 'ADAZUSD'],
-  DOT: ['DOTUSD', 'DOTZUSD'],
-  MATIC: ['MATICUSD', 'MATICZUSD'],
-  AVAX: ['AVAXUSD', 'AVAXZUSD'],
-  ATOM: ['ATOMUSD', 'ATOMZUSD'],
-  SOL: ['SOLUSD', 'SOLZUSD'],
-  LINK: ['LINKUSD', 'LINKZUSD'],
-  UNI: ['UNIUSD', 'UNIZUSD'],
+// Generate potential pair names for an asset
+const generatePotentialPairs = (asset: string): string[] => {
+  const code = asset.toUpperCase();
+  return [
+    `${code}USD`,
+    `${code}ZUSD`,
+    `X${code}ZUSD`,
+    `${code}XUSD`,
+    `XX${code}ZUSD`
+  ];
 };
 
-// Generic fetcher per asset
+// Generic fetcher per asset - now checks supported pairs first
 const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => {
   const since = Math.floor(start.getTime() / 1000);
   const baseUrl = 'https://api.kraken.com/0/public/OHLC';
   const code = (asset || 'XLM').toUpperCase();
-  const pairs = PAIRS_MAP[code] || [`${code}USD`, `${code}ZUSD`];
-  for (const pair of pairs) {
+  
+  // Get supported pairs from Kraken
+  const supportedPairs = await getSupportedPairs();
+  
+  // Generate potential pairs and filter by what's actually supported
+  const potentialPairs = generatePotentialPairs(code);
+  const validPairs = potentialPairs.filter(pair => supportedPairs.has(pair));
+  
+  // If no valid pairs found, skip this asset
+  if (validPairs.length === 0) {
+    if (import.meta.env.DEV) {
+      console.warn(`No supported Kraken pairs found for asset: ${code}`);
+    }
+    return;
+  }
+
+  for (const pair of validPairs) {
     try {
       const url = `${baseUrl}?pair=${encodeURIComponent(pair)}&interval=1440&since=${since}`;
       const resp = await runLimited(() => fetch(url, { mode: 'cors' as RequestMode }));
