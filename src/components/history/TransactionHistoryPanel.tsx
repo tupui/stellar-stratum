@@ -36,6 +36,8 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TransactionChart } from './TransactionChart';
 import { LoadingPill } from '@/components/ui/loading-pill';
+import { useTransactionGrouping } from '@/hooks/useTransactionGrouping';
+import { GroupedTransactionItem } from './GroupedTransactionItem';
 
 interface TransactionHistoryPanelProps {
   accountPublicKey: string;
@@ -336,9 +338,12 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
     });
   }, [transactions, filters, selectedAsset.code, selectedAsset.issuer]);
 
-  // Calculate aggregated stats for filtered transactions (sum totals only)
+  // Group filtered transactions
+  const groupedTransactions = useTransactionGrouping(filteredTransactions);
+
+  // Calculate aggregated stats for grouped transactions (sum totals only)
   const aggregatedStats = useMemo((): AggregatedStats => {
-    const count = filteredTransactions.length;
+    const count = filteredTransactions.length; // Use original count for stats
     const totalAsset = filteredTransactions.reduce((sum, tx) => {
       const amt = tx.amount || 0;
       if (!tx.direction) return sum + amt; // fallback
@@ -449,7 +454,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
               Activity History
             </CardTitle>
             <CardDescription>
-              {filteredTransactions.length} transactions
+              {filteredTransactions.length} transactions{groupedTransactions.length !== filteredTransactions.length && ` (${groupedTransactions.length} groups)`}
               {lastSync && (
                 <> • Last updated {formatDistanceToNow(lastSync, { addSuffix: true })}</>
               )}
@@ -684,7 +689,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
               <RefreshCw className="w-6 h-6 mx-auto animate-spin text-muted-foreground mb-2" />
               <p className="text-muted-foreground">Loading transaction history...</p>
             </div>
-          ) : filteredTransactions.length === 0 ? (
+          ) : groupedTransactions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Hash className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No transactions found</p>
@@ -692,104 +697,19 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
             </div>
           ) : (
             <>
-              {filteredTransactions
+              {groupedTransactions
                 .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map((tx) => {
-                const fiatAmount = fiatAmounts.get(tx.id) || 0;
-                const showNA = (tx.amount || 0) > 0 && fiatAmount === 0;
-                
-                return (
-                  <div
-                    key={tx.id}
-                    className="p-3 rounded-lg border transition-colors hover:bg-secondary/50 space-y-2 sm:space-y-0"
-                  >
-                    <div className="flex items-start sm:items-center gap-3">
-                      <div className={cn(
-                        "p-2 rounded-full transition-colors shrink-0",
-                        tx.direction === 'out' 
-                          ? "bg-destructive/20 text-destructive"
-                          : "bg-success/20 text-success"
-                      )}>
-                        {tx.direction === 'out' ? 
-                          <ArrowUpRight className="w-4 h-4" /> : 
-                          <ArrowDownLeft className="w-4 h-4" />
-                        }
-                      </div>
-                      
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {tx.category === 'transfer' && (
-                              <span className="font-medium text-sm sm:text-base font-amount tabular-nums">
-                                {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
-                              </span>
-                            )}
-                            {tx.category === 'swap' && (
-                              <span className="font-medium text-sm sm:text-base flex items-center gap-1 flex-wrap">
-                                <Replace className="w-4 h-4 shrink-0" />
-                                <span className="font-amount tabular-nums break-all">
-                                  {`${(tx.swapFromAmount ?? 0).toFixed(2)} ${tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}`} → {`${(tx.swapToAmount ?? 0).toFixed(2)} ${tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}`}
-                                </span>
-                              </span>
-                            )}
-                            {tx.category === 'contract' && (
-                              <span className="font-medium text-sm sm:text-base flex items-center gap-1">
-                                <Code2 className="w-4 h-4 shrink-0" /> Contract call
-                              </span>
-                            )}
-                            {tx.category === 'config' && (
-                              <span className="font-medium text-sm sm:text-base flex items-center gap-1">
-                                <Settings className="w-4 h-4 shrink-0" /> Configuration change
-                              </span>
-                            )}
-                            <Badge variant="secondary" className="text-xs shrink-0">
-                              {tx.type}
-                            </Badge>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
-                          <span className="font-amount break-all">
-                            {truncateAddress(tx.counterparty)}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
-                        <div className="text-right">
-                          <div className="font-medium text-sm sm:text-base font-amount tabular-nums">
-                            {fiatLoading ? (
-                              <LoadingPill size="sm" />
-                            ) : showNA ? (
-                              'N/A'
-                            ) : (
-                              formatFiatAmount(fiatAmount)
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground whitespace-nowrap">
-                            {format(tx.createdAt, 'MMM dd, HH:mm')}
-                          </div>
-                        </div>
-                        
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const expertUrl = network === 'testnet' 
-                              ? `https://stellar.expert/explorer/testnet/tx/${tx.transactionHash}`
-                              : `https://stellar.expert/explorer/public/tx/${tx.transactionHash}`;
-                            window.open(expertUrl, '_blank');
-                          }}
-                          className="shrink-0 self-start sm:self-center"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                .map((groupedTx) => (
+                  <GroupedTransactionItem
+                    key={groupedTx.id}
+                    groupedTx={groupedTx}
+                    fiatAmounts={fiatAmounts}
+                    fiatLoading={fiatLoading}
+                    formatFiatAmount={formatFiatAmount}
+                    truncateAddress={truncateAddress}
+                    network={network}
+                  />
+                ))}
 
               {/* Load more / loading indicator */}
               {hasMore && (
