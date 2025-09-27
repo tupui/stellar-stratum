@@ -8,9 +8,13 @@ export const appConfig = {
   MAINNET_HORIZON: 'https://horizon.stellar.org',
   TESTNET_HORIZON: 'https://horizon-testnet.stellar.org',
   
-  // Soroban RPC URLs - Using Quasar Lightsail for better historical data access
-  MAINNET_SOROBAN_RPC: 'https://archive-rpc.lightsail.network',
-  TESTNET_SOROBAN_RPC: 'https://archive-rpc.lightsail.network',
+  // Soroban RPC URLs - Migrated to Quasar Lightsail Network (sorobanrpc.com discontinued July 2026)
+  MAINNET_SOROBAN_RPC: 'https://rpc.lightsail.network',
+  TESTNET_SOROBAN_RPC: 'https://rpc.lightsail.network',
+  
+  // Archive RPC for historical transaction data (better for deep history queries)
+  MAINNET_ARCHIVE_RPC: 'https://archive-rpc.lightsail.network',
+  TESTNET_ARCHIVE_RPC: 'https://archive-rpc.lightsail.network',
   
   // API endpoints
   REFRACTOR_API_BASE: 'https://api.refractor.space/tx',

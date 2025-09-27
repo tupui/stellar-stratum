@@ -59,9 +59,9 @@ function runRpcLimited<T>(fn: () => Promise<T>): Promise<T> {
   return task;
 }
 
-// Create RPC server for specific network
+// Create RPC server for specific network - using archive endpoints for historical data
 export const createRpcServer = (network: 'mainnet' | 'testnet') => {
-  const rpcUrl = network === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC;
+  const rpcUrl = network === 'testnet' ? appConfig.TESTNET_ARCHIVE_RPC : appConfig.MAINNET_ARCHIVE_RPC;
   return new rpc.Server(rpcUrl);
 };
 
