@@ -17,7 +17,34 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks: {
+          // Core React libraries
           vendor: ['react', 'react-dom'],
+          
+          // Stellar SDK and related crypto libraries - large bundle
+          stellar: ['@stellar/stellar-sdk', 'buffer'],
+          
+          // Wallet integration modules - loaded on demand
+          wallets: [
+            '@creit.tech/stellar-wallets-kit',
+            '@creit.tech/stellar-wallets-kit/modules/ledger.module',
+            '@creit.tech/stellar-wallets-kit/modules/walletconnect.module',
+            '@creit.tech/stellar-wallets-kit/modules/trezor.module'
+          ],
+          
+          // QR code libraries - separate chunk for better caching
+          qr: ['qrcode', 'qrcode.react', 'jsqr', '@zxing/browser', '@zxing/library'],
+          
+          // UI components and utilities
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],
+          
+          // Data fetching and state management
+          query: ['@tanstack/react-query'],
+          
+          // Chart and visualization libraries
+          charts: ['recharts'],
+          
+          // Utilities and validation
+          utils: ['clsx', 'class-variance-authority', 'zod', 'date-fns']
         },
       },
     },

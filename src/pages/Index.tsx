@@ -1,20 +1,19 @@
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect, Suspense, lazy, memo, useCallback, useMemo } from 'react';
 import { LandingPage } from '@/components/LandingPage';
 import { LoadingPill } from '@/components/ui/loading-pill';
 import { Footer } from '@/components/Footer';
 import { DeepLinkHandler } from '@/components/DeepLinkHandler';
 
-// Lazy load heavy components to improve TTI
-const AccountOverview = lazy(() => import('@/components/AccountOverview').then(module => ({
-  default: module.AccountOverview
-})));
-const TransactionBuilder = lazy(() => import('@/components/TransactionBuilder').then(module => ({
-  default: module.TransactionBuilder
-})));
+// Lazy load heavy components to improve TTI - now with enhanced error handling
+const AccountOverview = lazy(() => import('@/components/optimized/LazyAccountOverview'));
+const TransactionBuilder = lazy(() => import('@/components/optimized/LazyTransactionBuilder'));
 import { fetchAccountData } from '@/lib/stellar';
+import { fetchAccountDataCached } from '@/lib/stellar-optimized';
 import { useToast } from '@/hooks/use-toast';
 import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useRequestDeduplication } from '@/hooks/useRequestDeduplication';
+import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 
 interface AccountData {
   publicKey: string;
@@ -38,9 +37,11 @@ interface AccountData {
 
 type AppState = 'connecting' | 'dashboard' | 'transaction' | 'multisig-config';
 
-const Index = () => {
+const Index = memo(() => {
   const { toast } = useToast();
   const { network, setNetwork } = useNetwork();
+  const { dedupe } = useRequestDeduplication();
+  
   const [appState, setAppState] = useState<AppState>('connecting');
   const [connectedWallet, setConnectedWallet] = useState<string>('');
   const [accountData, setAccountData] = useState<AccountData | null>(null);
@@ -48,16 +49,24 @@ const Index = () => {
   const [publicKey, setPublicKey] = useState<string>('');
   const [deepLinkReady, setDeepLinkReady] = useState(false);
 
+  // Performance monitoring for development
+  usePerformanceMonitor('Index');
+
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
 
 
-  const handleDeepLinkLoaded = async (sourceAccount: string) => {
+  // Optimized account data fetching with deduplication
+  const handleDeepLinkLoaded = useCallback(async (sourceAccount: string) => {
     // Load account data from the XDR's source account
     setPublicKey(sourceAccount);
     setLoading(true);
     
     try {
-      const realAccountData = await fetchAccountData(sourceAccount, network);
+      // Use dedupe to prevent duplicate requests for same account
+      const realAccountData = await dedupe(
+        `account-${sourceAccount}-${network}`,
+        () => fetchAccountDataCached(sourceAccount, network)
+      );
       setAccountData(realAccountData);
       setDeepLinkReady(true);
       setAppState('transaction');
@@ -78,9 +87,9 @@ const Index = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [network, dedupe, toast]);
 
-  const handleWalletConnect = async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
+  const handleWalletConnect = useCallback(async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
     setConnectedWallet(walletType);
     setPublicKey(publicKey);
     setNetwork(selectedNetwork);
@@ -99,7 +108,11 @@ const Index = () => {
     // Defer account data fetching to not block TTI
     setTimeout(async () => {
       try {
-        const realAccountData = await fetchAccountData(publicKey, selectedNetwork);
+        // Use cached version for better performance
+        const realAccountData = await dedupe(
+          `account-${publicKey}-${selectedNetwork}`,
+          () => fetchAccountDataCached(publicKey, selectedNetwork)
+        );
         setAccountData(realAccountData);
         setLoading(false);
       } catch (error) {
@@ -115,33 +128,39 @@ const Index = () => {
         setLoading(false);
       }
     }, 100); // Small delay to allow UI transition first
-  };
+  }, [setNetwork, dedupe, toast]);
 
-
-  const handleInitiateTransaction = () => {
+  // Memoize frequently used callbacks
+  const handleInitiateTransaction = useCallback(() => {
     setAppState('transaction');
-  };
+  }, []);
 
-  const handleConfigureMultisig = () => {
+  const handleConfigureMultisig = useCallback(() => {
     setAppState('multisig-config');
-  };
+  }, []);
 
-  const handleSignTransaction = () => {
-    // Handle signing flow
-  };
-
-  const handleBackToDashboard = () => {
+  const handleBackToDashboard = useCallback(() => {
     setDeepLinkReady(false);
     setAppState('dashboard');
-  };
+  }, []);
 
-  const handleDisconnect = () => {
+  const handleDisconnect = useCallback(() => {
     setConnectedWallet('');
     setPublicKey('');
     setAccountData(null);
     setDeepLinkReady(false);
     setAppState('connecting');
-  };
+  }, []);
+
+  // Memoized account refresh function
+  const handleAccountRefresh = useCallback(async () => {
+    if (!publicKey) return;
+    const realAccountData = await dedupe(
+      `account-${publicKey}-${network}`,
+      () => fetchAccountDataCached(publicKey, network)
+    );
+    setAccountData(realAccountData);
+  }, [publicKey, network, dedupe]);
 
   return (
     <FiatCurrencyProvider>
@@ -169,11 +188,7 @@ const Index = () => {
                 accountPublicKey={publicKey || ''}
                 accountData={accountData}
                 initialTab={appState === 'multisig-config' ? 'multisig' : (deepLinkReady ? 'import' : 'payment')}
-                onAccountRefresh={async () => {
-                  if (!publicKey) return;
-                  const realAccountData = await fetchAccountData(publicKey, network);
-                  setAccountData(realAccountData);
-                }}
+                onAccountRefresh={handleAccountRefresh}
               />
             </Suspense>
           )}
@@ -192,11 +207,7 @@ const Index = () => {
                 accountData={accountData}
                 onInitiateTransaction={handleInitiateTransaction}
                 onSignTransaction={() => {}}
-                onRefreshBalances={async () => {
-                  if (!publicKey) return;
-                  const realAccountData = await fetchAccountData(publicKey, network);
-                  setAccountData(realAccountData);
-                }}
+                onRefreshBalances={handleAccountRefresh}
                 onDisconnect={handleDisconnect}
               />
             </Suspense>
@@ -217,6 +228,6 @@ const Index = () => {
       </div>
     </FiatCurrencyProvider>
   );
-};
+});
 
 export default Index;
