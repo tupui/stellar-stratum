@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     target: 'es2020', // Target modern browsers to avoid legacy transforms
     minify: 'esbuild',
+    sourcemap: true, // Generate source maps for better debugging and SEO compliance
     rollupOptions: {
       output: {
         manualChunks: {
