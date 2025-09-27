@@ -90,7 +90,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
   // Filter and selection state
   const [filters, setFilters] = useState<Filters>({
     direction: 'all',
-    categories: [],
+    categories: ['transfer', 'swap', 'contract', 'config'],
     minAmount: '',
     maxAmount: '',
     dateFrom: undefined,
@@ -299,7 +299,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         }
       }
 
-      // Direction filter
+      // Direction filter - if both in and out are selected, or neither, show all
       if (filters.direction !== 'all' && tx.direction && tx.direction !== filters.direction) {
         return false;
       }
@@ -391,7 +391,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
   const clearFilters = () => {
     setFilters({
       direction: 'all',
-      categories: [],
+      categories: ['transfer', 'swap', 'contract', 'config'],
       minAmount: '',
       maxAmount: '',
       dateFrom: undefined,
@@ -531,7 +531,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                   <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Direction</Label>
                   <div className="flex gap-2">
                     {[
-                      { value: 'all', label: 'All', icon: Hash },
                       { value: 'in', label: 'In', icon: ArrowDownLeft },
                       { value: 'out', label: 'Out', icon: ArrowUpRight }
                     ].map((option) => (
@@ -539,7 +538,14 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                         key={option.value}
                         variant={filters.direction === option.value ? "default" : "outline"}
                         size="sm"
-                        onClick={() => setFilters(prev => ({ ...prev, direction: option.value as any }))}
+                        onClick={() => {
+                          if (filters.direction === option.value) {
+                            // If clicking the active filter, deactivate it (show all)
+                            setFilters(prev => ({ ...prev, direction: 'all' }));
+                          } else {
+                            setFilters(prev => ({ ...prev, direction: option.value as any }));
+                          }
+                        }}
                         className="flex-1 h-8 text-xs"
                       >
                         <option.icon className="w-3 h-3 mr-1" />
@@ -620,19 +626,19 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
               {/* Row 3: Date Range */}
               <div className="space-y-3">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">From</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           className={cn(
-                            "h-8 justify-start text-left font-normal text-sm",
+                            "h-9 w-full justify-start text-left font-normal text-sm",
                             !filters.dateFrom && "text-muted-foreground"
                           )}
                         >
-                          <Calendar className="mr-2 h-3 w-3" />
+                          <Calendar className="mr-2 h-4 w-4" />
                           {filters.dateFrom ? format(filters.dateFrom, "MMM dd, yyyy") : "Pick date"}
                         </Button>
                       </PopoverTrigger>
@@ -648,18 +654,18 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                     </Popover>
                   </div>
                   
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <Label className="text-xs text-muted-foreground">To</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           className={cn(
-                            "h-8 justify-start text-left font-normal text-sm",
+                            "h-9 w-full justify-start text-left font-normal text-sm",
                             !filters.dateTo && "text-muted-foreground"
                           )}
                         >
-                          <Calendar className="mr-2 h-3 w-3" />
+                          <Calendar className="mr-2 h-4 w-4" />
                           {filters.dateTo ? format(filters.dateTo, "MMM dd, yyyy") : "Pick date"}
                         </Button>
                       </PopoverTrigger>
