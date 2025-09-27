@@ -51,7 +51,6 @@ interface TransactionHistoryPanelProps {
 }
 
 interface Filters {
-  direction: 'all' | 'in' | 'out';
   categories: string[];
   minAmount: string;
   maxAmount: string;
@@ -89,8 +88,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
 
   // Filter and selection state
   const [filters, setFilters] = useState<Filters>({
-    direction: 'all',
-    categories: ['transfer', 'swap', 'contract', 'config'],
+    categories: ['in', 'out', 'transfer', 'swap', 'contract', 'config'],
     minAmount: '',
     maxAmount: '',
     dateFrom: undefined,
@@ -285,9 +283,11 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
   // Filter transactions based on current filters and selected asset
   const filteredTransactions = useMemo(() => {
     return transactions.filter(tx => {
-      // Category filter
+      // Category and direction filter combined
       if (filters.categories.length > 0) {
-        if (tx.category && !filters.categories.includes(tx.category)) return false;
+        const matchesCategory = tx.category && filters.categories.includes(tx.category);
+        const matchesDirection = tx.direction && filters.categories.includes(tx.direction);
+        if (!matchesCategory && !matchesDirection) return false;
       }
       // Asset filter
       if (selectedAsset.code !== 'PORTFOLIO') {
@@ -299,14 +299,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         }
       }
 
-      // Direction filter - if both in and out are selected, or neither, show all
-      if (filters.direction !== 'all' && tx.direction && tx.direction !== filters.direction) {
-        return false;
-      }
-
-      // Type filter
-      // Removed specific type filter; using categories instead
-
+      // Direction filter is now handled in the categories section above
+      
       // Amount filters
       if (filters.minAmount && (tx.amount || 0) < parseFloat(filters.minAmount)) {
         return false;
@@ -390,8 +384,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
 
   const clearFilters = () => {
     setFilters({
-      direction: 'all',
-      categories: ['transfer', 'swap', 'contract', 'config'],
+      categories: ['in', 'out', 'transfer', 'swap', 'contract', 'config'],
       minAmount: '',
       maxAmount: '',
       dateFrom: undefined,
@@ -525,72 +518,44 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
             </div>
             
             <div className="p-4 space-y-6">
-              {/* Row 1: Direction and Categories */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Direction</Label>
-                  <div className="flex gap-2">
-                    {[
-                      { value: 'in', label: 'In', icon: ArrowDownLeft },
-                      { value: 'out', label: 'Out', icon: ArrowUpRight }
-                    ].map((option) => (
-                      <Button
-                        key={option.value}
-                        variant={filters.direction === option.value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          if (filters.direction === option.value) {
-                            // If clicking the active filter, deactivate it (show all)
-                            setFilters(prev => ({ ...prev, direction: 'all' }));
+              {/* Categories Section */}
+              <div className="space-y-3">
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Categories</Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {[
+                    { value: 'in', label: 'Incoming', icon: ArrowDownLeft },
+                    { value: 'out', label: 'Outgoing', icon: ArrowUpRight },
+                    { value: 'transfer', label: 'Transfers', icon: ArrowUpRight },
+                    { value: 'swap', label: 'Swaps', icon: Replace },
+                    { value: 'contract', label: 'Contracts', icon: Code2 },
+                    { value: 'config', label: 'Config', icon: Settings }
+                  ].map((category) => (
+                    <div key={category.value} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={category.value}
+                        checked={filters.categories.includes(category.value)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFilters(prev => ({ 
+                              ...prev, 
+                              categories: [...prev.categories, category.value] 
+                            }));
                           } else {
-                            setFilters(prev => ({ ...prev, direction: option.value as any }));
+                            setFilters(prev => ({ 
+                              ...prev, 
+                              categories: prev.categories.filter(c => c !== category.value) 
+                            }));
                           }
                         }}
-                        className="flex-1 h-8 text-xs"
-                      >
-                        <option.icon className="w-3 h-3 mr-1" />
-                        {option.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Categories</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: 'transfer', label: 'Transfers', icon: ArrowUpRight },
-                      { value: 'swap', label: 'Swaps', icon: Replace },
-                      { value: 'contract', label: 'Contracts', icon: Code2 },
-                      { value: 'config', label: 'Config', icon: Settings }
-                    ].map((category) => (
-                      <div key={category.value} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={category.value}
-                          checked={filters.categories.includes(category.value)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFilters(prev => ({ 
-                                ...prev, 
-                                categories: [...prev.categories, category.value] 
-                              }));
-                            } else {
-                              setFilters(prev => ({ 
-                                ...prev, 
-                                categories: prev.categories.filter(c => c !== category.value) 
-                              }));
-                            }
-                          }}
-                          className="rounded border-border"
-                        />
-                        <Label htmlFor={category.value} className="text-xs flex items-center gap-1 cursor-pointer">
-                          <category.icon className="w-3 h-3" />
-                          {category.label}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
+                        className="rounded border-border"
+                      />
+                      <Label htmlFor={category.value} className="text-xs flex items-center gap-1 cursor-pointer">
+                        <category.icon className="w-3 h-3" />
+                        {category.label}
+                      </Label>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -623,7 +588,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 </div>
               </div>
 
-              {/* Row 3: Date Range */}
+              {/* Date Range */}
               <div className="space-y-3">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -683,7 +648,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 </div>
               </div>
 
-              {/* Row 4: Address Filter */}
+              {/* Address Filter */}
               <div className="space-y-3">
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Address Filter</Label>
                 <Input
