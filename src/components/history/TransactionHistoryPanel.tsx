@@ -752,10 +752,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                           <span className="font-amount break-all">
                             {truncateAddress(tx.counterparty)}
                           </span>
-                          <span className="hidden sm:inline">•</span>
-                          <span className="text-xs">
-                            {formatDistanceToNow(tx.createdAt, { addSuffix: true })}
-                          </span>
                         </div>
                       </div>
                       
