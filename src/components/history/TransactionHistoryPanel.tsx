@@ -662,9 +662,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                 </>
               )}
             </div>
-            <div className="text-right text-xs text-muted-foreground">
-              <div>{aggregatedStats.count} transactions</div>
-            </div>
           </div>
         </div>
 
