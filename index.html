@@ -173,9 +173,12 @@
         z-index: -1;
       }
       
-      /* Loading states - Fixed dimensions to prevent shifts */
+      /* Loading states - Fixed positioning to prevent CLS */
       #app-loader {
-        min-height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
         height: 100vh;
         display: flex;
         align-items: center;
@@ -183,7 +186,14 @@
         background: hsl(var(--background));
         overflow: hidden;
         contain: strict;
-        will-change: auto;
+        will-change: transform, opacity;
+        z-index: 9999;
+        pointer-events: auto;
+      }
+
+      #app-loader.hidden {
+        pointer-events: none;
+        transform: translateZ(0);
       }
       
       .loader-content {
@@ -192,8 +202,8 @@
         width: 100%;
         padding: 2rem;
         position: relative;
-        contain: layout;
-        will-change: auto;
+        contain: layout style paint;
+        will-change: transform;
       }
       
       .loader-title {
@@ -219,7 +229,7 @@
         height: min(300px, 60vh);
         margin: 0 auto 2rem auto;
         contain: layout style paint;
-        will-change: auto;
+        will-change: transform;
       }
 
       .node {
@@ -413,84 +423,77 @@
         }
       }
 
-      /* Large oscillation patterns - responsive movement */
+      /* Large oscillation patterns - responsive movement with contain */
       @keyframes bigOscillate1 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        20% { transform: translate(min(15px, 3vw), min(-12px, -2.5vw)) rotate(8deg); }
-        40% { transform: translate(min(-8px, -1.5vw), min(18px, 3.5vw)) rotate(-6deg); }
-        60% { transform: translate(min(12px, 2.5vw), min(-6px, -1vw)) rotate(10deg); }
-        80% { transform: translate(min(-10px, -2vw), min(14px, 3vw)) rotate(-4deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        20% { transform: translate3d(min(15px, 3vw), min(-12px, -2.5vw), 0) rotate(8deg); }
+        40% { transform: translate3d(min(-8px, -1.5vw), min(18px, 3.5vw), 0) rotate(-6deg); }
+        60% { transform: translate3d(min(12px, 2.5vw), min(-6px, -1vw), 0) rotate(10deg); }
+        80% { transform: translate3d(min(-10px, -2vw), min(14px, 3vw), 0) rotate(-4deg); }
       }
 
       @keyframes bigOscillate2 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        25% { transform: translate(min(-14px, -3vw), min(10px, 2vw)) rotate(-8deg); }
-        50% { transform: translate(min(6px, 1vw), min(-16px, -3vw)) rotate(12deg); }
-        75% { transform: translate(min(-4px, -1vw), min(8px, 1.5vw)) rotate(-10deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        25% { transform: translate3d(min(-14px, -3vw), min(10px, 2vw), 0) rotate(-8deg); }
+        50% { transform: translate3d(min(6px, 1vw), min(-16px, -3vw), 0) rotate(12deg); }
+        75% { transform: translate3d(min(-4px, -1vw), min(8px, 1.5vw), 0) rotate(-10deg); }
       }
 
       @keyframes bigOscillate3 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        15% { transform: translate(min(10px, 2vw), min(8px, 1.5vw)) rotate(6deg); }
-        35% { transform: translate(min(-12px, -2.5vw), min(-14px, -3vw)) rotate(-12deg); }
-        55% { transform: translate(min(-6px, -1vw), min(4px, 1vw)) rotate(4deg); }
-        75% { transform: translate(min(14px, 3vw), min(12px, 2.5vw)) rotate(8deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        15% { transform: translate3d(min(10px, 2vw), min(8px, 1.5vw), 0) rotate(6deg); }
+        35% { transform: translate3d(min(-12px, -2.5vw), min(-14px, -3vw), 0) rotate(-12deg); }
+        55% { transform: translate3d(min(-6px, -1vw), min(4px, 1vw), 0) rotate(4deg); }
+        75% { transform: translate3d(min(14px, 3vw), min(12px, 2.5vw), 0) rotate(8deg); }
       }
 
       @keyframes bigOscillate4 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        30% { transform: translate(min(-10px, -2vw), min(-8px, -1.5vw)) rotate(-6deg); }
-        60% { transform: translate(min(16px, 3vw), min(4px, 1vw)) rotate(10deg); }
-        80% { transform: translate(min(-4px, -1vw), min(12px, 2.5vw)) rotate(-8deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        30% { transform: translate3d(min(-10px, -2vw), min(-8px, -1.5vw), 0) rotate(-6deg); }
+        60% { transform: translate3d(min(16px, 3vw), min(4px, 1vw), 0) rotate(10deg); }
+        80% { transform: translate3d(min(-4px, -1vw), min(12px, 2.5vw), 0) rotate(-8deg); }
       }
 
       @keyframes bigOscillate5 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        20% { transform: translate(min(8px, 1.5vw), min(-10px, -2vw)) rotate(4deg); }
-        45% { transform: translate(min(-14px, -3vw), min(6px, 1vw)) rotate(-10deg); }
-        70% { transform: translate(min(4px, 1vw), min(14px, 3vw)) rotate(6deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        20% { transform: translate3d(min(8px, 1.5vw), min(-10px, -2vw), 0) rotate(4deg); }
+        45% { transform: translate3d(min(-14px, -3vw), min(6px, 1vw), 0) rotate(-10deg); }
+        70% { transform: translate3d(min(4px, 1vw), min(14px, 3vw), 0) rotate(6deg); }
       }
 
       @keyframes bigOscillate6 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        35% { transform: translate(min(-6px, -1vw), min(12px, 2.5vw)) rotate(-4deg); }
-        65% { transform: translate(min(12px, 2.5vw), min(-8px, -1.5vw)) rotate(8deg); }
-        85% { transform: translate(min(-16px, -3vw), min(-4px, -1vw)) rotate(-12deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        35% { transform: translate3d(min(-6px, -1vw), min(12px, 2.5vw), 0) rotate(-4deg); }
+        65% { transform: translate3d(min(12px, 2.5vw), min(-8px, -1.5vw), 0) rotate(8deg); }
+        85% { transform: translate3d(min(-16px, -3vw), min(-4px, -1vw), 0) rotate(-12deg); }
       }
 
       @keyframes bigOscillate7 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        25% { transform: translate(min(4px, 1vw), min(16px, 3vw)) rotate(2deg); }
-        50% { transform: translate(min(-10px, -2vw), min(-6px, -1vw)) rotate(-8deg); }
-        75% { transform: translate(min(14px, 3vw), min(2px, 0.5vw)) rotate(10deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        25% { transform: translate3d(min(4px, 1vw), min(16px, 3vw), 0) rotate(2deg); }
+        50% { transform: translate3d(min(-10px, -2vw), min(-6px, -1vw), 0) rotate(-8deg); }
+        75% { transform: translate3d(min(14px, 3vw), min(2px, 0.5vw), 0) rotate(10deg); }
       }
 
       @keyframes bigOscillate8 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        18% { transform: translate(min(18px, 3.5vw), min(4px, 1vw)) rotate(12deg); }
-        42% { transform: translate(min(-8px, -1.5vw), min(-12px, -2.5vw)) rotate(-6deg); }
-        68% { transform: translate(min(2px, 0.5vw), min(16px, 3vw)) rotate(4deg); }
-        88% { transform: translate(min(-14px, -3vw), min(-2px, -0.5vw)) rotate(-10deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        18% { transform: translate3d(min(18px, 3.5vw), min(4px, 1vw), 0) rotate(12deg); }
+        42% { transform: translate3d(min(-8px, -1.5vw), min(-12px, -2.5vw), 0) rotate(-6deg); }
+        68% { transform: translate3d(min(2px, 0.5vw), min(16px, 3vw), 0) rotate(4deg); }
+        88% { transform: translate3d(min(-14px, -3vw), min(-2px, -0.5vw), 0) rotate(-10deg); }
       }
 
       @keyframes bigOscillate9 {
-        0%, 100% { transform: translate(0, 0) rotate(0deg); }
-        22% { transform: translate(min(-4px, -1vw), min(-14px, -3vw)) rotate(-8deg); }
-        44% { transform: translate(min(12px, 2.5vw), min(8px, 1.5vw)) rotate(6deg); }
-        66% { transform: translate(min(-16px, -3vw), min(2px, 0.5vw)) rotate(-12deg); }
-        88% { transform: translate(min(6px, 1vw), min(-10px, -2vw)) rotate(8deg); }
+        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+        22% { transform: translate3d(min(-4px, -1vw), min(-14px, -3vw), 0) rotate(-8deg); }
+        44% { transform: translate3d(min(12px, 2.5vw), min(8px, 1.5vw), 0) rotate(6deg); }
+        66% { transform: translate3d(min(-16px, -3vw), min(2px, 0.5vw), 0) rotate(-12deg); }
+        88% { transform: translate3d(min(6px, 1vw), min(-10px, -2vw), 0) rotate(8deg); }
       }
       
-      /* Hide loader once React loads - Immediate transition to prevent shifts */
+      /* Hide loader once React loads - No layout impact transition */
       .app-loaded #app-loader {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        top: -9999px !important;
-        left: -9999px !important;
+        pointer-events: none !important;
       }
       
       /* Responsive design */
@@ -753,13 +756,13 @@
               if (animationComplete && preloadComplete) {
                 document.body.classList.add('app-loaded');
                 if (loader) {
-                  loader.style.transition = 'opacity 0.6s ease-out';
+                  loader.classList.add('hidden');
+                  loader.style.transition = 'opacity 0.6s ease-out, transform 0.6s ease-out';
                   loader.style.opacity = '0';
+                  loader.style.transform = 'translateZ(0) scale(1.02)';
+                  // Keep loader in DOM but invisible and non-interactive
                   setTimeout(() => {
-                    loader.style.display = 'none';
                     loader.style.visibility = 'hidden';
-                    loader.style.height = '0';
-                    loader.style.overflow = 'hidden';
                   }, 600);
                 }
                 return true;
@@ -794,13 +797,12 @@
           preloadComplete = true;
           document.body.classList.add('app-loaded');
           if (loader) {
-            loader.style.transition = 'opacity 0.4s ease-out';
+            loader.classList.add('hidden');
+            loader.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
             loader.style.opacity = '0';
+            loader.style.transform = 'translateZ(0) scale(1.02)';
             setTimeout(() => {
-              loader.style.display = 'none';
               loader.style.visibility = 'hidden';
-              loader.style.height = '0';
-              loader.style.overflow = 'hidden';
             }, 400);
           }
         }, 8000); // 8s absolute maximum
