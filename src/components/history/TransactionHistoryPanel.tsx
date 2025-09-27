@@ -88,7 +88,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
 
   // Filter and selection state
   const [filters, setFilters] = useState<Filters>({
-    categories: ['in', 'out', 'transfer', 'swap', 'contract', 'config'],
+    categories: ['in', 'out', 'swap', 'contract', 'config'],
     minAmount: '',
     maxAmount: '',
     dateFrom: undefined,
@@ -384,7 +384,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
 
   const clearFilters = () => {
     setFilters({
-      categories: ['in', 'out', 'transfer', 'swap', 'contract', 'config'],
+      categories: ['in', 'out', 'swap', 'contract', 'config'],
       minAmount: '',
       maxAmount: '',
       dateFrom: undefined,
@@ -525,7 +525,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
                   {[
                     { value: 'in', label: 'Incoming', icon: ArrowDownLeft },
                     { value: 'out', label: 'Outgoing', icon: ArrowUpRight },
-                    { value: 'transfer', label: 'Transfers', icon: ArrowUpRight },
                     { value: 'swap', label: 'Swaps', icon: Replace },
                     { value: 'contract', label: 'Contracts', icon: Code2 },
                     { value: 'config', label: 'Config', icon: Settings }
