@@ -62,9 +62,15 @@ export const GroupedTransactionItem = ({
           <div className="flex items-center gap-2 flex-wrap">
             {tx.category === 'transfer' && (
               <span className="font-medium text-sm sm:text-base font-amount tabular-nums">
-                {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
-                {tx.isGrouped && isMain && (
-                  <span className="text-muted-foreground ml-1">({tx.count}×)</span>
+                {tx.isGrouped && isMain ? (
+                  <>
+                    {tx.direction === 'out' ? 'Sent combined' : 'Received combined'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
+                    <span className="text-muted-foreground ml-1">({tx.count}×)</span>
+                  </>
+                ) : (
+                  <>
+                    {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
+                  </>
                 )}
               </span>
             )}
@@ -72,7 +78,9 @@ export const GroupedTransactionItem = ({
               <span className="font-medium text-sm sm:text-base flex items-center gap-1 flex-wrap">
                 <Replace className="w-4 h-4 shrink-0" />
                 <span className="font-amount tabular-nums break-all">
-                  {`${(tx.swapFromAmount ?? 0).toFixed(2)} ${tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}`} → {`${(tx.swapToAmount ?? 0).toFixed(2)} ${tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}`}
+                  {tx.isGrouped && isMain ? 'Combined swaps' : (
+                    `${(tx.swapFromAmount ?? 0).toFixed(2)} ${tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}`
+                  )} {!tx.isGrouped || !isMain ? '→ ' + `${(tx.swapToAmount ?? 0).toFixed(2)} ${tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}` : ''}
                 </span>
                 {tx.isGrouped && isMain && (
                   <span className="text-muted-foreground ml-1">({tx.count}×)</span>
@@ -81,7 +89,8 @@ export const GroupedTransactionItem = ({
             )}
             {tx.category === 'contract' && (
               <span className="font-medium text-sm sm:text-base flex items-center gap-1">
-                <Code2 className="w-4 h-4 shrink-0" /> Contract call
+                <Code2 className="w-4 h-4 shrink-0" />
+                {tx.isGrouped && isMain ? 'Combined contract calls' : 'Contract call'}
                 {tx.isGrouped && isMain && (
                   <span className="text-muted-foreground ml-1">({tx.count}×)</span>
                 )}
@@ -89,7 +98,8 @@ export const GroupedTransactionItem = ({
             )}
             {tx.category === 'config' && (
               <span className="font-medium text-sm sm:text-base flex items-center gap-1">
-                <Settings className="w-4 h-4 shrink-0" /> Configuration change
+                <Settings className="w-4 h-4 shrink-0" />
+                {tx.isGrouped && isMain ? 'Combined configuration changes' : 'Configuration change'}
                 {tx.isGrouped && isMain && (
                   <span className="text-muted-foreground ml-1">({tx.count}×)</span>
                 )}
@@ -150,7 +160,7 @@ export const GroupedTransactionItem = ({
             </div>
             
             <div className="flex gap-1">
-              {groupedTx.isGrouped && (
+              {groupedTx.isGrouped ? (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -159,19 +169,19 @@ export const GroupedTransactionItem = ({
                 >
                   {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTransactionExplorer(groupedTx.transactionHash);
+                  }}
+                  className="shrink-0 self-start sm:self-center"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </Button>
               )}
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openTransactionExplorer(groupedTx.transactionHash);
-                }}
-                className="shrink-0 self-start sm:self-center"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </Button>
             </div>
           </div>
         </div>
