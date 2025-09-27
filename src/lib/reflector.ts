@@ -49,26 +49,42 @@ export interface AssetPrice {
 export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): Promise<number> => {
   const assetKey = assetIssuer ? `${assetCode}:${assetIssuer}` : (assetCode || 'XLM');
   
-  try {
-    // Try Reflector oracles for all assets
-    const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
-    if (reflectorPrice > 0) {
-      setCachedPrice(assetKey, reflectorPrice);
-      return reflectorPrice;
-    }
-
-    // Fallback to cached price
-    return getCachedPrice(assetKey);
-
-  } catch (error) {
-    return getCachedPrice(assetKey);
+  // Request deduplication - if same asset is being fetched, return the same promise
+  if (inflightPriceRequests.has(assetKey)) {
+    return inflightPriceRequests.get(assetKey)!;
   }
+  
+  const pricePromise = (async (): Promise<number> => {
+    try {
+      // Try Reflector oracles for all assets
+      const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
+      if (reflectorPrice > 0) {
+        setCachedPrice(assetKey, reflectorPrice);
+        return reflectorPrice;
+      }
+
+      // Fallback to cached price
+      return getCachedPrice(assetKey);
+
+    } catch (error) {
+      return getCachedPrice(assetKey);
+    } finally {
+      // Remove from inflight requests
+      inflightPriceRequests.delete(assetKey);
+    }
+  })();
+  
+  inflightPriceRequests.set(assetKey, pricePromise);
+  return pricePromise;
 };
 
 
 // Cache for oracle price data
 const oraclePriceCache: Record<string, { price: number; timestamp: number }> = {};
 const PRICE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Request deduplication for price fetches
+const inflightPriceRequests = new Map<string, Promise<number>>();
 
 // Cache for available assets per oracle
 const oracleAssetsCache: Record<string, { assets: string[]; timestamp: number }> = {};
@@ -469,6 +485,9 @@ export const clearPriceCache = (): void => {
   try {
     // Clear in-memory price cache
     Object.keys(oraclePriceCache).forEach(key => delete oraclePriceCache[key]);
+    
+    // Clear inflight requests
+    inflightPriceRequests.clear();
     
     // Clear localStorage price cache
     localStorage.removeItem(CACHE_KEY);

@@ -22,6 +22,9 @@ function cleanup() { const now = Date.now(); stamps = stamps.filter(t => now - t
 async function acquire() { cleanup(); const now = Date.now(); if (stamps.length < LIMIT) { stamps.push(now); return; } const wait = Math.max(0, WINDOW_MS - (now - stamps[0])); if (wait > 0) await sleep(wait); cleanup(); stamps.push(Date.now()); }
 function runLimited<T>(fn: () => Promise<T>): Promise<T> { const task = q.then(async () => { await acquire(); return await fn(); }); q = task.then(() => undefined).catch(() => undefined); return task; }
 
+// Request deduplication for Kraken fetches
+const inflightKrakenRequests = new Map<string, Promise<void>>();
+
 // Generic helpers for per-asset caching
 const getAssetCacheKeys = (asset: string) => {
   const code = (asset || 'XLM').toUpperCase();
@@ -91,28 +94,33 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
 
 export const primeUsdRatesForAsset = async (asset: string, start: Date, end: Date): Promise<void> => {
   const code = (asset || 'XLM').toUpperCase();
-  const LAST_KEY = `kraken_${code}_usd_last_fetch_ts`;
+  const { lastKey } = getAssetCacheKeys(code);
+  
   try {
-    const lastTs = Number(localStorage.getItem(LAST_KEY) || '0');
+    const lastTs = Number(localStorage.getItem(lastKey) || '0');
     if (lastTs && (Date.now() - lastTs) < TTL_MS) return;
   } catch {
     // Ignore localStorage errors (private mode, quota exceeded)
   }
-  // Per-asset in-flight deduplication
-  const mapKey = `__inflight_${code}` as const;
-  // @ts-ignore - attach dynamically on window to persist between HMRs
-  (window as any)[mapKey] = (window as any)[mapKey] || null;
-  const inflightRef: { current: Promise<void> | null } = { current: (window as any)[mapKey] };
-  if (inflightRef.current) { await inflightRef.current; return; }
-  inflightRef.current = (async () => {
+  
+  // Request deduplication - if same asset data is being fetched, await the existing request
+  if (inflightKrakenRequests.has(code)) {
+    await inflightKrakenRequests.get(code);
+    return;
+  }
+  
+  const fetchPromise = (async () => {
     const s = new Date(start.getTime() - 2 * 24 * 3600 * 1000);
     await fetchDailyForAsset(code, s);
-    // @ts-ignore
-    (window as any)[mapKey] = null;
   })();
-  // @ts-ignore
-  (window as any)[mapKey] = inflightRef.current;
-  await inflightRef.current;
+  
+  inflightKrakenRequests.set(code, fetchPromise);
+  
+  try {
+    await fetchPromise;
+  } finally {
+    inflightKrakenRequests.delete(code);
+  }
 };
 
 export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promise<number> => {
