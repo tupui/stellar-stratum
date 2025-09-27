@@ -39,8 +39,10 @@
     <!-- Performance optimizations for TTI -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="dns-prefetch" href="https://horizon.stellar.org" />
-    <link rel="dns-prefetch" href="https://horizon-testnet.stellar.org" />
+    <link rel="preconnect" href="https://horizon.stellar.org" />
+    <link rel="preconnect" href="https://horizon-testnet.stellar.org" />
+    <link rel="preconnect" href="https://mainnet.sorobanrpc.com" />
+    <link rel="preconnect" href="https://testnet.sorobanrpc.com" />
     <link rel="dns-prefetch" href="https://soroban-domains.nftkey.app" />
     
     <!-- Preload critical fonts -->
@@ -434,26 +436,6 @@
     <div id="root"></div>
     <link rel="modulepreload" href="/src/main.tsx">
   <script type="module" src="/src/main.tsx"></script>
-  
-  <!-- Load non-critical CSS asynchronously after page load -->
-  <script>
-    window.addEventListener('load', function() {
-      // Create link element for the main CSS file
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = '/src/index.css';
-      link.media = 'print';
-      link.onload = function() {
-        this.media = 'all';
-      };
-      document.head.appendChild(link);
-      
-      // Fallback for browsers that don't support onload
-      setTimeout(function() {
-        link.media = 'all';
-      }, 100);
-    });
-  </script>
     
     <!-- Hide loader once React content loads -->
     <script>
