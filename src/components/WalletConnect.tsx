@@ -116,19 +116,11 @@ export const WalletConnect = ({
       </div>;
   };
   const getWalletDescription = (wallet: ISupportedWallet) => {
-    const isHardware = wallet.id.toLowerCase().includes('ledger') || wallet.id.toLowerCase().includes('trezor');
-    if (isHardware) {
-      return 'Hardware wallet';
-    }
-    if (wallet.isAvailable) {
-      return 'Available';
-    }
-
-    // Check if it's a browser extension
-    if (wallet.id.toLowerCase().includes('freighter') || wallet.id.toLowerCase().includes('rabet') || wallet.id.toLowerCase().includes('xbull')) {
+    // Only show "Extension required" for browser extensions that aren't available
+    if (!wallet.isAvailable && (wallet.id.toLowerCase().includes('freighter') || wallet.id.toLowerCase().includes('rabet') || wallet.id.toLowerCase().includes('xbull'))) {
       return 'Extension required';
     }
-    return 'Install required';
+    return null;
   };
   const getWalletTooltip = (wallet: ISupportedWallet) => {
     if (wallet.id.toLowerCase().includes('ledger')) {
@@ -298,7 +290,6 @@ export const WalletConnect = ({
               </div>
               <div className="text-left">
                 <div className="font-medium">Enter address manually</div>
-                <div className="text-sm text-muted-foreground">View any account by public key</div>
               </div>
             </div>
             <ArrowRight className="w-4 h-4" />
@@ -326,7 +317,6 @@ export const WalletConnect = ({
               <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-8 h-8 rounded" />
               <div className="text-left">
                 <div className="font-medium">Soroban Domains</div>
-                <div className="text-sm text-muted-foreground">Resolve domain to address</div>
               </div>
             </div>
             <ArrowRight className="w-4 h-4" />
@@ -387,7 +377,7 @@ export const WalletConnect = ({
                                 </div>
                                 <div className="text-left">
                                   <div className="font-medium">{wallet.name}</div>
-                                  <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                  {getWalletDescription(wallet) && <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -422,7 +412,7 @@ export const WalletConnect = ({
                                 </div>
                                 <div className="text-left">
                                   <div className="font-medium">{wallet.name}</div>
-                                  <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                  {getWalletDescription(wallet) && <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>}
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
@@ -459,7 +449,7 @@ export const WalletConnect = ({
                                       </div>
                                       <div className="text-left">
                                         <div className="font-medium">{wallet.name}</div>
-                                        <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>
+                                        {getWalletDescription(wallet) && <div className="text-sm text-muted-foreground">{getWalletDescription(wallet)}</div>}
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2">
