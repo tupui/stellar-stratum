@@ -12,7 +12,6 @@ const TransactionBuilder = lazy(() => import('@/components/TransactionBuilder').
   default: module.TransactionBuilder
 })));
 import { fetchAccountData } from '@/lib/stellar';
-import { fetchAccountDataCached } from '@/lib/stellar-optimized';
 import { useToast } from '@/hooks/use-toast';
 import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
@@ -69,7 +68,7 @@ const Index = memo(() => {
       // Use dedupe to prevent duplicate requests for same account
       const realAccountData = await dedupe(
         `account-${sourceAccount}-${network}`,
-        () => fetchAccountDataCached(sourceAccount, network)
+        () => fetchAccountData(sourceAccount, network)
       );
       setAccountData(realAccountData);
       setDeepLinkReady(true);
@@ -112,10 +111,10 @@ const Index = memo(() => {
     // Defer account data fetching to not block TTI
     setTimeout(async () => {
       try {
-        // Use cached version for better performance
+        // Use regular version for consistency with transaction history revert
         const realAccountData = await dedupe(
           `account-${publicKey}-${selectedNetwork}`,
-          () => fetchAccountDataCached(publicKey, selectedNetwork)
+          () => fetchAccountData(publicKey, selectedNetwork)
         );
         setAccountData(realAccountData);
         setLoading(false);
@@ -161,7 +160,7 @@ const Index = memo(() => {
     if (!publicKey) return;
     const realAccountData = await dedupe(
       `account-${publicKey}-${network}`,
-      () => fetchAccountDataCached(publicKey, network)
+      () => fetchAccountData(publicKey, network)
     );
     setAccountData(realAccountData);
   }, [publicKey, network, dedupe]);
