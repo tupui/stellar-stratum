@@ -1,7 +1,7 @@
 import { rpc, Horizon } from '@stellar/stellar-sdk';
 import { createHistoryRpcServer } from './rpc-client';
 import type { NormalizedTransaction, ActivityCategory } from './horizon-utils';
-import { tryParseTransaction, getSourceAccount, isSuccessfulResultXdr } from './xdr/parse';
+import { tryParseTransaction, getSourceAccount, isSuccessfulResultXdr, getInnerTransaction } from './xdr/parse';
 
 // Shared constants for filtering transactions/payments
 export const MIN_NATIVE_PAYMENT_XLM = 1; // Minimum XLM amount to avoid spam
@@ -108,9 +108,9 @@ export const normalizeRpcTransaction = (
   accountPublicKey: string
 ): NormalizedTransaction[] => {
   const results: NormalizedTransaction[] = [];
-  
+
   try {
-    // Validate fields and ensure this transaction was initiated by our account
+    // Validate fields
     const envelopeXdr: unknown = transaction.envelopeXdr;
     if (typeof envelopeXdr !== 'string' || envelopeXdr.length === 0) {
       return results;
@@ -121,9 +121,44 @@ export const normalizeRpcTransaction = (
       return results;
     }
 
-    const source = getSourceAccount(parsed.tx);
-    if (source !== accountPublicKey) {
-      // Not our transaction, skip to avoid unrelated contract calls
+    // Determine if this tx actually involves the account (source or as op target)
+    let involvesAccount = false;
+    try {
+      const innerTx: any = getInnerTransaction(parsed.tx as any);
+      const ops: any[] = Array.isArray(innerTx?.operations) ? innerTx.operations : [];
+      const keysToCheck = ['destination', 'to', 'from', 'funder', 'account', 'into'];
+
+      // Check tx/operation sources first
+      if (innerTx?.source === accountPublicKey) {
+        involvesAccount = true;
+      } else {
+        for (const op of ops) {
+          if (op?.source === accountPublicKey) {
+            involvesAccount = true;
+            break;
+          }
+          // Check common participant fields
+          for (const k of keysToCheck) {
+            if (op && typeof op === 'object' && op[k] === accountPublicKey) {
+              involvesAccount = true;
+              break;
+            }
+          }
+          if (involvesAccount) break;
+        }
+      }
+
+      // Fallback to tx source if still not matched
+      if (!involvesAccount) {
+        const source = getSourceAccount(parsed.tx);
+        if (source === accountPublicKey) involvesAccount = true;
+      }
+    } catch {
+      // best-effort; if parsing fails we skip listing to avoid wrong attribution
+      involvesAccount = false;
+    }
+
+    if (!involvesAccount) {
       return results;
     }
 
@@ -145,12 +180,26 @@ export const normalizeRpcTransaction = (
       }
     }
 
-    // Minimal normalized record for our own contract transactions
+    // Classify category roughly to match Horizon grouping
+    let category: ActivityCategory = 'transfer';
+    try {
+      const innerTx: any = getInnerTransaction(parsed.tx as any);
+      const ops: any[] = Array.isArray(innerTx?.operations) ? innerTx.operations : [];
+      const hasContract = ops.some((op: any) => op?.type === 'invokeHostFunction');
+      const hasPathPayment = ops.some((op: any) => op?.type === 'pathPaymentStrictSend' || op?.type === 'pathPaymentStrictReceive');
+      const configTypes = new Set(['changeTrust', 'setOptions', 'setTrustLineFlags', 'manageData', 'allowTrust', 'revokeSponsorship']);
+      const hasConfig = ops.some((op: any) => configTypes.has(op?.type));
+
+      if (hasContract) category = 'contract';
+      else if (hasPathPayment) category = 'swap';
+      else if (hasConfig) category = 'config';
+    } catch {}
+
     const normalized: NormalizedTransaction = {
       id: `${transaction.txHash}-rpc`,
       createdAt,
-      type: 'invoke_host_function',
-      category: 'contract',
+      type: 'transaction',
+      category,
       transactionHash: transaction.txHash,
     };
 
