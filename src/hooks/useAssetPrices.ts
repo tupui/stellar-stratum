@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getAssetPrice, setLastFetchTimestamp } from '@/lib/reflector';
+import { getAssetPrice, setLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
+import { pricingLogger } from '@/lib/pricing-logger';
 
 interface AssetBalance {
   asset_type: string;
@@ -22,15 +23,20 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
   // Memoize balances to prevent unnecessary re-renders
   const memoizedBalances = useMemo(() => balances, [JSON.stringify(balances)]);
 
-  // Memoize the refetch function to prevent unnecessary re-renders
+  // Enhanced refetch function with better error handling and cache clearing
   const refetch = useCallback(async () => {
     if (!memoizedBalances || memoizedBalances.length === 0) return;
     
     try {
       setLoading(true);
       setError(null);
+      
+      // Clear price cache to force fresh data
+      clearPriceCache();
+      pricingLogger.log({ type: 'cache_miss', asset: 'refresh_all' });
 
       const assetsWithPricesPromises = memoizedBalances.map(async (balance) => {
+        const assetKey = balance.asset_issuer ? `${balance.asset_code}:${balance.asset_issuer}` : (balance.asset_code || 'XLM');
         try {
           const priceUSD = await getAssetPrice(balance.asset_code, balance.asset_issuer);
           const balanceNum = parseFloat(balance.balance);
@@ -41,7 +47,12 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
             valueUSD,
             symbol: balance.asset_code || 'XLM'
           };
-        } catch {
+        } catch (error) {
+          pricingLogger.log({ 
+            type: 'oracle_error', 
+            asset: assetKey, 
+            error: error instanceof Error ? error.message : 'Price fetch failed' 
+          });
           return {
             ...balance,
             priceUSD: 0,
@@ -62,7 +73,9 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
       setLastFetchTimestamp();
       
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch asset prices');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to fetch asset prices';
+      setError(errorMsg);
+      pricingLogger.log({ type: 'oracle_error', error: errorMsg });
     } finally {
       setLoading(false);
     }

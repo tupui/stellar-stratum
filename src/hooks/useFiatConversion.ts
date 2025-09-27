@@ -53,7 +53,8 @@ export const useFiatConversion = (): FiatConversionHook => {
       }
 
       if (exchangeRate) {
-        return usdAmount * exchangeRate;
+        // exchangeRate is USD per 1 unit of target currency, so divide to convert USD to target
+        return usdAmount / exchangeRate;
       }
 
       // If no rate available, return USD amount

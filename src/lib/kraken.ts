@@ -54,6 +54,16 @@ const saveCacheFor = (asset: string, map: DailyMap) => {
 const PAIRS_MAP: Record<string, string[]> = {
   XLM: ['XLMUSD', 'XXLMZUSD'],
   USDC: ['USDCUSD', 'USDCZUSD'],
+  BTC: ['XBTUSD', 'XXBTZUSD'],
+  ETH: ['ETHUSD', 'XETHZUSD'],
+  ADA: ['ADAUSD', 'ADAZUSD'],
+  DOT: ['DOTUSD', 'DOTZUSD'],
+  MATIC: ['MATICUSD', 'MATICZUSD'],
+  AVAX: ['AVAXUSD', 'AVAXZUSD'],
+  ATOM: ['ATOMUSD', 'ATOMZUSD'],
+  SOL: ['SOLUSD', 'SOLZUSD'],
+  LINK: ['LINKUSD', 'LINKZUSD'],
+  UNI: ['UNIUSD', 'UNIZUSD'],
 };
 
 // Generic fetcher per asset

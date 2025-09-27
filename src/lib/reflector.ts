@@ -2,6 +2,7 @@
 import { OracleClient, type OracleConfig, AssetType, type Asset } from './reflector-client';
 import { xdr, Asset as StellarAsset, hash, StrKey, Networks } from '@stellar/stellar-sdk';
 import { appConfig } from './appConfig';
+import { pricingLogger } from './pricing-logger';
 
 // Reflector Oracle Contracts
 // Helper: compute SAC (contract) ID for classic assets on PUBLIC network
@@ -51,6 +52,7 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
   
   // Request deduplication - if same asset is being fetched, return the same promise
   if (inflightPriceRequests.has(assetKey)) {
+    pricingLogger.log({ type: 'cache_hit', asset: assetKey });
     return inflightPriceRequests.get(assetKey)!;
   }
   
@@ -59,15 +61,31 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
       // Try Reflector oracles for all assets
       const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
       if (reflectorPrice > 0) {
+        pricingLogger.log({ type: 'price_fetch', asset: assetKey, price: reflectorPrice });
         setCachedPrice(assetKey, reflectorPrice);
         return reflectorPrice;
       }
 
       // Fallback to cached price
-      return getCachedPrice(assetKey);
+      const cachedPrice = getCachedPrice(assetKey);
+      if (cachedPrice > 0) {
+        pricingLogger.log({ type: 'fallback_used', asset: assetKey, price: cachedPrice });
+      } else {
+        pricingLogger.log({ type: 'cache_miss', asset: assetKey });
+      }
+      return cachedPrice;
 
     } catch (error) {
-      return getCachedPrice(assetKey);
+      pricingLogger.log({ 
+        type: 'oracle_error', 
+        asset: assetKey, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+      const cachedPrice = getCachedPrice(assetKey);
+      if (cachedPrice > 0) {
+        pricingLogger.log({ type: 'fallback_used', asset: assetKey, price: cachedPrice });
+      }
+      return cachedPrice;
     } finally {
       // Remove from inflight requests
       inflightPriceRequests.delete(assetKey);
@@ -136,7 +154,7 @@ const initializeAssetMapping = async (): Promise<void> => {
       // Load asset lists from all oracles in parallel
       await Promise.all(allOracles.map(oracle => getOracleAssetsWithRetry(oracle)));
       
-      // Build the mapping
+      // Build the mapping - simplified approach
       let totalAssets = 0;
       for (const oracle of allOracles) {
         const cacheKey = `assets_${oracle.contract}`;
@@ -145,16 +163,16 @@ const initializeAssetMapping = async (): Promise<void> => {
         if (cached && cached.assets) {
           for (const assetId of cached.assets) {
             totalAssets++;
-            // Handle different asset formats
+            
+            // Simplified mapping: if it starts with stellar_, use Stellar type, otherwise Other
             if (assetId.startsWith('stellar_')) {
-              // This is a Stellar asset with issuer/contract ID
               const code = assetId.substring(8);
               assetOracleMapping[assetId] = { 
                 oracle, 
                 asset: { type: AssetType.Stellar, code } 
               };
             } else {
-              // This is a direct symbol (XLM, USDC, BTC, etc.)
+              // Direct symbol mapping (XLM, USDC, BTC, etc.)
               assetOracleMapping[assetId] = { 
                 oracle, 
                 asset: { type: AssetType.Other, code: assetId } 
@@ -197,31 +215,26 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   }
 };
 
-// Find asset in the pre-built mapping
+// Simplified oracle mapping - no more complex guessing
 const findAssetInMapping = (assetCode: string, assetIssuer?: string): { oracle: OracleConfig; asset: Asset } | null => {
-  // 1) First try direct symbol lookup (for XLM, USDC, BTC, etc.)
-  if (assetOracleMapping[assetCode]) {
-    return assetOracleMapping[assetCode];
+  const code = (assetCode || 'XLM').toUpperCase();
+  
+  // 1) Direct symbol lookup (XLM, USDC, BTC, etc.)
+  if (assetOracleMapping[code]) {
+    return assetOracleMapping[code];
   }
   
-  // 2) For issued assets, try different formats
+  // 2) For issued assets with issuer, try stellar format
   if (assetIssuer) {
-    const contractId = computeStellarAssetContractId(assetCode, assetIssuer);
+    const stellarKey = `stellar_${assetIssuer}`;
+    if (assetOracleMapping[stellarKey]) {
+      return assetOracleMapping[stellarKey];
+    }
     
-    // Try different formats that might exist in the mapping
-    const formats = [
-      `stellar_${assetIssuer}`,        
-      `stellar_${contractId}`,         
-      contractId,                      
-      assetIssuer,                     
-      `${assetCode}_${assetIssuer}`,   
-      `${assetCode}:${assetIssuer}`    
-    ];
-    
-    for (const format of formats) {
-      if (assetOracleMapping[format]) {
-        return assetOracleMapping[format];
-      }
+    // Try contract ID format
+    const contractId = computeStellarAssetContractId(code, assetIssuer);
+    if (contractId && assetOracleMapping[contractId]) {
+      return assetOracleMapping[contractId];
     }
   }
   
@@ -497,6 +510,12 @@ export const clearPriceCache = (): void => {
     mappingInitialized = false;
     mappingPromise = null;
     loadedOracles.clear();
+    
+    // Log cache clear event
+    pricingLogger.log({ type: 'cache_miss', asset: 'cache_cleared' });
+    
+    // Clear assets cache as well
+    Object.keys(oracleAssetsCache).forEach(key => delete oracleAssetsCache[key]);
     
   } catch (error) {
     // Ignore localStorage errors (private mode, quota exceeded)
