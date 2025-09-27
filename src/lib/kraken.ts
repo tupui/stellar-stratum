@@ -1,36 +1,15 @@
-// Kraken OHLC daily helper for XLM/USD (no API key, public REST)
+// Kraken OHLC daily helper for multi-asset USD rates (no API key, public REST)
 // Docs: https://docs.kraken.com/api/docs/rest-api/get-ohlc-data
 
 type DailyMap = Record<string, number>; // yyyy-mm-dd -> USD close
 
-const CACHE_KEY = 'kraken_xlm_usd_ohlc_daily_v1';
-const LAST_FETCH_TS_KEY = 'kraken_xlm_usd_last_fetch_ts';
 const TTL_MS = 6 * 60 * 60 * 1000; // 6h cache for a full sweep
-
-let inFlight: Promise<void> | null = null;
 
 const toDateKey = (d: Date): string => {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   const day = String(d.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-};
-
-const loadCache = (): DailyMap => {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as DailyMap) : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveCache = (map: DailyMap) => {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(map));
-  } catch {
-    // Ignore localStorage errors (private mode, quota exceeded)
-  }
 };
 
 // Lightweight minute limiter (~20/min)
