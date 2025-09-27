@@ -302,8 +302,7 @@ export const WalletConnect = ({
             {activeInput === 'manual' && (
               <div className="px-4 pb-4 space-y-3 border-t border-border">
                 <div className="pt-3">
-                  <Label htmlFor="manual-address" className="text-sm font-medium">Stellar Public Key</Label>
-                  <p className="text-xs text-muted-foreground mt-1">Enter a Stellar address to view account details (no signing required)</p>
+                  <p className="text-xs text-muted-foreground">Enter a Stellar address to view account details (no signing required)</p>
                 </div>
                 <div className="flex gap-2">
                   <Input 
@@ -342,8 +341,7 @@ export const WalletConnect = ({
             {activeInput === 'soroban' && (
               <div className="px-4 pb-4 space-y-3 border-t border-border">
                 <div className="pt-3">
-                  <Label htmlFor="soroban-domain" className="text-sm font-medium">Soroban Domain</Label>
-                  <p className="text-xs text-muted-foreground mt-1">Enter a domain name to resolve to Stellar address</p>
+                  <p className="text-xs text-muted-foreground">Enter a domain name to resolve to Stellar address</p>
                 </div>
                 <div className="flex gap-2">
                   <Input 
