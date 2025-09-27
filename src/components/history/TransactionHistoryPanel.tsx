@@ -168,9 +168,17 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         if (tx.assetType === 'native') {
           usdPrice = await getXlmUsdRateForDate(txDate);
         } else {
-          // For non-XLM assets, don't show fiat values in transaction history 
-          // since Kraken only provides XLM historical data
-          usdPrice = 0;
+          // For non-XLM assets, use current smart contract prices
+          const key = `${tx.assetCode}:${tx.assetIssuer}`;
+          if (!otherPriceCache.has(key)) {
+            try {
+              const p = await getAssetPrice(tx.assetCode!, tx.assetIssuer);
+              otherPriceCache.set(key, p || 0);
+            } catch {
+              otherPriceCache.set(key, 0);
+            }
+          }
+          usdPrice = otherPriceCache.get(key) || 0;
         }
 
         if (!usdPrice || !tx.amount) {
