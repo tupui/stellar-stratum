@@ -454,9 +454,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
               Activity History
             </CardTitle>
             <CardDescription>
-              {filteredTransactions.length} transactions{groupedTransactions.length !== filteredTransactions.length && ` (${groupedTransactions.length} groups)`}
               {lastSync && (
-                <> • Last updated {formatDistanceToNow(lastSync, { addSuffix: true })}</>
+                <>Last updated {formatDistanceToNow(lastSync, { addSuffix: true })}</>
               )}
             </CardDescription>
           </div>
