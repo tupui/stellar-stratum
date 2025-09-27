@@ -168,25 +168,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         if (tx.assetType === 'native') {
           usdPrice = await getXlmUsdRateForDate(txDate);
         } else {
-          // For non-XLM assets, we can only use current prices since Kraken only provides XLM historical data
-          // Only show fiat values for recent transactions (last 7 days) to avoid misleading historical pricing
-          const daysSinceTransaction = (Date.now() - tx.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-          
-          if (daysSinceTransaction <= 7) {
-            const key = `${tx.assetCode}:${tx.assetIssuer}`;
-            if (!otherPriceCache.has(key)) {
-              try {
-                const p = await getAssetPrice(tx.assetCode!, tx.assetIssuer);
-                otherPriceCache.set(key, p || 0);
-              } catch {
-                otherPriceCache.set(key, 0);
-              }
-            }
-            usdPrice = otherPriceCache.get(key) || 0;
-          } else {
-            // Don't show fiat values for older non-XLM transactions to avoid historical inaccuracy
-            usdPrice = 0;
-          }
+          // For non-XLM assets, don't show fiat values in transaction history 
+          // since Kraken only provides XLM historical data
+          usdPrice = 0;
         }
 
         if (!usdPrice || !tx.amount) {
