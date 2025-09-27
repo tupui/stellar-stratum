@@ -281,8 +281,7 @@ export const AssetBalancePanel = ({
             <Separator />
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">
-                Showing {filteredAssets.length} of {assetsWithPrices.length} assets
-                {hideSmallBalances && <span className="ml-1">(&gt;= $1)</span>}
+                {hideSmallBalances && <span>Filtering assets (&gt;= $1)</span>}
               </span>
             </div>
           </>}
