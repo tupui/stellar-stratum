@@ -165,13 +165,27 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
     try {
       const url = `${baseUrl}?pair=${encodeURIComponent(pair)}&interval=1440&since=${since}`;
       const resp = await runLimited(() => fetch(url, { mode: 'cors' as RequestMode }));
-      if (!resp.ok) continue;
+      
+      if (!resp.ok) {
+        if (import.meta.env.DEV) {
+          console.warn(`Kraken API ${resp.status} for ${pair}:`, await resp.text().catch(() => 'Unable to read response'));
+        }
+        continue;
+      }
+      
       const json: any = await resp.json();
-      if (!json?.result || typeof json.result !== 'object') continue;
+      if (!json?.result || typeof json.result !== 'object') {
+        if (import.meta.env.DEV) {
+          console.warn(`Invalid Kraken response for ${pair}:`, json);
+        }
+        continue;
+      }
+      
       const keys = Object.keys(json.result).filter(k => k !== 'last');
       if (keys.length === 0) continue;
       const arr: any[] = json.result[keys[0]];
       if (!Array.isArray(arr)) continue;
+      
       const cache = loadCacheFor(code);
       for (const row of arr) {
         // row: [time, open, high, low, close, vwap, volume, count]
@@ -185,8 +199,9 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
       try { const { lastKey } = getAssetCacheKeys(code); localStorage.setItem(lastKey, String(Date.now())); } catch {}
       return;
     } catch (error) {
-      // try next pair
-      console.log(`Kraken API error for pair ${pair}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (import.meta.env.DEV) {
+        console.warn(`Kraken fetch error for ${pair}:`, error);
+      }
     }
   }
 };
@@ -228,18 +243,25 @@ export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promi
   const key = toDateKey(date);
   const cache = loadCacheFor(code);
   if (cache[key]) {
-    console.log(`Kraken cache hit for ${code} on ${key}: ${cache[key]}`);
     return cache[key];
   }
-  console.log(`Kraken cache miss for ${code} on ${key}, fetching data...`);
+  
   try {
     await primeUsdRatesForAsset(code, new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
     const updated = loadCacheFor(code);
-    const rate = updated[key] || 0;
-    console.log(`Kraken fetch result for ${code} on ${key}: ${rate}`);
-    return rate;
+    const rate = updated[key];
+    if (rate) {
+      return rate;
+    }
+    
+    if (import.meta.env.DEV) {
+      console.warn(`No Kraken data found for ${code} on ${key}`);
+    }
+    return 0;
   } catch (error) {
-    console.log(`Kraken fetch failed for ${code} on ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    if (import.meta.env.DEV) {
+      console.warn(`Kraken rate fetch failed for ${code} on ${key}:`, error);
+    }
     return 0;
   }
 };
