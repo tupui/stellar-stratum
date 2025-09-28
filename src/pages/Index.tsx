@@ -98,6 +98,9 @@ const Index = memo(() => {
     setNetwork(selectedNetwork);
     setLoading(true);
     
+    // Scroll to top when transitioning from landing page
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    
     // Immediately switch to appropriate state for better perceived performance
     const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
     if (deepLinkXdr) {
@@ -135,6 +138,7 @@ const Index = memo(() => {
 
   // Memoize frequently used callbacks
   const handleInitiateTransaction = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setAppState('transaction');
   }, []);
 
@@ -143,6 +147,7 @@ const Index = memo(() => {
   }, []);
 
   const handleBackToDashboard = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setDeepLinkReady(false);
     setAppState('dashboard');
   }, []);
