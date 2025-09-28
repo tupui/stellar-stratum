@@ -146,12 +146,25 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
   const baseUrl = 'https://api.kraken.com/0/public/OHLC';
   const code = (asset || 'XLM').toUpperCase();
   
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: Fetching data for ${code} since ${new Date(since * 1000).toISOString()}`);
+  }
+  
   // Get supported pairs from Kraken
   const supportedPairs = await getSupportedPairs();
+  
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: Found ${supportedPairs.size} supported pairs`);
+  }
   
   // Generate potential pairs and filter by what's actually supported
   const potentialPairs = generatePotentialPairs(code);
   const validPairs = potentialPairs.filter(pair => supportedPairs.has(pair));
+  
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: Potential pairs for ${code}:`, potentialPairs);
+    console.log(`Kraken: Valid pairs for ${code}:`, validPairs);
+  }
   
   // If no valid pairs found, skip this asset
   if (validPairs.length === 0) {
@@ -187,6 +200,7 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
       if (!Array.isArray(arr)) continue;
       
       const cache = loadCacheFor(code);
+      let dataPoints = 0;
       for (const row of arr) {
         // row: [time, open, high, low, close, vwap, volume, count]
         const ts = row[0];
@@ -194,8 +208,14 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
         if (!Number.isFinite(close)) continue;
         const key = toDateKey(new Date(ts * 1000));
         cache[key] = close;
+        dataPoints++;
       }
       saveCacheFor(code, cache);
+      
+      if (import.meta.env.DEV) {
+        console.log(`Kraken: Successfully cached ${dataPoints} data points for ${code} from pair ${pair}`);
+      }
+      
       try { const { lastKey } = getAssetCacheKeys(code); localStorage.setItem(lastKey, String(Date.now())); } catch {}
       return;
     } catch (error) {
@@ -241,9 +261,21 @@ export const primeUsdRatesForAsset = async (asset: string, start: Date, end: Dat
 export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promise<number> => {
   const code = (asset || 'XLM').toUpperCase();
   const key = toDateKey(date);
+  
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: Looking for ${code} rate on ${key}`);
+  }
+  
   const cache = loadCacheFor(code);
   if (cache[key]) {
+    if (import.meta.env.DEV) {
+      console.log(`Kraken: Cache hit for ${code} on ${key}: ${cache[key]}`);
+    }
     return cache[key];
+  }
+  
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: Cache miss for ${code} on ${key}, fetching...`);
   }
   
   try {
@@ -251,6 +283,9 @@ export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promi
     const updated = loadCacheFor(code);
     const rate = updated[key];
     if (rate) {
+      if (import.meta.env.DEV) {
+        console.log(`Kraken: Found rate after fetch for ${code} on ${key}: ${rate}`);
+      }
       return rate;
     }
     
