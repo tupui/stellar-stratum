@@ -184,8 +184,9 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
       saveCacheFor(code, cache);
       try { const { lastKey } = getAssetCacheKeys(code); localStorage.setItem(lastKey, String(Date.now())); } catch {}
       return;
-    } catch {
+    } catch (error) {
       // try next pair
+      console.log(`Kraken API error for pair ${pair}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 };
@@ -226,10 +227,21 @@ export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promi
   const code = (asset || 'XLM').toUpperCase();
   const key = toDateKey(date);
   const cache = loadCacheFor(code);
-  if (cache[key]) return cache[key];
-  await primeUsdRatesForAsset(code, new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
-  const updated = loadCacheFor(code);
-  return updated[key] || 0;
+  if (cache[key]) {
+    console.log(`Kraken cache hit for ${code} on ${key}: ${cache[key]}`);
+    return cache[key];
+  }
+  console.log(`Kraken cache miss for ${code} on ${key}, fetching data...`);
+  try {
+    await primeUsdRatesForAsset(code, new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
+    const updated = loadCacheFor(code);
+    const rate = updated[key] || 0;
+    console.log(`Kraken fetch result for ${code} on ${key}: ${rate}`);
+    return rate;
+  } catch (error) {
+    console.log(`Kraken fetch failed for ${code} on ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    return 0;
+  }
 };
 
 // Backwards-compatible XLM wrappers

@@ -178,14 +178,20 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
       for (const tx of transactions) {
         const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
         let usdPrice = 0;
-        if (tx.assetType === 'native') {
-          usdPrice = await getXlmUsdRateForDate(txDate);
-        } else {
-          // Non-XLM assets: use Kraken USD OHLC for the transaction date
-          usdPrice = await getUsdRateForDateByAsset(tx.assetCode!, txDate);
+        try {
+          if (tx.assetType === 'native') {
+            usdPrice = await getXlmUsdRateForDate(txDate);
+          } else {
+            // Non-XLM assets: use Kraken USD OHLC for the transaction date
+            usdPrice = await getUsdRateForDateByAsset(tx.assetCode!, txDate);
+          }
+        } catch (error) {
+          console.log(`Price fetch failed for ${tx.assetCode || 'XLM'} on ${txDate.toISOString()}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          usdPrice = 0;
         }
 
         if (!usdPrice || !tx.amount) {
+          console.log(`Missing price data for tx ${tx.id}: usdPrice=${usdPrice}, amount=${tx.amount}, asset=${tx.assetCode || 'XLM'}, date=${txDate.toISOString()}`);
           newFiatAmounts.set(tx.id, 0);
           continue;
         }
@@ -209,13 +215,17 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         const tasks = balances.map(async (b) => {
           const qty = parseFloat(b.balance);
           if (!qty || Number.isNaN(qty)) return 0;
-          if (b.asset_type === 'native') {
-            const p = await getAssetPrice('XLM');
-            return (p || 0) * qty;
-          }
-          if (b.asset_code && b.asset_issuer) {
-            const p = await getAssetPrice(b.asset_code, b.asset_issuer);
-            return (p || 0) * qty;
+          try {
+            if (b.asset_type === 'native') {
+              const p = await getAssetPrice('XLM');
+              return (p || 0) * qty;
+            }
+            if (b.asset_code && b.asset_issuer) {
+              const p = await getAssetPrice(b.asset_code, b.asset_issuer);
+              return (p || 0) * qty;
+            }
+          } catch (error) {
+            console.log(`Portfolio price fetch failed for ${b.asset_code || 'XLM'}: ${error instanceof Error ? error.message : 'Unknown error'}`);
           }
           return 0;
         });
