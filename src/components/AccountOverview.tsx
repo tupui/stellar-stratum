@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
+import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
@@ -146,8 +147,18 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
   // Computed values for TransactionSubmitter (matching TransactionBuilder pattern)
   const canSubmitToNetworkValue = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
   const canSubmitToRefractorValue = Boolean(multisigConfigXdr) && currentNetwork === 'mainnet';
-  
-  
+
+  // Wrapper component that provides portfolio value to TransactionHistoryPanel
+  const TransactionHistoryPanelWithPortfolio = ({ accountPublicKey, balances }: { accountPublicKey: string; balances: any[] }) => {
+    const { totalValueUSD } = useAssetPrices(balances);
+    return (
+      <TransactionHistoryPanel 
+        accountPublicKey={accountPublicKey} 
+        balances={balances} 
+        totalPortfolioValueUSD={totalValueUSD}
+      />
+    );
+  };
 
   const handleCopyXdr = () => {
     if (multisigConfigXdr) {
@@ -323,7 +334,7 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
           
           <TabsContent value="activity" className="mt-6">
             {activeTab === "activity" && (
-              <TransactionHistoryPanel accountPublicKey={accountData.publicKey} balances={accountData.balances} />
+              <TransactionHistoryPanelWithPortfolio accountPublicKey={accountData.publicKey} balances={accountData.balances} />
             )}
           </TabsContent>
 

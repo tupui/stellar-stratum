@@ -48,6 +48,7 @@ interface TransactionHistoryPanelProps {
     asset_issuer?: string;
     balance: string;
   }>;
+  totalPortfolioValueUSD?: number;
 }
 
 interface Filters {
@@ -67,7 +68,7 @@ interface AggregatedStats {
   avgFiat: number;
 }
 
-export const TransactionHistoryPanel = ({ accountPublicKey, balances }: TransactionHistoryPanelProps) => {
+export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortfolioValueUSD = 0 }: TransactionHistoryPanelProps) => {
   const { network } = useNetwork();
   const isMobile = useIsMobile();
   
@@ -186,12 +187,16 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
             usdPrice = await getUsdRateForDateByAsset(tx.assetCode!, txDate);
           }
         } catch (error) {
-          console.log(`Price fetch failed for ${tx.assetCode || 'XLM'} on ${txDate.toISOString()}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          if (import.meta.env.DEV) {
+            console.warn(`Price fetch failed for ${tx.assetCode || 'XLM'} on ${txDate.toISOString()}:`, error);
+          }
           usdPrice = 0;
         }
 
         if (!usdPrice || !tx.amount) {
-          console.log(`Missing price data for tx ${tx.id}: usdPrice=${usdPrice}, amount=${tx.amount}, asset=${tx.assetCode || 'XLM'}, date=${txDate.toISOString()}`);
+          if (import.meta.env.DEV) {
+            console.warn(`Missing price data for tx ${tx.id}:`, { usdPrice, amount: tx.amount, asset: tx.assetCode || 'XLM', date: txDate.toISOString() });
+          }
           newFiatAmounts.set(tx.id, 0);
           continue;
         }
@@ -207,43 +212,22 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
     convertAll();
   }, [transactions, quoteCurrency]);
 
-  // Compute current portfolio fiat value from balances
+  // Convert portfolio value to selected fiat currency
   useEffect(() => {
-    const computePortfolio = async () => {
+    const convertPortfolio = async () => {
       try {
-        let totalUSD = 0;
-        const tasks = balances.map(async (b) => {
-          const qty = parseFloat(b.balance);
-          if (!qty || Number.isNaN(qty)) return 0;
-          try {
-            if (b.asset_type === 'native') {
-              const p = await getAssetPrice('XLM');
-              return (p || 0) * qty;
-            }
-            if (b.asset_code && b.asset_issuer) {
-              const p = await getAssetPrice(b.asset_code, b.asset_issuer);
-              return (p || 0) * qty;
-            }
-          } catch (error) {
-            console.log(`Portfolio price fetch failed for ${b.asset_code || 'XLM'}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          }
-          return 0;
-        });
-        const parts = await Promise.all(tasks);
-        totalUSD = parts.reduce((a, b) => a + b, 0);
-
         if (quoteCurrency === 'USD') {
-          setCurrentPortfolioFiat(totalUSD);
+          setCurrentPortfolioFiat(totalPortfolioValueUSD);
         } else {
-          const converted = await convertFromUSD(totalUSD, quoteCurrency);
+          const converted = await convertFromUSD(totalPortfolioValueUSD, quoteCurrency);
           setCurrentPortfolioFiat(converted);
         }
       } catch {
-        setCurrentPortfolioFiat(0);
+        setCurrentPortfolioFiat(totalPortfolioValueUSD);
       }
     };
-    computePortfolio();
-  }, [balances, quoteCurrency]);
+    convertPortfolio();
+  }, [totalPortfolioValueUSD, quoteCurrency]);
 
   // Compute current XLM balance in fiat for chart anchoring when viewing XLM
   useEffect(() => {
