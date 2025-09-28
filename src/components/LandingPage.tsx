@@ -21,7 +21,7 @@ export const LandingPage = ({
   const handleModalControl = (isOpen: boolean) => {
     setShowWalletModal(isOpen);
   };
-  return <div className="min-h-screen bg-background relative overflow-hidden">
+  return <div className="h-screen bg-background relative overflow-hidden">
       {/* Subtle Background Elements - Fixed dimensions to prevent shifts */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-gradient-to-br from-background to-background/50" style={{ contain: 'layout style paint', willChange: 'auto' }} />
@@ -63,9 +63,9 @@ export const LandingPage = ({
       </header>
 
       {/* Main Content */}
-      <div className="flex items-center justify-center min-h-screen px-6 pt-24">
-        <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-6xl md:text-8xl lg:text-9xl font-black leading-none mb-8 tracking-tight">
+      <div className="flex items-center justify-center h-screen px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto text-center flex flex-col justify-center h-full py-20 sm:py-24">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-black leading-[0.85] mb-4 sm:mb-6 md:mb-8 tracking-tight animate-fade-in">
             <span className="text-foreground">Multi-Signature</span>
             <br />
             <span className="text-foreground">Transactions</span>
@@ -73,28 +73,32 @@ export const LandingPage = ({
             <span className="text-stellar-yellow">Made Simple</span>
           </h1>
           
-          <p className="text-xl md:text-2xl text-muted-foreground max-w-4xl mx-auto mb-16 leading-relaxed">
+          <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-muted-foreground max-w-3xl lg:max-w-4xl mx-auto mb-8 sm:mb-10 md:mb-12 leading-relaxed animate-fade-in">
             Stellar's threshold-based authorization system. Configure signature weights, 
             manage signer permissions, and execute secure multi-signature transactions.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center w-full max-w-md sm:max-w-none mx-auto px-4 sm:px-0">
-            <Button size="lg" className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-base sm:text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105" onClick={() => setShowWalletModal(true)}>
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center items-center w-full max-w-md sm:max-w-none mx-auto animate-fade-in">
+            <Button 
+              size="lg" 
+              className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 md:px-12 text-sm sm:text-base md:text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105 hover-scale" 
+              onClick={() => setShowWalletModal(true)}
+            >
               Connect wallet
             </Button>
             <Button 
               size="lg" 
               variant="outline" 
-              className="w-full sm:w-auto h-12 sm:h-16 px-8 sm:px-12 text-base sm:text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105"
+              className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 md:px-12 text-sm sm:text-base md:text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105 hover-scale"
               onClick={() => window.open('/sign', '_blank')}
             >
               Air-gapped Signer
             </Button>
           </div>
 
-          <div className="mt-20 text-sm text-muted-foreground">
+          <div className="mt-8 sm:mt-12 md:mt-16 text-xs sm:text-sm text-muted-foreground animate-fade-in">
             Built on <span className="text-stellar-yellow font-medium">Stellar</span> by{' '}
-            <a href="https://consulting-manao.com/" target="_blank" rel="noopener noreferrer" className="text-stellar-yellow font-medium hover:underline transition-all duration-300">
+            <a href="https://consulting-manao.com/" target="_blank" rel="noopener noreferrer" className="text-stellar-yellow font-medium hover:underline transition-all duration-300 story-link">
               Consulting Manao GmbH
             </a>
           </div>
