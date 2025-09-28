@@ -186,6 +186,7 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
       return;
     } catch (error) {
       // try next pair
+      console.log(`Kraken API error for pair ${pair}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 };
@@ -227,13 +228,18 @@ export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promi
   const key = toDateKey(date);
   const cache = loadCacheFor(code);
   if (cache[key]) {
+    console.log(`Kraken cache hit for ${code} on ${key}: ${cache[key]}`);
     return cache[key];
   }
+  console.log(`Kraken cache miss for ${code} on ${key}, fetching data...`);
   try {
     await primeUsdRatesForAsset(code, new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
     const updated = loadCacheFor(code);
-    return updated[key] || 0;
+    const rate = updated[key] || 0;
+    console.log(`Kraken fetch result for ${code} on ${key}: ${rate}`);
+    return rate;
   } catch (error) {
+    console.log(`Kraken fetch failed for ${code} on ${key}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     return 0;
   }
 };

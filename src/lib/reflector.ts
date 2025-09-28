@@ -195,6 +195,7 @@ const initializeAssetMapping = async (): Promise<void> => {
       
       mappingInitialized = true;
       } catch (error) {
+        console.log(`Oracle mapping initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         mappingPromise = null; // Reset to allow retry
         throw error;
       }
@@ -221,7 +222,8 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
   try {
     const price = await getOracleAssetPriceWithRetry(oracle, asset);
     return price;
-  } catch {
+  } catch (error) {
+    console.log(`Oracle price fetch failed for ${assetCode}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     return 0;
   }
 };

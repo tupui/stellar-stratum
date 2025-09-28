@@ -129,11 +129,14 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
   // Convert amounts to fiat based on asset prices and selected currency
   useEffect(() => {
     const convertAll = async () => {
-      if (!transactions.length || fiatLoading) return;
-      
-      setFiatLoading(true);
       const newFiatAmounts = new Map<string, number>();
       
+      if (transactions.length === 0) {
+        setFiatAmounts(newFiatAmounts);
+        setFiatLoading(false);
+        return;
+      }
+
       // Prime a single OHLC(365d) window up-front so per-tx lookups hit cache
       try {
         const earliest = transactions.reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
@@ -144,7 +147,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
         // Ignore rate fetching errors, continue with current prices
       }
 
-      // Prime non-XLM asset OHLC windows upfront
+      // We compute fiat at transaction time using Kraken OHLC USD rates per asset and the transaction date
+      // Prime non-XLM asset OHLC windows upfront so per-tx lookups hit cache as well
       try {
         const end = new Date();
         const assets = Array.from(new Set(transactions
@@ -158,7 +162,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
           return primeUsdRatesForAsset(code, s, end);
         }));
       } catch {
-        // Ignore asset priming errors
+        // Ignore asset priming errors; we'll fall back to per-tx fetch
       }
 
       // Pre-compute FX factor once (USD -> target fiat)
@@ -174,24 +178,20 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
       for (const tx of transactions) {
         const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
         let usdPrice = 0;
-        
-        // Skip future dates (invalid data)
-        if (txDate > new Date()) {
-          newFiatAmounts.set(tx.id, 0);
-          continue;
-        }
-        
         try {
           if (tx.assetType === 'native') {
             usdPrice = await getXlmUsdRateForDate(txDate);
           } else {
+            // Non-XLM assets: use Kraken USD OHLC for the transaction date
             usdPrice = await getUsdRateForDateByAsset(tx.assetCode!, txDate);
           }
-        } catch {
+        } catch (error) {
+          console.log(`Price fetch failed for ${tx.assetCode || 'XLM'} on ${txDate.toISOString()}: ${error instanceof Error ? error.message : 'Unknown error'}`);
           usdPrice = 0;
         }
 
-        if (!usdPrice || !tx.amount || tx.amount <= 0) {
+        if (!usdPrice || !tx.amount) {
+          console.log(`Missing price data for tx ${tx.id}: usdPrice=${usdPrice}, amount=${tx.amount}, asset=${tx.assetCode || 'XLM'}, date=${txDate.toISOString()}`);
           newFiatAmounts.set(tx.id, 0);
           continue;
         }
@@ -205,7 +205,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
     };
 
     convertAll();
-  }, [transactions.length, quoteCurrency]); // Only depend on length and currency, not the array itself
+  }, [transactions, quoteCurrency]);
 
   // Compute current portfolio fiat value from balances
   useEffect(() => {
@@ -224,8 +224,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances }: Transact
               const p = await getAssetPrice(b.asset_code, b.asset_issuer);
               return (p || 0) * qty;
             }
-          } catch {
-            // Ignore price fetch errors
+          } catch (error) {
+            console.log(`Portfolio price fetch failed for ${b.asset_code || 'XLM'}: ${error instanceof Error ? error.message : 'Unknown error'}`);
           }
           return 0;
         });
