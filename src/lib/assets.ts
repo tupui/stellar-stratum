@@ -104,25 +104,73 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     return cachedAssetInfo.data;
   }
 
-  // Return basic asset info without image - let AssetIcon handle gradient fallback
-  // This avoids CORS issues and broken API endpoints
-  const assetInfo: AssetInfo = {
-    code: assetCode,
-    issuer: assetIssuer,
-    name: assetCode // Use code as name - simple and works
-  };
-  
-  // Cache the asset info
-  const now = Date.now();
-  const assetCacheEntry: CacheEntry<AssetInfo> = {
-    data: assetInfo,
-    timestamp: now,
-    expiresAt: now + ASSET_INFO_CACHE_DURATION
-  };
-  assetInfoCache.set(assetCacheKey, assetCacheEntry);
-  saveCacheToStorage(assetCacheKey, assetCacheEntry);
-  
-  return assetInfo;
+  try {
+    // Fetch issuer's home domain from Horizon
+    const horizonUrl = getHorizonUrl(network);
+    const accountUrl = `${horizonUrl}/accounts/${assetIssuer}`;
+    const accountResponse = await fetch(accountUrl);
+    
+    if (!accountResponse.ok) throw new Error('Account fetch failed');
+    
+    const accountData = await accountResponse.json();
+    const homeDomain = accountData.home_domain;
+    
+    if (!homeDomain) throw new Error('No home domain');
+
+    // Fetch TOML file via CORS proxy
+    const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
+    const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(tomlUrl)}`;
+    
+    const tomlResponse = await fetch(corsProxyUrl);
+    if (!tomlResponse.ok) throw new Error('TOML fetch failed');
+    
+    const tomlData = await tomlResponse.json();
+    const tomlContent = tomlData.contents;
+    
+    // Parse TOML to find asset info
+    const currencies = parseTomlCurrencies(tomlContent);
+    const matchingAsset = currencies.find(
+      currency => currency.code === assetCode && currency.issuer === assetIssuer
+    );
+    
+    const assetInfo: AssetInfo = {
+      code: assetCode,
+      issuer: assetIssuer,
+      name: matchingAsset?.name || matchingAsset?.desc || assetCode,
+      image: matchingAsset?.image
+    };
+    
+    // Cache with long expiry
+    const now = Date.now();
+    const assetCacheEntry: CacheEntry<AssetInfo> = {
+      data: assetInfo,
+      timestamp: now,
+      expiresAt: now + ASSET_INFO_CACHE_DURATION
+    };
+    assetInfoCache.set(assetCacheKey, assetCacheEntry);
+    saveCacheToStorage(assetCacheKey, assetCacheEntry);
+    
+    return assetInfo;
+  } catch (error) {
+    // Fallback: return basic info without image
+    const assetInfo: AssetInfo = {
+      code: assetCode,
+      issuer: assetIssuer,
+      name: assetCode
+    };
+    
+    // Cache failure for shorter duration
+    const now = Date.now();
+    const assetCacheEntry: CacheEntry<AssetInfo> = {
+      data: assetInfo,
+      timestamp: now,
+      expiresAt: now + (60 * 60 * 1000) // 1 hour for failures
+    };
+    assetInfoCache.set(assetCacheKey, assetCacheEntry);
+    saveCacheToStorage(assetCacheKey, assetCacheEntry);
+    
+    return assetInfo;
+  }
 };
 
 // Simple TOML parser for CURRENCIES section

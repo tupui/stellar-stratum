@@ -270,7 +270,7 @@ export const AssetBalancePanel = ({
                       <p className="text-sm text-muted-foreground/80">
                         {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_code}
                       </p>
-                        {asset.priceUSD === -1 ? <LoadingPill size="sm" className="mt-1" /> : asset.priceUSD > 0 ? <p className="text-xs text-muted-foreground/70 font-amount">
+                        {asset.priceUSD === -1 ? <LoadingPill size="sm" className="mt-1" /> : asset.priceUSD > 0 ? <p className="text-xs text-muted-foreground/70 font-amount break-words max-w-[200px] sm:max-w-none">
                             {formatPriceSync(asset.priceUSD, index)} per {asset.symbol}
                           </p> : <p className="text-xs text-muted-foreground/70">
                             Price unavailable
@@ -278,15 +278,11 @@ export const AssetBalancePanel = ({
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <p className="font-amount font-semibold text-foreground tabular-nums" style={{
-                      fontVariantNumeric: 'tabular-nums',
-                      textAlign: 'right',
-                      minWidth: '120px'
-                    }}>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-amount font-semibold text-foreground tabular-nums break-words text-right max-w-[120px] sm:max-w-none">
                       {formatBalance(asset.balance)}
                     </p>
-                      <div className="text-sm font-medium text-primary flex justify-end font-amount">
+                      <div className="text-sm font-medium text-primary flex justify-end font-amount break-words max-w-[120px] sm:max-w-none">
                         {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValueForAsset(asset.valueUSD, index)}
                       </div>
                   </div>
