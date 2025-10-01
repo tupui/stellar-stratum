@@ -35,38 +35,55 @@ const generateAssetColor = (assetCode: string, assetIssuer?: string): { hue: num
 
 export const getAssetColor = generateAssetColor;
 
-// Enhanced caching system
+// Enhanced caching system with TOML-level coherence
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
   expiresAt: number;
 }
 
-// Cache for SEP1 TOML data
+// Cache for SEP1 TOML data per domain
 const tomlCache = new Map<string, CacheEntry<SEP1TomlAsset[]>>();
 
-// Cache for asset info with longer expiry
+// Cache for asset info
 const assetInfoCache = new Map<string, CacheEntry<AssetInfo>>();
 
 // Cache expiry times
 const TOML_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
-const ASSET_INFO_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day for successful fetches with image
-const ASSET_INFO_SHORT_CACHE = 30 * 60 * 1000; // 30 minutes for entries without image
-const STORAGE_KEY_PREFIX = 'stellar_asset_cache_v3_'; // Bumped to v3 for XLM TOML fetch
+const ASSET_INFO_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
+const ASSET_INFO_SHORT_CACHE = 30 * 60 * 1000; // 30 minutes for failed lookups
+const STORAGE_KEY_PREFIX = 'stellar_asset_cache_v4_'; // Bumped to v4 for cache coherence
+const TOML_STORAGE_PREFIX = 'stellar_toml_cache_v4_';
 
-// Load cache from localStorage on startup
+// Load caches from localStorage on startup
 const loadCacheFromStorage = () => {
   try {
-    const keys = Object.keys(localStorage).filter(key => key.startsWith(STORAGE_KEY_PREFIX));
-    keys.forEach(key => {
+    // Load asset cache
+    const assetKeys = Object.keys(localStorage).filter(key => key.startsWith(STORAGE_KEY_PREFIX));
+    assetKeys.forEach(key => {
       const data = localStorage.getItem(key);
       if (data) {
         const parsed = JSON.parse(data);
         const assetKey = key.replace(STORAGE_KEY_PREFIX, '');
         
-        // Check if cache entry is still valid
         if (parsed.expiresAt > Date.now()) {
           assetInfoCache.set(assetKey, parsed);
+        } else {
+          localStorage.removeItem(key);
+        }
+      }
+    });
+    
+    // Load TOML cache
+    const tomlKeys = Object.keys(localStorage).filter(key => key.startsWith(TOML_STORAGE_PREFIX));
+    tomlKeys.forEach(key => {
+      const data = localStorage.getItem(key);
+      if (data) {
+        const parsed = JSON.parse(data);
+        const tomlKey = key.replace(TOML_STORAGE_PREFIX, '');
+        
+        if (parsed.expiresAt > Date.now()) {
+          tomlCache.set(tomlKey, parsed);
         } else {
           localStorage.removeItem(key);
         }
@@ -77,7 +94,7 @@ const loadCacheFromStorage = () => {
   }
 };
 
-// Save cache entry to localStorage
+// Save cache entries to localStorage
 const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
   try {
     localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(entry));
@@ -86,8 +103,71 @@ const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
   }
 };
 
+const saveTomlToStorage = (key: string, entry: CacheEntry<SEP1TomlAsset[]>) => {
+  try {
+    localStorage.setItem(TOML_STORAGE_PREFIX + key, JSON.stringify(entry));
+  } catch (error) {
+    // Silent - no console noise
+  }
+};
+
 // Initialize cache from storage
 loadCacheFromStorage();
+
+// Helper function to fetch and cache TOML data for a domain
+const fetchTomlForDomain = async (homeDomain: string, network: 'mainnet' | 'testnet'): Promise<SEP1TomlAsset[]> => {
+  const tomlCacheKey = `${homeDomain}:${network}`;
+  
+  // Check TOML cache first
+  const cachedToml = tomlCache.get(tomlCacheKey);
+  if (cachedToml && cachedToml.expiresAt > Date.now()) {
+    return cachedToml.data;
+  }
+  
+  let tomlContent = '';
+  
+  // Try primary CORS proxy
+  try {
+    const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
+    const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(tomlUrl)}`;
+    const tomlResponse = await fetch(corsProxyUrl, { signal: AbortSignal.timeout(5000) });
+    
+    if (tomlResponse.ok) {
+      const tomlData = await tomlResponse.json();
+      tomlContent = tomlData.contents;
+    }
+  } catch {
+    // Fallback to jina.ai proxy
+    try {
+      const tomlUrl = `http://${homeDomain}/.well-known/stellar.toml`;
+      const jinaUrl = `https://r.jina.ai/${tomlUrl}`;
+      const tomlResponse = await fetch(jinaUrl, { signal: AbortSignal.timeout(5000) });
+      
+      if (tomlResponse.ok) {
+        tomlContent = await tomlResponse.text();
+      }
+    } catch {
+      throw new Error('Both CORS proxies failed');
+    }
+  }
+  
+  if (!tomlContent) throw new Error('No TOML content');
+  
+  // Parse TOML currencies
+  const currencies = parseTomlCurrencies(tomlContent);
+  
+  // Cache the TOML data
+  const now = Date.now();
+  const tomlCacheEntry: CacheEntry<SEP1TomlAsset[]> = {
+    data: currencies,
+    timestamp: now,
+    expiresAt: now + TOML_CACHE_DURATION
+  };
+  tomlCache.set(tomlCacheKey, tomlCacheEntry);
+  saveTomlToStorage(tomlCacheKey, tomlCacheEntry);
+  
+  return currencies;
+};
 
 // Helper to resolve image URLs properly
 const resolveImageUrl = (image: string, homeDomain: string): string => {
@@ -117,75 +197,52 @@ const resolveImageUrl = (image: string, homeDomain: string): string => {
 };
 
 export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AssetInfo> => {
-  // Check asset info cache first
-  const assetCacheKey = `${assetCode}:${assetIssuer || 'native'}:${network}`;
-  const cachedAssetInfo = assetInfoCache.get(assetCacheKey);
-  if (cachedAssetInfo && cachedAssetInfo.expiresAt > Date.now()) {
-    return cachedAssetInfo.data;
+  // HARDCODED: Native XLM always returns immediately with official info
+  if ((!assetCode || assetCode === 'XLM') && !assetIssuer) {
+    return {
+      code: 'XLM',
+      name: 'Stellar Lumens',
+      image: '/xlm-logo.png'
+    };
   }
-
-  // Handle native XLM by fetching from stellar.org
-  const isNativeXLM = (!assetCode || assetCode === 'XLM') && !assetIssuer;
+  
+  // Get TOML timestamp for cache key coherence
   let homeDomain = '';
-
-  if (isNativeXLM) {
-    homeDomain = 'stellar.org';
-  } else {
-    try {
-      // Fetch issuer's home domain from Horizon
-      const horizonUrl = getHorizonUrl(network);
-      const accountUrl = `${horizonUrl}/accounts/${assetIssuer}`;
-      const accountResponse = await fetch(accountUrl);
-      
-      if (!accountResponse.ok) throw new Error('Account fetch failed');
-      
-      const accountData = await accountResponse.json();
-      homeDomain = accountData.home_domain;
-      
-      if (!homeDomain) throw new Error('No home domain');
-    } catch (error) {
-      throw new Error('Failed to fetch account home domain');
-    }
-  }
-
+  let tomlTimestamp = 0;
+  
   try {
-    let tomlContent = '';
+    // Fetch issuer's home domain from Horizon
+    const horizonUrl = getHorizonUrl(network);
+    const accountUrl = `${horizonUrl}/accounts/${assetIssuer}`;
+    const accountResponse = await fetch(accountUrl);
     
-    // Try primary CORS proxy
-    try {
-      const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
-      const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(tomlUrl)}`;
-      const tomlResponse = await fetch(corsProxyUrl, { signal: AbortSignal.timeout(5000) });
-      
-      if (tomlResponse.ok) {
-        const tomlData = await tomlResponse.json();
-        tomlContent = tomlData.contents;
-      }
-    } catch {
-      // Fallback to jina.ai proxy
-      try {
-        const tomlUrl = `http://${homeDomain}/.well-known/stellar.toml`;
-        const jinaUrl = `https://r.jina.ai/${tomlUrl}`;
-        const tomlResponse = await fetch(jinaUrl, { signal: AbortSignal.timeout(5000) });
-        
-        if (tomlResponse.ok) {
-          tomlContent = await tomlResponse.text();
-        }
-      } catch {
-        throw new Error('Both CORS proxies failed');
-      }
+    if (!accountResponse.ok) throw new Error('Account fetch failed');
+    
+    const accountData = await accountResponse.json();
+    homeDomain = accountData.home_domain;
+    
+    if (!homeDomain) throw new Error('No home domain');
+    
+    // Fetch TOML data (uses cache if available)
+    const currencies = await fetchTomlForDomain(homeDomain, network);
+    
+    // Get TOML cache timestamp for this domain
+    const tomlCacheKey = `${homeDomain}:${network}`;
+    const cachedToml = tomlCache.get(tomlCacheKey);
+    tomlTimestamp = cachedToml?.timestamp || Date.now();
+    
+    // Check asset cache with TOML timestamp included in key for coherence
+    const assetCacheKey = `${assetCode}:${assetIssuer}:${network}:${tomlTimestamp}`;
+    const cachedAssetInfo = assetInfoCache.get(assetCacheKey);
+    if (cachedAssetInfo && cachedAssetInfo.expiresAt > Date.now()) {
+      return cachedAssetInfo.data;
     }
     
-    if (!tomlContent) throw new Error('No TOML content');
-    
-    // Parse TOML to find asset info
-    const currencies = parseTomlCurrencies(tomlContent);
-    const matchingAsset = currencies.find(currency => {
-      if (isNativeXLM) {
-        return currency.code === 'XLM';
-      }
-      return currency.code === assetCode && currency.issuer === assetIssuer;
-    });
+    // Find matching asset in TOML data
+    const matchingAsset = currencies.find(currency => 
+      currency.code.toLowerCase() === assetCode.toLowerCase() && 
+      currency.issuer === assetIssuer
+    );
     
     let resolvedImage: string | undefined;
     if (matchingAsset?.image) {
@@ -193,13 +250,13 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     }
     
     const assetInfo: AssetInfo = {
-      code: assetCode || 'XLM',
+      code: assetCode,
       issuer: assetIssuer,
-      name: matchingAsset?.name || matchingAsset?.desc || assetCode || 'Stellar Lumens',
+      name: matchingAsset?.name || matchingAsset?.desc || assetCode,
       image: resolvedImage
     };
     
-    // Cache with appropriate expiry based on whether we found an image
+    // Cache with appropriate expiry
     const now = Date.now();
     const ttl = resolvedImage ? ASSET_INFO_CACHE_DURATION : ASSET_INFO_SHORT_CACHE;
     const assetCacheEntry: CacheEntry<AssetInfo> = {
@@ -221,6 +278,7 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     
     // Cache failure for shorter duration
     const now = Date.now();
+    const assetCacheKey = `${assetCode}:${assetIssuer}:${network}:${tomlTimestamp || 0}`;
     const assetCacheEntry: CacheEntry<AssetInfo> = {
       data: assetInfo,
       timestamp: now,
@@ -300,8 +358,3 @@ function parseTomlCurrencies(toml: string): SEP1TomlAsset[] {
   
   return assets;
 }
-
-// No longer needed - AssetIcon component handles all fallbacks generically
-export const getAssetIcon = (assetCode: string, assetIssuer?: string): string => {
-  return '';
-};
