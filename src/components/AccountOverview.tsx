@@ -55,7 +55,7 @@ interface AccountOverviewProps {
   
 }
 
-export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
+const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
   const [activeTab, setActiveTab] = useState("balances");
   const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
   const [showEditConfirm, setShowEditConfirm] = useState(false);
@@ -598,3 +598,5 @@ export const AccountOverview = ({ accountData, onInitiateTransaction, onSignTran
     </div>
   );
 };
+
+export default AccountOverview;

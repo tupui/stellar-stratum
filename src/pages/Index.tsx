@@ -4,10 +4,8 @@ import { LoadingPill } from '@/components/ui/loading-pill';
 import { Footer } from '@/components/Footer';
 import { DeepLinkHandler } from '@/components/DeepLinkHandler';
 
-// Lazy load heavy components to improve TTI - fixed double lazy wrapping
-const AccountOverview = lazy(() => import('@/components/AccountOverview').then(module => ({
-  default: module.AccountOverview
-})));
+// Lazy load heavy components to improve TTI
+const AccountOverview = lazy(() => import('@/components/AccountOverview'));
 const TransactionBuilder = lazy(() => import('@/components/TransactionBuilder').then(module => ({
   default: module.TransactionBuilder
 })));
