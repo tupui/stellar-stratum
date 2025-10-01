@@ -141,19 +141,15 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         return;
       }
 
-      // Prime XLM and all asset OHLC windows up-front so per-tx lookups hit cache
+      // Prime XLM and all asset OHLC (24h TTL, full year fetch)
       try {
-        const earliest = transactions.reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
-        const start = new Date(earliest);
-        const end = new Date();
-        await primeUsdRatesForAsset('XLM', start, end);
+        await primeUsdRatesForAsset('XLM');
       } catch {
-        // Ignore rate fetching errors, continue with current prices
+        // Ignore rate fetching errors
       }
 
-      // Prime non-XLM asset OHLC windows upfront so per-tx lookups hit cache as well
+      // Prime non-XLM assets
       try {
-        const end = new Date();
         const assets = new Set<string>();
         
         // Collect asset codes from regular transactions
@@ -168,25 +164,15 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           }
         });
         
-        const assetArray = Array.from(assets);
-        await Promise.all(assetArray.map(code => {
-          const earliestForAsset = transactions
-            .filter(t => t.assetCode === code || (t.category === 'swap' && t.swapToAssetCode === code))
-            .reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
-          const s = new Date(earliestForAsset);
-          return primeUsdRatesForAsset(code, s, end);
-        }));
+        await Promise.all(Array.from(assets).map(code => primeUsdRatesForAsset(code)));
       } catch {
-        // Ignore asset priming errors; we'll fall back to per-tx fetch
+        // Ignore asset priming errors
       }
 
       // Prime historical FX rates if not USD
       if (quoteCurrency !== 'USD') {
         try {
-          const earliest = transactions.reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
-          const start = new Date(earliest);
-          const end = new Date();
-          await primeHistoricalFxRates('USD', quoteCurrency, start, end);
+          await primeHistoricalFxRates('USD', quoteCurrency);
         } catch {
           // Ignore FX priming errors
         }
@@ -208,8 +194,21 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         }
         
         try {
-          // Use cache-only mode since we already primed all asset data
+          // Cache-first: use cache-only mode since we already primed all asset data
           usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, true);
+          
+          // If cache miss and it's today, try forcing a refresh
+          if (!usdPrice) {
+            const today = new Date();
+            const isToday = txDate.toDateString() === today.toDateString();
+            
+            if (isToday) {
+              if (import.meta.env.DEV) {
+                console.debug(`Missing today's rate for ${assetCode}, forcing refresh...`);
+              }
+              usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, false);
+            }
+          }
         } catch (error) {
           if (import.meta.env.DEV) {
             console.warn(`Price fetch failed for ${assetCode} on ${txDate.toISOString()}:`, error);
@@ -217,14 +216,23 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           usdPrice = 0;
         }
 
-        // Get historical FX rate for this specific transaction date (cache-only, no fallback)
+        // Get historical FX rate (cache-first, with today fallback)
         let fxRate = 1;
         if (quoteCurrency !== 'USD') {
           try {
             fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, true);
-            // If no historical rate available, set to 0 to show N/A
+            
+            // If cache miss and it's today, try forcing a refresh
             if (!fxRate) {
-              fxRate = 0;
+              const today = new Date();
+              const isToday = txDate.toDateString() === today.toDateString();
+              
+              if (isToday) {
+                if (import.meta.env.DEV) {
+                  console.debug(`Missing today's FX rate for ${quoteCurrency}, forcing refresh...`);
+                }
+                fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, false);
+              }
             }
           } catch {
             fxRate = 0;

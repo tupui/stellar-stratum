@@ -3,13 +3,7 @@
 
 type DailyMap = Record<string, number>; // yyyy-mm-dd -> USD close
 
-// Cache tracking structure: stores the date range that has been fetched
-interface DateRange {
-  start: string; // YYYY-MM-DD format
-  end: string;   // YYYY-MM-DD format
-}
-
-const PAIRS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h cache for supported pairs
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hour TTL for all cache data
 
 const toDateKey = (d: Date): string => {
   const y = d.getUTCFullYear();
@@ -17,6 +11,8 @@ const toDateKey = (d: Date): string => {
   const day = String(d.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 };
+
+const todayKeyUTC = (): string => toDateKey(new Date());
 
 // Lightweight minute limiter (~20/min)
 const WINDOW_MS = 60_000;
@@ -45,7 +41,7 @@ const fetchSupportedPairs = async (): Promise<Set<string>> => {
     
     if (cachedTimestamp && cachedPairs) {
       const timestamp = Number(cachedTimestamp);
-      if (Date.now() - timestamp < PAIRS_CACHE_TTL_MS) {
+      if (Date.now() - timestamp < CACHE_TTL_MS) {
         try {
           const pairs = new Set(JSON.parse(cachedPairs) as string[]);
           supportedPairsCache = pairs;
@@ -112,9 +108,10 @@ const getAssetCacheKeys = (asset: string) => {
   const code = (asset || 'XLM').toUpperCase();
   return {
     cacheKey: `kraken_${code}_usd_ohlc_daily_v1`,
-    rangeKey: `kraken_range_${code}` // Changed from lastKey to rangeKey
+    lastFetchKey: `kraken_${code}_last_fetch_v1`
   };
 };
+
 const loadCacheFor = (asset: string): DailyMap => {
   try {
     const { cacheKey } = getAssetCacheKeys(asset);
@@ -124,10 +121,30 @@ const loadCacheFor = (asset: string): DailyMap => {
     return {};
   }
 };
+
 const saveCacheFor = (asset: string, map: DailyMap) => {
   try {
     const { cacheKey } = getAssetCacheKeys(asset);
     localStorage.setItem(cacheKey, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+};
+
+const getLastFetchTime = (asset: string): number => {
+  try {
+    const { lastFetchKey } = getAssetCacheKeys(asset);
+    const raw = localStorage.getItem(lastFetchKey);
+    return raw ? Number(raw) : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const setLastFetchTime = (asset: string, timestamp: number) => {
+  try {
+    const { lastFetchKey } = getAssetCacheKeys(asset);
+    localStorage.setItem(lastFetchKey, String(timestamp));
   } catch {
     // ignore
   }
@@ -145,30 +162,28 @@ const generatePotentialPairs = (asset: string): string[] => {
   ];
 };
 
-// Generic fetcher per asset - now checks supported pairs first
-const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => {
-  const since = Math.floor(start.getTime() / 1000);
+// Fetch full year of OHLC data for an asset
+const fetchFullYearForAsset = async (asset: string): Promise<void> => {
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const since = Math.floor(oneYearAgo.getTime() / 1000);
+  
   const baseUrl = 'https://api.kraken.com/0/public/OHLC';
   const code = (asset || 'XLM').toUpperCase();
   
   if (import.meta.env.DEV) {
-    console.log(`Kraken: Fetching data for ${code} since ${new Date(since * 1000).toISOString()}`);
+    console.debug(`Kraken: Fetching full year of data for ${code}`);
   }
   
   // Get supported pairs from Kraken
   const supportedPairs = await getSupportedPairs();
   
-  if (import.meta.env.DEV) {
-    console.log(`Kraken: Found ${supportedPairs.size} supported pairs`);
-  }
-  
   // Generate potential pairs and filter by what's actually supported
   const potentialPairs = generatePotentialPairs(code);
   const validPairs = potentialPairs.filter(pair => supportedPairs.has(pair));
   
-  if (import.meta.env.DEV) {
-    console.log(`Kraken: Potential pairs for ${code}:`, potentialPairs);
-    console.log(`Kraken: Valid pairs for ${code}:`, validPairs);
+  if (import.meta.env.DEV && validPairs.length > 0) {
+    console.debug(`Kraken: Using pair ${validPairs[0]} for ${code}`);
   }
   
   // If no valid pairs found, skip this asset
@@ -186,16 +201,13 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
       
       if (!resp.ok) {
         if (import.meta.env.DEV) {
-          console.warn(`Kraken API ${resp.status} for ${pair}:`, await resp.text().catch(() => 'Unable to read response'));
+          console.warn(`Kraken API ${resp.status} for ${pair}`);
         }
         continue;
       }
       
       const json: any = await resp.json();
       if (!json?.result || typeof json.result !== 'object') {
-        if (import.meta.env.DEV) {
-          console.warn(`Invalid Kraken response for ${pair}:`, json);
-        }
         continue;
       }
       
@@ -216,9 +228,10 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
         dataPoints++;
       }
       saveCacheFor(code, cache);
+      setLastFetchTime(code, Date.now());
       
       if (import.meta.env.DEV) {
-        console.log(`Kraken: Successfully cached ${dataPoints} data points for ${code} from pair ${pair}`);
+        console.debug(`Kraken: Cached ${dataPoints} data points for ${code}`);
       }
       
       return;
@@ -231,134 +244,94 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
 };
 
 
-export const primeUsdRatesForAsset = async (asset: string, start: Date, end: Date): Promise<void> => {
+// Ensure we have fresh data for an asset (24h TTL or missing today's data)
+const ensureFreshAssetData = async (asset: string): Promise<void> => {
   const code = (asset || 'XLM').toUpperCase();
-  const { rangeKey } = getAssetCacheKeys(code);
-
-  // Check if we already have this date range cached
-  const cachedRangeStr = localStorage.getItem(rangeKey);
-  let cachedRange: DateRange | null = null;
+  const key = `ensure_${code}`;
   
-  if (cachedRangeStr) {
-    try {
-      cachedRange = JSON.parse(cachedRangeStr);
-    } catch (e) {
-      // Invalid cache, ignore it
-    }
-  }
-
-  const requestedStart = toDateKey(start);
-  const requestedEnd = toDateKey(end);
-
-  // If we already have this range or a broader range, skip fetching
-  if (cachedRange && cachedRange.start <= requestedStart && cachedRange.end >= requestedEnd) {
-    if (import.meta.env.DEV) {
-      console.log(`Kraken: Skipping fetch for ${code}, already have range ${cachedRange.start} to ${cachedRange.end}`);
-    }
-    return;
-  }
-
-  // Determine what date range we need to fetch
-  let fetchStart = start;
-  let fetchEnd = end;
-
-  if (cachedRange) {
-    // Extend the range if needed
-    if (requestedStart < cachedRange.start) {
-      fetchEnd = new Date(cachedRange.start);
-      fetchEnd.setDate(fetchEnd.getDate() - 1); // Fetch up to day before cached start
-    } else if (requestedEnd > cachedRange.end) {
-      fetchStart = new Date(cachedRange.end);
-      fetchStart.setDate(fetchStart.getDate() + 1); // Fetch from day after cached end
-    }
-    
-    if (import.meta.env.DEV) {
-      console.log(`Kraken: Extending ${code} cache from ${toDateKey(fetchStart)} to ${toDateKey(fetchEnd)}`);
-    }
-  }
-
-  const key = `prime_${code}_${toDateKey(fetchStart)}_${toDateKey(fetchEnd)}`;
-  
+  // Deduplicate concurrent requests
   if (inflightKrakenRequests.has(key)) {
     await inflightKrakenRequests.get(key);
     return;
   }
-
+  
   const promise = (async () => {
     try {
-      await fetchDailyForAsset(code, fetchStart);
+      const lastFetch = getLastFetchTime(code);
+      const now = Date.now();
+      const cache = loadCacheFor(code);
+      const today = todayKeyUTC();
       
-      // Update the cached range
-      const newRange: DateRange = {
-        start: cachedRange ? (requestedStart < cachedRange.start ? requestedStart : cachedRange.start) : requestedStart,
-        end: cachedRange ? (requestedEnd > cachedRange.end ? requestedEnd : cachedRange.end) : requestedEnd,
-      };
-      
-      localStorage.setItem(rangeKey, JSON.stringify(newRange));
+      // If we have fresh data (within 24h) AND today's data exists, skip
+      if (lastFetch && (now - lastFetch < CACHE_TTL_MS) && cache[today]) {
+        return;
+      }
       
       if (import.meta.env.DEV) {
-        console.log(`Kraken: Updated ${code} range cache to ${newRange.start} - ${newRange.end}`);
+        if (!lastFetch || (now - lastFetch >= CACHE_TTL_MS)) {
+          console.debug(`Kraken: Cache expired for ${code}, refreshing...`);
+        } else {
+          console.debug(`Kraken: Today's data missing for ${code}, refreshing...`);
+        }
       }
+      
+      // Fetch full year of data
+      await fetchFullYearForAsset(code);
     } finally {
       inflightKrakenRequests.delete(key);
     }
   })();
-
+  
   inflightKrakenRequests.set(key, promise);
   await promise;
+};
+
+export const primeUsdRatesForAsset = async (asset: string, _start?: Date, _end?: Date): Promise<void> => {
+  await ensureFreshAssetData(asset);
 };
 
 export const getUsdRateForDateByAsset = async (asset: string, date: Date, cacheOnly: boolean = false): Promise<number> => {
   const code = (asset || 'XLM').toUpperCase();
   const key = toDateKey(date);
   
-  if (import.meta.env.DEV) {
-    console.log(`Kraken: Looking for ${code} rate on ${key} (cacheOnly: ${cacheOnly})`);
-  }
-  
+  // Check cache first
   const cache = loadCacheFor(code);
   if (cache[key]) {
-    if (import.meta.env.DEV) {
-      console.log(`Kraken: Cache hit for ${code} on ${key}: ${cache[key]}`);
-    }
     return cache[key];
   }
   
   // If cacheOnly mode, return 0 immediately on cache miss
   if (cacheOnly) {
-    if (import.meta.env.DEV) {
-      console.log(`Kraken: Cache miss for ${code} on ${key} (cache-only mode, skipping fetch)`);
-    }
     return 0;
   }
   
-  if (import.meta.env.DEV) {
-    console.log(`Kraken: Cache miss for ${code} on ${key}, fetching...`);
+  // Ensure we have fresh data
+  await ensureFreshAssetData(code);
+  
+  // Check cache again after fetch
+  const updated = loadCacheFor(code);
+  if (updated[key]) {
+    return updated[key];
   }
   
-  try {
-    await primeUsdRatesForAsset(code, new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
-    const updated = loadCacheFor(code);
-    const rate = updated[key];
-    if (rate) {
-      if (import.meta.env.DEV) {
-        console.log(`Kraken: Found rate after fetch for ${code} on ${key}: ${rate}`);
-      }
-      return rate;
-    }
-    
-    
+  // If today's data is still missing, force a second fetch
+  if (key === todayKeyUTC()) {
     if (import.meta.env.DEV) {
-      console.warn(`No Kraken data found for ${code} on ${key}`);
-    }
-    return 0;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn(`Kraken rate fetch failed for ${code} on ${key}:`, error);
+      console.debug(`Kraken: Today's data still missing for ${code}, forcing refresh...`);
     }
     
-    return 0;
+    // Force a fresh fetch by clearing the TTL
+    setLastFetchTime(code, 0);
+    await ensureFreshAssetData(code);
+    
+    const refetched = loadCacheFor(code);
+    if (refetched[key]) {
+      return refetched[key];
+    }
   }
+  
+  // No data available
+  return 0;
 };
 
 // XLM helpers removed - use getUsdRateForDateByAsset('XLM', ...) directly
@@ -368,7 +341,7 @@ const getFiatCacheKeys = (fromCurrency: string, toCurrency: string) => {
   const pair = `${fromCurrency}${toCurrency}`.toUpperCase();
   return {
     cacheKey: `kraken_fx_${pair}_ohlc_daily_v1`,
-    rangeKey: `kraken_fx_range_${pair}` // Changed from lastKey to rangeKey
+    lastFetchKey: `kraken_fx_${pair}_last_fetch_v1`
   };
 };
 
@@ -391,6 +364,25 @@ const saveFiatCache = (fromCurrency: string, toCurrency: string, map: DailyMap) 
   }
 };
 
+const getFiatLastFetchTime = (fromCurrency: string, toCurrency: string): number => {
+  try {
+    const { lastFetchKey } = getFiatCacheKeys(fromCurrency, toCurrency);
+    const raw = localStorage.getItem(lastFetchKey);
+    return raw ? Number(raw) : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const setFiatLastFetchTime = (fromCurrency: string, toCurrency: string, timestamp: number) => {
+  try {
+    const { lastFetchKey } = getFiatCacheKeys(fromCurrency, toCurrency);
+    localStorage.setItem(lastFetchKey, String(timestamp));
+  } catch {
+    // ignore
+  }
+};
+
 // Generate potential fiat pair names
 const generateFiatPairs = (fromCurrency: string, toCurrency: string): string[] => {
   const from = fromCurrency.toUpperCase();
@@ -403,21 +395,24 @@ const generateFiatPairs = (fromCurrency: string, toCurrency: string): string[] =
   ];
 };
 
-// Fetch OHLC data for fiat pairs
-const fetchDailyForFiatPair = async (fromCurrency: string, toCurrency: string, start: Date): Promise<void> => {
-  const since = Math.floor(start.getTime() / 1000);
+// Fetch full year of OHLC data for a fiat pair
+const fetchFullYearForFiatPair = async (fromCurrency: string, toCurrency: string): Promise<void> => {
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const since = Math.floor(oneYearAgo.getTime() / 1000);
+  
   const baseUrl = 'https://api.kraken.com/0/public/OHLC';
   
   if (import.meta.env.DEV) {
-    console.log(`Kraken: Fetching FX data for ${fromCurrency}/${toCurrency} since ${new Date(since * 1000).toISOString()}`);
+    console.debug(`Kraken: Fetching full year of FX data for ${fromCurrency}/${toCurrency}`);
   }
   
   const supportedPairs = await getSupportedPairs();
   const potentialPairs = generateFiatPairs(fromCurrency, toCurrency);
   const validPairs = potentialPairs.filter(pair => supportedPairs.has(pair));
   
-  if (import.meta.env.DEV) {
-    console.log(`Kraken: Valid FX pairs for ${fromCurrency}/${toCurrency}:`, validPairs);
+  if (import.meta.env.DEV && validPairs.length > 0) {
+    console.debug(`Kraken: Using FX pair ${validPairs[0]} for ${fromCurrency}/${toCurrency}`);
   }
   
   if (validPairs.length === 0) {
@@ -441,9 +436,6 @@ const fetchDailyForFiatPair = async (fromCurrency: string, toCurrency: string, s
       
       const json: any = await resp.json();
       if (!json?.result || typeof json.result !== 'object') {
-        if (import.meta.env.DEV) {
-          console.warn(`Invalid Kraken response for FX pair ${pair}`);
-        }
         continue;
       }
       
@@ -463,9 +455,10 @@ const fetchDailyForFiatPair = async (fromCurrency: string, toCurrency: string, s
         dataPoints++;
       }
       saveFiatCache(fromCurrency, toCurrency, cache);
+      setFiatLastFetchTime(fromCurrency, toCurrency, Date.now());
       
       if (import.meta.env.DEV) {
-        console.log(`Kraken: Successfully cached ${dataPoints} FX data points for ${fromCurrency}/${toCurrency} from pair ${pair}`);
+        console.debug(`Kraken: Cached ${dataPoints} FX data points for ${fromCurrency}/${toCurrency}`);
       }
       
       return;
@@ -477,132 +470,93 @@ const fetchDailyForFiatPair = async (fromCurrency: string, toCurrency: string, s
   }
 };
 
-// Prime historical FX rates for a currency pair
-export const primeHistoricalFxRates = async (fromCurrency: string, toCurrency: string, start: Date, end: Date): Promise<void> => {
-  const { rangeKey } = getFiatCacheKeys(fromCurrency, toCurrency);
-
-  // Check if we already have this date range cached
-  const cachedRangeStr = localStorage.getItem(rangeKey);
-  let cachedRange: DateRange | null = null;
+// Ensure we have fresh FX data (24h TTL or missing today's data)
+const ensureFreshFxData = async (fromCurrency: string, toCurrency: string): Promise<void> => {
+  const key = `ensure_fx_${fromCurrency}_${toCurrency}`;
   
-  if (cachedRangeStr) {
-    try {
-      cachedRange = JSON.parse(cachedRangeStr);
-    } catch (e) {
-      // Invalid cache, ignore it
-    }
-  }
-
-  const requestedStart = toDateKey(start);
-  const requestedEnd = toDateKey(end);
-
-  // If we already have this range or a broader range, skip fetching
-  if (cachedRange && cachedRange.start <= requestedStart && cachedRange.end >= requestedEnd) {
-    if (import.meta.env.DEV) {
-      console.log(`Kraken: Skipping FX fetch for ${fromCurrency}/${toCurrency}, already have range ${cachedRange.start} to ${cachedRange.end}`);
-    }
-    return;
-  }
-
-  // Determine what date range we need to fetch
-  let fetchStart = start;
-  let fetchEnd = end;
-
-  if (cachedRange) {
-    // Extend the range if needed
-    if (requestedStart < cachedRange.start) {
-      fetchEnd = new Date(cachedRange.start);
-      fetchEnd.setDate(fetchEnd.getDate() - 1);
-    } else if (requestedEnd > cachedRange.end) {
-      fetchStart = new Date(cachedRange.end);
-      fetchStart.setDate(fetchStart.getDate() + 1);
-    }
-    
-    if (import.meta.env.DEV) {
-      console.log(`Kraken: Extending FX ${fromCurrency}/${toCurrency} cache from ${toDateKey(fetchStart)} to ${toDateKey(fetchEnd)}`);
-    }
-  }
-
-  const key = `prime_fx_${fromCurrency}_${toCurrency}_${toDateKey(fetchStart)}_${toDateKey(fetchEnd)}`;
-  
+  // Deduplicate concurrent requests
   if (inflightKrakenRequests.has(key)) {
     await inflightKrakenRequests.get(key);
     return;
   }
-
+  
   const promise = (async () => {
     try {
-      await fetchDailyForFiatPair(fromCurrency, toCurrency, fetchStart);
+      const lastFetch = getFiatLastFetchTime(fromCurrency, toCurrency);
+      const now = Date.now();
+      const cache = loadFiatCache(fromCurrency, toCurrency);
+      const today = todayKeyUTC();
       
-      // Update the cached range
-      const newRange: DateRange = {
-        start: cachedRange ? (requestedStart < cachedRange.start ? requestedStart : cachedRange.start) : requestedStart,
-        end: cachedRange ? (requestedEnd > cachedRange.end ? requestedEnd : cachedRange.end) : requestedEnd,
-      };
-      
-      localStorage.setItem(rangeKey, JSON.stringify(newRange));
+      // If we have fresh data (within 24h) AND today's data exists, skip
+      if (lastFetch && (now - lastFetch < CACHE_TTL_MS) && cache[today]) {
+        return;
+      }
       
       if (import.meta.env.DEV) {
-        console.log(`Kraken: Updated FX ${fromCurrency}/${toCurrency} range cache to ${newRange.start} - ${newRange.end}`);
+        if (!lastFetch || (now - lastFetch >= CACHE_TTL_MS)) {
+          console.debug(`Kraken: FX cache expired for ${fromCurrency}/${toCurrency}, refreshing...`);
+        } else {
+          console.debug(`Kraken: Today's FX data missing for ${fromCurrency}/${toCurrency}, refreshing...`);
+        }
       }
+      
+      // Fetch full year of data
+      await fetchFullYearForFiatPair(fromCurrency, toCurrency);
     } finally {
       inflightKrakenRequests.delete(key);
     }
   })();
-
+  
   inflightKrakenRequests.set(key, promise);
   await promise;
+};
+
+export const primeHistoricalFxRates = async (fromCurrency: string, toCurrency: string, _start?: Date, _end?: Date): Promise<void> => {
+  await ensureFreshFxData(fromCurrency, toCurrency);
 };
 
 // Get historical FX rate for a specific date
 export const getHistoricalFxRate = async (fromCurrency: string, toCurrency: string, date: Date, cacheOnly: boolean = false): Promise<number> => {
   const key = toDateKey(date);
   
-  if (import.meta.env.DEV) {
-    console.log(`Kraken: Looking for FX rate ${fromCurrency}/${toCurrency} on ${key} (cacheOnly: ${cacheOnly})`);
-  }
-  
+  // Check cache first
   const cache = loadFiatCache(fromCurrency, toCurrency);
   if (cache[key]) {
-    if (import.meta.env.DEV) {
-      console.log(`Kraken: FX cache hit for ${fromCurrency}/${toCurrency} on ${key}: ${cache[key]}`);
-    }
     return cache[key];
   }
   
   // If cacheOnly mode, return 0 immediately on cache miss
   if (cacheOnly) {
-    if (import.meta.env.DEV) {
-      console.log(`Kraken: FX cache miss for ${fromCurrency}/${toCurrency} on ${key} (cache-only mode, skipping fetch)`);
-    }
     return 0;
   }
   
-  if (import.meta.env.DEV) {
-    console.log(`Kraken: FX cache miss for ${fromCurrency}/${toCurrency} on ${key}, fetching...`);
+  // Ensure we have fresh data
+  await ensureFreshFxData(fromCurrency, toCurrency);
+  
+  // Check cache again after fetch
+  const updated = loadFiatCache(fromCurrency, toCurrency);
+  if (updated[key]) {
+    return updated[key];
   }
   
-  try {
-    await primeHistoricalFxRates(fromCurrency, toCurrency, new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
-    const updated = loadFiatCache(fromCurrency, toCurrency);
-    const rate = updated[key];
-    if (rate) {
-      if (import.meta.env.DEV) {
-        console.log(`Kraken: Found FX rate after fetch for ${fromCurrency}/${toCurrency} on ${key}: ${rate}`);
-      }
-      return rate;
+  // If today's data is still missing, force a second fetch
+  if (key === todayKeyUTC()) {
+    if (import.meta.env.DEV) {
+      console.debug(`Kraken: Today's FX data still missing for ${fromCurrency}/${toCurrency}, forcing refresh...`);
     }
     
-    if (import.meta.env.DEV) {
-      console.warn(`No Kraken FX data found for ${fromCurrency}/${toCurrency} on ${key}`);
+    // Force a fresh fetch by clearing the TTL
+    setFiatLastFetchTime(fromCurrency, toCurrency, 0);
+    await ensureFreshFxData(fromCurrency, toCurrency);
+    
+    const refetched = loadFiatCache(fromCurrency, toCurrency);
+    if (refetched[key]) {
+      return refetched[key];
     }
-    return 0;
-  } catch (error) {
-    if (import.meta.env.DEV) {
-      console.warn(`Kraken FX rate fetch failed for ${fromCurrency}/${toCurrency} on ${key}:`, error);
-    }
-    return 0;
   }
+  
+  // No data available
+  return 0;
 };
 
 
