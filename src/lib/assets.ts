@@ -124,49 +124,60 @@ const fetchTomlForDomain = async (homeDomain: string, network: 'mainnet' | 'test
     return cachedToml.data;
   }
   
-  let tomlContent = '';
-  
-  // Try primary CORS proxy
-  try {
-    const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
-    const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(tomlUrl)}`;
-    const tomlResponse = await fetch(corsProxyUrl, { signal: AbortSignal.timeout(5000) });
-    
-    if (tomlResponse.ok) {
-      const tomlData = await tomlResponse.json();
-      tomlContent = tomlData.contents;
-    }
-  } catch {
-    // Fallback to jina.ai proxy
-    try {
-      const tomlUrl = `http://${homeDomain}/.well-known/stellar.toml`;
-      const jinaUrl = `https://r.jina.ai/${tomlUrl}`;
-      const tomlResponse = await fetch(jinaUrl, { signal: AbortSignal.timeout(5000) });
-      
-      if (tomlResponse.ok) {
-        tomlContent = await tomlResponse.text();
-      }
-    } catch {
-      throw new Error('Both CORS proxies failed');
-    }
+  // Validate domain sanity
+  if (!homeDomain || homeDomain.includes(' ') || homeDomain.length < 3) {
+    // Cache empty result for invalid domains
+    const now = Date.now();
+    const emptyEntry: CacheEntry<SEP1TomlAsset[]> = {
+      data: [],
+      timestamp: now,
+      expiresAt: now + TOML_CACHE_DURATION
+    };
+    tomlCache.set(tomlCacheKey, emptyEntry);
+    saveTomlToStorage(tomlCacheKey, emptyEntry);
+    return [];
   }
   
-  if (!tomlContent) throw new Error('No TOML content');
-  
-  // Parse TOML currencies
-  const currencies = parseTomlCurrencies(tomlContent);
-  
-  // Cache the TOML data
-  const now = Date.now();
-  const tomlCacheEntry: CacheEntry<SEP1TomlAsset[]> = {
-    data: currencies,
-    timestamp: now,
-    expiresAt: now + TOML_CACHE_DURATION
-  };
-  tomlCache.set(tomlCacheKey, tomlCacheEntry);
-  saveTomlToStorage(tomlCacheKey, tomlCacheEntry);
-  
-  return currencies;
+  // Direct HTTPS fetch (no proxies)
+  try {
+    const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
+    const tomlResponse = await fetch(tomlUrl, { 
+      mode: 'cors',
+      signal: AbortSignal.timeout(5000) 
+    });
+    
+    if (!tomlResponse.ok) throw new Error('Non-2xx response');
+    
+    const tomlContent = await tomlResponse.text();
+    
+    if (!tomlContent) throw new Error('Empty TOML');
+    
+    // Parse TOML currencies
+    const currencies = parseTomlCurrencies(tomlContent);
+    
+    // Cache the TOML data
+    const now = Date.now();
+    const tomlCacheEntry: CacheEntry<SEP1TomlAsset[]> = {
+      data: currencies,
+      timestamp: now,
+      expiresAt: now + TOML_CACHE_DURATION
+    };
+    tomlCache.set(tomlCacheKey, tomlCacheEntry);
+    saveTomlToStorage(tomlCacheKey, tomlCacheEntry);
+    
+    return currencies;
+  } catch {
+    // Silently fail: cache empty result for 24h to avoid repeated attempts
+    const now = Date.now();
+    const emptyEntry: CacheEntry<SEP1TomlAsset[]> = {
+      data: [],
+      timestamp: now,
+      expiresAt: now + TOML_CACHE_DURATION
+    };
+    tomlCache.set(tomlCacheKey, emptyEntry);
+    saveTomlToStorage(tomlCacheKey, emptyEntry);
+    return [];
+  }
 };
 
 // Helper to resolve image URLs properly
@@ -203,6 +214,16 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
       code: 'XLM',
       name: 'Stellar Lumens',
       image: '/xlm-logo.png'
+    };
+  }
+  
+  // HARDCODED: USDC override to avoid TOML dependency
+  if (assetCode === 'USDC') {
+    return {
+      code: 'USDC',
+      issuer: assetIssuer,
+      name: 'USD Coin',
+      image: '/assets/usdc.svg'
     };
   }
   
