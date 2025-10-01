@@ -309,7 +309,12 @@ export const WalletConnect = ({
                     id="manual-address" 
                     placeholder="GABC...XYZ" 
                     value={manualAddress} 
-                    onChange={e => setManualAddress(e.target.value)} 
+                    onChange={e => setManualAddress(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && manualAddress.trim()) {
+                        handleManualConnect();
+                      }
+                    }}
                     className="font-address text-sm" 
                     maxLength={56} 
                   />
@@ -348,7 +353,12 @@ export const WalletConnect = ({
                     id="soroban-domain" 
                     placeholder="mydomain" 
                     value={sorobanDomain} 
-                    onChange={e => setSorobanDomain(e.target.value)} 
+                    onChange={e => setSorobanDomain(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && sorobanDomain.trim() && !resolvingDomain) {
+                        handleSorobanConnect();
+                      }
+                    }}
                     className="text-sm" 
                   />
                   <Button onClick={handleSorobanConnect} disabled={!sorobanDomain.trim() || resolvingDomain} size="sm">
