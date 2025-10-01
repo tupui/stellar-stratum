@@ -74,37 +74,13 @@ export const GroupedTransactionItem = ({
                 {tx.isGrouped && isMain ? (
                   <>
                     {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)}{' '}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openAssetExplorer(
-                          tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM'),
-                          tx.assetIssuer
-                        );
-                      }}
-                      className="hover:underline hover:text-primary inline-flex items-center gap-0.5"
-                    >
-                      {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </button>
+                    {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
                     <span className="text-muted-foreground ml-1">({tx.count}×)</span>
                   </>
                 ) : (
                   <>
                     {tx.direction === 'out' ? 'Sent' : 'Received'} {(tx.amount || 0).toFixed(2)}{' '}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openAssetExplorer(
-                          tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM'),
-                          tx.assetIssuer
-                        );
-                      }}
-                      className="hover:underline hover:text-primary inline-flex items-center gap-0.5"
-                    >
-                      {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </button>
+                    {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
                   </>
                 )}
               </span>
@@ -120,34 +96,10 @@ export const GroupedTransactionItem = ({
                 ) : (
                   <span className="font-amount tabular-nums break-all">
                     {(tx.swapFromAmount ?? 0).toFixed(2)}{' '}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openAssetExplorer(
-                          tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || 'XLM'),
-                          tx.swapFromAssetIssuer
-                        );
-                      }}
-                      className="hover:underline hover:text-primary inline-flex items-center gap-0.5"
-                    >
-                      {tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </button>
+                    {tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}
                     {' → '}
                     {(tx.swapToAmount ?? 0).toFixed(2)}{' '}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openAssetExplorer(
-                          tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || 'XLM'),
-                          tx.swapToAssetIssuer
-                        );
-                      }}
-                      className="hover:underline hover:text-primary inline-flex items-center gap-0.5"
-                    >
-                      {tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </button>
+                    {tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}
                   </span>
                 )}
               </span>
@@ -227,19 +179,6 @@ export const GroupedTransactionItem = ({
     window.open(expertUrl, '_blank');
   };
 
-  const openAssetExplorer = (assetCode: string, assetIssuer?: string) => {
-    if (assetCode === 'XLM' || !assetIssuer) {
-      const expertUrl = network === 'testnet'
-        ? `https://stellar.expert/explorer/testnet/asset/XLM`
-        : `https://stellar.expert/explorer/public/asset/XLM`;
-      window.open(expertUrl, '_blank');
-    } else {
-      const expertUrl = network === 'testnet'
-        ? `https://stellar.expert/explorer/testnet/asset/${assetCode}-${assetIssuer}`
-        : `https://stellar.expert/explorer/public/asset/${assetCode}-${assetIssuer}`;
-      window.open(expertUrl, '_blank');
-    }
-  };
 
   return (
     <div className="rounded-lg border transition-colors hover:bg-secondary/50">
@@ -346,52 +285,16 @@ export const GroupedTransactionItem = ({
                           {tx.category === 'transfer' && (
                             <span className="font-medium font-amount tabular-nums">
                               {(tx.amount || 0).toFixed(2)}{' '}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openAssetExplorer(
-                                    tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM'),
-                                    tx.assetIssuer
-                                  );
-                                }}
-                                className="hover:underline hover:text-primary inline-flex items-center gap-0.5"
-                              >
-                                {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </button>
+                              {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
                             </span>
                           )}
                           {tx.category === 'swap' && (
                             <span className="font-medium font-amount tabular-nums">
                               {(tx.swapFromAmount ?? 0).toFixed(2)}{' '}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openAssetExplorer(
-                                    tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || 'XLM'),
-                                    tx.swapFromAssetIssuer
-                                  );
-                                }}
-                                className="hover:underline hover:text-primary inline-flex items-center gap-0.5"
-                              >
-                                {tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </button>
+                              {tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')}
                               {' → '}
                               {(tx.swapToAmount ?? 0).toFixed(2)}{' '}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openAssetExplorer(
-                                    tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || 'XLM'),
-                                    tx.swapToAssetIssuer
-                                  );
-                                }}
-                                className="hover:underline hover:text-primary inline-flex items-center gap-0.5"
-                              >
-                                {tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}
-                                <ExternalLink className="w-2.5 h-2.5" />
-                              </button>
+                              {tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}
                             </span>
                           )}
                           {tx.category !== 'transfer' && tx.category !== 'swap' && (
