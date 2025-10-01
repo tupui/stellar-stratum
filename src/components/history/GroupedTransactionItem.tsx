@@ -193,11 +193,12 @@ export const GroupedTransactionItem = ({
                 <div className="text-xs text-muted-foreground">
                   {(() => {
                     const rate = rateInfo.get(groupedTx.id)!;
-                    if (quoteCurrency === 'USD') {
-                      return `~$${rate.assetRate.toFixed(5)} per ${rate.asset}`;
-                    } else {
-                      return `~$${rate.assetRate.toFixed(5)} • ${rate.fxRate.toFixed(5)} ${quoteCurrency}/$`;
-                    }
+                    const finalRate = rate.assetRate * rate.fxRate;
+                    const currencySymbol = quoteCurrency === 'USD' ? '$' : 
+                      quoteCurrency === 'EUR' ? '€' : 
+                      quoteCurrency === 'GBP' ? '£' : 
+                      quoteCurrency;
+                    return `~${currencySymbol}${finalRate.toFixed(5)} per ${rate.asset}`;
                   })()}
                 </div>
               )}
@@ -325,11 +326,12 @@ export const GroupedTransactionItem = ({
                         <div className="text-xs text-muted-foreground">
                           {(() => {
                             const rate = rateInfo.get(tx.id)!;
-                            if (quoteCurrency === 'USD') {
-                              return `~$${rate.assetRate.toFixed(5)} per ${rate.asset}`;
-                            } else {
-                              return `~$${rate.assetRate.toFixed(5)} • ${rate.fxRate.toFixed(5)} ${quoteCurrency}/$`;
-                            }
+                            const finalRate = rate.assetRate * rate.fxRate;
+                            const currencySymbol = quoteCurrency === 'USD' ? '$' : 
+                              quoteCurrency === 'EUR' ? '€' : 
+                              quoteCurrency === 'GBP' ? '£' : 
+                              quoteCurrency;
+                            return `~${currencySymbol}${finalRate.toFixed(5)} per ${rate.asset}`;
                           })()}
                         </div>
                       )}

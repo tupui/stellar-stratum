@@ -199,23 +199,24 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           usdPrice = 0;
         }
 
-        // Get historical FX rate for this specific transaction date
+        // Get historical FX rate for this specific transaction date (no fallback)
         let fxRate = 1;
         if (quoteCurrency !== 'USD') {
           try {
             fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate);
+            // If no historical rate available, set to 0 to show N/A
             if (!fxRate) {
-              // Fallback to current rate if historical not available
-              fxRate = await convertFromUSD(1, quoteCurrency);
+              fxRate = 0;
             }
           } catch {
-            fxRate = 1;
+            fxRate = 0;
           }
         }
 
-        if (!usdPrice || !tx.amount) {
+        // If either rate is missing, show N/A
+        if (!usdPrice || !tx.amount || (quoteCurrency !== 'USD' && !fxRate)) {
           if (import.meta.env.DEV) {
-            console.warn(`Missing price data for tx ${tx.id}:`, { usdPrice, amount: tx.amount, asset: assetCode, date: txDate.toISOString() });
+            console.warn(`Missing price data for tx ${tx.id}:`, { usdPrice, fxRate, amount: tx.amount, asset: assetCode, date: txDate.toISOString() });
           }
           newFiatAmounts.set(tx.id, 0);
           newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
