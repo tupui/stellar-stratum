@@ -113,7 +113,9 @@ export const LandingPage = ({
               <Wallet className="w-5 h-5" />
               Connect Wallet
             </DialogTitle>
-            
+            <DialogDescription className="sr-only">
+              Select a wallet provider to connect to your Stellar account
+            </DialogDescription>
           </DialogHeader>
           <Suspense fallback={<div className="flex items-center justify-center py-8">
               <div className="flex items-center gap-2 text-muted-foreground">

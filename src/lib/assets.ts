@@ -50,8 +50,9 @@ const assetInfoCache = new Map<string, CacheEntry<AssetInfo>>();
 
 // Cache expiry times
 const TOML_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
-const ASSET_INFO_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
-const STORAGE_KEY_PREFIX = 'stellar_asset_cache_';
+const ASSET_INFO_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day for successful fetches with image
+const ASSET_INFO_SHORT_CACHE = 30 * 60 * 1000; // 30 minutes for entries without image
+const STORAGE_KEY_PREFIX = 'stellar_asset_cache_v2_'; // Bumped to v2 to invalidate old cache
 
 // Load cache from localStorage on startup
 const loadCacheFromStorage = () => {
@@ -88,6 +89,33 @@ const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
 // Initialize cache from storage
 loadCacheFromStorage();
 
+// Helper to resolve image URLs properly
+const resolveImageUrl = (image: string, homeDomain: string): string => {
+  // Handle ipfs:// protocol
+  if (image.startsWith('ipfs://')) {
+    const cid = image.replace('ipfs://', '');
+    return `https://ipfs.io/ipfs/${cid}`;
+  }
+  
+  // Force HTTPS for http:// URLs
+  if (image.startsWith('http://')) {
+    return image.replace('http://', 'https://');
+  }
+  
+  // Already HTTPS
+  if (image.startsWith('https://')) {
+    return image;
+  }
+  
+  // Relative URL - resolve against home domain
+  try {
+    const baseUrl = `https://${homeDomain}/`;
+    return new URL(image, baseUrl).toString();
+  } catch {
+    return image;
+  }
+};
+
 export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AssetInfo> => {
   // Native XLM - no image URL, let component handle fallback
   if (!assetCode || assetCode === 'XLM' || !assetIssuer) {
@@ -117,15 +145,34 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     
     if (!homeDomain) throw new Error('No home domain');
 
-    // Fetch TOML file via CORS proxy
-    const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
-    const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(tomlUrl)}`;
+    let tomlContent = '';
     
-    const tomlResponse = await fetch(corsProxyUrl);
-    if (!tomlResponse.ok) throw new Error('TOML fetch failed');
+    // Try primary CORS proxy
+    try {
+      const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
+      const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(tomlUrl)}`;
+      const tomlResponse = await fetch(corsProxyUrl, { signal: AbortSignal.timeout(5000) });
+      
+      if (tomlResponse.ok) {
+        const tomlData = await tomlResponse.json();
+        tomlContent = tomlData.contents;
+      }
+    } catch {
+      // Fallback to jina.ai proxy
+      try {
+        const tomlUrl = `http://${homeDomain}/.well-known/stellar.toml`;
+        const jinaUrl = `https://r.jina.ai/${tomlUrl}`;
+        const tomlResponse = await fetch(jinaUrl, { signal: AbortSignal.timeout(5000) });
+        
+        if (tomlResponse.ok) {
+          tomlContent = await tomlResponse.text();
+        }
+      } catch {
+        throw new Error('Both CORS proxies failed');
+      }
+    }
     
-    const tomlData = await tomlResponse.json();
-    const tomlContent = tomlData.contents;
+    if (!tomlContent) throw new Error('No TOML content');
     
     // Parse TOML to find asset info
     const currencies = parseTomlCurrencies(tomlContent);
@@ -133,19 +180,25 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
       currency => currency.code === assetCode && currency.issuer === assetIssuer
     );
     
+    let resolvedImage: string | undefined;
+    if (matchingAsset?.image) {
+      resolvedImage = resolveImageUrl(matchingAsset.image, homeDomain);
+    }
+    
     const assetInfo: AssetInfo = {
       code: assetCode,
       issuer: assetIssuer,
       name: matchingAsset?.name || matchingAsset?.desc || assetCode,
-      image: matchingAsset?.image
+      image: resolvedImage
     };
     
-    // Cache with long expiry
+    // Cache with appropriate expiry based on whether we found an image
     const now = Date.now();
+    const ttl = resolvedImage ? ASSET_INFO_CACHE_DURATION : ASSET_INFO_SHORT_CACHE;
     const assetCacheEntry: CacheEntry<AssetInfo> = {
       data: assetInfo,
       timestamp: now,
-      expiresAt: now + ASSET_INFO_CACHE_DURATION
+      expiresAt: now + ttl
     };
     assetInfoCache.set(assetCacheKey, assetCacheEntry);
     saveCacheToStorage(assetCacheKey, assetCacheEntry);
@@ -164,7 +217,7 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     const assetCacheEntry: CacheEntry<AssetInfo> = {
       data: assetInfo,
       timestamp: now,
-      expiresAt: now + (60 * 60 * 1000) // 1 hour for failures
+      expiresAt: now + ASSET_INFO_SHORT_CACHE
     };
     assetInfoCache.set(assetCacheKey, assetCacheEntry);
     saveCacheToStorage(assetCacheKey, assetCacheEntry);
@@ -176,11 +229,17 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
 // Simple TOML parser for CURRENCIES section
 function parseTomlCurrencies(toml: string): SEP1TomlAsset[] {
   const assets: SEP1TomlAsset[] = [];
-  const lines = toml.split('\n');
+  // Normalize line endings and split
+  const lines = toml.replace(/\r\n/g, '\n').split('\n');
   let inCurrenciesSection = false;
   let currentAsset: Partial<SEP1TomlAsset> = {};
   
-  for (const line of lines) {
+  for (let line of lines) {
+    // Strip inline comments
+    const commentIndex = line.indexOf('#');
+    if (commentIndex !== -1) {
+      line = line.substring(0, commentIndex);
+    }
     const trimmed = line.trim();
     
     if (trimmed === '[[CURRENCIES]]') {
@@ -203,7 +262,9 @@ function parseTomlCurrencies(toml: string): SEP1TomlAsset[] {
     
     if (inCurrenciesSection && trimmed.includes('=')) {
       const [key, ...valueParts] = trimmed.split('=');
-      const value = valueParts.join('=').trim().replace(/^["']|["']$/g, '');
+      let value = valueParts.join('=').trim();
+      // Remove surrounding quotes
+      value = value.replace(/^["']|["']$/g, '');
       
       switch (key.trim().toLowerCase()) {
         case 'code':
