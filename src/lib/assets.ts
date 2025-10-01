@@ -132,16 +132,11 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
         throw new Error('No home domain found');
       }
 
-      // Fetch SEP-1 TOML directly with timeout
+      // Fetch SEP-1 TOML - fail fast on CORS
       const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
-      const tomlResponse = await Promise.race([
-        fetch(tomlUrl),
-        new Promise<Response>((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 5000)
-        )
-      ]);
+      const tomlResponse = await fetch(tomlUrl, { mode: 'cors' });
       
-      if (!tomlResponse.ok) throw new Error('Failed to fetch TOML');
+      if (!tomlResponse.ok) throw new Error(`TOML fetch failed: ${tomlResponse.status}`);
       
       const tomlText = await tomlResponse.text();
       
@@ -184,7 +179,8 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     
     throw new Error('Asset not found in TOML');
   } catch (error) {
-    if (import.meta.env.DEV) console.warn(`Failed to fetch asset info for ${assetCode}:${assetIssuer}`, error);
+    // CORS or network error - fail fast with defaults
+    console.warn(`[Asset] CORS/network error for ${assetCode}:`, error instanceof Error ? error.message : 'Unknown');
     
     // Return default asset info without image - component will generate fallback
     const defaultAssetInfo: AssetInfo = {
@@ -193,14 +189,15 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
       name: assetCode
     };
     
-    // Cache default info for shorter duration to retry sooner
+    // Cache default for 1 hour on CORS failures (not worth retrying frequently)
     const now = Date.now();
     const defaultCacheEntry: CacheEntry<AssetInfo> = {
       data: defaultAssetInfo,
       timestamp: now,
-      expiresAt: now + (5 * 60 * 1000) // 5 minutes for failed lookups
+      expiresAt: now + (60 * 60 * 1000) // 1 hour
     };
     assetInfoCache.set(assetCacheKey, defaultCacheEntry);
+    saveCacheToStorage(assetCacheKey, defaultCacheEntry);
     
     return defaultAssetInfo;
   }

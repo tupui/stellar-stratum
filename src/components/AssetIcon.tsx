@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchAssetInfo, getAssetColor } from '@/lib/assets';
 import { useNetwork } from '@/contexts/NetworkContext';
+import xlmLogo from '@/assets/xlm-logo.svg';
 
 interface AssetIconProps {
   assetCode?: string;
@@ -14,7 +15,15 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
   const [assetInfo, setAssetInfo] = useState<{ image?: string; name?: string } | null>(null);
   const [imageError, setImageError] = useState(false);
 
+  // Check if this is native XLM
+  const isNativeXLM = (!assetCode || assetCode === 'XLM') && !assetIssuer;
+
   useEffect(() => {
+    // Skip fetch for native XLM - use local logo
+    if (isNativeXLM) {
+      return;
+    }
+
     let mounted = true;
     
     const loadAssetInfo = async () => {
@@ -37,11 +46,30 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
     return () => {
       mounted = false;
     };
-  }, [assetCode, assetIssuer, network]);
+  }, [assetCode, assetIssuer, network, isNativeXLM]);
 
   const handleImageError = () => {
     setImageError(true);
   };
+
+  // Use local XLM logo for native asset
+  if (isNativeXLM) {
+    return (
+      <div
+        className={`rounded-full bg-white overflow-hidden shadow-sm border border-border/20 p-0.5 ${className}`}
+        style={{ width: size, height: size }}
+        role="img"
+        aria-label="XLM Stellar Lumens logo"
+      >
+        <img
+          src={xlmLogo}
+          alt=""
+          className="w-full h-full object-contain"
+          aria-hidden="true"
+        />
+      </div>
+    );
+  }
 
   // Generate unique color for this asset
   const { hue, saturation, lightness } = getAssetColor(assetCode || 'XLM', assetIssuer);
