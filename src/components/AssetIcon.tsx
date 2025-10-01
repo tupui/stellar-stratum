@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchAssetInfo, getAssetColor } from '@/lib/assets';
 import { useNetwork } from '@/contexts/NetworkContext';
-import xlmLogo from '@/assets/xlm-logo.svg';
+import xlmLogo from '@/assets/xlm-logo-new.png';
 
 interface AssetIconProps {
   assetCode?: string;

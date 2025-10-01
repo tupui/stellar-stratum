@@ -104,57 +104,25 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     return cachedAssetInfo.data;
   }
 
-  try {
-    // Use StellarExpert API (CORS-enabled) instead of direct TOML fetch
-    const networkPath = network === 'testnet' ? 'testnet' : 'public';
-    const stellarExpertUrl = `https://api.stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;
-    
-    const response = await fetch(stellarExpertUrl);
-    
-    if (!response.ok) throw new Error(`StellarExpert fetch failed: ${response.status}`);
-    
-    const data = await response.json();
-    
-    // Extract asset info from StellarExpert response
-    const assetInfo: AssetInfo = {
-      code: assetCode,
-      issuer: assetIssuer,
-      name: data.name || data.domain || assetCode,
-      // StellarExpert returns image in logo field
-      image: data.logo || data.image
-    };
-    
-    // Cache the asset info with longer expiry
-    const now = Date.now();
-    const assetCacheEntry: CacheEntry<AssetInfo> = {
-      data: assetInfo,
-      timestamp: now,
-      expiresAt: now + ASSET_INFO_CACHE_DURATION
-    };
-    assetInfoCache.set(assetCacheKey, assetCacheEntry);
-    saveCacheToStorage(assetCacheKey, assetCacheEntry);
-    
-    return assetInfo;
-  } catch (error) {
-    // Network error - return default without image
-    const defaultAssetInfo: AssetInfo = {
-      code: assetCode,
-      issuer: assetIssuer,
-      name: assetCode
-    };
-    
-    // Cache default for 1 hour on failures
-    const now = Date.now();
-    const defaultCacheEntry: CacheEntry<AssetInfo> = {
-      data: defaultAssetInfo,
-      timestamp: now,
-      expiresAt: now + (60 * 60 * 1000) // 1 hour
-    };
-    assetInfoCache.set(assetCacheKey, defaultCacheEntry);
-    saveCacheToStorage(assetCacheKey, defaultCacheEntry);
-    
-    return defaultAssetInfo;
-  }
+  // Return basic asset info without image - let AssetIcon handle gradient fallback
+  // This avoids CORS issues and broken API endpoints
+  const assetInfo: AssetInfo = {
+    code: assetCode,
+    issuer: assetIssuer,
+    name: assetCode // Use code as name - simple and works
+  };
+  
+  // Cache the asset info
+  const now = Date.now();
+  const assetCacheEntry: CacheEntry<AssetInfo> = {
+    data: assetInfo,
+    timestamp: now,
+    expiresAt: now + ASSET_INFO_CACHE_DURATION
+  };
+  assetInfoCache.set(assetCacheKey, assetCacheEntry);
+  saveCacheToStorage(assetCacheKey, assetCacheEntry);
+  
+  return assetInfo;
 };
 
 // Simple TOML parser for CURRENCIES section
