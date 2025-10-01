@@ -130,8 +130,9 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
         throw new Error('No home domain found');
       }
 
-      // Fetch SEP-1 TOML
-      const tomlResponse = await fetch(`https://${homeDomain}/.well-known/stellar.toml`);
+      // Fetch SEP-1 TOML using CORS proxy
+      const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
+      const tomlResponse = await fetch(`https://corsproxy.io/?${encodeURIComponent(tomlUrl)}`);
       if (!tomlResponse.ok) throw new Error('Failed to fetch TOML');
       
       const tomlText = await tomlResponse.text();
