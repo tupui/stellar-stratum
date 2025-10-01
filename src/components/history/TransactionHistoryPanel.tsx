@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAccountHistory } from '@/hooks/useAccountHistory';
 import { useFiatConversion } from '@/hooks/useFiatConversion';
-import { getXlmUsdRateForDate, primeXlmUsdRates, getUsdRateForDateByAsset, primeUsdRatesForAsset } from '@/lib/kraken';
+import { getXlmUsdRateForDate, primeXlmUsdRates, getUsdRateForDateByAsset, primeUsdRatesForAsset, getHistoricalFxRate, primeHistoricalFxRates } from '@/lib/kraken';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -99,6 +99,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
 
   const [showFilters, setShowFilters] = useState(false);
   const [fiatAmounts, setFiatAmounts] = useState<Map<string, number>>(new Map());
+  const [rateInfo, setRateInfo] = useState<Map<string, { assetRate: number; fxRate: number; asset: string }>>(new Map());
   const [fiatLoading, setFiatLoading] = useState<boolean>(true);
   const [selectedAsset, setSelectedAsset] = useState<{ code: string; issuer?: string }>({ code: 'PORTFOLIO' });
   const [currentPortfolioFiat, setCurrentPortfolioFiat] = useState<number>(0);
@@ -131,9 +132,11 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   useEffect(() => {
     const convertAll = async () => {
       const newFiatAmounts = new Map<string, number>();
+      const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
       
       if (transactions.length === 0) {
         setFiatAmounts(newFiatAmounts);
+        setRateInfo(newRateInfo);
         setFiatLoading(false);
         return;
       }
@@ -148,7 +151,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         // Ignore rate fetching errors, continue with current prices
       }
 
-      // We compute fiat at transaction time using Kraken OHLC USD rates per asset and the transaction date
       // Prime non-XLM asset OHLC windows upfront so per-tx lookups hit cache as well
       try {
         const end = new Date();
@@ -166,19 +168,23 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         // Ignore asset priming errors; we'll fall back to per-tx fetch
       }
 
-      // Pre-compute FX factor once (USD -> target fiat)
-      let fxFactor = 1;
-      try {
-        if (quoteCurrency !== 'USD') {
-          fxFactor = await convertFromUSD(1, quoteCurrency);
+      // Prime historical FX rates if not USD
+      if (quoteCurrency !== 'USD') {
+        try {
+          const earliest = transactions.reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
+          const start = new Date(earliest);
+          const end = new Date();
+          await primeHistoricalFxRates('USD', quoteCurrency, start, end);
+        } catch {
+          // Ignore FX priming errors
         }
-      } catch {
-        fxFactor = 1;
       }
 
       for (const tx of transactions) {
         const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
         let usdPrice = 0;
+        const assetCode = tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM');
+        
         try {
           if (tx.assetType === 'native') {
             usdPrice = await getXlmUsdRateForDate(txDate);
@@ -188,24 +194,42 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           }
         } catch (error) {
           if (import.meta.env.DEV) {
-            console.warn(`Price fetch failed for ${tx.assetCode || 'XLM'} on ${txDate.toISOString()}:`, error);
+            console.warn(`Price fetch failed for ${assetCode} on ${txDate.toISOString()}:`, error);
           }
           usdPrice = 0;
         }
 
+        // Get historical FX rate for this specific transaction date
+        let fxRate = 1;
+        if (quoteCurrency !== 'USD') {
+          try {
+            fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate);
+            if (!fxRate) {
+              // Fallback to current rate if historical not available
+              fxRate = await convertFromUSD(1, quoteCurrency);
+            }
+          } catch {
+            fxRate = 1;
+          }
+        }
+
         if (!usdPrice || !tx.amount) {
           if (import.meta.env.DEV) {
-            console.warn(`Missing price data for tx ${tx.id}:`, { usdPrice, amount: tx.amount, asset: tx.assetCode || 'XLM', date: txDate.toISOString() });
+            console.warn(`Missing price data for tx ${tx.id}:`, { usdPrice, amount: tx.amount, asset: assetCode, date: txDate.toISOString() });
           }
           newFiatAmounts.set(tx.id, 0);
+          newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
           continue;
         }
+        
         const usdAmount = usdPrice * tx.amount;
-        const fiatAmount = usdAmount * fxFactor;
+        const fiatAmount = usdAmount * fxRate;
         newFiatAmounts.set(tx.id, fiatAmount);
+        newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
       }
       
       setFiatAmounts(newFiatAmounts);
+      setRateInfo(newRateInfo);
       setFiatLoading(false);
     };
 
@@ -713,10 +737,12 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                     key={groupedTx.id}
                     groupedTx={groupedTx}
                     fiatAmounts={fiatAmounts}
+                    rateInfo={rateInfo}
                     fiatLoading={fiatLoading}
                     formatFiatAmount={formatFiatAmount}
                     truncateAddress={truncateAddress}
                     network={network}
+                    quoteCurrency={quoteCurrency}
                   />
                 ))}
 

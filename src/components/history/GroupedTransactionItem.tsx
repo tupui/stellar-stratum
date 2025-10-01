@@ -22,19 +22,23 @@ import { useToast } from '@/hooks/use-toast';
 interface GroupedTransactionItemProps {
   groupedTx: GroupedTransaction;
   fiatAmounts: Map<string, number>;
+  rateInfo: Map<string, { assetRate: number; fxRate: number; asset: string }>;
   fiatLoading: boolean;
   formatFiatAmount: (amount: number) => string;
   truncateAddress: (address?: string | null) => string;
   network: 'mainnet' | 'testnet';
+  quoteCurrency: string;
 }
 
 export const GroupedTransactionItem = ({
   groupedTx,
   fiatAmounts,
+  rateInfo,
   fiatLoading,
   formatFiatAmount,
   truncateAddress,
-  network
+  network,
+  quoteCurrency
 }: GroupedTransactionItemProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
@@ -185,6 +189,18 @@ export const GroupedTransactionItem = ({
                   formatFiatAmount(groupedTx.isGrouped ? totalFiatAmount : mainFiatAmount)
                 )}
               </div>
+              {!fiatLoading && !showNA && (groupedTx.amount || 0) > 0 && rateInfo.has(groupedTx.id) && (
+                <div className="text-xs text-muted-foreground">
+                  {(() => {
+                    const rate = rateInfo.get(groupedTx.id)!;
+                    if (quoteCurrency === 'USD') {
+                      return `~$${rate.assetRate.toFixed(5)} per ${rate.asset}`;
+                    } else {
+                      return `~$${rate.assetRate.toFixed(5)} • ${rate.fxRate.toFixed(5)} ${quoteCurrency}/$`;
+                    }
+                  })()}
+                </div>
+              )}
               <div className="text-xs text-muted-foreground">
                 {groupedTx.isGrouped && groupedTx.oldestTransaction && groupedTx.latestTransaction ? (
                   <>
@@ -305,6 +321,18 @@ export const GroupedTransactionItem = ({
                           formatFiatAmount(txFiatAmount)
                         )}
                       </div>
+                      {!fiatLoading && !txShowNA && (tx.amount || 0) > 0 && rateInfo.has(tx.id) && (
+                        <div className="text-xs text-muted-foreground">
+                          {(() => {
+                            const rate = rateInfo.get(tx.id)!;
+                            if (quoteCurrency === 'USD') {
+                              return `~$${rate.assetRate.toFixed(5)} per ${rate.asset}`;
+                            } else {
+                              return `~$${rate.assetRate.toFixed(5)} • ${rate.fxRate.toFixed(5)} ${quoteCurrency}/$`;
+                            }
+                          })()}
+                        </div>
+                      )}
                       
                       <Button
                         variant="ghost"

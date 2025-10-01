@@ -312,5 +312,197 @@ export const getXlmUsdRateForDate = async (date: Date): Promise<number> => {
   return getUsdRateForDateByAsset('XLM', date);
 };
 
+// Fiat pair helpers
+const getFiatCacheKeys = (fromCurrency: string, toCurrency: string) => {
+  const pair = `${fromCurrency}${toCurrency}`.toUpperCase();
+  return {
+    cacheKey: `kraken_fx_${pair}_ohlc_daily_v1`,
+    lastKey: `kraken_fx_${pair}_last_fetch_ts`
+  };
+};
+
+const loadFiatCache = (fromCurrency: string, toCurrency: string): DailyMap => {
+  try {
+    const { cacheKey } = getFiatCacheKeys(fromCurrency, toCurrency);
+    const raw = localStorage.getItem(cacheKey);
+    return raw ? (JSON.parse(raw) as DailyMap) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveFiatCache = (fromCurrency: string, toCurrency: string, map: DailyMap) => {
+  try {
+    const { cacheKey } = getFiatCacheKeys(fromCurrency, toCurrency);
+    localStorage.setItem(cacheKey, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+};
+
+// Generate potential fiat pair names
+const generateFiatPairs = (fromCurrency: string, toCurrency: string): string[] => {
+  const from = fromCurrency.toUpperCase();
+  const to = toCurrency.toUpperCase();
+  return [
+    `${from}${to}`,
+    `Z${from}Z${to}`,
+    `${from}Z${to}`,
+    `Z${from}${to}`
+  ];
+};
+
+// Fetch OHLC data for fiat pairs
+const fetchDailyForFiatPair = async (fromCurrency: string, toCurrency: string, start: Date): Promise<void> => {
+  const since = Math.floor(start.getTime() / 1000);
+  const baseUrl = 'https://api.kraken.com/0/public/OHLC';
+  
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: Fetching FX data for ${fromCurrency}/${toCurrency} since ${new Date(since * 1000).toISOString()}`);
+  }
+  
+  const supportedPairs = await getSupportedPairs();
+  const potentialPairs = generateFiatPairs(fromCurrency, toCurrency);
+  const validPairs = potentialPairs.filter(pair => supportedPairs.has(pair));
+  
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: Valid FX pairs for ${fromCurrency}/${toCurrency}:`, validPairs);
+  }
+  
+  if (validPairs.length === 0) {
+    if (import.meta.env.DEV) {
+      console.warn(`No supported Kraken FX pairs found for: ${fromCurrency}/${toCurrency}`);
+    }
+    return;
+  }
+
+  for (const pair of validPairs) {
+    try {
+      const url = `${baseUrl}?pair=${encodeURIComponent(pair)}&interval=1440&since=${since}`;
+      const resp = await runLimited(() => fetch(url, { mode: 'cors' as RequestMode }));
+      
+      if (!resp.ok) {
+        if (import.meta.env.DEV) {
+          console.warn(`Kraken API ${resp.status} for FX pair ${pair}`);
+        }
+        continue;
+      }
+      
+      const json: any = await resp.json();
+      if (!json?.result || typeof json.result !== 'object') {
+        if (import.meta.env.DEV) {
+          console.warn(`Invalid Kraken response for FX pair ${pair}`);
+        }
+        continue;
+      }
+      
+      const keys = Object.keys(json.result).filter(k => k !== 'last');
+      if (keys.length === 0) continue;
+      const arr: any[] = json.result[keys[0]];
+      if (!Array.isArray(arr)) continue;
+      
+      const cache = loadFiatCache(fromCurrency, toCurrency);
+      let dataPoints = 0;
+      for (const row of arr) {
+        const ts = row[0];
+        const close = Number(row[4]);
+        if (!Number.isFinite(close)) continue;
+        const key = toDateKey(new Date(ts * 1000));
+        cache[key] = close;
+        dataPoints++;
+      }
+      saveFiatCache(fromCurrency, toCurrency, cache);
+      
+      if (import.meta.env.DEV) {
+        console.log(`Kraken: Successfully cached ${dataPoints} FX data points for ${fromCurrency}/${toCurrency} from pair ${pair}`);
+      }
+      
+      try { 
+        const { lastKey } = getFiatCacheKeys(fromCurrency, toCurrency); 
+        localStorage.setItem(lastKey, String(Date.now())); 
+      } catch {}
+      return;
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn(`Kraken FX fetch error for ${pair}:`, error);
+      }
+    }
+  }
+};
+
+// Prime historical FX rates for a currency pair
+export const primeHistoricalFxRates = async (fromCurrency: string, toCurrency: string, start: Date, end: Date): Promise<void> => {
+  const { lastKey } = getFiatCacheKeys(fromCurrency, toCurrency);
+  
+  try {
+    const lastTs = Number(localStorage.getItem(lastKey) || '0');
+    if (lastTs && (Date.now() - lastTs) < TTL_MS) return;
+  } catch {
+    // Ignore localStorage errors
+  }
+  
+  const pair = `${fromCurrency}${toCurrency}`.toUpperCase();
+  if (inflightKrakenRequests.has(pair)) {
+    await inflightKrakenRequests.get(pair);
+    return;
+  }
+  
+  const fetchPromise = (async () => {
+    const s = new Date(start.getTime() - 2 * 24 * 3600 * 1000);
+    await fetchDailyForFiatPair(fromCurrency, toCurrency, s);
+  })();
+  
+  inflightKrakenRequests.set(pair, fetchPromise);
+  
+  try {
+    await fetchPromise;
+  } finally {
+    inflightKrakenRequests.delete(pair);
+  }
+};
+
+// Get historical FX rate for a specific date
+export const getHistoricalFxRate = async (fromCurrency: string, toCurrency: string, date: Date): Promise<number> => {
+  const key = toDateKey(date);
+  
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: Looking for FX rate ${fromCurrency}/${toCurrency} on ${key}`);
+  }
+  
+  const cache = loadFiatCache(fromCurrency, toCurrency);
+  if (cache[key]) {
+    if (import.meta.env.DEV) {
+      console.log(`Kraken: FX cache hit for ${fromCurrency}/${toCurrency} on ${key}: ${cache[key]}`);
+    }
+    return cache[key];
+  }
+  
+  if (import.meta.env.DEV) {
+    console.log(`Kraken: FX cache miss for ${fromCurrency}/${toCurrency} on ${key}, fetching...`);
+  }
+  
+  try {
+    await primeHistoricalFxRates(fromCurrency, toCurrency, new Date(date.getTime() - 365 * 24 * 3600 * 1000), new Date());
+    const updated = loadFiatCache(fromCurrency, toCurrency);
+    const rate = updated[key];
+    if (rate) {
+      if (import.meta.env.DEV) {
+        console.log(`Kraken: Found FX rate after fetch for ${fromCurrency}/${toCurrency} on ${key}: ${rate}`);
+      }
+      return rate;
+    }
+    
+    if (import.meta.env.DEV) {
+      console.warn(`No Kraken FX data found for ${fromCurrency}/${toCurrency} on ${key}`);
+    }
+    return 0;
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn(`Kraken FX rate fetch failed for ${fromCurrency}/${toCurrency} on ${key}:`, error);
+    }
+    return 0;
+  }
+};
+
 
 
