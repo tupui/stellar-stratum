@@ -52,7 +52,7 @@ const assetInfoCache = new Map<string, CacheEntry<AssetInfo>>();
 const TOML_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
 const ASSET_INFO_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day for successful fetches with image
 const ASSET_INFO_SHORT_CACHE = 30 * 60 * 1000; // 30 minutes for entries without image
-const STORAGE_KEY_PREFIX = 'stellar_asset_cache_v2_'; // Bumped to v2 to invalidate old cache
+const STORAGE_KEY_PREFIX = 'stellar_asset_cache_v3_'; // Bumped to v3 for XLM TOML fetch
 
 // Load cache from localStorage on startup
 const loadCacheFromStorage = () => {
@@ -117,34 +117,38 @@ const resolveImageUrl = (image: string, homeDomain: string): string => {
 };
 
 export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AssetInfo> => {
-  // Native XLM - no image URL, let component handle fallback
-  if (!assetCode || assetCode === 'XLM' || !assetIssuer) {
-    return {
-      code: 'XLM',
-      name: 'Stellar Lumens'
-    };
-  }
-
   // Check asset info cache first
-  const assetCacheKey = `${assetCode}:${assetIssuer}:${network}`;
+  const assetCacheKey = `${assetCode}:${assetIssuer || 'native'}:${network}`;
   const cachedAssetInfo = assetInfoCache.get(assetCacheKey);
   if (cachedAssetInfo && cachedAssetInfo.expiresAt > Date.now()) {
     return cachedAssetInfo.data;
   }
 
-  try {
-    // Fetch issuer's home domain from Horizon
-    const horizonUrl = getHorizonUrl(network);
-    const accountUrl = `${horizonUrl}/accounts/${assetIssuer}`;
-    const accountResponse = await fetch(accountUrl);
-    
-    if (!accountResponse.ok) throw new Error('Account fetch failed');
-    
-    const accountData = await accountResponse.json();
-    const homeDomain = accountData.home_domain;
-    
-    if (!homeDomain) throw new Error('No home domain');
+  // Handle native XLM by fetching from stellar.org
+  const isNativeXLM = (!assetCode || assetCode === 'XLM') && !assetIssuer;
+  let homeDomain = '';
 
+  if (isNativeXLM) {
+    homeDomain = 'stellar.org';
+  } else {
+    try {
+      // Fetch issuer's home domain from Horizon
+      const horizonUrl = getHorizonUrl(network);
+      const accountUrl = `${horizonUrl}/accounts/${assetIssuer}`;
+      const accountResponse = await fetch(accountUrl);
+      
+      if (!accountResponse.ok) throw new Error('Account fetch failed');
+      
+      const accountData = await accountResponse.json();
+      homeDomain = accountData.home_domain;
+      
+      if (!homeDomain) throw new Error('No home domain');
+    } catch (error) {
+      throw new Error('Failed to fetch account home domain');
+    }
+  }
+
+  try {
     let tomlContent = '';
     
     // Try primary CORS proxy
@@ -176,9 +180,12 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     
     // Parse TOML to find asset info
     const currencies = parseTomlCurrencies(tomlContent);
-    const matchingAsset = currencies.find(
-      currency => currency.code === assetCode && currency.issuer === assetIssuer
-    );
+    const matchingAsset = currencies.find(currency => {
+      if (isNativeXLM) {
+        return currency.code === 'XLM';
+      }
+      return currency.code === assetCode && currency.issuer === assetIssuer;
+    });
     
     let resolvedImage: string | undefined;
     if (matchingAsset?.image) {
@@ -186,9 +193,9 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     }
     
     const assetInfo: AssetInfo = {
-      code: assetCode,
+      code: assetCode || 'XLM',
       issuer: assetIssuer,
-      name: matchingAsset?.name || matchingAsset?.desc || assetCode,
+      name: matchingAsset?.name || matchingAsset?.desc || assetCode || 'Stellar Lumens',
       image: resolvedImage
     };
     
@@ -243,7 +250,7 @@ function parseTomlCurrencies(toml: string): SEP1TomlAsset[] {
     const trimmed = line.trim();
     
     if (trimmed === '[[CURRENCIES]]') {
-      if (Object.keys(currentAsset).length > 0 && currentAsset.code && currentAsset.issuer) {
+      if (Object.keys(currentAsset).length > 0 && currentAsset.code) {
         assets.push(currentAsset as SEP1TomlAsset);
       }
       currentAsset = {};
@@ -253,7 +260,7 @@ function parseTomlCurrencies(toml: string): SEP1TomlAsset[] {
     
     if (trimmed.startsWith('[') && trimmed !== '[[CURRENCIES]]') {
       inCurrenciesSection = false;
-      if (Object.keys(currentAsset).length > 0 && currentAsset.code && currentAsset.issuer) {
+      if (Object.keys(currentAsset).length > 0 && currentAsset.code) {
         assets.push(currentAsset as SEP1TomlAsset);
       }
       currentAsset = {};
@@ -287,7 +294,7 @@ function parseTomlCurrencies(toml: string): SEP1TomlAsset[] {
   }
   
   // Don't forget the last asset
-  if (Object.keys(currentAsset).length > 0 && currentAsset.code && currentAsset.issuer) {
+  if (Object.keys(currentAsset).length > 0 && currentAsset.code) {
     assets.push(currentAsset as SEP1TomlAsset);
   }
   
