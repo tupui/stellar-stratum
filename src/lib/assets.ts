@@ -35,6 +35,13 @@ const generateAssetColor = (assetCode: string, assetIssuer?: string): { hue: num
 
 export const getAssetColor = generateAssetColor;
 
+// Known asset overrides to avoid TOML/CORS issues
+const ASSET_OVERRIDES: Record<string, AssetInfo> = {
+  USDC: { code: 'USDC', name: 'USD Coin', image: '/assets/usdc.svg' },
+  EURC: { code: 'EURC', name: 'Euro Coin', image: '/assets/eurc.svg' },
+  TESOURO: { code: 'TESOURO', name: 'Tesouro', image: '/assets/tesouro.svg' },
+};
+
 // Enhanced caching system with TOML-level coherence
 interface CacheEntry<T> {
   data: T;
@@ -236,17 +243,13 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     };
   }
   
-  // HARDCODED: USDC override to avoid TOML dependency
-  if (assetCode === 'USDC') {
+  // OVERRIDE: known assets (USDC, EURC, TESOURO)
+  const override = ASSET_OVERRIDES[assetCode];
+  if (override) {
     if (shouldDebug) {
-      console.log(`[Asset Debug] USDC override hit, returning hardcoded info`);
+      console.log(`[Asset Debug] Override hit for ${assetCode}, returning local asset`);
     }
-    return {
-      code: 'USDC',
-      issuer: assetIssuer,
-      name: 'USD Coin',
-      image: '/assets/usdc.svg'
-    };
+    return { ...override, issuer: assetIssuer };
   }
   
   // Get TOML timestamp for cache key coherence
