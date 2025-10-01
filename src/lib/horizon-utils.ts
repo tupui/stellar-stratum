@@ -231,14 +231,26 @@ export const normalizeOperationRecord = (
         direction = 'out';
         // From leg
         swapFromAmount = Math.abs(parseFloat(record.source_amount || '0'));
-        swapFromAssetType = record.source_asset_type || 'native';
-        swapFromAssetCode = record.source_asset_code || (swapFromAssetType === 'native' ? 'XLM' : undefined);
-        swapFromAssetIssuer = record.source_asset_issuer;
+        if (record.source_asset_code) {
+          swapFromAssetType = record.source_asset_type || 'credit_alphanum4';
+          swapFromAssetCode = record.source_asset_code;
+          swapFromAssetIssuer = record.source_asset_issuer;
+        } else {
+          swapFromAssetType = 'native';
+          swapFromAssetCode = 'XLM';
+          swapFromAssetIssuer = undefined;
+        }
         // To leg - destination is always in regular asset_* fields for both strict_send and strict_receive
         swapToAmount = Math.abs(parseFloat(record.amount || '0'));
-        swapToAssetType = record.asset_type || 'native';
-        swapToAssetCode = record.asset_code || (swapToAssetType === 'native' ? 'XLM' : undefined);
-        swapToAssetIssuer = record.asset_issuer;
+        if (record.asset_code) {
+          swapToAssetType = record.asset_type || 'credit_alphanum4';
+          swapToAssetCode = record.asset_code;
+          swapToAssetIssuer = record.asset_issuer;
+        } else {
+          swapToAssetType = 'native';
+          swapToAssetCode = 'XLM';
+          swapToAssetIssuer = undefined;
+        }
         // Primary impact uses the leg affecting our balance first (outgoing leg)
         amount = swapFromAmount || 0;
         assetType = swapFromAssetType;
@@ -249,14 +261,26 @@ export const normalizeOperationRecord = (
         direction = 'in';
         // From leg (what sender spent)
         swapFromAmount = Math.abs(parseFloat(record.source_amount || '0'));
-        swapFromAssetType = record.source_asset_type || 'native';
-        swapFromAssetCode = record.source_asset_code || (swapFromAssetType === 'native' ? 'XLM' : undefined);
-        swapFromAssetIssuer = record.source_asset_issuer;
+        if (record.source_asset_code) {
+          swapFromAssetType = record.source_asset_type || 'credit_alphanum4';
+          swapFromAssetCode = record.source_asset_code;
+          swapFromAssetIssuer = record.source_asset_issuer;
+        } else {
+          swapFromAssetType = 'native';
+          swapFromAssetCode = 'XLM';
+          swapFromAssetIssuer = undefined;
+        }
         // To leg (what we received)
         swapToAmount = Math.abs(parseFloat(record.amount || '0'));
-        swapToAssetType = record.asset_type || 'native';
-        swapToAssetCode = record.asset_code || (swapToAssetType === 'native' ? 'XLM' : undefined);
-        swapToAssetIssuer = record.asset_issuer;
+        if (record.asset_code) {
+          swapToAssetType = record.asset_type || 'credit_alphanum4';
+          swapToAssetCode = record.asset_code;
+          swapToAssetIssuer = record.asset_issuer;
+        } else {
+          swapToAssetType = 'native';
+          swapToAssetCode = 'XLM';
+          swapToAssetIssuer = undefined;
+        }
         // Primary impact is what we received
         amount = swapToAmount || 0;
         assetType = swapToAssetType;
