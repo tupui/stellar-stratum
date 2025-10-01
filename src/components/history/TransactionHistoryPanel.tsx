@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAccountHistory } from '@/hooks/useAccountHistory';
 import { useFiatConversion } from '@/hooks/useFiatConversion';
-import { getXlmUsdRateForDate, primeXlmUsdRates, getUsdRateForDateByAsset, primeUsdRatesForAsset, getHistoricalFxRate, primeHistoricalFxRates } from '@/lib/kraken';
+import { getUsdRateForDateByAsset, primeUsdRatesForAsset, getHistoricalFxRate, primeHistoricalFxRates } from '@/lib/kraken';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -141,12 +141,12 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         return;
       }
 
-      // Prime a single OHLC(365d) window up-front so per-tx lookups hit cache
+      // Prime XLM and all asset OHLC windows up-front so per-tx lookups hit cache
       try {
         const earliest = transactions.reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
         const start = new Date(earliest);
         const end = new Date();
-        await primeXlmUsdRates(start, end);
+        await primeUsdRatesForAsset('XLM', start, end);
       } catch {
         // Ignore rate fetching errors, continue with current prices
       }
@@ -186,13 +186,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         const assetCode = tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM');
         
         try {
-          if (tx.assetType === 'native') {
-            // Use cache-only mode since we already primed XLM data
-            usdPrice = await getXlmUsdRateForDate(txDate, true);
-          } else {
-            // Use cache-only mode since we already primed non-XLM asset data
-            usdPrice = await getUsdRateForDateByAsset(tx.assetCode!, txDate, true);
-          }
+          // Use cache-only mode since we already primed all asset data
+          usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, true);
         } catch (error) {
           if (import.meta.env.DEV) {
             console.warn(`Price fetch failed for ${assetCode} on ${txDate.toISOString()}:`, error);

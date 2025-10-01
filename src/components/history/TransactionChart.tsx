@@ -22,7 +22,6 @@ import {
   ZoomOut
 } from 'lucide-react';
 import { format, subDays, subMonths, startOfDay, endOfDay } from 'date-fns';
-import { getXlmUsdRateForDate } from '@/lib/kraken';
 import { NormalizedTransaction } from '@/lib/horizon-utils';
 
 interface TransactionChartProps {

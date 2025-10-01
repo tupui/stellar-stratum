@@ -3,7 +3,12 @@
 
 type DailyMap = Record<string, number>; // yyyy-mm-dd -> USD close
 
-const TTL_MS = 6 * 60 * 60 * 1000; // 6h cache for a full sweep
+// Cache tracking structure: stores the date range that has been fetched
+interface DateRange {
+  start: string; // YYYY-MM-DD format
+  end: string;   // YYYY-MM-DD format
+}
+
 const PAIRS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h cache for supported pairs
 
 const toDateKey = (d: Date): string => {
@@ -107,7 +112,7 @@ const getAssetCacheKeys = (asset: string) => {
   const code = (asset || 'XLM').toUpperCase();
   return {
     cacheKey: `kraken_${code}_usd_ohlc_daily_v1`,
-    lastKey: `kraken_${code}_usd_last_fetch_ts`
+    rangeKey: `kraken_range_${code}` // Changed from lastKey to rangeKey
   };
 };
 const loadCacheFor = (asset: string): DailyMap => {
@@ -216,7 +221,6 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
         console.log(`Kraken: Successfully cached ${dataPoints} data points for ${code} from pair ${pair}`);
       }
       
-      try { const { lastKey } = getAssetCacheKeys(code); localStorage.setItem(lastKey, String(Date.now())); } catch {}
       return;
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -229,33 +233,79 @@ const fetchDailyForAsset = async (asset: string, start: Date): Promise<void> => 
 
 export const primeUsdRatesForAsset = async (asset: string, start: Date, end: Date): Promise<void> => {
   const code = (asset || 'XLM').toUpperCase();
-  const { lastKey } = getAssetCacheKeys(code);
+  const { rangeKey } = getAssetCacheKeys(code);
+
+  // Check if we already have this date range cached
+  const cachedRangeStr = localStorage.getItem(rangeKey);
+  let cachedRange: DateRange | null = null;
   
-  try {
-    const lastTs = Number(localStorage.getItem(lastKey) || '0');
-    if (lastTs && (Date.now() - lastTs) < TTL_MS) return;
-  } catch {
-    // Ignore localStorage errors (private mode, quota exceeded)
+  if (cachedRangeStr) {
+    try {
+      cachedRange = JSON.parse(cachedRangeStr);
+    } catch (e) {
+      // Invalid cache, ignore it
+    }
   }
-  
-  // Request deduplication - if same asset data is being fetched, await the existing request
-  if (inflightKrakenRequests.has(code)) {
-    await inflightKrakenRequests.get(code);
+
+  const requestedStart = toDateKey(start);
+  const requestedEnd = toDateKey(end);
+
+  // If we already have this range or a broader range, skip fetching
+  if (cachedRange && cachedRange.start <= requestedStart && cachedRange.end >= requestedEnd) {
+    if (import.meta.env.DEV) {
+      console.log(`Kraken: Skipping fetch for ${code}, already have range ${cachedRange.start} to ${cachedRange.end}`);
+    }
     return;
   }
-  
-  const fetchPromise = (async () => {
-    const s = new Date(start.getTime() - 2 * 24 * 3600 * 1000);
-    await fetchDailyForAsset(code, s);
-  })();
-  
-  inflightKrakenRequests.set(code, fetchPromise);
-  
-  try {
-    await fetchPromise;
-  } finally {
-    inflightKrakenRequests.delete(code);
+
+  // Determine what date range we need to fetch
+  let fetchStart = start;
+  let fetchEnd = end;
+
+  if (cachedRange) {
+    // Extend the range if needed
+    if (requestedStart < cachedRange.start) {
+      fetchEnd = new Date(cachedRange.start);
+      fetchEnd.setDate(fetchEnd.getDate() - 1); // Fetch up to day before cached start
+    } else if (requestedEnd > cachedRange.end) {
+      fetchStart = new Date(cachedRange.end);
+      fetchStart.setDate(fetchStart.getDate() + 1); // Fetch from day after cached end
+    }
+    
+    if (import.meta.env.DEV) {
+      console.log(`Kraken: Extending ${code} cache from ${toDateKey(fetchStart)} to ${toDateKey(fetchEnd)}`);
+    }
   }
+
+  const key = `prime_${code}_${toDateKey(fetchStart)}_${toDateKey(fetchEnd)}`;
+  
+  if (inflightKrakenRequests.has(key)) {
+    await inflightKrakenRequests.get(key);
+    return;
+  }
+
+  const promise = (async () => {
+    try {
+      await fetchDailyForAsset(code, fetchStart);
+      
+      // Update the cached range
+      const newRange: DateRange = {
+        start: cachedRange ? (requestedStart < cachedRange.start ? requestedStart : cachedRange.start) : requestedStart,
+        end: cachedRange ? (requestedEnd > cachedRange.end ? requestedEnd : cachedRange.end) : requestedEnd,
+      };
+      
+      localStorage.setItem(rangeKey, JSON.stringify(newRange));
+      
+      if (import.meta.env.DEV) {
+        console.log(`Kraken: Updated ${code} range cache to ${newRange.start} - ${newRange.end}`);
+      }
+    } finally {
+      inflightKrakenRequests.delete(key);
+    }
+  })();
+
+  inflightKrakenRequests.set(key, promise);
+  await promise;
 };
 
 export const getUsdRateForDateByAsset = async (asset: string, date: Date, cacheOnly: boolean = false): Promise<number> => {
@@ -311,21 +361,14 @@ export const getUsdRateForDateByAsset = async (asset: string, date: Date, cacheO
   }
 };
 
-// Backwards-compatible XLM wrappers
-export const primeXlmUsdRates = async (start: Date, end: Date): Promise<void> => {
-  await primeUsdRatesForAsset('XLM', start, end);
-};
-
-export const getXlmUsdRateForDate = async (date: Date, cacheOnly: boolean = false): Promise<number> => {
-  return getUsdRateForDateByAsset('XLM', date, cacheOnly);
-};
+// XLM helpers removed - use getUsdRateForDateByAsset('XLM', ...) directly
 
 // Fiat pair helpers
 const getFiatCacheKeys = (fromCurrency: string, toCurrency: string) => {
   const pair = `${fromCurrency}${toCurrency}`.toUpperCase();
   return {
     cacheKey: `kraken_fx_${pair}_ohlc_daily_v1`,
-    lastKey: `kraken_fx_${pair}_last_fetch_ts`
+    rangeKey: `kraken_fx_range_${pair}` // Changed from lastKey to rangeKey
   };
 };
 
@@ -425,10 +468,6 @@ const fetchDailyForFiatPair = async (fromCurrency: string, toCurrency: string, s
         console.log(`Kraken: Successfully cached ${dataPoints} FX data points for ${fromCurrency}/${toCurrency} from pair ${pair}`);
       }
       
-      try { 
-        const { lastKey } = getFiatCacheKeys(fromCurrency, toCurrency); 
-        localStorage.setItem(lastKey, String(Date.now())); 
-      } catch {}
       return;
     } catch (error) {
       if (import.meta.env.DEV) {
@@ -440,33 +479,79 @@ const fetchDailyForFiatPair = async (fromCurrency: string, toCurrency: string, s
 
 // Prime historical FX rates for a currency pair
 export const primeHistoricalFxRates = async (fromCurrency: string, toCurrency: string, start: Date, end: Date): Promise<void> => {
-  const { lastKey } = getFiatCacheKeys(fromCurrency, toCurrency);
+  const { rangeKey } = getFiatCacheKeys(fromCurrency, toCurrency);
+
+  // Check if we already have this date range cached
+  const cachedRangeStr = localStorage.getItem(rangeKey);
+  let cachedRange: DateRange | null = null;
   
-  try {
-    const lastTs = Number(localStorage.getItem(lastKey) || '0');
-    if (lastTs && (Date.now() - lastTs) < TTL_MS) return;
-  } catch {
-    // Ignore localStorage errors
+  if (cachedRangeStr) {
+    try {
+      cachedRange = JSON.parse(cachedRangeStr);
+    } catch (e) {
+      // Invalid cache, ignore it
+    }
   }
-  
-  const pair = `${fromCurrency}${toCurrency}`.toUpperCase();
-  if (inflightKrakenRequests.has(pair)) {
-    await inflightKrakenRequests.get(pair);
+
+  const requestedStart = toDateKey(start);
+  const requestedEnd = toDateKey(end);
+
+  // If we already have this range or a broader range, skip fetching
+  if (cachedRange && cachedRange.start <= requestedStart && cachedRange.end >= requestedEnd) {
+    if (import.meta.env.DEV) {
+      console.log(`Kraken: Skipping FX fetch for ${fromCurrency}/${toCurrency}, already have range ${cachedRange.start} to ${cachedRange.end}`);
+    }
     return;
   }
-  
-  const fetchPromise = (async () => {
-    const s = new Date(start.getTime() - 2 * 24 * 3600 * 1000);
-    await fetchDailyForFiatPair(fromCurrency, toCurrency, s);
-  })();
-  
-  inflightKrakenRequests.set(pair, fetchPromise);
-  
-  try {
-    await fetchPromise;
-  } finally {
-    inflightKrakenRequests.delete(pair);
+
+  // Determine what date range we need to fetch
+  let fetchStart = start;
+  let fetchEnd = end;
+
+  if (cachedRange) {
+    // Extend the range if needed
+    if (requestedStart < cachedRange.start) {
+      fetchEnd = new Date(cachedRange.start);
+      fetchEnd.setDate(fetchEnd.getDate() - 1);
+    } else if (requestedEnd > cachedRange.end) {
+      fetchStart = new Date(cachedRange.end);
+      fetchStart.setDate(fetchStart.getDate() + 1);
+    }
+    
+    if (import.meta.env.DEV) {
+      console.log(`Kraken: Extending FX ${fromCurrency}/${toCurrency} cache from ${toDateKey(fetchStart)} to ${toDateKey(fetchEnd)}`);
+    }
   }
+
+  const key = `prime_fx_${fromCurrency}_${toCurrency}_${toDateKey(fetchStart)}_${toDateKey(fetchEnd)}`;
+  
+  if (inflightKrakenRequests.has(key)) {
+    await inflightKrakenRequests.get(key);
+    return;
+  }
+
+  const promise = (async () => {
+    try {
+      await fetchDailyForFiatPair(fromCurrency, toCurrency, fetchStart);
+      
+      // Update the cached range
+      const newRange: DateRange = {
+        start: cachedRange ? (requestedStart < cachedRange.start ? requestedStart : cachedRange.start) : requestedStart,
+        end: cachedRange ? (requestedEnd > cachedRange.end ? requestedEnd : cachedRange.end) : requestedEnd,
+      };
+      
+      localStorage.setItem(rangeKey, JSON.stringify(newRange));
+      
+      if (import.meta.env.DEV) {
+        console.log(`Kraken: Updated FX ${fromCurrency}/${toCurrency} range cache to ${newRange.start} - ${newRange.end}`);
+      }
+    } finally {
+      inflightKrakenRequests.delete(key);
+    }
+  })();
+
+  inflightKrakenRequests.set(key, promise);
+  await promise;
 };
 
 // Get historical FX rate for a specific date
