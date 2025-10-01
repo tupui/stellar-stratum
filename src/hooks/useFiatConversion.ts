@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getFxRate } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { getAssetPrice } from '@/lib/reflector';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface FiatConversionHook {
   convertXLMToFiat: (xlmAmount: number) => Promise<number>;
@@ -13,6 +14,7 @@ interface FiatConversionHook {
 
 export const useFiatConversion = (): FiatConversionHook => {
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
+  const { network } = useNetwork();
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export const useFiatConversion = (): FiatConversionHook => {
       setError(null);
 
       try {
-        const rate = await getFxRate(quoteCurrency);
+        const rate = await getFxRate(quoteCurrency, network);
         setExchangeRate(rate);
       } catch (err) {
         setError(`Failed to fetch exchange rate for ${quoteCurrency}`);
@@ -40,7 +42,7 @@ export const useFiatConversion = (): FiatConversionHook => {
     };
 
     fetchRate();
-  }, [quoteCurrency]);
+  }, [quoteCurrency, network]);
 
   const convertXLMToFiat = useCallback(async (xlmAmount: number): Promise<number> => {
     try {

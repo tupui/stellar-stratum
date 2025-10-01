@@ -90,7 +90,7 @@ export const AssetBalancePanel = ({
       // Convert total value
       if (totalValueUSD) {
         try {
-          const convertedTotal = await convertFromUSD(totalValueUSD, quoteCurrency);
+          const convertedTotal = await convertFromUSD(totalValueUSD, quoteCurrency, network);
           setConvertedTotalValue(convertedTotal);
         } catch (error) {
           setConvertedTotalValue(totalValueUSD);
@@ -104,7 +104,7 @@ export const AssetBalancePanel = ({
         const asset = assetsWithPrices[i];
         if (asset.valueUSD > 0) {
           try {
-            const convertedValue = await convertFromUSD(asset.valueUSD, quoteCurrency);
+            const convertedValue = await convertFromUSD(asset.valueUSD, quoteCurrency, network);
             newConvertedValues[i] = convertedValue;
           } catch (error) {
             // Ignore conversion errors - use USD fallback
@@ -112,7 +112,7 @@ export const AssetBalancePanel = ({
         }
         if (asset.priceUSD > 0) {
           try {
-            const convertedPrice = await convertFromUSD(asset.priceUSD, quoteCurrency);
+            const convertedPrice = await convertFromUSD(asset.priceUSD, quoteCurrency, network);
             newConvertedPrices[i] = convertedPrice;
           } catch (error) {
             // Ignore conversion errors - use USD fallback

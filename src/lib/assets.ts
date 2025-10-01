@@ -72,7 +72,7 @@ const loadCacheFromStorage = () => {
       }
     });
   } catch (error) {
-    if (import.meta.env.DEV) console.warn('Failed to load asset cache from localStorage:', error);
+    // Silent - no console noise
   }
 };
 
@@ -81,7 +81,7 @@ const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
   try {
     localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(entry));
   } catch (error) {
-    if (import.meta.env.DEV) console.warn('Failed to save asset cache to localStorage:', error);
+    // Silent - no console noise
   }
 };
 
@@ -105,91 +105,45 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
   }
 
   try {
-    // Check TOML cache
-    const tomlCacheKey = `${assetIssuer}:${network}`;
-    const cachedToml = tomlCache.get(tomlCacheKey);
+    // Use StellarExpert API (CORS-enabled) instead of direct TOML fetch
+    const networkPath = network === 'testnet' ? 'testnet' : 'public';
+    const stellarExpertUrl = `https://api.stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;
     
-    let assets: SEP1TomlAsset[];
+    const response = await fetch(stellarExpertUrl);
     
-    if (cachedToml && cachedToml.expiresAt > Date.now()) {
-      assets = cachedToml.data;
-    } else {
-      // Fetch from Stellar account using network-aware URL
-      const horizonUrl = getHorizonUrl(network);
-      const response = await Promise.race([
-        fetch(`${horizonUrl}/accounts/${assetIssuer}`),
-        new Promise<Response>((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), 5000)
-        )
-      ]);
-      
-      if (!response.ok) throw new Error('Failed to fetch account data');
-      
-      const accountData = await response.json();
-      const homeDomain = accountData.home_domain;
-      
-      if (!homeDomain) {
-        throw new Error('No home domain found');
-      }
-
-      // Fetch SEP-1 TOML - fail fast on CORS
-      const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
-      const tomlResponse = await fetch(tomlUrl, { mode: 'cors' });
-      
-      if (!tomlResponse.ok) throw new Error(`TOML fetch failed: ${tomlResponse.status}`);
-      
-      const tomlText = await tomlResponse.text();
-      
-      // Parse TOML (simple parser for CURRENCIES section)
-      assets = parseTomlCurrencies(tomlText);
-      
-      // Cache the TOML results with expiry
-      const now = Date.now();
-      const tomlCacheEntry: CacheEntry<SEP1TomlAsset[]> = {
-        data: assets,
-        timestamp: now,
-        expiresAt: now + TOML_CACHE_DURATION
-      };
-      tomlCache.set(tomlCacheKey, tomlCacheEntry);
-    }
+    if (!response.ok) throw new Error(`StellarExpert fetch failed: ${response.status}`);
     
-    // Find the specific asset
-    const asset = assets.find(a => a.code === assetCode && a.issuer === assetIssuer);
+    const data = await response.json();
     
-    if (asset) {
-      const assetInfo: AssetInfo = {
-        code: asset.code,
-        issuer: asset.issuer,
-        name: asset.name || asset.desc,
-        image: asset.image
-      };
-      
-      // Cache the asset info with longer expiry
-      const now = Date.now();
-      const assetCacheEntry: CacheEntry<AssetInfo> = {
-        data: assetInfo,
-        timestamp: now,
-        expiresAt: now + ASSET_INFO_CACHE_DURATION
-      };
-      assetInfoCache.set(assetCacheKey, assetCacheEntry);
-      saveCacheToStorage(assetCacheKey, assetCacheEntry);
-      
-      return assetInfo;
-    }
+    // Extract asset info from StellarExpert response
+    const assetInfo: AssetInfo = {
+      code: assetCode,
+      issuer: assetIssuer,
+      name: data.name || data.domain || assetCode,
+      // StellarExpert returns image in logo field
+      image: data.logo || data.image
+    };
     
-    throw new Error('Asset not found in TOML');
+    // Cache the asset info with longer expiry
+    const now = Date.now();
+    const assetCacheEntry: CacheEntry<AssetInfo> = {
+      data: assetInfo,
+      timestamp: now,
+      expiresAt: now + ASSET_INFO_CACHE_DURATION
+    };
+    assetInfoCache.set(assetCacheKey, assetCacheEntry);
+    saveCacheToStorage(assetCacheKey, assetCacheEntry);
+    
+    return assetInfo;
   } catch (error) {
-    // CORS or network error - fail fast with defaults
-    console.warn(`[Asset] CORS/network error for ${assetCode}:`, error instanceof Error ? error.message : 'Unknown');
-    
-    // Return default asset info without image - component will generate fallback
+    // Network error - return default without image
     const defaultAssetInfo: AssetInfo = {
       code: assetCode,
       issuer: assetIssuer,
       name: assetCode
     };
     
-    // Cache default for 1 hour on CORS failures (not worth retrying frequently)
+    // Cache default for 1 hour on failures
     const now = Date.now();
     const defaultCacheEntry: CacheEntry<AssetInfo> = {
       data: defaultAssetInfo,

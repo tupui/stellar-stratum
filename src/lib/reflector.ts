@@ -195,7 +195,7 @@ const initializeAssetMapping = async (): Promise<void> => {
       
       mappingInitialized = true;
       } catch (error) {
-        console.log(`Oracle mapping initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // Silent - mapping will retry on next call
         mappingPromise = null; // Reset to allow retry
         throw error;
       }
@@ -223,7 +223,7 @@ const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Pro
     const price = await getOracleAssetPriceWithRetry(oracle, asset);
     return price;
   } catch (error) {
-    console.log(`Oracle price fetch failed for ${assetCode}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    // Silent - return 0 for failed price fetches
     return 0;
   }
 };
@@ -295,11 +295,7 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
         // Continue immediately
       }
     } catch (error) {
-      // Log error for debugging but continue to next attempt
-      if (import.meta.env.DEV) {
-        console.warn(`Oracle fetch attempt ${attempt + 1} failed:`, error);
-      }
-      // Continue to next attempt immediately without delay
+      // Silent - continue to next attempt
     }
   }
   
@@ -376,16 +372,6 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
         // Apply decimals scaling
         const price = rawPrice / Math.pow(10, oracle.decimals);
         
-        // Detailed logging for debugging price issues
-        if (import.meta.env.DEV) {
-          console.log(`[Pricing] ${asset.code}:`, {
-            rawPrice,
-            decimals: oracle.decimals,
-            scaledPrice: price,
-            oracle: oracle.contract.slice(0, 8) + '...'
-          });
-        }
-        
         // Cache successful price
         oraclePriceCache[cacheKey] = {
           price,
@@ -401,11 +387,7 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
         // Continue immediately
       }
     } catch (error) {
-      // Log error for debugging but continue to next attempt
-      if (import.meta.env.DEV) {
-        console.warn(`Price fetch attempt ${attempt + 1} failed:`, error);
-      }
-      // Continue to next attempt immediately without delay
+      // Silent - continue to next attempt
     }
   }
   

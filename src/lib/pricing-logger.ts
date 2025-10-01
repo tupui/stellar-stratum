@@ -26,15 +26,8 @@ class PricingLogger {
       this.events = this.events.slice(-this.maxEvents);
     }
 
-    // Console log in development
-    if (import.meta.env.DEV) {
-      const prefix = `[Pricing ${event.type}]`;
-      if (event.type.includes('error')) {
-        console.warn(prefix, event);
-      } else {
-        console.info(prefix, event);
-      }
-    }
+    // Silent by default - no console logging
+    // Events are kept in memory for diagnostics via getEvents()
   }
 
   getEvents(): PricingEvent[] {

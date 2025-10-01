@@ -49,6 +49,13 @@ const fxRatesCache: Record<string, { rate: number; timestamp: number }> = {};
 const FX_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const CURRENCIES_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
 
+// Deduplication for getFxRate calls
+const inflightFxRateRequests = new Map<string, Promise<number>>();
+
+// Oracle assets cache for validation
+let oracleAssetsCache: string[] | null = null;
+let oracleAssetsCacheTimestamp = 0;
+
 // FX Oracle contract configuration
 const FX_ORACLE = {
   contract: 'CBKGPWGKSKZF52CFHMTRR23TBWTPMRDIYZ4O2P5VS65BMHYH4DXMCJZC',
@@ -57,7 +64,7 @@ const FX_ORACLE = {
 } as const;
 
 // Get available fiat currencies from the FX oracle
-export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
+export const getAvailableFiatCurrencies = async (network: 'mainnet' | 'testnet' = 'mainnet'): Promise<FiatCurrency[]> => {
   // Return cached currencies if still valid
   if (availableCurrenciesCache) {
     return availableCurrenciesCache;
@@ -65,10 +72,14 @@ export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
   
   try {
     const { OracleClient, AssetType } = await import('./reflector-client');
-    const client = new (OracleClient as any)(FX_ORACLE.contract);
+    const client = new (OracleClient as any)(FX_ORACLE.contract, network);
     
     // Fetch available assets (currencies) from FX oracle
     const availableAssets = await client.getAssets();
+    
+    // Cache oracle assets for validation
+    oracleAssetsCache = availableAssets;
+    oracleAssetsCacheTimestamp = Date.now();
     
     // Always include USD as base currency
     const currencies: FiatCurrency[] = [
@@ -76,12 +87,13 @@ export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
     ];
     
     // Add other currencies that are available from the oracle
-    availableAssets.forEach(asset => {
-      if (asset !== 'USD' && CURRENCY_INFO[asset]) {
+    availableAssets.forEach((asset: string) => {
+      const upperAsset = asset.toUpperCase();
+      if (upperAsset !== 'USD' && CURRENCY_INFO[upperAsset]) {
         currencies.push({
-          code: asset,
-          symbol: CURRENCY_INFO[asset].symbol,
-          name: CURRENCY_INFO[asset].name
+          code: upperAsset,
+          symbol: CURRENCY_INFO[upperAsset].symbol,
+          name: CURRENCY_INFO[upperAsset].name
         });
       }
     });
@@ -89,50 +101,73 @@ export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
     availableCurrenciesCache = currencies;
     return currencies;
   } catch (error) {
-    console.warn('Failed to fetch available currencies from FX oracle:', error);
-    // Return only USD if oracle fails
+    // Silent failure - return only USD
     return [{ code: 'USD', symbol: '$', name: 'US Dollar' }];
   }
 };
 
 // Get exchange rate quoted in USD per 1 unit of target currency (e.g., EURUSD)
-export const getFxRate = async (targetCurrency: string): Promise<number> => {
+export const getFxRate = async (targetCurrency: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<number> => {
   if (targetCurrency === 'USD') return 1;
   
-  const cacheKey = `USD_${targetCurrency}`;
-  const cached = fxRatesCache[cacheKey];
+  const upperCurrency = targetCurrency.toUpperCase();
+  const cacheKey = `${network}_USD_${upperCurrency}`;
   
+  // Deduplicate in-flight requests
+  if (inflightFxRateRequests.has(cacheKey)) {
+    return inflightFxRateRequests.get(cacheKey)!;
+  }
+  
+  const cached = fxRatesCache[cacheKey];
   if (cached && (Date.now() - cached.timestamp) < FX_CACHE_DURATION) {
     return cached.rate;
   }
   
-  try {
-    const { OracleClient, AssetType } = await import('./reflector-client');
-    const client = new (OracleClient as any)(FX_ORACLE.contract);
-    
-    // Fetch rate for target currency from oracle
-    const rawRate = await client.getLastPrice({
-      type: AssetType.Other,
-      code: targetCurrency
-    });
-    
-    if (rawRate > 0) {
-      const rate = rawRate / Math.pow(10, FX_ORACLE.decimals); // USD per 1 target unit
-      fxRatesCache[cacheKey] = { rate, timestamp: Date.now() };
-      return rate;
-    } else {
-      throw new Error(`No rate available for ${targetCurrency}`);
+  const ratePromise = (async (): Promise<number> => {
+    try {
+      const { OracleClient, AssetType } = await import('./reflector-client');
+      const client = new (OracleClient as any)(FX_ORACLE.contract, network);
+      
+      // Preload available assets if not cached
+      if (!oracleAssetsCache || (Date.now() - oracleAssetsCacheTimestamp) > CURRENCIES_CACHE_DURATION) {
+        const availableAssets = await client.getAssets();
+        oracleAssetsCache = availableAssets.map((a: string) => a.toUpperCase());
+        oracleAssetsCacheTimestamp = Date.now();
+      }
+      
+      // Validate currency is supported
+      if (!oracleAssetsCache.includes(upperCurrency)) {
+        throw new Error(`Currency ${upperCurrency} not supported by oracle`);
+      }
+      
+      // Fetch rate for target currency from oracle
+      const rawRate = await client.getLastPrice({
+        type: AssetType.Other,
+        code: upperCurrency
+      });
+      
+      if (rawRate > 0) {
+        const rate = rawRate / Math.pow(10, FX_ORACLE.decimals); // USD per 1 target unit
+        fxRatesCache[cacheKey] = { rate, timestamp: Date.now() };
+        return rate;
+      } else {
+        throw new Error(`Oracle returned zero rate for ${upperCurrency}`);
+      }
+    } catch (error) {
+      throw error;
+    } finally {
+      inflightFxRateRequests.delete(cacheKey);
     }
-  } catch (error) {
-    console.warn(`Failed to fetch FX rate for ${targetCurrency}:`, error);
-    throw error; // Don't fallback to hardcoded rates
-  }
+  })();
+  
+  inflightFxRateRequests.set(cacheKey, ratePromise);
+  return ratePromise;
 };
 
 // Convert an amount in USD to the target currency using USD-per-target quote
 // If rate is USD per 1 target unit (e.g., EURUSD), then target = USD / rate
-export const convertFromUSD = async (usdAmount: number, targetCurrency: string): Promise<number> => {
-  const rate = await getFxRate(targetCurrency);
+export const convertFromUSD = async (usdAmount: number, targetCurrency: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<number> => {
+  const rate = await getFxRate(targetCurrency, network);
   if (!rate) return usdAmount; // fallback: return USD amount if no rate
   return usdAmount / rate;
 };
