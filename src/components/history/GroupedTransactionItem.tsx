@@ -206,7 +206,7 @@ export const GroupedTransactionItem = ({
                 {groupedTx.isGrouped && groupedTx.oldestTransaction && groupedTx.latestTransaction ? (
                   <>
                     <div>{format(groupedTx.latestTransaction.createdAt, 'MMM dd')}</div>
-                    {groupedTx.oldestTransaction.id !== groupedTx.latestTransaction.id && (
+                    {format(groupedTx.oldestTransaction.createdAt, 'MMM dd') !== format(groupedTx.latestTransaction.createdAt, 'MMM dd') && (
                       <div className="opacity-75">to {format(groupedTx.oldestTransaction.createdAt, 'MMM dd')}</div>
                     )}
                   </>
