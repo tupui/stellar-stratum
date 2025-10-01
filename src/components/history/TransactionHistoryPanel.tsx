@@ -221,6 +221,25 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           usdPrice = 0;
         }
 
+        // For swaps, if source asset has no price, try using destination asset as fallback
+        if (tx.category === 'swap' && usdPrice === 0) {
+          const toAssetCode = tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || 'XLM');
+          if (toAssetCode !== assetCode && tx.swapToAmount) {
+            try {
+              const toUsdPrice = await getUsdRateForDateByAsset(toAssetCode, txDate, true);
+              if (toUsdPrice > 0) {
+                // Use destination asset price and amount as approximation
+                usdPrice = toUsdPrice;
+                amount = tx.swapToAmount;
+              }
+            } catch (error) {
+              if (import.meta.env.DEV) {
+                console.warn(`Fallback price fetch failed for ${toAssetCode}:`, error);
+              }
+            }
+          }
+        }
+
         // Get historical FX rate (cache-first, with today fallback)
         let fxRate = 1;
         if (quoteCurrency !== 'USD') {

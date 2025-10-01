@@ -234,20 +234,11 @@ export const normalizeOperationRecord = (
         swapFromAssetType = record.source_asset_type || 'native';
         swapFromAssetCode = record.source_asset_code || (swapFromAssetType === 'native' ? 'XLM' : undefined);
         swapFromAssetIssuer = record.source_asset_issuer;
-        // To leg - different fields for strict_send vs strict_receive
-        if (type === 'path_payment_strict_send') {
-          // For strict_send, destination is in dest_* fields
-          swapToAmount = Math.abs(parseFloat(record.destination_amount || record.amount || '0'));
-          swapToAssetType = record.dest_asset_type || 'native';
-          swapToAssetCode = record.dest_asset_code || (swapToAssetType === 'native' ? 'XLM' : undefined);
-          swapToAssetIssuer = record.dest_asset_issuer;
-        } else {
-          // For strict_receive, destination is in regular asset_* fields
-          swapToAmount = Math.abs(parseFloat(record.amount || '0'));
-          swapToAssetType = record.asset_type || 'native';
-          swapToAssetCode = record.asset_code || (swapToAssetType === 'native' ? 'XLM' : undefined);
-          swapToAssetIssuer = record.asset_issuer;
-        }
+        // To leg - destination is always in regular asset_* fields for both strict_send and strict_receive
+        swapToAmount = Math.abs(parseFloat(record.amount || '0'));
+        swapToAssetType = record.asset_type || 'native';
+        swapToAssetCode = record.asset_code || (swapToAssetType === 'native' ? 'XLM' : undefined);
+        swapToAssetIssuer = record.asset_issuer;
         // Primary impact uses the leg affecting our balance first (outgoing leg)
         amount = swapFromAmount || 0;
         assetType = swapFromAssetType;
