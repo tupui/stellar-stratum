@@ -215,13 +215,14 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
             }
           }
           
-          // Validate price - reject obviously incorrect prices
-          const MAX_REASONABLE_PRICE = 10_000_000; // $10M per unit
-          if (usdPrice > MAX_REASONABLE_PRICE) {
-            if (import.meta.env.DEV) {
-              console.warn(`Rejecting unrealistic price for ${assetCode}: $${usdPrice.toFixed(2)} (tx: ${tx.id})`);
-            }
-            usdPrice = 0;
+          // Detailed logging for debugging price issues
+          if (import.meta.env.DEV && usdPrice > 100000) {
+            console.warn(`[Pricing] Suspicious price for ${assetCode}:`, {
+              price: usdPrice,
+              txId: tx.id,
+              date: txDate.toISOString(),
+              amount
+            });
           }
         } catch (error) {
           if (import.meta.env.DEV) {
