@@ -158,9 +158,14 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
             assets.add(t.assetCode);
           }
           
-          // For swaps, also add the destination asset
-          if (t.category === 'swap' && t.swapToAssetType !== 'native' && t.swapToAssetCode) {
-            assets.add(t.swapToAssetCode);
+          // For swaps, add both source (from) and destination (to) assets
+          if (t.category === 'swap') {
+            if (t.swapFromAssetType !== 'native' && t.swapFromAssetCode) {
+              assets.add(t.swapFromAssetCode);
+            }
+            if (t.swapToAssetType !== 'native' && t.swapToAssetCode) {
+              assets.add(t.swapToAssetCode);
+            }
           }
         });
         
@@ -184,10 +189,10 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         let amount = 0;
         let assetCode = '';
         
-        // For swaps, use the destination asset (what was received)
+        // For swaps, use the source asset (what was spent)
         if (tx.category === 'swap') {
-          assetCode = tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || 'XLM');
-          amount = tx.swapToAmount || 0;
+          assetCode = tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || 'XLM');
+          amount = tx.swapFromAmount || 0;
         } else {
           assetCode = tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM');
           amount = tx.amount || 0;

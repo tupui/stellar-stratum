@@ -278,7 +278,12 @@ export const GroupedTransactionItem = ({
                               {(tx.amount || 0).toFixed(2)} {tx.assetType === 'native' ? 'XLM' : (tx.assetCode || '')}
                             </span>
                           )}
-                          {tx.category !== 'transfer' && (
+                          {tx.category === 'swap' && (
+                            <span className="font-medium font-amount tabular-nums">
+                              {(tx.swapFromAmount ?? 0).toFixed(2)} {tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || '')} → {(tx.swapToAmount ?? 0).toFixed(2)} {tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || '')}
+                            </span>
+                          )}
+                          {tx.category !== 'transfer' && tx.category !== 'swap' && (
                             <span className="font-medium">
                               {tx.type}
                             </span>
