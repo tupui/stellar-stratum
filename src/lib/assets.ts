@@ -89,8 +89,8 @@ const loadCacheFromStorage = () => {
         }
       }
     });
-  } catch (error) {
-    // Silent - no console noise
+  } catch {
+    // Ignore storage errors
   }
 };
 
@@ -98,16 +98,16 @@ const loadCacheFromStorage = () => {
 const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
   try {
     localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(entry));
-  } catch (error) {
-    // Silent - no console noise
+  } catch {
+    // Ignore storage errors
   }
 };
 
 const saveTomlToStorage = (key: string, entry: CacheEntry<SEP1TomlAsset[]>) => {
   try {
     localStorage.setItem(TOML_STORAGE_PREFIX + key, JSON.stringify(entry));
-  } catch (error) {
-    // Silent - no console noise
+  } catch {
+    // Ignore storage errors
   }
 };
 
@@ -138,29 +138,22 @@ const fetchTomlForDomain = async (homeDomain: string, network: 'mainnet' | 'test
     return [];
   }
   
-  // Direct HTTPS fetch (no proxies)
   try {
     const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
-    console.log(`[TOML Debug] Fetching TOML for ${homeDomain}`);
-    
     const tomlResponse = await fetch(tomlUrl, { 
       mode: 'cors',
       signal: AbortSignal.timeout(5000) 
     });
     
     if (!tomlResponse.ok) {
-      console.log(`[TOML Debug] Non-2xx response from ${homeDomain}: ${tomlResponse.status}`);
-      throw new Error('Non-2xx response');
+      throw new Error(`Non-2xx response: ${tomlResponse.status}`);
     }
     
     const tomlContent = await tomlResponse.text();
     
     if (!tomlContent) {
-      console.log(`[TOML Debug] Empty TOML from ${homeDomain}`);
-      throw new Error('Empty TOML');
+      throw new Error('Empty TOML response');
     }
-    
-    console.log(`[TOML Debug] Successfully fetched TOML from ${homeDomain}, length: ${tomlContent.length}`);
     
     // Parse TOML currencies
     const currencies = parseTomlCurrencies(tomlContent);
@@ -177,9 +170,7 @@ const fetchTomlForDomain = async (homeDomain: string, network: 'mainnet' | 'test
     
     return currencies;
   } catch (error) {
-    console.log(`[TOML Debug] Failed to fetch TOML for ${homeDomain}:`, error);
-    
-    // Silently fail: cache empty result for 24h to avoid repeated attempts
+    // Cache empty result for 24h to avoid repeated attempts
     const now = Date.now();
     const emptyEntry: CacheEntry<SEP1TomlAsset[]> = {
       data: [],
@@ -219,21 +210,33 @@ const resolveImageUrl = (image: string, homeDomain: string): string => {
   }
 };
 
+// Well-known asset fallbacks for assets with CORS issues or reliable metadata
+const ASSET_FALLBACKS: Record<string, AssetInfo> = {
+  // EURC from Circle (circle.com blocks CORS)
+  'EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2': {
+    code: 'EURC',
+    issuer: 'GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2',
+    name: 'Euro Coin',
+    image: 'https://stellar.myfilebase.com/ipfs/QmeRk7LG85cozSNey9QGARgbxYi1cG1dA1G6SNJGMTMdF2' // Official EURC logo via IPFS
+  },
+  // Native XLM
+  'XLM:': {
+    code: 'XLM',
+    name: 'Stellar Lumens',
+    image: '/xlm-logo.png'
+  }
+};
+
 export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AssetInfo> => {
-  const debugAssets = ['USDC', 'EURC', 'TESOURO'];
-  const shouldDebug = debugAssets.includes(assetCode);
-  
-  if (shouldDebug) {
-    console.log(`[Asset Debug] Fetching ${assetCode} issued by ${assetIssuer?.substring(0, 8)}...`);
+  // Check for well-known asset fallbacks first
+  const fallbackKey = `${assetCode}:${assetIssuer || ''}`;
+  if (ASSET_FALLBACKS[fallbackKey]) {
+    return ASSET_FALLBACKS[fallbackKey];
   }
   
-  // HARDCODED: Native XLM always returns immediately with official info
+  // Native XLM handling
   if ((!assetCode || assetCode === 'XLM') && !assetIssuer) {
-    return {
-      code: 'XLM',
-      name: 'Stellar Lumens',
-      image: '/xlm-logo.png'
-    };
+    return ASSET_FALLBACKS['XLM:'];
   }
   
   // Get TOML timestamp for cache key coherence
@@ -244,11 +247,6 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     // Fetch issuer's home domain from Horizon
     const horizonUrl = getHorizonUrl(network);
     const accountUrl = `${horizonUrl}/accounts/${assetIssuer}`;
-    
-    if (shouldDebug) {
-      console.log(`[Asset Debug] Fetching account from Horizon: ${accountUrl}`);
-    }
-    
     const accountResponse = await fetch(accountUrl);
     
     if (!accountResponse.ok) throw new Error('Account fetch failed');
@@ -256,18 +254,10 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     const accountData = await accountResponse.json();
     homeDomain = accountData.home_domain;
     
-    if (shouldDebug) {
-      console.log(`[Asset Debug] Home domain: ${homeDomain}`);
-    }
-    
     if (!homeDomain) throw new Error('No home domain');
     
     // Fetch TOML data (uses cache if available)
     const currencies = await fetchTomlForDomain(homeDomain, network);
-    
-    if (shouldDebug) {
-      console.log(`[Asset Debug] TOML currencies found: ${currencies.length}`);
-    }
     
     // Get TOML cache timestamp for this domain
     const tomlCacheKey = `${homeDomain}:${network}`;
@@ -287,16 +277,9 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
       currency.issuer === assetIssuer
     );
     
-    if (shouldDebug) {
-      console.log(`[Asset Debug] Matching asset found: ${!!matchingAsset}, has image: ${!!matchingAsset?.image}`);
-    }
-    
     let resolvedImage: string | undefined;
     if (matchingAsset?.image) {
       resolvedImage = resolveImageUrl(matchingAsset.image, homeDomain);
-      if (shouldDebug) {
-        console.log(`[Asset Debug] Resolved image URL: ${resolvedImage}`);
-      }
     }
     
     const assetInfo: AssetInfo = {
@@ -319,10 +302,6 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     
     return assetInfo;
   } catch (error) {
-    if (shouldDebug) {
-      console.log(`[Asset Debug] Error fetching asset info:`, error);
-    }
-    
     // Fallback: return basic info without image
     const assetInfo: AssetInfo = {
       code: assetCode,
