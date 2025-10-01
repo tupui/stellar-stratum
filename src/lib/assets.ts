@@ -15,6 +15,25 @@ interface SEP1TomlAsset {
   name?: string;
 }
 
+// Fallback image URLs for common Stellar assets
+const COMMON_ASSET_IMAGES: Record<string, string> = {
+  // USDC (Circle)
+  'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN': 'https://assets.coingecko.com/coins/images/6319/small/usdc.png',
+  // USDT (Tether)
+  'USDT:GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V': 'https://cryptologos.cc/logos/tether-usdt-logo.png',
+  // AQUA
+  'AQUA:GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA': 'https://aqua.network/assets/img/aqua-logo.png',
+  // yUSDC (Ultra Capital)
+  'yUSDC:GDGTVWSM4MGS4T7Z6W4RPWOCHE2I6RDFCIFZGS3DOA63LWQTRNZNTTFF': 'https://assets.coingecko.com/coins/images/6319/small/usdc.png',
+  // yXLM (Ultra Capital)
+  'yXLM:GARDNV3Q7YGT4AKSDF25LT32YSCCW4EV22Y2TV3I2PU2MMXJTEDL5T55': 'https://assets.coingecko.com/coins/images/100/small/Stellar_symbol_black_RGB.png',
+};
+
+// Generic fallback using StellarExpert for unknown assets
+const getStellarExpertImageUrl = (assetCode: string, assetIssuer: string): string => {
+  return `https://stellar.expert/img/vendor/asset/${assetCode}-${assetIssuer}.svg`;
+};
+
 // Enhanced caching system
 interface CacheEntry<T> {
   data: T;
@@ -158,11 +177,15 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
   } catch (error) {
     if (import.meta.env.DEV) console.warn(`Failed to fetch asset info for ${assetCode}:${assetIssuer}`, error);
     
-    // Return default asset info and cache it briefly
+    // Try to use fallback image from common assets mapping, otherwise use StellarExpert
+    const fallbackImage = COMMON_ASSET_IMAGES[assetCacheKey] || getStellarExpertImageUrl(assetCode, assetIssuer || '');
+    
+    // Return default asset info with fallback image
     const defaultAssetInfo: AssetInfo = {
       code: assetCode,
       issuer: assetIssuer,
-      name: assetCode
+      name: assetCode,
+      image: fallbackImage
     };
     
     // Cache default info for shorter duration to retry sooner
