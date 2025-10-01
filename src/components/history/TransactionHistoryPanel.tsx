@@ -214,6 +214,15 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
               usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, false);
             }
           }
+          
+          // Validate price - reject obviously incorrect prices
+          const MAX_REASONABLE_PRICE = 10_000_000; // $10M per unit
+          if (usdPrice > MAX_REASONABLE_PRICE) {
+            if (import.meta.env.DEV) {
+              console.warn(`Rejecting unrealistic price for ${assetCode}: $${usdPrice.toFixed(2)} (tx: ${tx.id})`);
+            }
+            usdPrice = 0;
+          }
         } catch (error) {
           if (import.meta.env.DEV) {
             console.warn(`Price fetch failed for ${assetCode} on ${txDate.toISOString()}:`, error);

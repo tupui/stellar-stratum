@@ -376,6 +376,21 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
         // Apply decimals scaling
         const price = rawPrice / Math.pow(10, oracle.decimals);
         
+        // Validate price - reject obviously incorrect prices
+        const MAX_REASONABLE_PRICE = 10_000_000; // $10M per unit is the absolute max
+        if (price > MAX_REASONABLE_PRICE) {
+          if (import.meta.env.DEV) {
+            console.warn(`Rejecting unrealistic price for ${asset.code}: $${price.toFixed(2)} (exceeds $${MAX_REASONABLE_PRICE.toLocaleString()})`);
+          }
+          pricingLogger.log({
+            type: 'oracle_error',
+            asset: asset.code,
+            price,
+            error: `Price exceeds maximum threshold of $${MAX_REASONABLE_PRICE.toLocaleString()}`
+          });
+          return 0;
+        }
+        
         // Cache successful price
         oraclePriceCache[cacheKey] = {
           price,
