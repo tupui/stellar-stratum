@@ -258,12 +258,12 @@ export const primeUsdRatesForAsset = async (asset: string, start: Date, end: Dat
   }
 };
 
-export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promise<number> => {
+export const getUsdRateForDateByAsset = async (asset: string, date: Date, cacheOnly: boolean = false): Promise<number> => {
   const code = (asset || 'XLM').toUpperCase();
   const key = toDateKey(date);
   
   if (import.meta.env.DEV) {
-    console.log(`Kraken: Looking for ${code} rate on ${key}`);
+    console.log(`Kraken: Looking for ${code} rate on ${key} (cacheOnly: ${cacheOnly})`);
   }
   
   const cache = loadCacheFor(code);
@@ -272,6 +272,14 @@ export const getUsdRateForDateByAsset = async (asset: string, date: Date): Promi
       console.log(`Kraken: Cache hit for ${code} on ${key}: ${cache[key]}`);
     }
     return cache[key];
+  }
+  
+  // If cacheOnly mode, return 0 immediately on cache miss
+  if (cacheOnly) {
+    if (import.meta.env.DEV) {
+      console.log(`Kraken: Cache miss for ${code} on ${key} (cache-only mode, skipping fetch)`);
+    }
+    return 0;
   }
   
   if (import.meta.env.DEV) {
@@ -308,8 +316,8 @@ export const primeXlmUsdRates = async (start: Date, end: Date): Promise<void> =>
   await primeUsdRatesForAsset('XLM', start, end);
 };
 
-export const getXlmUsdRateForDate = async (date: Date): Promise<number> => {
-  return getUsdRateForDateByAsset('XLM', date);
+export const getXlmUsdRateForDate = async (date: Date, cacheOnly: boolean = false): Promise<number> => {
+  return getUsdRateForDateByAsset('XLM', date, cacheOnly);
 };
 
 // Fiat pair helpers
@@ -462,11 +470,11 @@ export const primeHistoricalFxRates = async (fromCurrency: string, toCurrency: s
 };
 
 // Get historical FX rate for a specific date
-export const getHistoricalFxRate = async (fromCurrency: string, toCurrency: string, date: Date): Promise<number> => {
+export const getHistoricalFxRate = async (fromCurrency: string, toCurrency: string, date: Date, cacheOnly: boolean = false): Promise<number> => {
   const key = toDateKey(date);
   
   if (import.meta.env.DEV) {
-    console.log(`Kraken: Looking for FX rate ${fromCurrency}/${toCurrency} on ${key}`);
+    console.log(`Kraken: Looking for FX rate ${fromCurrency}/${toCurrency} on ${key} (cacheOnly: ${cacheOnly})`);
   }
   
   const cache = loadFiatCache(fromCurrency, toCurrency);
@@ -475,6 +483,14 @@ export const getHistoricalFxRate = async (fromCurrency: string, toCurrency: stri
       console.log(`Kraken: FX cache hit for ${fromCurrency}/${toCurrency} on ${key}: ${cache[key]}`);
     }
     return cache[key];
+  }
+  
+  // If cacheOnly mode, return 0 immediately on cache miss
+  if (cacheOnly) {
+    if (import.meta.env.DEV) {
+      console.log(`Kraken: FX cache miss for ${fromCurrency}/${toCurrency} on ${key} (cache-only mode, skipping fetch)`);
+    }
+    return 0;
   }
   
   if (import.meta.env.DEV) {

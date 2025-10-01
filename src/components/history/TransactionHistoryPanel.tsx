@@ -187,10 +187,11 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         
         try {
           if (tx.assetType === 'native') {
-            usdPrice = await getXlmUsdRateForDate(txDate);
+            // Use cache-only mode since we already primed XLM data
+            usdPrice = await getXlmUsdRateForDate(txDate, true);
           } else {
-            // Non-XLM assets: use Kraken USD OHLC for the transaction date
-            usdPrice = await getUsdRateForDateByAsset(tx.assetCode!, txDate);
+            // Use cache-only mode since we already primed non-XLM asset data
+            usdPrice = await getUsdRateForDateByAsset(tx.assetCode!, txDate, true);
           }
         } catch (error) {
           if (import.meta.env.DEV) {
@@ -199,11 +200,11 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           usdPrice = 0;
         }
 
-        // Get historical FX rate for this specific transaction date (no fallback)
+        // Get historical FX rate for this specific transaction date (cache-only, no fallback)
         let fxRate = 1;
         if (quoteCurrency !== 'USD') {
           try {
-            fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate);
+            fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, true);
             // If no historical rate available, set to 0 to show N/A
             if (!fxRate) {
               fxRate = 0;
