@@ -154,12 +154,24 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       // Prime non-XLM asset OHLC windows upfront so per-tx lookups hit cache as well
       try {
         const end = new Date();
-        const assets = Array.from(new Set(transactions
-          .filter(t => t.assetType !== 'native' && t.assetCode)
-          .map(t => t.assetCode!)));
-        await Promise.all(assets.map(code => {
+        const assets = new Set<string>();
+        
+        // Collect asset codes from regular transactions
+        transactions.forEach(t => {
+          if (t.assetType !== 'native' && t.assetCode) {
+            assets.add(t.assetCode);
+          }
+          
+          // For swaps, also add the destination asset
+          if (t.category === 'swap' && t.swapToAssetType !== 'native' && t.swapToAssetCode) {
+            assets.add(t.swapToAssetCode);
+          }
+        });
+        
+        const assetArray = Array.from(assets);
+        await Promise.all(assetArray.map(code => {
           const earliestForAsset = transactions
-            .filter(t => t.assetCode === code)
+            .filter(t => t.assetCode === code || (t.category === 'swap' && t.swapToAssetCode === code))
             .reduce((min, tx) => tx.createdAt < min ? tx.createdAt : min, transactions[0].createdAt);
           const s = new Date(earliestForAsset);
           return primeUsdRatesForAsset(code, s, end);
@@ -183,7 +195,17 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       for (const tx of transactions) {
         const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
         let usdPrice = 0;
-        const assetCode = tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM');
+        let amount = 0;
+        let assetCode = '';
+        
+        // For swaps, use the destination asset (what was received)
+        if (tx.category === 'swap') {
+          assetCode = tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || 'XLM');
+          amount = tx.swapToAmount || 0;
+        } else {
+          assetCode = tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM');
+          amount = tx.amount || 0;
+        }
         
         try {
           // Use cache-only mode since we already primed all asset data
@@ -210,16 +232,16 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         }
 
         // If either rate is missing, show N/A
-        if (!usdPrice || !tx.amount || (quoteCurrency !== 'USD' && !fxRate)) {
+        if (!usdPrice || !amount || (quoteCurrency !== 'USD' && !fxRate)) {
           if (import.meta.env.DEV) {
-            console.warn(`Missing price data for tx ${tx.id}:`, { usdPrice, fxRate, amount: tx.amount, asset: assetCode, date: txDate.toISOString() });
+            console.warn(`Missing price data for tx ${tx.id}:`, { usdPrice, fxRate, amount, asset: assetCode, date: txDate.toISOString() });
           }
           newFiatAmounts.set(tx.id, 0);
           newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
           continue;
         }
         
-        const usdAmount = usdPrice * tx.amount;
+        const usdAmount = usdPrice * amount;
         const fiatAmount = usdAmount * fxRate;
         newFiatAmounts.set(tx.id, fiatAmount);
         newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
