@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, TrendingUp, Merge, Users, Edit2, X, QrCode } from 'lucide-react';
+import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, TrendingUp, Merge, Users, Edit2, X, QrCode, ExternalLink } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -447,6 +447,15 @@ export const PaymentForm = ({
     const [int, dec] = s.split('.');
     return `${int}.${dec}`;
   };
+
+  const getAssetExplorerUrl = (assetCode: string, assetIssuer?: string): string => {
+    const networkPath = network === 'testnet' ? 'testnet' : 'public';
+    if (!assetIssuer || assetCode === 'XLM') {
+      return `https://stellar.expert/explorer/${networkPath}/asset/XLM`;
+    }
+    return `https://stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;
+  };
+
   const handleAmountChange = (newAmount: string) => {
     // For merge operations, don't allow manual amount changes - use leftover balance
     if (willCloseAccount && paymentData.asset === 'XLM') {
@@ -954,7 +963,15 @@ export const PaymentForm = ({
                     <div className="hidden sm:flex items-center justify-center gap-2 text-xs">
                       {/* From: Logo Currency Amount */}
                       <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={32} />
-                      <span className="text-muted-foreground font-medium">{payment.asset}</span>
+                      <a 
+                        href={getAssetExplorerUrl(payment.asset, payment.assetIssuer)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground font-medium hover:text-primary transition-colors inline-flex items-center gap-1"
+                      >
+                        {payment.asset}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
                       <span className="font-semibold font-amount">{formatDisplayAmount(payment.amount)}</span>
                       
                       {/* Arrow */}
@@ -962,7 +979,15 @@ export const PaymentForm = ({
                       
                       {/* To: Logo Currency [Value if path payment] */}
                       <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={32} />
-                      <span className="text-muted-foreground font-medium">{payment.receiveAsset || payment.asset}</span>
+                      <a 
+                        href={getAssetExplorerUrl(payment.receiveAsset || payment.asset, payment.receiveAssetIssuer || payment.assetIssuer)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground font-medium hover:text-primary transition-colors inline-flex items-center gap-1"
+                      >
+                        {payment.receiveAsset || payment.asset}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
                       {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
                         <span className="text-white font-semibold font-amount">
                           &gt; {calculatePathPaymentReceiveAmount(payment.amount, payment.asset, payment.receiveAsset)}
@@ -976,7 +1001,15 @@ export const PaymentForm = ({
                       <div className="flex items-center gap-2 w-full justify-between">
                         <div className="flex items-center gap-2">
                           <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={32} />
-                          <span className="text-muted-foreground font-medium">{payment.asset}</span>
+                          <a 
+                            href={getAssetExplorerUrl(payment.asset, payment.assetIssuer)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground font-medium hover:text-primary transition-colors inline-flex items-center gap-1"
+                          >
+                            {payment.asset}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
                         </div>
                         <span className="font-semibold font-amount">{formatDisplayAmount(payment.amount)}</span>
                       </div>
@@ -988,7 +1021,15 @@ export const PaymentForm = ({
                       <div className="flex items-center gap-2 w-full justify-between">
                         <div className="flex items-center gap-2">
                           <AssetIcon assetCode={payment.receiveAsset || payment.asset} assetIssuer={payment.receiveAssetIssuer || payment.assetIssuer} size={32} />
-                          <span className="text-muted-foreground font-medium">{payment.receiveAsset || payment.asset}</span>
+                          <a 
+                            href={getAssetExplorerUrl(payment.receiveAsset || payment.asset, payment.receiveAssetIssuer || payment.assetIssuer)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground font-medium hover:text-primary transition-colors inline-flex items-center gap-1"
+                          >
+                            {payment.receiveAsset || payment.asset}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
                         </div>
                         {payment.receiveAsset && payment.receiveAsset !== payment.asset && (
                           <span className="text-white font-semibold font-amount">

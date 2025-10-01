@@ -12,6 +12,7 @@ import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { getLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { useNetwork } from '@/contexts/NetworkContext';
 interface AssetBalance {
   asset_type: string;
   asset_code?: string;
@@ -26,6 +27,7 @@ export const AssetBalancePanel = ({
   balances,
   onRefreshBalances
 }: AssetBalancePanelProps) => {
+  const { network } = useNetwork();
   const {
     assetsWithPrices,
     totalValueUSD,
@@ -172,6 +174,14 @@ export const AssetBalancePanel = ({
       maximumFractionDigits: 2
     });
   };
+
+  const getAssetExplorerUrl = (assetCode: string, assetIssuer?: string): string => {
+    const networkPath = network === 'testnet' ? 'testnet' : 'public';
+    if (!assetIssuer || assetCode === 'XLM') {
+      return `https://stellar.expert/explorer/${networkPath}/asset/XLM`;
+    }
+    return `https://stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;
+  };
   return <Card className="shadow-card">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -246,7 +256,15 @@ export const AssetBalancePanel = ({
                     <AssetIcon assetCode={asset.asset_code} assetIssuer={asset.asset_type !== 'native' ? asset.asset_issuer : undefined} size={40} />
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-foreground">{asset.symbol}</p>
+                        <a 
+                          href={getAssetExplorerUrl(asset.symbol, asset.asset_type !== 'native' ? asset.asset_issuer : undefined)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-foreground hover:text-primary transition-colors inline-flex items-center gap-1"
+                        >
+                          {asset.symbol}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
                         {asset.asset_type === 'native' && <Badge variant="outline" className="text-xs border-primary/30 text-primary">Native</Badge>}
                       </div>
                       <p className="text-sm text-muted-foreground/80">

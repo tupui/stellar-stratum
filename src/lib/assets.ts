@@ -88,7 +88,7 @@ const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
 // Initialize cache from storage
 loadCacheFromStorage();
 
-export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): Promise<AssetInfo> => {
+export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AssetInfo> => {
   // Native XLM - no image URL, let component handle fallback
   if (!assetCode || assetCode === 'XLM' || !assetIssuer) {
     return {
@@ -98,7 +98,7 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
   }
 
   // Check asset info cache first
-  const assetCacheKey = `${assetCode}:${assetIssuer}`;
+  const assetCacheKey = `${assetCode}:${assetIssuer}:${network}`;
   const cachedAssetInfo = assetInfoCache.get(assetCacheKey);
   if (cachedAssetInfo && cachedAssetInfo.expiresAt > Date.now()) {
     return cachedAssetInfo.data;
@@ -106,7 +106,7 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
 
   try {
     // Check TOML cache
-    const tomlCacheKey = assetIssuer;
+    const tomlCacheKey = `${assetIssuer}:${network}`;
     const cachedToml = tomlCache.get(tomlCacheKey);
     
     let assets: SEP1TomlAsset[];
@@ -114,13 +114,15 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
     if (cachedToml && cachedToml.expiresAt > Date.now()) {
       assets = cachedToml.data;
     } else {
-      // Skip TOML fetching on testnet to avoid unnecessary API calls
-      if (assetIssuer.includes('testnet')) {
-        throw new Error('Skip TOML for testnet');
-      }
+      // Fetch from Stellar account using network-aware URL
+      const horizonUrl = getHorizonUrl(network);
+      const response = await Promise.race([
+        fetch(`${horizonUrl}/accounts/${assetIssuer}`),
+        new Promise<Response>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        )
+      ]);
       
-      // Fetch from Stellar account
-      const response = await fetch(`${getHorizonUrl('mainnet')}/accounts/${assetIssuer}`);
       if (!response.ok) throw new Error('Failed to fetch account data');
       
       const accountData = await response.json();
@@ -130,9 +132,15 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
         throw new Error('No home domain found');
       }
 
-      // Fetch SEP-1 TOML directly (may fail due to CORS, which is fine)
+      // Fetch SEP-1 TOML directly with timeout
       const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
-      const tomlResponse = await fetch(tomlUrl);
+      const tomlResponse = await Promise.race([
+        fetch(tomlUrl),
+        new Promise<Response>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        )
+      ]);
+      
       if (!tomlResponse.ok) throw new Error('Failed to fetch TOML');
       
       const tomlText = await tomlResponse.text();

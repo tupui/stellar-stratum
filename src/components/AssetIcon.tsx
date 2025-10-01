@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchAssetInfo, getAssetColor } from '@/lib/assets';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface AssetIconProps {
   assetCode?: string;
@@ -9,6 +10,7 @@ interface AssetIconProps {
 }
 
 export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }: AssetIconProps) => {
+  const { network } = useNetwork();
   const [assetInfo, setAssetInfo] = useState<{ image?: string; name?: string } | null>(null);
   const [imageError, setImageError] = useState(false);
 
@@ -17,7 +19,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
     
     const loadAssetInfo = async () => {
       try {
-        const info = await fetchAssetInfo(assetCode || 'XLM', assetIssuer);
+        const info = await fetchAssetInfo(assetCode || 'XLM', assetIssuer, network);
         if (mounted) {
           setAssetInfo(info);
           setImageError(false);
@@ -35,7 +37,7 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
     return () => {
       mounted = false;
     };
-  }, [assetCode, assetIssuer]);
+  }, [assetCode, assetIssuer, network]);
 
   const handleImageError = () => {
     setImageError(true);

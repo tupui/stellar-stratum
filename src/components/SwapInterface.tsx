@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { calculateAvailableBalance, formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { getAssetPrice } from '@/lib/reflector';
+import { useNetwork } from '@/contexts/NetworkContext';
 interface Asset {
   code: string;
   issuer?: string;
@@ -69,6 +70,7 @@ export const SwapInterface = ({
   assetPrices = {},
   onFetchAssetPrice
 }: SwapInterfaceProps) => {
+  const { network } = useNetwork();
   const [sliderValue, setSliderValue] = useState([0]);
   const [isEditingAmount, setIsEditingAmount] = useState(false);
   const [editValue, setEditValue] = useState(amount);
@@ -259,6 +261,14 @@ export const SwapInterface = ({
     return `${label}${' '.repeat(spaces)}${amt}`;
   };
 
+  const getAssetExplorerUrl = (assetCode: string, assetIssuer?: string): string => {
+    const networkPath = network === 'testnet' ? 'testnet' : 'public';
+    if (!assetIssuer || assetCode === 'XLM') {
+      return `https://stellar.expert/explorer/${networkPath}/asset/XLM`;
+    }
+    return `https://stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;
+  };
+
   return <div className={cn("max-w-lg mx-auto", className)}>
       {/* From Section */}
       <div className={cn(
@@ -303,7 +313,15 @@ export const SwapInterface = ({
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-3">
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-                      <span className="font-medium">{asset.code}</span>
+                      <a 
+                        href={getAssetExplorerUrl(asset.code, asset.issuer)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium hover:text-primary transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {asset.code}
+                      </a>
                     </div>
                     <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
                       {formatBalanceAligned(asset.balance)}
@@ -418,7 +436,15 @@ export const SwapInterface = ({
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-3">
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-                      <span className="font-medium">{asset.code}</span>
+                      <a 
+                        href={getAssetExplorerUrl(asset.code, asset.issuer)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium hover:text-primary transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {asset.code}
+                      </a>
                     </div>
                     <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
                       {formatBalanceAligned(asset.balance)}
