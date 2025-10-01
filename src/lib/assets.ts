@@ -141,16 +141,26 @@ const fetchTomlForDomain = async (homeDomain: string, network: 'mainnet' | 'test
   // Direct HTTPS fetch (no proxies)
   try {
     const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
+    console.log(`[TOML Debug] Fetching TOML for ${homeDomain}`);
+    
     const tomlResponse = await fetch(tomlUrl, { 
       mode: 'cors',
       signal: AbortSignal.timeout(5000) 
     });
     
-    if (!tomlResponse.ok) throw new Error('Non-2xx response');
+    if (!tomlResponse.ok) {
+      console.log(`[TOML Debug] Non-2xx response from ${homeDomain}: ${tomlResponse.status}`);
+      throw new Error('Non-2xx response');
+    }
     
     const tomlContent = await tomlResponse.text();
     
-    if (!tomlContent) throw new Error('Empty TOML');
+    if (!tomlContent) {
+      console.log(`[TOML Debug] Empty TOML from ${homeDomain}`);
+      throw new Error('Empty TOML');
+    }
+    
+    console.log(`[TOML Debug] Successfully fetched TOML from ${homeDomain}, length: ${tomlContent.length}`);
     
     // Parse TOML currencies
     const currencies = parseTomlCurrencies(tomlContent);
@@ -166,7 +176,9 @@ const fetchTomlForDomain = async (homeDomain: string, network: 'mainnet' | 'test
     saveTomlToStorage(tomlCacheKey, tomlCacheEntry);
     
     return currencies;
-  } catch {
+  } catch (error) {
+    console.log(`[TOML Debug] Failed to fetch TOML for ${homeDomain}:`, error);
+    
     // Silently fail: cache empty result for 24h to avoid repeated attempts
     const now = Date.now();
     const emptyEntry: CacheEntry<SEP1TomlAsset[]> = {
@@ -208,6 +220,13 @@ const resolveImageUrl = (image: string, homeDomain: string): string => {
 };
 
 export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AssetInfo> => {
+  const debugAssets = ['USDC', 'EURC', 'TESOURO'];
+  const shouldDebug = debugAssets.includes(assetCode);
+  
+  if (shouldDebug) {
+    console.log(`[Asset Debug] Fetching ${assetCode} issued by ${assetIssuer?.substring(0, 8)}...`);
+  }
+  
   // HARDCODED: Native XLM always returns immediately with official info
   if ((!assetCode || assetCode === 'XLM') && !assetIssuer) {
     return {
@@ -219,6 +238,9 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
   
   // HARDCODED: USDC override to avoid TOML dependency
   if (assetCode === 'USDC') {
+    if (shouldDebug) {
+      console.log(`[Asset Debug] USDC override hit, returning hardcoded info`);
+    }
     return {
       code: 'USDC',
       issuer: assetIssuer,
@@ -235,6 +257,11 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     // Fetch issuer's home domain from Horizon
     const horizonUrl = getHorizonUrl(network);
     const accountUrl = `${horizonUrl}/accounts/${assetIssuer}`;
+    
+    if (shouldDebug) {
+      console.log(`[Asset Debug] Fetching account from Horizon: ${accountUrl}`);
+    }
+    
     const accountResponse = await fetch(accountUrl);
     
     if (!accountResponse.ok) throw new Error('Account fetch failed');
@@ -242,10 +269,18 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     const accountData = await accountResponse.json();
     homeDomain = accountData.home_domain;
     
+    if (shouldDebug) {
+      console.log(`[Asset Debug] Home domain: ${homeDomain}`);
+    }
+    
     if (!homeDomain) throw new Error('No home domain');
     
     // Fetch TOML data (uses cache if available)
     const currencies = await fetchTomlForDomain(homeDomain, network);
+    
+    if (shouldDebug) {
+      console.log(`[Asset Debug] TOML currencies found: ${currencies.length}`);
+    }
     
     // Get TOML cache timestamp for this domain
     const tomlCacheKey = `${homeDomain}:${network}`;
@@ -265,9 +300,16 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
       currency.issuer === assetIssuer
     );
     
+    if (shouldDebug) {
+      console.log(`[Asset Debug] Matching asset found: ${!!matchingAsset}, has image: ${!!matchingAsset?.image}`);
+    }
+    
     let resolvedImage: string | undefined;
     if (matchingAsset?.image) {
       resolvedImage = resolveImageUrl(matchingAsset.image, homeDomain);
+      if (shouldDebug) {
+        console.log(`[Asset Debug] Resolved image URL: ${resolvedImage}`);
+      }
     }
     
     const assetInfo: AssetInfo = {
@@ -290,6 +332,10 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     
     return assetInfo;
   } catch (error) {
+    if (shouldDebug) {
+      console.log(`[Asset Debug] Error fetching asset info:`, error);
+    }
+    
     // Fallback: return basic info without image
     const assetInfo: AssetInfo = {
       code: assetCode,
