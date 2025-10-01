@@ -15,24 +15,25 @@ interface SEP1TomlAsset {
   name?: string;
 }
 
-// Fallback image URLs for common Stellar assets
-const COMMON_ASSET_IMAGES: Record<string, string> = {
-  // USDC (Circle)
-  'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN': 'https://assets.coingecko.com/coins/images/6319/small/usdc.png',
-  // USDT (Tether)
-  'USDT:GCQTGZQQ5G4PTM2GL7CDIFKUBIPEC52BROAQIAPW53XBRJVN6ZJVTG6V': 'https://cryptologos.cc/logos/tether-usdt-logo.png',
-  // AQUA
-  'AQUA:GBNZILSTVQZ4R7IKQDGHYGY2QXL5QOFJYQMXPKWRRM5PAV7Y4M67AQUA': 'https://aqua.network/assets/img/aqua-logo.png',
-  // yUSDC (Ultra Capital)
-  'yUSDC:GDGTVWSM4MGS4T7Z6W4RPWOCHE2I6RDFCIFZGS3DOA63LWQTRNZNTTFF': 'https://assets.coingecko.com/coins/images/6319/small/usdc.png',
-  // yXLM (Ultra Capital)
-  'yXLM:GARDNV3Q7YGT4AKSDF25LT32YSCCW4EV22Y2TV3I2PU2MMXJTEDL5T55': 'https://assets.coingecko.com/coins/images/100/small/Stellar_symbol_black_RGB.png',
+// Generate deterministic color for asset based on code and issuer
+const generateAssetColor = (assetCode: string, assetIssuer?: string): { hue: number; saturation: number; lightness: number } => {
+  const input = `${assetCode}${assetIssuer || ''}`;
+  let hash = 0;
+  
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) - hash) + input.charCodeAt(i);
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Generate visually pleasing colors
+  const hue = Math.abs(hash % 360);
+  const saturation = 65 + (Math.abs(hash >> 8) % 20); // 65-85%
+  const lightness = 50 + (Math.abs(hash >> 16) % 15); // 50-65%
+  
+  return { hue, saturation, lightness };
 };
 
-// Generic fallback using StellarExpert for unknown assets
-const getStellarExpertImageUrl = (assetCode: string, assetIssuer: string): string => {
-  return `https://stellar.expert/img/vendor/asset/${assetCode}-${assetIssuer}.svg`;
-};
+export const getAssetColor = generateAssetColor;
 
 // Enhanced caching system
 interface CacheEntry<T> {
@@ -88,12 +89,11 @@ const saveCacheToStorage = (key: string, entry: CacheEntry<AssetInfo>) => {
 loadCacheFromStorage();
 
 export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): Promise<AssetInfo> => {
-  // Native XLM
+  // Native XLM - no image URL, let component handle fallback
   if (!assetCode || assetCode === 'XLM' || !assetIssuer) {
     return {
       code: 'XLM',
-      name: 'Stellar Lumens',
-      image: 'https://assets.coingecko.com/coins/images/100/small/Stellar_symbol_black_RGB.png'
+      name: 'Stellar Lumens'
     };
   }
 
@@ -130,9 +130,9 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
         throw new Error('No home domain found');
       }
 
-      // Fetch SEP-1 TOML using CORS proxy
+      // Fetch SEP-1 TOML directly (may fail due to CORS, which is fine)
       const tomlUrl = `https://${homeDomain}/.well-known/stellar.toml`;
-      const tomlResponse = await fetch(`https://corsproxy.io/?${encodeURIComponent(tomlUrl)}`);
+      const tomlResponse = await fetch(tomlUrl);
       if (!tomlResponse.ok) throw new Error('Failed to fetch TOML');
       
       const tomlText = await tomlResponse.text();
@@ -178,15 +178,11 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string): P
   } catch (error) {
     if (import.meta.env.DEV) console.warn(`Failed to fetch asset info for ${assetCode}:${assetIssuer}`, error);
     
-    // Try to use fallback image from common assets mapping, otherwise use StellarExpert
-    const fallbackImage = COMMON_ASSET_IMAGES[assetCacheKey] || getStellarExpertImageUrl(assetCode, assetIssuer || '');
-    
-    // Return default asset info with fallback image
+    // Return default asset info without image - component will generate fallback
     const defaultAssetInfo: AssetInfo = {
       code: assetCode,
       issuer: assetIssuer,
-      name: assetCode,
-      image: fallbackImage
+      name: assetCode
     };
     
     // Cache default info for shorter duration to retry sooner
@@ -262,13 +258,7 @@ function parseTomlCurrencies(toml: string): SEP1TomlAsset[] {
   return assets;
 }
 
+// No longer needed - AssetIcon component handles all fallbacks generically
 export const getAssetIcon = (assetCode: string, assetIssuer?: string): string => {
-  // Return a default gradient-based icon for now
-  // This will be enhanced with the real icon once fetchAssetInfo is called
-  if (!assetCode || assetCode === 'XLM') {
-    return 'https://assets.coingecko.com/coins/images/100/small/Stellar_symbol_black_RGB.png';
-  }
-  
-  // Return a placeholder that can be replaced
   return '';
 };

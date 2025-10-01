@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchAssetInfo } from '@/lib/assets';
+import { fetchAssetInfo, getAssetColor } from '@/lib/assets';
 
 interface AssetIconProps {
   assetCode?: string;
@@ -41,21 +41,32 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
     setImageError(true);
   };
 
+  // Generate unique color for this asset
+  const { hue, saturation, lightness } = getAssetColor(assetCode || 'XLM', assetIssuer);
+  
   // Show gradient fallback if no image or image failed to load
   if (!assetInfo?.image || imageError) {
     return (
       <div 
-        className={`bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 rounded-full flex items-center justify-center ring-2 ring-primary/30 shadow-lg ${className}`}
-        style={{ width: size, height: size }}
+        className={`rounded-full flex items-center justify-center shadow-lg ${className}`}
+        style={{ 
+          width: size, 
+          height: size,
+          background: `linear-gradient(135deg, hsl(${hue}, ${saturation}%, ${lightness}%), hsl(${(hue + 30) % 360}, ${saturation}%, ${lightness + 10}%))`,
+          border: `2px solid hsl(${hue}, ${saturation}%, ${lightness - 10}%, 0.3)`
+        }}
         role="img"
         aria-label={`${assetCode || 'XLM'} asset icon`}
       >
         <span 
-          className="font-bold text-primary select-none"
-          style={{ fontSize: size * 0.25 }}
+          className="font-bold select-none"
+          style={{ 
+            fontSize: size * 0.3,
+            color: `hsl(${hue}, ${saturation}%, ${lightness > 60 ? 20 : 95}%)`
+          }}
           aria-hidden="true"
         >
-          {(assetCode || 'XLM').slice(0, 3)}
+          {(assetCode || 'XLM').slice(0, 3).toUpperCase()}
         </span>
       </div>
     );
