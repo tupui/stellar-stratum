@@ -227,6 +227,9 @@ const ASSET_FALLBACKS: Record<string, AssetInfo> = {
   }
 };
 
+// In-flight request deduplication to prevent multiple simultaneous requests for the same asset
+const pendingRequests = new Map<string, Promise<AssetInfo>>();
+
 export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AssetInfo> => {
   // Check for well-known asset fallbacks first
   const fallbackKey = `${assetCode}:${assetIssuer || ''}`;
@@ -238,11 +241,36 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
   if ((!assetCode || assetCode === 'XLM') && !assetIssuer) {
     return ASSET_FALLBACKS['XLM:'];
   }
+
+  // Create a simple, stable cache key (no timestamps that change every millisecond!)
+  const assetCacheKey = `${assetCode}:${assetIssuer}:${network}`;
   
-  // Get TOML timestamp for cache key coherence
-  let homeDomain = '';
-  let tomlTimestamp = 0;
-  
+  // Check cache FIRST before any network requests
+  const cachedAssetInfo = assetInfoCache.get(assetCacheKey);
+  if (cachedAssetInfo && cachedAssetInfo.expiresAt > Date.now()) {
+    return cachedAssetInfo.data;
+  }
+
+  // Check if there's already a pending request for this asset to prevent duplicates
+  if (pendingRequests.has(assetCacheKey)) {
+    return pendingRequests.get(assetCacheKey)!;
+  }
+
+  // Create the promise for this asset request
+  const assetPromise = fetchAssetInfoInternal(assetCode, assetIssuer, network, assetCacheKey);
+  pendingRequests.set(assetCacheKey, assetPromise);
+
+  try {
+    const result = await assetPromise;
+    return result;
+  } finally {
+    // Always clean up the pending request
+    pendingRequests.delete(assetCacheKey);
+  }
+};
+
+// Internal function that does the actual fetching
+const fetchAssetInfoInternal = async (assetCode: string, assetIssuer: string | undefined, network: 'mainnet' | 'testnet', cacheKey: string): Promise<AssetInfo> => {
   try {
     // Fetch issuer's home domain from Horizon
     const horizonUrl = getHorizonUrl(network);
@@ -252,24 +280,12 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     if (!accountResponse.ok) throw new Error('Account fetch failed');
     
     const accountData = await accountResponse.json();
-    homeDomain = accountData.home_domain;
+    const homeDomain = accountData.home_domain;
     
     if (!homeDomain) throw new Error('No home domain');
     
     // Fetch TOML data (uses cache if available)
     const currencies = await fetchTomlForDomain(homeDomain, network);
-    
-    // Get TOML cache timestamp for this domain
-    const tomlCacheKey = `${homeDomain}:${network}`;
-    const cachedToml = tomlCache.get(tomlCacheKey);
-    tomlTimestamp = cachedToml?.timestamp || Date.now();
-    
-    // Check asset cache with TOML timestamp included in key for coherence
-    const assetCacheKey = `${assetCode}:${assetIssuer}:${network}:${tomlTimestamp}`;
-    const cachedAssetInfo = assetInfoCache.get(assetCacheKey);
-    if (cachedAssetInfo && cachedAssetInfo.expiresAt > Date.now()) {
-      return cachedAssetInfo.data;
-    }
     
     // Find matching asset in TOML data
     const matchingAsset = currencies.find(currency => 
@@ -297,8 +313,8 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
       timestamp: now,
       expiresAt: now + ttl
     };
-    assetInfoCache.set(assetCacheKey, assetCacheEntry);
-    saveCacheToStorage(assetCacheKey, assetCacheEntry);
+    assetInfoCache.set(cacheKey, assetCacheEntry);
+    saveCacheToStorage(cacheKey, assetCacheEntry);
     
     return assetInfo;
   } catch (error) {
@@ -311,14 +327,13 @@ export const fetchAssetInfo = async (assetCode: string, assetIssuer?: string, ne
     
     // Cache failure for shorter duration
     const now = Date.now();
-    const assetCacheKey = `${assetCode}:${assetIssuer}:${network}:${tomlTimestamp || 0}`;
     const assetCacheEntry: CacheEntry<AssetInfo> = {
       data: assetInfo,
       timestamp: now,
       expiresAt: now + ASSET_INFO_SHORT_CACHE
     };
-    assetInfoCache.set(assetCacheKey, assetCacheEntry);
-    saveCacheToStorage(assetCacheKey, assetCacheEntry);
+    assetInfoCache.set(cacheKey, assetCacheEntry);
+    saveCacheToStorage(cacheKey, assetCacheEntry);
     
     return assetInfo;
   }

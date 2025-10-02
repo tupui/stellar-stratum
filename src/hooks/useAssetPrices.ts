@@ -23,7 +23,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
   // Memoize balances to prevent unnecessary re-renders
   const memoizedBalances = useMemo(() => balances, [JSON.stringify(balances)]);
 
-  // Enhanced refetch function with better error handling and cache clearing
+  // Enhanced refetch function with better error handling - NO cache clearing for tab switches
   const refetch = useCallback(async () => {
     if (!memoizedBalances || memoizedBalances.length === 0) return;
     
@@ -31,8 +31,6 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
       setLoading(true);
       setError(null);
       
-      // Clear price cache to force fresh data
-      await clearPriceCache();
 
       const assetsWithPricesPromises = memoizedBalances.map(async (balance) => {
         const assetKey = balance.asset_issuer ? `${balance.asset_code}:${balance.asset_issuer}` : (balance.asset_code || 'XLM');

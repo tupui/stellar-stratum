@@ -352,5 +352,295 @@ test.describe('Fiat Currency Switching - Comprehensive', () => {
     
     console.log('\n✓ All fiat currency switching tests passed!');
   });
+
+  test.describe('Asset Loading and Caching Tests', () => {
+    test('should cache asset metadata and prevent duplicate requests', async ({ page }) => {
+      const networkRequests: { url: string; method: string; timestamp: number }[] = [];
+      
+      // Track asset-related requests
+      page.on('request', request => {
+        const url = request.url();
+        if (url.includes('.well-known/stellar.toml') || 
+            url.includes('horizon.stellar.org/accounts/') ||
+            url.includes('asset') || 
+            url.includes('logo') ||
+            url.includes('ipfs')) {
+          networkRequests.push({
+            url: url.substring(0, 150),
+            method: request.method(),
+            timestamp: Date.now()
+          });
+        }
+      });
+
+      // Connect wallet
+      await page.goto(baseUrl);
+      await page.waitForLoadState('domcontentloaded');
+      await page.click('button:has-text("Connect wallet")');
+      await page.waitForSelector('text=Connect Wallet', { timeout: 10000 });
+      await page.click('button:has-text("Mainnet")', { timeout: 5000 });
+      await page.click('button:has-text("Enter address manually")');
+      const addressInput = page.locator('input[placeholder*="GABC"], input[type="text"]').first();
+      await addressInput.click();
+      await addressInput.fill(testAddress);
+      await addressInput.press('Enter');
+      await page.waitForSelector(`text=${testAddress.slice(0, 10)}`, { timeout: 45000 });
+      console.log('✓ Account loaded');
+
+      // Wait for initial asset loading
+      await page.waitForTimeout(8000);
+      
+      // Clear initial requests (ignore first load)
+      const initialRequests = networkRequests.length;
+      networkRequests.length = 0;
+
+      console.log(`\n=== Initial asset loading done (${initialRequests} requests) ===`);
+
+      // ===== TEST 1: Navigate between tabs and verify caching ====
+      console.log('\n[TAB NAVIGATION] Testing asset caching...');
+      
+      // Go to Activity tab
+      await page.click('button:has-text("Activity")');
+      await page.waitForTimeout(3000);
+      
+      // Go back to Balances tab
+      await page.click('button:has-text("Balances")');
+      await page.waitForTimeout(2000);
+      
+      // Go to Activity tab again
+      await page.click('button:has-text("Activity")');
+      await page.waitForTimeout(2000);
+      
+      // Go back to Balances tab again
+      await page.click('button:has-text("Balances")');
+      await page.waitForTimeout(2000);
+
+      const requestsAfterTabSwitching = networkRequests.length;
+      console.log(`Requests during tab switching: ${requestsAfterTabSwitching}`);
+      
+      // Should have minimal requests (mostly just UI components)
+      if (requestsAfterTabSwitching > 20) {
+        console.warn(`⚠️ WARNING: Too many requests (${requestsAfterTabSwitching}) during tab switching`);
+        networkRequests.forEach(r => console.log(`  - ${r.method} ${r.url}`));
+      }
+      expect(requestsAfterTabSwitching).toBeLessThan(25); // Allow some UI components
+
+      // ===== TEST 2: Verify specific asset logos are cached ====
+      console.log('\n[ASSET LOGOS] Testing logo caching...');
+      
+      // Check EURC logo loading (IPFS fallback)
+      const eurcLogo = page.locator('img[alt*="EURC"], img[src*="EURC"], img[src*="ipfs"]');
+      const eurcLogoCount = await eurcLogo.count();
+      console.log(`EURC logos found: ${eurcLogoCount}`);
+      
+      // Check USDC logo
+      const usdcLogo = page.locator('img[alt*="USDC"], img[src*="USDC"]');
+      const usdcLogoCount = await usdcLogo.count();
+      console.log(`USDC logos found: ${usdcLogoCount}`);
+
+      // Check XLM logo
+      const xlmLogo = page.locator('img[alt*="XLM"], img[src*="xlm"]');
+      const xlmLogoCount = await xlmLogo.count();
+      console.log(`XLM logos found: ${xlmLogoCount}`);
+
+      expect(eurcLogoCount + usdcLogoCount + xlmLogoCount).toBeGreaterThan(56); // Should have multiple logos
+
+      console.log('✓ Asset logos loaded successfully');
+    });
+
+    test('should handle CORS issues gracefully with fallbacks', async ({ page }) => {
+      // Track console errors for CORS issues
+      const corsErrors: string[] = [];
+      const networkErrors: string[] = [];
+      
+      page.on('console', msg => {
+        const text = msg.text();
+        if (text.includes('ERR_BLOCKED_BY_RESPONSE') || 
+            text.includes('CORS') || 
+            text.includes('Access-Control')) {
+          corsErrors.push(text);
+        }
+      });
+
+      page.on('requestFailed', request => {
+        const url = request.url();
+        const failure = request.failure();
+        if (failure && (url.includes('.well-known/stellar.toml') || url.includes('logo'))) {
+          networkErrors.push(`${failure?.errorText}: ${url}`);
+        }
+      });
+
+      // Connect wallet
+      await page.goto(baseUrl);
+      await page.waitForLoadState('domcontentloaded');
+      await page.click('button:has-text("Connect wallet")');
+      await page.waitForSelector('text=Connect Wallet', { timeout: 10000 });
+      await page.click('button:has-text("Mainnet")', { timeout: 5000 });
+      await page.click('button:has-text("Enter address manually")');
+      const addressInput = page.locator('input[placeholder*="GABC"], input[type="text"]').first();
+      await addressInput.click();
+      await addressInput.fill(testAddress);
+      await addressInput.press('Enter');
+      await page.waitForSelector(`text=${testAddress.slice(0, 10)}`, { timeout: 45000 });
+
+      // Wait for assets to load
+      await page.waitForTimeout(8000);
+
+      console.log('\n=== CORS Error Analysis ===');
+      console.log(`CORS errors in console: ${corsErrors.length}`);
+      corsErrors.forEach(error => console.log(`  - ${error}`));
+      
+      console.log(`Network request failures: ${networkErrors.length}`);
+      networkErrors.forEach(error => console.log(`  - ${error}`));
+
+      // FCM should fail gracefully (known CORS issue)
+      const fcmIssues = corsErrors.concat(networkErrors).filter(err => 
+        err.includes('fcm') || err.includes('FCM')
+      );
+      console.log(`FCM related issues (expected): ${fcmIssues.length}`);
+      fcmIssues.forEach(issue => console.log(`  - Expected: ${issue}`));
+
+      // EURC should work (we have IPFS fallback)
+      const eurcIssues = corsErrors.concat(networkErrors).filter(err => 
+        err.includes('eurc') || err.includes('EURC') || err.includes('circle')
+      );
+      console.log(`EURC related issues (should be 0): ${eurcIssues.length}`);
+      if (eurcIssues.length > 0) {
+        console.warn('⚠️ EURC should not have CORS issues - we have IPFS fallback');
+        eurcIssues.forEach(issue => console.log(`  - Unexpected: ${issue}`));
+      }
+
+      // Should have reasonably few CORS errors (some are expected)
+      expect(corsErrors.length).toBeLessThan(10);
+      
+      // EURC should not have CORS issues anymore
+      expect(eurcIssues.length).toBe(0);
+
+      console.log('✓ CORS handling working correctly');
+    });
+
+    test('should cache TOML files efficiently', async ({ page }) => {
+      const tomlRequests: { url: string; timestamp: number }[] = [];
+      
+      page.on('request', request => {
+        const url = request.url();
+        if (url.includes('.well-known/stellar.toml')) {
+          tomlRequests.push({
+            url: url.substring(0, 100),
+            timestamp: Date.now()
+          });
+        }
+      });
+
+      // Connect wallet
+      await page.goto(baseUrl);
+      await page.waitForLoadState('domcontentloaded');
+      await page.click('button:has-text("Connect wallet")');
+      await page.waitForSelector('text=Connect Wallet', { timeout: 10000 });
+      await page.click('button:has-text("Mainnet")', { timeout: 5000 });
+      await page.click('button:has-text("Enter address manually")');
+      const addressInput = page.locator('input[placeholder*="GABC"], input[type="text"]').first();
+      await addressInput.click();
+      await addressInput.fill(testAddress);
+      await addressInput.press('Enter');
+      await page.waitForSelector(`text=${testAddress.slice(0, 10)}`, { timeout: 45000 });
+
+      // Initial load - should fetch TOML files
+      await page.waitForTimeout(8000);
+      
+      const initialTomlRequests = tomlRequests.length;
+      console.log(`Initial TOML requests: ${initialTomlRequests}`);
+      tomlRequests.forEach(req => console.log(`  - ${req.url}`));
+
+      // Clear and test caching
+      tomlRequests.length = 0;
+
+      // Navigate extensively to test caching
+      console.log('\n[TOM CACHING] Testing TOML file caching...');
+      
+      // Multiple tab switches
+      for (let i = 0; i < 3; i++) {
+        await page.click('button:has-text("Activity")');
+        await page.waitForTimeout(1000);
+        await page.click('button:has-text("Balances")');
+        await page.waitForTimeout(1000);
+      }
+
+      // Check if any new TOML requests were made
+      const subsequentTomlRequests = tomlRequests.length;
+      console.log(`Subsequent TOML requests: ${subsequentTomlRequests}`);
+      
+      if (subsequentTomlRequests > 0) {
+        console.warn('⚠️ WARNING: TOML files are being re-requested instead of cached');
+        tomlRequests.forEach(req => console.log(`  - Cache miss: ${req.url}`));
+      }
+
+      // Should have zero TOML requests after initial load
+      expect(subsequentTomlRequests).toBe(0);
+
+      console.log('✓ TOML caching working correctly');
+    });
+
+    test('should load asset balances without excessive network calls', async ({ page }) => {
+      const assetRequests: { url: string; method: string }[] = [];
+      
+      page.on('request', request => {
+        const url = request.url();
+        if (url.includes('horizon.stellar.org/accounts/') && 
+            !url.includes('payments') && 
+            !url.includes('operations')) {
+          assetRequests.push({
+            url: url.substring(0, 120),
+            method: request.method()
+          });
+        }
+      });
+
+      // Connect wallet
+      await page.goto(baseUrl);
+      await page.waitForLoadState('domcontentloaded');
+      await page.click('button:has-text("Connect wallet")');
+      await page.waitForSelector('text=Connect Wallet', { timeout: 10000 });
+      await page.click('button:has-text("Mainnet")', { timeout: 5000 });
+      await page.click('button:has-text("Enter address manually")');
+      const addressInput = page.locator('input[placeholder*="GABC"], input[type="text"]').first();
+      await addressInput.click();
+      await addressInput.fill(testAddress);
+      await addressInput.press('Enter');
+      await page.waitForSelector(`text=${testAddress.slice(0, 10)}`, { timeout: 45000 });
+
+      // Wait for all assets to load
+      await page.waitForTimeout(10000);
+
+      // Check account requests
+      console.log('\n=== Asset Account Requests ===');
+      console.log(`Account metadata requests: ${assetRequests.length}`);
+      
+      // Group by issuer to check for duplicates
+      const issuerRequests = new Map<string, number>();
+      assetRequests.forEach(req => {
+        const match = req.url.match(/accounts\/([A-Z0-9]{56})/);
+        if (match) {
+          const issuer = match[1];
+          issuerRequests.set(issuer, (issuerRequests.get(issuer) || 0) + 1);
+        }
+      });
+
+      console.log('Issuer request counts:');
+      issuerRequests.forEach((count, issuer) => {
+        if (count > 1) {
+          console.log(`  ⚠️ ${issuer}: ${count} requests (potential duplicate)`);
+        } else {
+          console.log(`  ✓ ${issuer}: ${count} request`);
+        }
+      });
+
+      // Check for duplicates
+      const duplicates = Array.from(issuerRequests.values()).filter(count => count > 1);
+      expect(duplicates.length).toBe(0); // Should not have duplicate requests
+
+      console.log('✓ Asset loading is efficient - no duplicate requests');
+    });
+  });
 });
 

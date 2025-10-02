@@ -46,8 +46,6 @@ export const AssetBalancePanel = ({
   const [convertedAssetPrices, setConvertedAssetPrices] = useState<Record<number, number>>({});
   const handleRefresh = useCallback(async () => {
     try {
-      // Clear price cache but keep asset lists
-      await clearPriceCache();
       if (onRefreshBalances) {
         await onRefreshBalances();
       }

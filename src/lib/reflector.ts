@@ -100,7 +100,7 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
 const oraclePriceCache: Record<string, { price: number; timestamp: number }> = {};
 const PRICE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-// Request deduplication for price fetches
+// Global request deduplication for price fetches - prevents duplicate calls from multiple components
 const inflightPriceRequests = new Map<string, Promise<number>>();
 
 // Cache for available assets per oracle
