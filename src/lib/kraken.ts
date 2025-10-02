@@ -89,8 +89,7 @@ const fetchSupportedPairs = async (): Promise<Set<string>> => {
     supportedPairsCache = pairs;
     return pairs;
   } catch (error) {
-    console.warn('Failed to fetch Kraken supported pairs:', error);
-    // Return empty set on error to avoid trying invalid pairs
+    // Silent - return empty set on error to avoid trying invalid pairs
     return new Set<string>();
   }
 };
@@ -171,10 +170,6 @@ const fetchFullYearForAsset = async (asset: string): Promise<void> => {
   const baseUrl = 'https://api.kraken.com/0/public/OHLC';
   const code = (asset || 'XLM').toUpperCase();
   
-  if (import.meta.env.DEV) {
-    console.debug(`Kraken: Fetching full year of data for ${code}`);
-  }
-  
   // Get supported pairs from Kraken
   const supportedPairs = await getSupportedPairs();
   
@@ -182,15 +177,8 @@ const fetchFullYearForAsset = async (asset: string): Promise<void> => {
   const potentialPairs = generatePotentialPairs(code);
   const validPairs = potentialPairs.filter(pair => supportedPairs.has(pair));
   
-  if (import.meta.env.DEV && validPairs.length > 0) {
-    console.debug(`Kraken: Using pair ${validPairs[0]} for ${code}`);
-  }
-  
   // If no valid pairs found, skip this asset
   if (validPairs.length === 0) {
-    if (import.meta.env.DEV) {
-      console.warn(`No supported Kraken pairs found for asset: ${code}`);
-    }
     return;
   }
 
@@ -200,9 +188,6 @@ const fetchFullYearForAsset = async (asset: string): Promise<void> => {
       const resp = await runLimited(() => fetch(url, { mode: 'cors' as RequestMode }));
       
       if (!resp.ok) {
-        if (import.meta.env.DEV) {
-          console.warn(`Kraken API ${resp.status} for ${pair}`);
-        }
         continue;
       }
       
@@ -229,16 +214,9 @@ const fetchFullYearForAsset = async (asset: string): Promise<void> => {
       }
       saveCacheFor(code, cache);
       setLastFetchTime(code, Date.now());
-      
-      if (import.meta.env.DEV) {
-        console.debug(`Kraken: Cached ${dataPoints} data points for ${code}`);
-      }
-      
       return;
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.warn(`Kraken fetch error for ${pair}:`, error);
-      }
+      // Silent - try next pair
     }
   }
 };
@@ -265,14 +243,6 @@ const ensureFreshAssetData = async (asset: string): Promise<void> => {
       // If we have fresh data (within 24h) AND today's data exists, skip
       if (lastFetch && (now - lastFetch < CACHE_TTL_MS) && cache[today]) {
         return;
-      }
-      
-      if (import.meta.env.DEV) {
-        if (!lastFetch || (now - lastFetch >= CACHE_TTL_MS)) {
-          console.debug(`Kraken: Cache expired for ${code}, refreshing...`);
-        } else {
-          console.debug(`Kraken: Today's data missing for ${code}, refreshing...`);
-        }
       }
       
       // Fetch full year of data
@@ -316,9 +286,6 @@ export const getUsdRateForDateByAsset = async (asset: string, date: Date, cacheO
   
   // If today's data is still missing, force a second fetch
   if (key === todayKeyUTC()) {
-    if (import.meta.env.DEV) {
-      console.debug(`Kraken: Today's data still missing for ${code}, forcing refresh...`);
-    }
     
     // Force a fresh fetch by clearing the TTL
     setLastFetchTime(code, 0);
@@ -403,22 +370,11 @@ const fetchFullYearForFiatPair = async (fromCurrency: string, toCurrency: string
   
   const baseUrl = 'https://api.kraken.com/0/public/OHLC';
   
-  if (import.meta.env.DEV) {
-    console.debug(`Kraken: Fetching full year of FX data for ${fromCurrency}/${toCurrency}`);
-  }
-  
   const supportedPairs = await getSupportedPairs();
   const potentialPairs = generateFiatPairs(fromCurrency, toCurrency);
   const validPairs = potentialPairs.filter(pair => supportedPairs.has(pair));
   
-  if (import.meta.env.DEV && validPairs.length > 0) {
-    console.debug(`Kraken: Using FX pair ${validPairs[0]} for ${fromCurrency}/${toCurrency}`);
-  }
-  
   if (validPairs.length === 0) {
-    if (import.meta.env.DEV) {
-      console.warn(`No supported Kraken FX pairs found for: ${fromCurrency}/${toCurrency}`);
-    }
     return;
   }
 
@@ -428,9 +384,6 @@ const fetchFullYearForFiatPair = async (fromCurrency: string, toCurrency: string
       const resp = await runLimited(() => fetch(url, { mode: 'cors' as RequestMode }));
       
       if (!resp.ok) {
-        if (import.meta.env.DEV) {
-          console.warn(`Kraken API ${resp.status} for FX pair ${pair}`);
-        }
         continue;
       }
       
@@ -456,16 +409,9 @@ const fetchFullYearForFiatPair = async (fromCurrency: string, toCurrency: string
       }
       saveFiatCache(fromCurrency, toCurrency, cache);
       setFiatLastFetchTime(fromCurrency, toCurrency, Date.now());
-      
-      if (import.meta.env.DEV) {
-        console.debug(`Kraken: Cached ${dataPoints} FX data points for ${fromCurrency}/${toCurrency}`);
-      }
-      
       return;
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.warn(`Kraken FX fetch error for ${pair}:`, error);
-      }
+      // Silent - try next pair
     }
   }
 };
@@ -490,14 +436,6 @@ const ensureFreshFxData = async (fromCurrency: string, toCurrency: string): Prom
       // If we have fresh data (within 24h) AND today's data exists, skip
       if (lastFetch && (now - lastFetch < CACHE_TTL_MS) && cache[today]) {
         return;
-      }
-      
-      if (import.meta.env.DEV) {
-        if (!lastFetch || (now - lastFetch >= CACHE_TTL_MS)) {
-          console.debug(`Kraken: FX cache expired for ${fromCurrency}/${toCurrency}, refreshing...`);
-        } else {
-          console.debug(`Kraken: Today's FX data missing for ${fromCurrency}/${toCurrency}, refreshing...`);
-        }
       }
       
       // Fetch full year of data

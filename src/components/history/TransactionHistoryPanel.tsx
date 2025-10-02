@@ -98,6 +98,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   });
 
   const [showFilters, setShowFilters] = useState(false);
+  const [usdAmounts, setUsdAmounts] = useState<Map<string, number>>(new Map()); // USD amounts cached once
   const [fiatAmounts, setFiatAmounts] = useState<Map<string, number>>(new Map());
   const [rateInfo, setRateInfo] = useState<Map<string, { assetRate: number; fxRate: number; asset: string }>>(new Map());
   const [fiatLoading, setFiatLoading] = useState<boolean>(true);
@@ -128,60 +129,44 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     });
   }, [balances]);
 
-  // Convert amounts to fiat based on asset prices and selected currency
+  // Step 1: Calculate USD amounts for all transactions (only when transactions change)
   useEffect(() => {
-    const convertAll = async () => {
-      const newFiatAmounts = new Map<string, number>();
-      const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
-      
+    const calculateUsdAmounts = async () => {
       if (transactions.length === 0) {
-        setFiatAmounts(newFiatAmounts);
-        setRateInfo(newRateInfo);
-        setFiatLoading(false);
+        setUsdAmounts(new Map());
+        setRateInfo(new Map());
         return;
       }
 
-      // Prime XLM and all asset OHLC (24h TTL, full year fetch)
+      // Prime all asset rates first
       try {
         await primeUsdRatesForAsset('XLM');
       } catch {
-        // Ignore rate fetching errors
+        // Silent - cache will handle failures
       }
 
-      // Prime non-XLM assets
-      try {
-        const assets = new Set<string>();
-        
-        // Collect asset codes from regular transactions
-        transactions.forEach(t => {
-          if (t.assetType !== 'native' && t.assetCode) {
-            assets.add(t.assetCode);
-          }
-          
-          // For swaps, add both source (from) and destination (to) assets
-          if (t.category === 'swap') {
-            if (t.swapFromAssetType !== 'native' && t.swapFromAssetCode) {
-              assets.add(t.swapFromAssetCode);
-            }
-            if (t.swapToAssetType !== 'native' && t.swapToAssetCode) {
-              assets.add(t.swapToAssetCode);
-            }
-          }
-        });
-        
-        await Promise.all(Array.from(assets).map(code => primeUsdRatesForAsset(code)));
-      } catch {
-        // Ignore asset priming errors
-      }
-
-      // Prime historical FX rates if not USD
-      if (quoteCurrency !== 'USD') {
-        try {
-          await primeHistoricalFxRates('USD', quoteCurrency);
-        } catch {
-          // Ignore FX priming errors
+      const assets = new Set<string>();
+      transactions.forEach(t => {
+        if (t.assetType !== 'native' && t.assetCode) {
+          assets.add(t.assetCode);
         }
-      }
+        if (t.category === 'swap') {
+          if (t.swapFromAssetType !== 'native' && t.swapFromAssetCode) {
+            assets.add(t.swapFromAssetCode);
+          }
+          if (t.swapToAssetType !== 'native' && t.swapToAssetCode) {
+            assets.add(t.swapToAssetCode);
+          }
+        }
+      });
+      
+      await Promise.all(Array.from(assets).map(code => 
+        primeUsdRatesForAsset(code).catch(() => {})
+      ));
+
+      // Now calculate USD amounts for each transaction
+      const newUsdAmounts = new Map<string, number>();
+      const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
 
       for (const tx of transactions) {
         const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
@@ -206,28 +191,11 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           if (!usdPrice) {
             const today = new Date();
             const isToday = txDate.toDateString() === today.toDateString();
-            
             if (isToday) {
-              if (import.meta.env.DEV) {
-                console.debug(`Missing today's rate for ${assetCode}, forcing refresh...`);
-              }
               usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, false);
             }
           }
-          
-          // Detailed logging for debugging price issues
-          if (import.meta.env.DEV && usdPrice > 100000) {
-            console.warn(`[Pricing] Suspicious price for ${assetCode}:`, {
-              price: usdPrice,
-              txId: tx.id,
-              date: txDate.toISOString(),
-              amount
-            });
-          }
         } catch (error) {
-          if (import.meta.env.DEV) {
-            console.warn(`Price fetch failed for ${assetCode} on ${txDate.toISOString()}:`, error);
-          }
           usdPrice = 0;
         }
 
@@ -243,50 +211,101 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                 amount = tx.swapToAmount;
               }
             } catch (error) {
-              if (import.meta.env.DEV) {
-                console.warn(`Fallback price fetch failed for ${toAssetCode}:`, error);
-              }
+              // Silent fallback
             }
           }
         }
 
-        // Get historical FX rate (cache-first, with today fallback)
-        let fxRate = 1;
-        if (quoteCurrency !== 'USD') {
-          try {
-            fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, true);
-            
-            // If cache miss and it's today, try forcing a refresh
-            if (!fxRate) {
-              const today = new Date();
-              const isToday = txDate.toDateString() === today.toDateString();
-              
-              if (isToday) {
-                if (import.meta.env.DEV) {
-                  console.debug(`Missing today's FX rate for ${quoteCurrency}, forcing refresh...`);
-                }
-                fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, false);
-              }
-            }
-          } catch {
-            fxRate = 0;
-          }
+        // Calculate USD amount and store it
+        if (usdPrice > 0 && amount > 0) {
+          const usdAmount = usdPrice * amount;
+          newUsdAmounts.set(tx.id, usdAmount);
+          newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate: 1, asset: assetCode });
+        } else {
+          // No USD price available
+          newUsdAmounts.set(tx.id, 0);
+          newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate: 1, asset: assetCode });
         }
+      }
+      
+      setUsdAmounts(newUsdAmounts);
+      setRateInfo(newRateInfo);
+    };
 
-        // If either rate is missing, show N/A
-        if (!usdPrice || !amount || (quoteCurrency !== 'USD' && !fxRate)) {
-          if (import.meta.env.DEV) {
-            console.warn(`Missing price data for tx ${tx.id}:`, { usdPrice, fxRate, amount, asset: assetCode, date: txDate.toISOString() });
-          }
+    calculateUsdAmounts();
+  }, [transactions]);
+
+  // Step 2: Apply FX conversion to USD amounts (when currency or USD amounts change)
+  useEffect(() => {
+    const applyFxConversion = async () => {
+      if (transactions.length === 0 || usdAmounts.size === 0) {
+        setFiatAmounts(new Map());
+        setFiatLoading(false);
+        return;
+      }
+
+      // If USD, just use the USD amounts directly
+      if (quoteCurrency === 'USD') {
+        setFiatAmounts(new Map(usdAmounts));
+        setFiatLoading(false);
+        return;
+      }
+
+      setFiatLoading(true);
+
+      // Prime FX rates for the selected currency
+      try {
+        await primeHistoricalFxRates('USD', quoteCurrency);
+      } catch {
+        // Silent - will fallback gracefully
+      }
+
+      const newFiatAmounts = new Map<string, number>();
+      const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
+      
+      for (const tx of transactions) {
+        const usdAmount = usdAmounts.get(tx.id);
+        const oldInfo = rateInfo.get(tx.id);
+        
+        if (!usdAmount || usdAmount === 0) {
           newFiatAmounts.set(tx.id, 0);
-          newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
+          if (oldInfo) {
+            newRateInfo.set(tx.id, { ...oldInfo, fxRate: 0 });
+          }
           continue;
         }
+
+        const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
         
-        const usdAmount = usdPrice * amount;
-        const fiatAmount = usdAmount * fxRate;
-        newFiatAmounts.set(tx.id, fiatAmount);
-        newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
+        try {
+          // Get historical FX rate (cache-first)
+          let fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, true);
+          
+          // If cache miss, try forcing a fetch (not just for today)
+          if (!fxRate || fxRate === 0) {
+            fxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, false);
+          }
+
+          if (fxRate > 0) {
+            const fiatAmount = usdAmount * fxRate;
+            newFiatAmounts.set(tx.id, fiatAmount);
+            if (oldInfo) {
+              newRateInfo.set(tx.id, { ...oldInfo, fxRate });
+            }
+          } else {
+            // No FX rate available - use USD amount with rate 1
+            newFiatAmounts.set(tx.id, usdAmount);
+            if (oldInfo) {
+              newRateInfo.set(tx.id, { ...oldInfo, fxRate: 1 });
+            }
+          }
+        } catch {
+          // Fallback to USD amount
+          newFiatAmounts.set(tx.id, usdAmount);
+          if (oldInfo) {
+            newRateInfo.set(tx.id, { ...oldInfo, fxRate: 1 });
+          }
+        }
       }
       
       setFiatAmounts(newFiatAmounts);
@@ -294,8 +313,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       setFiatLoading(false);
     };
 
-    convertAll();
-  }, [transactions, quoteCurrency]);
+    applyFxConversion();
+  }, [transactions, usdAmounts, quoteCurrency]);
 
   // Convert portfolio value to selected fiat currency
   useEffect(() => {
