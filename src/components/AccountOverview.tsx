@@ -148,17 +148,8 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   const canSubmitToNetworkValue = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
   const canSubmitToRefractorValue = Boolean(multisigConfigXdr) && currentNetwork === 'mainnet';
 
-  // Wrapper component that provides portfolio value to TransactionHistoryPanel
-  const TransactionHistoryPanelWithPortfolio = ({ accountPublicKey, balances }: { accountPublicKey: string; balances: any[] }) => {
-    const { totalValueUSD } = useAssetPrices(balances);
-    return (
-      <TransactionHistoryPanel 
-        accountPublicKey={accountPublicKey} 
-        balances={balances} 
-        totalPortfolioValueUSD={totalValueUSD}
-      />
-    );
-  };
+  // Get portfolio value for TransactionHistoryPanel
+  const { totalValueUSD } = useAssetPrices(accountData.balances);
 
   const handleCopyXdr = () => {
     if (multisigConfigXdr) {
@@ -334,7 +325,11 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
           
           <TabsContent value="activity" className="mt-6">
             {activeTab === "activity" && (
-              <TransactionHistoryPanelWithPortfolio accountPublicKey={accountData.publicKey} balances={accountData.balances} />
+              <TransactionHistoryPanel 
+                accountPublicKey={accountData.publicKey} 
+                balances={accountData.balances} 
+                totalPortfolioValueUSD={totalValueUSD}
+              />
             )}
           </TabsContent>
 

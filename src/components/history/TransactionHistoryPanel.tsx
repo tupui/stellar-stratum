@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -106,6 +106,12 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   const [currentPortfolioFiat, setCurrentPortfolioFiat] = useState<number>(0);
   const [currentXLMFiat, setCurrentXLMFiat] = useState<number>(0);
   const [currentAssetFiat, setCurrentAssetFiat] = useState<number>(0);
+  
+  // Track the last known transaction IDs to detect when transactions are cleared vs actually empty
+  const lastTransactionIdsRef = useRef<Set<string>>(new Set());
+  
+  // Use ref to always get latest usdAmounts in effects
+  const usdAmountsRef = useRef<Map<string, number>>(new Map());
 
   // Build asset options from balances
   const assetOptions = useMemo(() => {
@@ -132,11 +138,27 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   // Step 1: Calculate USD amounts for all transactions (only when transactions change)
   useEffect(() => {
     const calculateUsdAmounts = async () => {
-      if (transactions.length === 0) {
-        setUsdAmounts(new Map());
-        setRateInfo(new Map());
+      const currentTxIds = new Set(transactions.map(t => t.id));
+      const lastTxIds = lastTransactionIdsRef.current;
+      
+      // If transactions went to 0 temporarily (race condition), preserve existing data
+      if (transactions.length === 0 && lastTxIds.size > 0) {
         return;
       }
+      
+      // If transactions is empty for real (initial state), skip
+      if (transactions.length === 0) {
+        return;
+      }
+      
+      // Check if we need to recalculate (new transactions added)
+      const hasNewTransactions = transactions.some(t => !lastTxIds.has(t.id));
+      if (!hasNewTransactions && usdAmounts.size > 0) {
+        return;
+      }
+      
+      // Update our tracking
+      lastTransactionIdsRef.current = currentTxIds;
 
       // Prime all asset rates first
       try {
@@ -228,6 +250,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         }
       }
       
+      // Update ref and state
+      usdAmountsRef.current = newUsdAmounts;
       setUsdAmounts(newUsdAmounts);
       setRateInfo(newRateInfo);
     };
@@ -235,30 +259,24 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     calculateUsdAmounts();
   }, [transactions]);
 
-  // Step 2: Apply FX conversion to USD amounts using CURRENT FX rate (when currency or USD amounts change)
+  // Step 2: Apply FX conversion when currency changes OR when USD amounts become available
   useEffect(() => {
     const applyFxConversion = async () => {
-      // Skip if no transactions
-      if (transactions.length === 0) {
-        setFiatAmounts(new Map());
+      // Use ref to get latest USD amounts (avoids stale closure)
+      const latestUsdAmounts = usdAmountsRef.current;
+      
+      // Wait for USD amounts to be calculated
+      if (latestUsdAmounts.size === 0) {
         setFiatLoading(false);
         return;
       }
 
-      // Wait for USD amounts to be calculated before applying FX conversion
-      if (usdAmounts.size === 0) {
-        // Keep existing fiatAmounts, don't clear them
-        return;
-      }
-
-      // If USD, just use the USD amounts directly
+      // If USD, just use the USD amounts directly (important: runs when usdAmounts changes!)
       if (quoteCurrency === 'USD') {
-        setFiatAmounts(new Map(usdAmounts));
+        setFiatAmounts(new Map(latestUsdAmounts));
         setFiatLoading(false);
         return;
       }
-
-      setFiatLoading(true);
 
       // Get CURRENT FX rate (not historical) - same rate for all transactions
       let currentFxRate = 0;
@@ -271,17 +289,18 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         return;
       }
 
+      // Apply current FX rate to ALL USD amounts
       const newFiatAmounts = new Map<string, number>();
       const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
       
-      for (const tx of transactions) {
-        const usdAmount = usdAmounts.get(tx.id);
-        const oldInfo = rateInfo.get(tx.id);
+      // Iterate over latest USD amounts (from ref)
+      for (const [txId, usdAmount] of latestUsdAmounts.entries()) {
+        const oldInfo = rateInfo.get(txId);
         
         if (!usdAmount || usdAmount === 0) {
-          newFiatAmounts.set(tx.id, 0);
+          newFiatAmounts.set(txId, 0);
           if (oldInfo) {
-            newRateInfo.set(tx.id, { ...oldInfo, fxRate: 0 });
+            newRateInfo.set(txId, { ...oldInfo, fxRate: 0 });
           }
           continue;
         }
@@ -290,26 +309,27 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         if (currentFxRate > 0) {
           // convertFromUSD divides by rate (USD / rate = target currency)
           const fiatAmount = usdAmount / currentFxRate;
-          newFiatAmounts.set(tx.id, fiatAmount);
+          newFiatAmounts.set(txId, fiatAmount);
           if (oldInfo) {
-            newRateInfo.set(tx.id, { ...oldInfo, fxRate: currentFxRate });
+            newRateInfo.set(txId, { ...oldInfo, fxRate: currentFxRate });
           }
         } else {
           // No FX rate - mark as N/A
-          newFiatAmounts.set(tx.id, 0);
+          newFiatAmounts.set(txId, 0);
           if (oldInfo) {
-            newRateInfo.set(tx.id, { ...oldInfo, fxRate: 0 });
+            newRateInfo.set(txId, { ...oldInfo, fxRate: 0 });
           }
         }
       }
       
+      // Update state in single batch
       setFiatAmounts(newFiatAmounts);
       setRateInfo(newRateInfo);
       setFiatLoading(false);
     };
 
     applyFxConversion();
-  }, [transactions, usdAmounts, quoteCurrency, network]);
+  }, [quoteCurrency, network, usdAmounts.size]); // Re-run when USD amounts size changes
 
   // Convert portfolio value to selected fiat currency
   useEffect(() => {
@@ -375,7 +395,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
 
   // Filter transactions based on current filters and selected asset
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(tx => {
+    const filtered = transactions.filter(tx => {
       // Category and direction filter combined
       if (filters.categories.length > 0) {
         const matchesCategory = tx.category && filters.categories.includes(tx.category);
@@ -424,6 +444,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
 
       return true;
     });
+    
+    return filtered;
   }, [transactions, filters, selectedAsset.code, selectedAsset.issuer]);
 
   // Group filtered transactions
