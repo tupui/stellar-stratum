@@ -323,18 +323,18 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
             <AssetBalancePanel balances={accountData.balances} onRefreshBalances={onRefreshBalances} />
           </TabsContent>
           
-          <TabsContent value="activity" className="mt-6">
-            {activeTab === "activity" && (
+          <TabsContent value="activity" className="mt-6" forceMount>
+            <div style={{ display: activeTab === "activity" ? "block" : "none" }}>
               <TransactionHistoryPanel 
                 accountPublicKey={accountData.publicKey} 
                 balances={accountData.balances} 
                 totalPortfolioValueUSD={totalValueUSD}
               />
-            )}
+            </div>
           </TabsContent>
 
           <TabsContent value="multisig" className="mt-6">
-            {activeTab === "multisig" && !multisigConfigXdr && (
+            {!multisigConfigXdr && (
               <div className="grid md:grid-cols-2 gap-6">
                 {/* Read-only thresholds */}
                 <Card className="shadow-card">

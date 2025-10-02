@@ -10,6 +10,88 @@ test.describe('Fiat Currency Switching - Comprehensive', () => {
   const testAddress = 'GBU764PFZXKZUORAUK3IG36Y6OXSLYM6ZERLJA2BZ2Y2GSKNKWL4KKC5';
   const baseUrl = 'http://localhost:8080';
 
+  test('should preserve transactions when navigating between tabs', async ({ page }) => {
+    // Connect wallet
+    await page.goto(baseUrl);
+    await page.waitForLoadState('domcontentloaded');
+    await page.click('button:has-text("Connect wallet")');
+    await page.waitForSelector('text=Connect Wallet', { timeout: 10000 });
+    await page.click('button:has-text("Mainnet")', { timeout: 5000 });
+    await page.click('button:has-text("Enter address manually")');
+    const addressInput = page.locator('input[placeholder*="GABC"], input[type="text"]').first();
+    await addressInput.click();
+    await addressInput.fill(testAddress);
+    await addressInput.press('Enter');
+    await page.waitForSelector(`text=${testAddress.slice(0, 10)}`, { timeout: 45000 });
+    console.log('✓ Account loaded');
+
+    // Navigate to Activity tab
+    await page.waitForTimeout(3000);
+    const activityButton = page.locator('button:has-text("Activity")');
+    await activityButton.click();
+    await page.waitForSelector('text=Activity History', { timeout: 30000 });
+    await page.waitForTimeout(8000);
+
+    // Verify transactions loaded
+    const usdHistory1 = page.locator('text=/\\$[0-9]+\\.[0-9]{2}/');
+    const usdHistoryCount1 = await usdHistory1.count();
+    console.log(`Activity tab (1st visit): ${usdHistoryCount1} transactions with $ amounts`);
+    expect(usdHistoryCount1).toBeGreaterThan(20);
+
+    // Navigate to Multisig tab
+    console.log('\n[TAB SWITCH] Going to Multisig tab...');
+    const multisigButton = page.locator('[role="tab"]:has-text("Multisig")').or(page.locator('button:has-text("Multisig")').last());
+    await multisigButton.click();
+    await page.waitForTimeout(2000);
+
+    // Navigate BACK to Activity tab
+    console.log('[TAB SWITCH] Going back to Activity tab (2nd visit)...');
+    await activityButton.click();
+    await page.waitForTimeout(5000);
+
+    // Check transactions
+    let usdHistory2 = page.locator('text=/\\$[0-9]+\\.[0-9]{2}/');
+    let usdHistoryCount2 = await usdHistory2.count();
+    console.log(`Activity tab (2nd visit): ${usdHistoryCount2} transactions`);
+
+    let noTransactionsMsg = page.locator('text=No transactions found');
+    let hasNoTransactionsMsg = await noTransactionsMsg.isVisible();
+    
+    if (usdHistoryCount2 === 0 || hasNoTransactionsMsg) {
+      console.error('❌ BUG on 2nd visit: Transactions disappeared!');
+    }
+    expect(usdHistoryCount2).toBeGreaterThan(20);
+    expect(hasNoTransactionsMsg).toBe(false);
+
+    // Go to Multisig AGAIN
+    console.log('[TAB SWITCH] Going to Multisig tab (2nd time)...');
+    await multisigButton.click();
+    await page.waitForTimeout(2000);
+
+    // Go back to Activity AGAIN
+    console.log('[TAB SWITCH] Going back to Activity tab (3rd visit)...');
+    await activityButton.click();
+    await page.waitForTimeout(5000);
+
+    // Check transactions AGAIN
+    const usdHistory3 = page.locator('text=/\\$[0-9]+\\.[0-9]{2}/');
+    const usdHistoryCount3 = await usdHistory3.count();
+    console.log(`Activity tab (3rd visit): ${usdHistoryCount3} transactions`);
+
+    noTransactionsMsg = page.locator('text=No transactions found');
+    hasNoTransactionsMsg = await noTransactionsMsg.isVisible();
+    
+    if (usdHistoryCount3 === 0 || hasNoTransactionsMsg) {
+      console.error('❌ BUG on 3rd visit: Transactions disappeared!');
+      console.error('User has to manually refresh to see transactions again.');
+    }
+
+    expect(usdHistoryCount3).toBeGreaterThan(20);
+    expect(hasNoTransactionsMsg).toBe(false);
+
+    console.log('✓ Transactions preserved after multiple tab switches!');
+  });
+
   test('should efficiently switch currencies across balance and history pages', async ({ page }) => {
     // Track network requests
     const networkRequests: { url: string; method: string; timestamp: number }[] = [];
