@@ -2,7 +2,8 @@
 import { OracleClient, type OracleConfig, AssetType, type Asset } from './reflector-client';
 import { xdr, Asset as StellarAsset, hash, StrKey, Networks } from '@stellar/stellar-sdk';
 import { appConfig } from './appConfig';
-import { pricingLogger } from './pricing-logger';
+import { createHorizonServer } from './stellar';
+// Removed pricing logger - using consolidated system
 
 // Reflector Oracle Contracts
 // Helper: compute SAC (contract) ID for classic assets on PUBLIC network
@@ -52,7 +53,7 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
   
   // Request deduplication - if same asset is being fetched, return the same promise
   if (inflightPriceRequests.has(assetKey)) {
-    pricingLogger.log({ type: 'cache_hit', asset: assetKey });
+    // Removed pricing logger({ type: 'cache_hit', asset: assetKey });
     return inflightPriceRequests.get(assetKey)!;
   }
   
@@ -61,41 +62,28 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
       // Try Reflector oracles for all assets
       const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
       if (reflectorPrice > 0) {
-        pricingLogger.log({ type: 'price_fetch', asset: assetKey, price: reflectorPrice, oracle: 'reflector' });
+        // Removed pricing logging - using consolidated system
         setCachedPrice(assetKey, reflectorPrice);
         return reflectorPrice;
       }
 
-      // Fallback to orderbook pricing (only for non-XLM assets)
+      // Fallback to orderbook pricing for non-XLM assets
       if (assetCode && assetCode !== 'XLM') {
         const { getOrderbookPrice } = await import('./orderbook-pricing');
         const orderbookPrice = await getOrderbookPrice(assetCode, assetIssuer);
         if (orderbookPrice > 0) {
-          pricingLogger.log({ type: 'price_fetch', asset: assetKey, price: orderbookPrice, oracle: 'orderbook' });
           setCachedPrice(assetKey, orderbookPrice);
           return orderbookPrice;
         }
       }
 
-      // Fallback to cached price
+      // Final fallback to cached price
       const cachedPrice = getCachedPrice(assetKey);
-      if (cachedPrice > 0) {
-        pricingLogger.log({ type: 'fallback_used', asset: assetKey, price: cachedPrice });
-      } else {
-        pricingLogger.log({ type: 'cache_miss', asset: assetKey });
-      }
       return cachedPrice;
 
     } catch (error) {
-      pricingLogger.log({ 
-        type: 'oracle_error', 
-        asset: assetKey, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      });
+      // Error occurred, return cached price if available
       const cachedPrice = getCachedPrice(assetKey);
-      if (cachedPrice > 0) {
-        pricingLogger.log({ type: 'fallback_used', asset: assetKey, price: cachedPrice });
-      }
       return cachedPrice;
     } finally {
       // Remove from inflight requests
@@ -517,14 +505,13 @@ export const clearPriceCache = async (): Promise<void> => {
     loadedOracles.clear();
     
     // Log cache clear event
-    pricingLogger.log({ type: 'cache_miss', asset: 'cache_cleared' });
+    // Removed pricing logger({ type: 'cache_miss', asset: 'cache_cleared' });
     
     // Clear assets cache as well
     Object.keys(oracleAssetsCache).forEach(key => delete oracleAssetsCache[key]);
     
     // Clear orderbook cache as well
-    const { clearOrderbookCache } = await import('./orderbook-pricing');
-    clearOrderbookCache();
+    // orderbook cache clearing functionality moved to pricing.ts
     
   } catch (error) {
     // Ignore localStorage errors (private mode, quota exceeded)

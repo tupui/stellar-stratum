@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { calculateAvailableBalance, formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
-import { getAssetPrice } from '@/lib/reflector';
+import { getAssetPrice } from '@/lib/pricing';
 import { useNetwork } from '@/contexts/NetworkContext';
 interface Asset {
   code: string;

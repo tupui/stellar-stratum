@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getAssetPrice, setLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
-import { pricingLogger } from '@/lib/pricing-logger';
+// Removed pricing logger - using consolidated pricing system
 
 interface AssetBalance {
   asset_type: string;
@@ -33,7 +33,6 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
       
       // Clear price cache to force fresh data
       await clearPriceCache();
-      pricingLogger.log({ type: 'cache_miss', asset: 'refresh_all' });
 
       const assetsWithPricesPromises = memoizedBalances.map(async (balance) => {
         const assetKey = balance.asset_issuer ? `${balance.asset_code}:${balance.asset_issuer}` : (balance.asset_code || 'XLM');
@@ -48,11 +47,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
             symbol: balance.asset_code || 'XLM'
           };
         } catch (error) {
-          pricingLogger.log({ 
-            type: 'oracle_error', 
-            asset: assetKey, 
-            error: error instanceof Error ? error.message : 'Price fetch failed' 
-          });
+          // Silent error handling - return zero price
           return {
             ...balance,
             priceUSD: 0,
@@ -75,7 +70,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch asset prices';
       setError(errorMsg);
-      pricingLogger.log({ type: 'oracle_error', error: errorMsg });
+      // Removed pricing logger - errors are handled internally
     } finally {
       setLoading(false);
     }
