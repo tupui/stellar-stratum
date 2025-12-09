@@ -28,8 +28,8 @@ import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAccountHistory } from '@/hooks/useAccountHistory';
 import { useFiatConversion } from '@/hooks/useFiatConversion';
-import { getUsdRateForDateByAsset, primeUsdRatesForAsset } from '@/lib/kraken';
-import { convertFromUSD } from '@/lib/fiat-currencies';
+import { getUsdRateForDateByAsset, primeUsdRatesForAsset, getHistoricalFxRate, primeHistoricalFxRates } from '@/lib/kraken';
+import { convertFromUSD, getFxRate } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { getHorizonTransactionUrl } from '@/lib/horizon-utils';
@@ -260,6 +260,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   }, [transactions]);
 
   // Step 2: Apply FX conversion when currency changes OR when USD amounts become available
+  // Uses HISTORICAL FX rates from Kraken for accurate per-transaction conversion
   useEffect(() => {
     const applyFxConversion = async () => {
       // Use ref to get latest USD amounts (avoids stale closure)
@@ -278,18 +279,22 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         return;
       }
 
-      // Get CURRENT FX rate (not historical) - same rate for all transactions
-      let currentFxRate = 0;
+      // Prime historical FX rates for USD -> target currency
       try {
-        const { getFxRate } = await import('@/lib/fiat-currencies');
-        currentFxRate = await getFxRate(quoteCurrency, network);
-      } catch (error) {
-        // Failed to get FX rate - show N/A for all
-        setFiatLoading(false);
-        return;
+        await primeHistoricalFxRates('USD', quoteCurrency);
+      } catch {
+        // Silent - will fallback to current rate if needed
       }
 
-      // Apply current FX rate to ALL USD amounts
+      // Get current FX rate as fallback for dates where historical rate is unavailable
+      let fallbackFxRate = 0;
+      try {
+        fallbackFxRate = await getFxRate(quoteCurrency, network);
+      } catch {
+        // No fallback available
+      }
+
+      // Apply HISTORICAL FX rates to each transaction based on its date
       const newFiatAmounts = new Map<string, number>();
       const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
       
@@ -305,13 +310,31 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           continue;
         }
 
-        // Apply current FX rate to convert USD to target currency
-        if (currentFxRate > 0) {
-          // convertFromUSD divides by rate (USD / rate = target currency)
-          const fiatAmount = usdAmount / currentFxRate;
+        // Find the transaction to get its date
+        const tx = transactions.find(t => t.id === txId);
+        let historicalFxRate = 0;
+        
+        if (tx) {
+          const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
+          // Get historical FX rate for this specific date (cache-only since we primed)
+          historicalFxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, true);
+          
+          // If cache miss, try without cache-only flag
+          if (!historicalFxRate) {
+            historicalFxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, false);
+          }
+        }
+
+        // Use historical rate if available, otherwise fallback to current rate
+        const fxRate = historicalFxRate > 0 ? historicalFxRate : fallbackFxRate;
+
+        if (fxRate > 0) {
+          // Kraken FX rates for USDEUR are "USD per 1 EUR", so we multiply USD * rate to get target
+          // Actually USDEUR = how many EUR for 1 USD, so: targetAmount = usdAmount * fxRate
+          const fiatAmount = usdAmount * fxRate;
           newFiatAmounts.set(txId, fiatAmount);
           if (oldInfo) {
-            newRateInfo.set(txId, { ...oldInfo, fxRate: currentFxRate });
+            newRateInfo.set(txId, { ...oldInfo, fxRate: fxRate });
           }
         } else {
           // No FX rate - mark as N/A
@@ -329,7 +352,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     };
 
     applyFxConversion();
-  }, [quoteCurrency, network, usdAmounts.size]); // Re-run when USD amounts size changes
+  }, [quoteCurrency, network, usdAmounts.size, transactions]); // Re-run when USD amounts size changes or transactions change
 
   // Convert portfolio value to selected fiat currency
   useEffect(() => {
