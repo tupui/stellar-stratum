@@ -110,8 +110,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   // Track the last known transaction IDs to detect when transactions are cleared vs actually empty
   const lastTransactionIdsRef = useRef<Set<string>>(new Set());
   
-  // Use ref to always get latest usdAmounts in effects
+  // Use refs to always get latest values in effects (avoids stale closures)
   const usdAmountsRef = useRef<Map<string, number>>(new Map());
+  const rateInfoRef = useRef<Map<string, { assetRate: number; fxRate: number; asset: string }>>(new Map());
 
   // Build asset options from balances
   const assetOptions = useMemo(() => {
@@ -250,8 +251,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         }
       }
       
-      // Update ref and state
+      // Update refs and state
       usdAmountsRef.current = newUsdAmounts;
+      rateInfoRef.current = newRateInfo;
       setUsdAmounts(newUsdAmounts);
       setRateInfo(newRateInfo);
     };
@@ -298,15 +300,17 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       const newFiatAmounts = new Map<string, number>();
       const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
       
+      // Use refs to get latest values (avoids stale closures)
+      const latestRateInfo = rateInfoRef.current;
+      
       // Iterate over latest USD amounts (from ref)
       for (const [txId, usdAmount] of latestUsdAmounts.entries()) {
-        const oldInfo = rateInfo.get(txId);
+        const oldInfo = latestRateInfo.get(txId);
         
         if (!usdAmount || usdAmount === 0) {
           newFiatAmounts.set(txId, 0);
-          if (oldInfo) {
-            newRateInfo.set(txId, { ...oldInfo, fxRate: 0 });
-          }
+          // Always create an entry, even if oldInfo is missing
+          newRateInfo.set(txId, oldInfo ? { ...oldInfo, fxRate: 0 } : { assetRate: 0, fxRate: 0, asset: 'XLM' });
           continue;
         }
 
@@ -329,23 +333,21 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         const fxRate = historicalFxRate > 0 ? historicalFxRate : fallbackFxRate;
 
         if (fxRate > 0) {
-          // Kraken FX rates for USDEUR are "USD per 1 EUR", so we multiply USD * rate to get target
-          // Actually USDEUR = how many EUR for 1 USD, so: targetAmount = usdAmount * fxRate
+          // USD→target rate: targetAmount = usdAmount * fxRate
           const fiatAmount = usdAmount * fxRate;
           newFiatAmounts.set(txId, fiatAmount);
-          if (oldInfo) {
-            newRateInfo.set(txId, { ...oldInfo, fxRate: fxRate });
-          }
+          // Always create an entry, even if oldInfo is missing
+          newRateInfo.set(txId, oldInfo ? { ...oldInfo, fxRate: fxRate } : { assetRate: 0, fxRate: fxRate, asset: 'XLM' });
         } else {
           // No FX rate - mark as N/A
           newFiatAmounts.set(txId, 0);
-          if (oldInfo) {
-            newRateInfo.set(txId, { ...oldInfo, fxRate: 0 });
-          }
+          // Always create an entry, even if oldInfo is missing
+          newRateInfo.set(txId, oldInfo ? { ...oldInfo, fxRate: 0 } : { assetRate: 0, fxRate: 0, asset: 'XLM' });
         }
       }
       
-      // Update state in single batch
+      // Update refs and state in single batch
+      rateInfoRef.current = newRateInfo;
       setFiatAmounts(newFiatAmounts);
       setRateInfo(newRateInfo);
       setFiatLoading(false);
