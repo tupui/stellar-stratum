@@ -330,7 +330,10 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         }
 
         // Use historical rate if available, otherwise fallback to current rate
-        const fxRate = historicalFxRate > 0 ? historicalFxRate : fallbackFxRate;
+        // Kraken returns target-per-USD, but getFxRate returns USD-per-target
+        // Invert fallback to match Kraken convention (multiply to convert)
+        const invertedFallback = fallbackFxRate > 0 ? 1 / fallbackFxRate : 0;
+        const fxRate = historicalFxRate > 0 ? historicalFxRate : invertedFallback;
 
         if (fxRate > 0) {
           // USD→target rate: targetAmount = usdAmount * fxRate
