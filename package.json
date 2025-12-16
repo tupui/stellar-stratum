@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:dev": "vite build --mode development",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "test:asset-caching": "playwright test tests/fiat-switching-comprehensive.spec.ts -g 'Asset Loading'",
@@ -91,5 +92,8 @@
     "typescript": "~5.9.3",
     "vite": "^7.3.0",
     "vite-plugin-node-polyfills": "^0.24.0"
+  },
+  "browser": {
+    "usb": false
   }
 }
