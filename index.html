@@ -24,19 +24,20 @@
     <meta name="twitter:title" content="Stratum - Multi-Signature Stellar Transactions" />
     <meta name="twitter:description" content="Stellar's threshold-based authorization system. Configure signature weights, manage signer permissions, and execute secure multi-signature transactions." />
     <meta name="twitter:image" content="/social-card.png" />
+    <meta name="twitter:site" content="@PamphileRoy" />
     
     <!-- Mobile Meta Tags -->
     <meta name="theme-color" content="hsl(48, 96%, 53%)" />
     
-    <link rel="icon" href="/favicon.png" type="image/png">
-    <link rel="icon" sizes="16x16" href="/favicon-16x16.png" type="image/png">
-    <link rel="icon" sizes="32x32" href="/favicon-32x32.png" type="image/png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" sizes="192x192" href="/android-chrome-192x192.png" type="image/png">
-    <link rel="icon" sizes="512x512" href="/android-chrome-512x512.png" type="image/png">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="icon" sizes="16x16" href="/favicon-16x16.png" type="image/png" />
+    <link rel="icon" sizes="32x32" href="/favicon-32x32.png" type="image/png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" sizes="192x192" href="/android-chrome-192x192.png" type="image/png" />
+    <link rel="icon" sizes="512x512" href="/android-chrome-512x512.png" type="image/png" />
+    <link rel="manifest" href="/manifest.json" />
     
-    <!-- Performance optimizations for TTI -->
+    <!-- Performance optimizations -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://horizon.stellar.org" />
@@ -44,10 +45,7 @@
     <link rel="preconnect" href="https://rpc.lightsail.network" />
     <link rel="dns-prefetch" href="https://soroban-domains.nftkey.app" />
     
-    <!-- Preload critical fonts -->
-    <link rel="preload" href="https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2" as="font" type="font/woff2" crossorigin />
-    
-    <!-- Load fonts with optimized loading -->
+    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Code+Pro:wght@400;500;600;700&display=swap" rel="stylesheet" />
     
     <!-- Structured Data -->
@@ -64,18 +62,14 @@
       "creator": {
         "@type": "Organization",
         "name": "Consulting Manao GmbH",
-        "url": "https://consulting-manao.com/",
-        "sameAs": [
-          "/"
-        ]
+        "url": "https://consulting-manao.com/"
       },
       "keywords": "stellar, multisig, multi-signature, transactions, blockchain, cryptocurrency"
     }
     </script>
     
-    <!-- Critical CSS optimized for LCP -->
+    <!-- Critical loading styles -->
     <style>
-      /* Critical loading styles - matches design system */
       :root {
         --background: 220 13% 9%;
         --foreground: 210 40% 98%;
@@ -83,7 +77,6 @@
         --muted: 220 13% 15%;
         --muted-foreground: 217 12% 72%;
         --border: 220 13% 26%;
-        --stellar-yellow: 45 100% 60%;
       }
       
       body {
@@ -91,78 +84,8 @@
         background: hsl(var(--background));
         color: hsl(var(--foreground));
         font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-        font-display: swap;
-        text-rendering: optimizeSpeed;
       }
       
-      /* Critical hero styles optimized for LCP */
-      .hero-container {
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: hsl(var(--background));
-        padding: 1.5rem;
-        position: relative;
-        overflow: hidden;
-      }
-      
-      .hero-content {
-        text-align: center;
-        max-width: 1152px;
-        width: 100%;
-        margin: 0 auto;
-      }
-      
-      .hero-title {
-        font-size: clamp(3rem, 8vw, 7rem);
-        font-weight: 900;
-        line-height: 0.9;
-        margin: 0 0 2rem 0;
-        letter-spacing: -0.025em;
-        color: hsl(var(--foreground));
-      }
-      
-      .hero-title-accent {
-        color: hsl(var(--primary));
-      }
-      
-      .hero-subtitle {
-        font-size: clamp(1.125rem, 2vw, 1.5rem);
-        color: hsl(var(--muted-foreground));
-        max-width: 64rem;
-        margin: 0 auto 4rem;
-        line-height: 1.6;
-      }
-      
-      .hero-button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        height: 4rem;
-        padding: 0 3rem;
-        font-size: 1.125rem;
-        font-weight: 600;
-        background: hsl(var(--primary));
-        color: hsl(220 13% 9%);
-        border: none;
-        border-radius: 0.5rem;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        text-decoration: none;
-      }
-      
-      .hero-button:hover {
-        background: hsl(48 96% 48%);
-        transform: scale(1.05);
-      }
-
-      /* Text glow effect for logo */
-      .text-glow-yellow {
-        text-shadow: 0 0 10px hsl(var(--stellar-yellow)), 0 0 20px hsl(var(--stellar-yellow));
-      }
-      
-      /* Loading states - Fixed positioning to prevent CLS */
       #app-loader {
         position: fixed;
         top: 0;
@@ -174,22 +97,17 @@
         justify-content: center;
         background: hsl(var(--background));
         z-index: 9999;
-        pointer-events: auto;
+        transition: opacity 0.4s ease-out;
       }
-
+      
       #app-loader.hidden {
-        pointer-events: none;
         opacity: 0;
-        transform: translateZ(0);
-        transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+        pointer-events: none;
       }
       
       .loader-content {
         text-align: center;
-        max-width: 600px;
-        width: 100%;
         padding: 2rem;
-        position: relative;
       }
       
       .loader-title {
@@ -201,434 +119,62 @@
       
       .loader-subtitle {
         font-size: 1.125rem;
-        color: hsl(var(--foreground) / 0.7);
-        margin-bottom: 3rem;
+        color: hsl(var(--muted-foreground));
       }
-
-      /* Essential node network styles */
-      .node-network {
-        position: relative;
-        width: min(400px, 85vw);
-        height: min(300px, 60vh);
-        margin: 0 auto 2rem auto;
-      }
-
-      .node {
-        position: absolute;
-        width: 12px;
-        height: 12px;
+      
+      .loader-spinner {
+        width: 40px;
+        height: 40px;
+        margin: 2rem auto 0;
+        border: 3px solid hsl(var(--border));
+        border-top-color: hsl(var(--primary));
         border-radius: 50%;
-        background: hsl(var(--muted-foreground));
-        border: 2px solid hsl(var(--border));
-        transition: all 0.6s ease;
+        animation: spin 1s linear infinite;
       }
-
-      .node.center {
-        width: 20px;
-        height: 20px;
-        left: 50%;
-        top: 50%;
-        transform: translate(-50%, -50%);
-        background: hsl(var(--primary));
-        border-color: hsl(var(--primary));
-        z-index: 10;
-      }
-
-      .node.connected {
-        background: hsl(var(--primary));
-        border-color: hsl(var(--primary));
-        box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
-      }
-
-      .connection {
-        position: absolute;
-        height: 2px;
-        background: hsl(var(--border));
-        opacity: 0;
-        transition: background 0.4s ease, opacity 0.4s ease;
-        z-index: 5;
-        transform-origin: 0 50%;
-        will-change: transform, width, left, top;
-      }
-
-      .connection.active {
-        background: hsl(var(--primary));
-        opacity: 1;
-        box-shadow: 0 0 8px hsl(var(--primary) / 0.4);
-      }
-
-      /* Hide loader once React loads */
-      .app-loaded #app-loader {
-        pointer-events: none !important;
-      }
-
-      /* Node positioning and animations */
-      .node:nth-child(1):not(.connected) { left: 15%; top: 15%; animation: bigOscillate1 3.2s ease-in-out infinite; }
-      .node:nth-child(2):not(.connected) { left: 85%; top: 18%; animation: bigOscillate2 2.8s ease-in-out infinite; }
-      .node:nth-child(3):not(.connected) { left: 8%; top: 52%; animation: bigOscillate3 3.6s ease-in-out infinite; }
-      .node:nth-child(4):not(.connected) { left: 92%; top: 58%; animation: bigOscillate4 2.9s ease-in-out infinite; }
-      .node:nth-child(5):not(.connected) { left: 25%; top: 88%; animation: bigOscillate5 3.4s ease-in-out infinite; }
-      .node:nth-child(6):not(.connected) { left: 75%; top: 85%; animation: bigOscillate6 3.1s ease-in-out infinite; }
-      .node:nth-child(7):not(.connected) { left: 48%; top: 8%; animation: bigOscillate7 2.7s ease-in-out infinite; }
-      .node:nth-child(8):not(.connected) { left: 12%; top: 35%; animation: bigOscillate8 3.5s ease-in-out infinite; }
-      .node:nth-child(9):not(.connected) { left: 88%; top: 38%; animation: bigOscillate9 2.6s ease-in-out infinite; }
-
-      /* Static positions when connected */
-      .node:nth-child(1).connected { left: 15%; top: 15%; }
-      .node:nth-child(2).connected { left: 85%; top: 18%; }
-      .node:nth-child(3).connected { left: 8%; top: 52%; }
-      .node:nth-child(4).connected { left: 92%; top: 58%; }
-      .node:nth-child(5).connected { left: 25%; top: 88%; }
-      .node:nth-child(6).connected { left: 75%; top: 85%; }
-      .node:nth-child(7).connected { left: 48%; top: 8%; }
-      .node:nth-child(8).connected { left: 12%; top: 35%; }
-      .node:nth-child(9).connected { left: 88%; top: 38%; }
-
-      /* Center node pulse animation */
-      @keyframes centerPulse {
-        0%, 100% { 
-          transform: translate(-50%, -50%) scale(1);
-          box-shadow: 0 0 20px hsl(var(--primary) / 0.6);
-        }
-        50% { 
-          transform: translate(-50%, -50%) scale(1.3);
-          box-shadow: 0 0 30px hsl(var(--primary) / 0.8);
-        }
-      }
-
-      .node.center {
-        animation: centerPulse 2s ease-in-out infinite;
-      }
-
-      /* Neon yellow effect for completed network */
-      .node-network.neon-yellow .node {
-        background: hsl(var(--primary));
-        border-color: hsl(var(--primary));
-        box-shadow: 0 0 14px hsl(var(--primary) / 0.95), 0 0 34px hsl(var(--primary) / 0.6), 0 0 60px hsl(var(--primary) / 0.35);
-      }
-
-      .node-network.neon-yellow .node.center {
-        width: 22px;
-        height: 22px;
-        box-shadow: 0 0 20px hsl(var(--primary) / 1), 0 0 40px hsl(var(--primary) / 0.7), 0 0 80px hsl(var(--primary) / 0.45);
-      }
-
-      /* Animation keyframes */
-      @keyframes bigOscillate1 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        20% { transform: translate3d(min(15px, 3vw), min(-12px, -2.5vw), 0) rotate(8deg); }
-        40% { transform: translate3d(min(-8px, -1.5vw), min(18px, 3.5vw), 0) rotate(-6deg); }
-        60% { transform: translate3d(min(12px, 2.5vw), min(-6px, -1vw), 0) rotate(10deg); }
-        80% { transform: translate3d(min(-10px, -2vw), min(14px, 3vw), 0) rotate(-4deg); }
-      }
-
-      @keyframes bigOscillate2 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        25% { transform: translate3d(min(-14px, -3vw), min(10px, 2vw), 0) rotate(-8deg); }
-        50% { transform: translate3d(min(6px, 1vw), min(-16px, -3vw), 0) rotate(12deg); }
-        75% { transform: translate3d(min(-4px, -1vw), min(8px, 1.5vw), 0) rotate(-10deg); }
-      }
-
-      @keyframes bigOscillate3 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        15% { transform: translate3d(min(10px, 2vw), min(8px, 1.5vw), 0) rotate(6deg); }
-        35% { transform: translate3d(min(-12px, -2.5vw), min(-14px, -3vw), 0) rotate(-12deg); }
-        55% { transform: translate3d(min(-6px, -1vw), min(4px, 1vw), 0) rotate(4deg); }
-        75% { transform: translate3d(min(14px, 3vw), min(12px, 2.5vw), 0) rotate(8deg); }
-      }
-
-      @keyframes bigOscillate4 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        30% { transform: translate3d(min(-10px, -2vw), min(-8px, -1.5vw), 0) rotate(-6deg); }
-        60% { transform: translate3d(min(16px, 3vw), min(4px, 1vw), 0) rotate(10deg); }
-        80% { transform: translate3d(min(-4px, -1vw), min(12px, 2.5vw), 0) rotate(-8deg); }
-      }
-
-      @keyframes bigOscillate5 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        20% { transform: translate3d(min(8px, 1.5vw), min(-10px, -2vw), 0) rotate(4deg); }
-        45% { transform: translate3d(min(-14px, -3vw), min(6px, 1vw), 0) rotate(-10deg); }
-        70% { transform: translate3d(min(4px, 1vw), min(14px, 3vw), 0) rotate(6deg); }
-      }
-
-      @keyframes bigOscillate6 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        35% { transform: translate3d(min(-6px, -1vw), min(12px, 2.5vw), 0) rotate(-4deg); }
-        65% { transform: translate3d(min(12px, 2.5vw), min(-8px, -1.5vw), 0) rotate(8deg); }
-        85% { transform: translate3d(min(-16px, -3vw), min(-4px, -1vw), 0) rotate(-12deg); }
-      }
-
-      @keyframes bigOscillate7 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        25% { transform: translate3d(min(4px, 1vw), min(16px, 3vw), 0) rotate(2deg); }
-        50% { transform: translate3d(min(-10px, -2vw), min(-6px, -1vw), 0) rotate(-8deg); }
-        75% { transform: translate3d(min(14px, 3vw), min(2px, 0.5vw), 0) rotate(10deg); }
-      }
-
-      @keyframes bigOscillate8 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        18% { transform: translate3d(min(18px, 3.5vw), min(4px, 1vw), 0) rotate(12deg); }
-        42% { transform: translate3d(min(-8px, -1.5vw), min(-12px, -2.5vw), 0) rotate(-6deg); }
-        68% { transform: translate3d(min(2px, 0.5vw), min(16px, 3vw), 0) rotate(4deg); }
-        88% { transform: translate3d(min(-14px, -3vw), min(-2px, -0.5vw), 0) rotate(-10deg); }
-      }
-
-      @keyframes bigOscillate9 {
-        0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-        22% { transform: translate3d(min(-4px, -1vw), min(-14px, -3vw), 0) rotate(-8deg); }
-        44% { transform: translate3d(min(12px, 2.5vw), min(8px, 1.5vw), 0) rotate(6deg); }
-        66% { transform: translate3d(min(-16px, -3vw), min(2px, 0.5vw), 0) rotate(-12deg); }
-        88% { transform: translate3d(min(6px, 1vw), min(-10px, -2vw), 0) rotate(8deg); }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
       }
     </style>
-    
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss: data: blob:; media-src 'self' data: blob:; frame-src 'self' https://hot-labs.org; object-src 'none'; base-uri 'self'; form-action 'self' https:; frame-ancestors 'none';" />
-
-    <meta property="og:title" content="Stellar Multisig Wallet - Secure Multi-Signature Management" />
-    <meta property="og:description" content="Professional Stellar multisig wallet for secure multi-signature transaction management" />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@PamphileRoy" />
   </head>
 
   <body>
-    <!-- Critical hero content for immediate LCP -->
     <div id="app-loader">
-      <div class="hero-container">
-        <div class="hero-bg">
-        </div>
-        <div class="hero-content">
-          <div class="loader-content">
-            <div class="loader-title">Stratum</div>
-            <div class="loader-subtitle">Loading Stellar Multisig Wallet...</div>
-            <div class="node-network">
-              <!-- Outer nodes -->
-              <div class="node"></div>
-              <div class="node"></div>
-              <div class="node"></div>
-              <div class="node"></div>
-              <div class="node"></div>
-              <div class="node"></div>
-              <div class="node"></div>
-              <div class="node"></div>
-              <div class="node"></div>
-              
-              <!-- Center node -->
-              <div class="node center"></div>
-              
-              <!-- Connection lines from center to each outer node -->
-              <div class="connection"></div>
-              <div class="connection"></div>
-              <div class="connection"></div>
-              <div class="connection"></div>
-              <div class="connection"></div>
-              <div class="connection"></div>
-              <div class="connection"></div>
-              <div class="connection"></div>
-              <div class="connection"></div>
-            </div>
-          </div>
-        </div>
+      <div class="loader-content">
+        <div class="loader-title">Stratum</div>
+        <div class="loader-subtitle">Loading Stellar Multisig Wallet...</div>
+        <div class="loader-spinner"></div>
       </div>
     </div>
     
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     
-    <!-- Hide loader once React content loads -->
     <script>
-      // Smart loading system that adapts to actual load time
-      let animationComplete = false;
-      let reactReady = false;
-      let preloadComplete = false;
-
-      // Preload critical resources during animation
-      function preloadResources() {
-        const preloadPromises = [];
-        
-        // Preload critical fonts
-        if (document.fonts && document.fonts.load) {
-          preloadPromises.push(document.fonts.load('16px Inter'));
-          preloadPromises.push(document.fonts.load('600 20px Inter'));
-        }
-        
-        // Preload any critical images that might be used
-        const criticalImages = [
-          '/ledger-logo.png',
-          '/images/soroban-domains-logo.png',
-          '/xlm-logo.png'
-        ];
-        
-        criticalImages.forEach(src => {
-          const img = new Image();
-          img.src = src;
-          const promise = new Promise(resolve => {
-            img.onload = resolve;
-            img.onerror = resolve; // Don't fail if image doesn't exist
-          });
-          preloadPromises.push(promise);
-        });
-
-        // Complete preload after all resources or timeout
-        Promise.allSettled(preloadPromises).then(() => {
-          preloadComplete = true;
-        });
-        
-        // Fallback timeout for preload
-        setTimeout(() => {
-          preloadComplete = true;
-        }, 1000);
-      }
-
-      function setupNetworkAnimation() {
-        const container = document.querySelector('.node-network');
-        if (!container) return;
-        const center = container.querySelector('.node.center');
-        const nodes = Array.from(container.querySelectorAll('.node:not(.center)'));
-        const connections = Array.from(container.querySelectorAll('.connection'));
-        if (!center || nodes.length !== connections.length) return;
-
-        const getCenter = (el) => {
-          const cr = container.getBoundingClientRect();
-          const r = el.getBoundingClientRect();
-          return { x: r.left + r.width / 2 - cr.left, y: r.top + r.height / 2 - cr.top };
-        };
-
-        // Keep updating connection geometry throughout the whole sequence
-        let keepUpdating = true;
-        // Allow extra time for center neon scale so lines stay attached
-        setTimeout(() => { keepUpdating = false; }, 2200);
-
-        const updateConnections = () => {
-          const c = getCenter(center);
-          nodes.forEach((node, i) => {
-            const conn = connections[i];
-            if (!conn) return;
-            const n = getCenter(node);
-            const dx = n.x - c.x;
-            const dy = n.y - c.y;
-            const dist = Math.hypot(dx, dy);
-            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-            conn.style.left = `${c.x}px`;
-            conn.style.top = `${c.y}px`;
-            conn.style.transform = `rotate(${angle}deg)`;
-            conn.style.width = `${dist}px`;
-          });
-          if (keepUpdating) requestAnimationFrame(updateConnections);
-        };
-        requestAnimationFrame(updateConnections);
-
-        // 1.5s total animation - perfectly timed
-        let idx = 0;
-        const connectNext = () => {
-          if (idx >= nodes.length) {
-            // Check if we need to extend animation
-            if (!reactReady) {
-              // Extend with subtle pulse while waiting
-              container.classList.add('neon-yellow');
-              // Keep checking every 500ms
-              const checkReady = () => {
-                if (reactReady && preloadComplete) {
-                  animationComplete = true;
-                } else {
-                  setTimeout(checkReady, 200);
-                }
-              };
-              setTimeout(checkReady, 100);
-            } else {
-              animationComplete = true;
-              container.classList.add('neon-yellow');
-            }
-            return;
-          }
-          const node = nodes[idx];
-          const conn = connections[idx];
-          // Freeze node at its current absolute px position
-          const cr = container.getBoundingClientRect();
-          const r = node.getBoundingClientRect();
-          node.style.left = `${r.left - cr.left}px`;
-          node.style.top = `${r.top - cr.top}px`;
-          node.style.transform = 'translate(0, 0)';
-          node.classList.add('connected');
-          conn.classList.add('active');
-          idx += 1;
-          setTimeout(connectNext, 130); // 9 * 130ms = 1170ms
-        };
-
-        // Start timing: 200ms + 1170ms + 130ms = 1500ms (1.5s)
-        setTimeout(connectNext, 200);
-      }
-
-      // Start preloading and animation immediately
-      preloadResources();
-      setupNetworkAnimation();
-
-      // Handle hiding loader with smart timing
       document.addEventListener('DOMContentLoaded', function() {
         const root = document.getElementById('root');
         const loader = document.getElementById('app-loader');
-
-        const tryHide = () => {
-          if (root && root.children.length > 0) {
-            reactReady = true;
-            
-            // Only hide when both animation and preload are complete
-            const finalHide = () => {
-              if (animationComplete && preloadComplete) {
-                document.body.classList.add('app-loaded');
-                if (loader) {
-                  loader.classList.add('hidden');
-                  loader.style.transition = 'opacity 0.6s ease-out, transform 0.6s ease-out';
-                  loader.style.opacity = '0';
-                  loader.style.transform = 'translateZ(0) scale(1.02)';
-                  // Keep loader in DOM but invisible and non-interactive
-                  setTimeout(() => {
-                    loader.style.visibility = 'hidden';
-                  }, 600);
-                }
-                return true;
-              }
-              return false;
-            };
-
-            if (!finalHide()) {
-              // Check every 100ms until ready
-              const checkInterval = setInterval(() => {
-                if (finalHide()) {
-                  clearInterval(checkInterval);
-                }
-              }, 100);
-            }
+        
+        const hideLoader = () => {
+          if (root && root.children.length > 0 && loader) {
+            loader.classList.add('hidden');
             return true;
           }
           return false;
         };
-
-        if (!tryHide()) {
+        
+        if (!hideLoader()) {
           const observer = new MutationObserver(() => {
-            if (tryHide()) observer.disconnect();
+            if (hideLoader()) observer.disconnect();
           });
           if (root) observer.observe(root, { childList: true, subtree: true });
         }
-
-        // Absolute fallback - never get stuck
+        
+        // Fallback timeout
         setTimeout(() => {
-          reactReady = true;
-          animationComplete = true;
-          preloadComplete = true;
-          document.body.classList.add('app-loaded');
-          if (loader) {
-            loader.classList.add('hidden');
-            loader.style.transition = 'opacity 0.4s ease-out, transform 0.4s ease-out';
-            loader.style.opacity = '0';
-            loader.style.transform = 'translateZ(0) scale(1.02)';
-            setTimeout(() => {
-              loader.style.visibility = 'hidden';
-            }, 400);
-          }
-        }, 8000); // 8s absolute maximum
+          if (loader) loader.classList.add('hidden');
+        }, 8000);
       });
     </script>
   </body>
 </html>
-
