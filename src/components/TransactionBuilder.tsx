@@ -20,8 +20,7 @@ import {
   StrKey
 } from '@stellar/stellar-sdk';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
-import { signWithWallet } from '@/lib/stellar';
+import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase, signWithWallet } from '@/lib/stellar';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
@@ -585,39 +584,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
   };
 
 
-  const handleSignTransaction = async () => {
-    const xdrToSign = xdrData.output || xdrData.input;
-    if (!xdrToSign) {
-      toast({
-        title: "No transaction to sign",
-        description: "Please build or input a transaction first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSigning(true);
-
-    try {
-      const signedXdr = await signTransaction(xdrToSign);
-
-      setXdrData(prev => ({ ...prev, output: signedXdr }));
-
-      toast({
-        title: "Transaction signed",
-        description: "Transaction has been signed successfully",
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: "Signing failed",
-        description: error instanceof Error ? error.message : "Failed to sign transaction",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSigning(false);
-    }
-  };
+  // Note: Signing is handled through handleSignWithSigner which correctly passes walletId
 
   const handleSignWithSigner = async (signerKey: string, walletId: string) => {
     const xdrToSign = xdrData.output || xdrData.input;
