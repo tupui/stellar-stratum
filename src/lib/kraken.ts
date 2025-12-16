@@ -350,16 +350,30 @@ const setFiatLastFetchTime = (fromCurrency: string, toCurrency: string, timestam
   }
 };
 
-// Generate potential fiat pair names
-const generateFiatPairs = (fromCurrency: string, toCurrency: string): string[] => {
+// Generate potential fiat pair names (including reverse pairs)
+// Returns { pair, isReverse } to know if we need to invert the rate
+const generateFiatPairs = (fromCurrency: string, toCurrency: string): Array<{ pair: string; isReverse: boolean }> => {
   const from = fromCurrency.toUpperCase();
   const to = toCurrency.toUpperCase();
-  return [
-    `${from}${to}`,
-    `Z${from}Z${to}`,
-    `${from}Z${to}`,
-    `Z${from}${to}`
+  
+  // Forward pairs (USD→EUR means we want "how many EUR per USD")
+  const forward = [
+    { pair: `${from}${to}`, isReverse: false },
+    { pair: `Z${from}Z${to}`, isReverse: false },
+    { pair: `${from}Z${to}`, isReverse: false },
+    { pair: `Z${from}${to}`, isReverse: false }
   ];
+  
+  // Reverse pairs (EUR→USD, we'll need to invert: 1/rate)
+  // Kraken typically has EURUSD, GBPUSD etc. where rate = "how many USD per 1 EUR"
+  const reverse = [
+    { pair: `${to}${from}`, isReverse: true },
+    { pair: `Z${to}Z${from}`, isReverse: true },
+    { pair: `${to}Z${from}`, isReverse: true },
+    { pair: `Z${to}${from}`, isReverse: true }
+  ];
+  
+  return [...forward, ...reverse];
 };
 
 // Fetch full year of OHLC data for a fiat pair
@@ -372,13 +386,13 @@ const fetchFullYearForFiatPair = async (fromCurrency: string, toCurrency: string
   
   const supportedPairs = await getSupportedPairs();
   const potentialPairs = generateFiatPairs(fromCurrency, toCurrency);
-  const validPairs = potentialPairs.filter(pair => supportedPairs.has(pair));
+  const validPairs = potentialPairs.filter(p => supportedPairs.has(p.pair));
   
   if (validPairs.length === 0) {
     return;
   }
 
-  for (const pair of validPairs) {
+  for (const { pair, isReverse } of validPairs) {
     try {
       const url = `${baseUrl}?pair=${encodeURIComponent(pair)}&interval=1440&since=${since}`;
       const resp = await runLimited(() => fetch(url, { mode: 'cors' as RequestMode }));
@@ -401,8 +415,16 @@ const fetchFullYearForFiatPair = async (fromCurrency: string, toCurrency: string
       let dataPoints = 0;
       for (const row of arr) {
         const ts = row[0];
-        const close = Number(row[4]);
-        if (!Number.isFinite(close)) continue;
+        let close = Number(row[4]);
+        if (!Number.isFinite(close) || close === 0) continue;
+        
+        // If this is a reverse pair, invert the rate
+        // e.g., EURUSD = 1.05 means 1 EUR = 1.05 USD
+        // We want USD→EUR rate = 1/1.05 = 0.952 EUR per USD
+        if (isReverse) {
+          close = 1 / close;
+        }
+        
         const key = toDateKey(new Date(ts * 1000));
         cache[key] = close;
         dataPoints++;
