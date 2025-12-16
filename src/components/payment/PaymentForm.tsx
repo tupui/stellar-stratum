@@ -1293,7 +1293,7 @@ export const PaymentForm = ({
                   onClick={handleSaveEdit} 
                   disabled={!isFormValid()} 
                   size="mobile"
-                  className="flex-1 min-w-0 bg-gradient-primary hover:opacity-90 disabled:opacity-50"
+                  className="flex-1 min-w-0 !bg-stellar-yellow !text-black hover:!bg-stellar-yellow/90 disabled:opacity-50"
                 >
                   <span className="truncate">Save Changes</span>
                 </Button>

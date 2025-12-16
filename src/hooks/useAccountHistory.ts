@@ -232,12 +232,10 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
         }
 
         // Fetch fresh data using Horizon (payments + selected operations)
-        console.log('Fetching transactions via Horizon for account:', publicKey, 'network:', network);
         const [paymentsResp, opsResp] = await Promise.all([
           fetchAccountPayments(publicKey, network, undefined, INITIAL_LIMIT),
           fetchAccountOperations(publicKey, network, undefined, INITIAL_LIMIT),
         ]);
-        console.log('Horizon responses received');
         
         const normalizedTransactions: NormalizedTransaction[] = [];
 
@@ -263,16 +261,13 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
         const opsCursor = opRecords.length ? opRecords[opRecords.length - 1].paging_token : '';
         const combinedCursor = `p:${paymentsCursor}|o:${opsCursor}`;
         setCursor(combinedCursor);
-        console.log('Set combined cursor:', combinedCursor);
         
         const horizonHasMore = (paymentRecords.length === INITIAL_LIMIT) || (opRecords.length === INITIAL_LIMIT);
         setHasMore(horizonHasMore);
-        console.log('Has more transactions (Horizon):', horizonHasMore);
 
         const now = new Date();
         setTransactions(normalizedTransactions);
         setLastSync(now);
-        console.log('Set', normalizedTransactions.length, 'transactions in state (Horizon)');
 
         // Save to cache immediately after each batch
         if (normalizedTransactions.length > 0) {

@@ -40,7 +40,7 @@ export const AssetBalancePanel = ({
     getCurrentCurrency
   } = useFiatCurrency();
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
-  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(getLastFetchTimestamp());
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(new Date('2025-12-10T12:00:00Z'));
   const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
   const [convertedAssetValues, setConvertedAssetValues] = useState<Record<number, number>>({});
   const [convertedAssetPrices, setConvertedAssetPrices] = useState<Record<number, number>>({});

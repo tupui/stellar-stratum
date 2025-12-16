@@ -46,28 +46,52 @@ export const useFiatConversion = (): FiatConversionHook => {
 
   const convertXLMToFiat = useCallback(async (xlmAmount: number): Promise<number> => {
     try {
+      // Validate input
+      if (!Number.isFinite(xlmAmount) || xlmAmount < 0) {
+        return 0;
+      }
+
       // Get current XLM/USD rate from oracle
       const xlmToUsdRate = await getAssetPrice('XLM');
+      if (!Number.isFinite(xlmToUsdRate) || xlmToUsdRate <= 0) {
+        return 0;
+      }
+
       const usdAmount = xlmAmount * xlmToUsdRate;
+      if (!Number.isFinite(usdAmount)) {
+        return 0;
+      }
 
       if (quoteCurrency === 'USD') {
         return usdAmount;
       }
 
-      if (exchangeRate) {
+      if (exchangeRate && Number.isFinite(exchangeRate) && exchangeRate > 0) {
         // exchangeRate is USD per 1 unit of target currency, so divide to convert USD to target
-        return usdAmount / exchangeRate;
+        const converted = usdAmount / exchangeRate;
+        return Number.isFinite(converted) ? converted : usdAmount;
       }
 
       // If no rate available, return USD amount
       return usdAmount;
     } catch (err) {
-      throw new Error('Failed to convert XLM to fiat');
+      // Return 0 on error instead of throwing to prevent UI crashes
+      return 0;
     }
   }, [quoteCurrency, exchangeRate]);
 
   const formatFiatAmount = useCallback((amount: number): string => {
     const currency = getCurrentCurrency();
+    
+    // Validate input
+    if (!Number.isFinite(amount) || amount < 0) {
+      return `${currency.symbol}0.00`;
+    }
+
+    // Handle very large numbers
+    if (amount > Number.MAX_SAFE_INTEGER) {
+      return `${currency.symbol}∞`;
+    }
     
     try {
       return new Intl.NumberFormat('en-US', {

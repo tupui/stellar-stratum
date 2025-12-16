@@ -633,7 +633,7 @@ export const MultisigConfigBuilder = ({
           <Button 
             onClick={buildTransaction}
             disabled={!validation.isValid || isBuilding}
-            className="bg-gradient-primary hover:opacity-90"
+            className="!bg-stellar-yellow !text-black hover:!bg-stellar-yellow/90"
           >
             {isBuilding ? (
               <div className="flex items-center gap-2">

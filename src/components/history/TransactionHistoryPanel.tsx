@@ -352,7 +352,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     };
 
     applyFxConversion();
-  }, [quoteCurrency, network, usdAmounts.size, transactions]); // Re-run when USD amounts size changes or transactions change
+  }, [quoteCurrency, network, usdAmounts, transactions]); // Re-run when USD amounts or transactions change
 
   // Convert portfolio value to selected fiat currency
   useEffect(() => {

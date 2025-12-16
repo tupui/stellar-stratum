@@ -167,7 +167,25 @@ export const getFxRate = async (targetCurrency: string, network: 'mainnet' | 'te
 // Convert an amount in USD to the target currency using USD-per-target quote
 // If rate is USD per 1 target unit (e.g., EURUSD), then target = USD / rate
 export const convertFromUSD = async (usdAmount: number, targetCurrency: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<number> => {
-  const rate = await getFxRate(targetCurrency, network);
-  if (!rate) return usdAmount; // fallback: return USD amount if no rate
-  return usdAmount / rate;
+  // Validate input
+  if (!Number.isFinite(usdAmount) || usdAmount < 0) {
+    return 0;
+  }
+
+  if (targetCurrency === 'USD') {
+    return usdAmount;
+  }
+
+  try {
+    const rate = await getFxRate(targetCurrency, network);
+    if (!rate || !Number.isFinite(rate) || rate <= 0) {
+      return usdAmount; // fallback: return USD amount if no valid rate
+    }
+    
+    const converted = usdAmount / rate;
+    return Number.isFinite(converted) ? converted : usdAmount;
+  } catch (error) {
+    // Return USD amount on error as fallback
+    return usdAmount;
+  }
 };

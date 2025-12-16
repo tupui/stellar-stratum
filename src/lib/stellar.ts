@@ -99,14 +99,7 @@ export const connectWallet = async (walletId: string, network: 'mainnet' | 'test
     // Set the selected wallet generically
     kit.setWallet(walletId);
 
-    // Try explicit connect when supported by wallet module
-    try {
-      if (typeof (kit as any).connect === 'function') {
-        await (kit as any).connect();
-      }
-    } catch {
-      // Some wallets don't require connect, continue
-    }
+    await tryConnectWallet(kit);
 
     // Request address (triggers permission prompt and account selection for hardware wallets)
     const { address } = await kit.getAddress();
@@ -214,13 +207,94 @@ export const getSupportedWallets = async (network: 'mainnet' | 'testnet' = 'main
   }
 };
 
-export const signTransaction = async (xdr: string): Promise<string> => {
+// Helper function to try connecting wallet (some wallets support explicit connect)
+const tryConnectWallet = async (kit: StellarWalletsKit): Promise<void> => {
+  if (typeof (kit as any).connect === 'function') {
+    try {
+      await (kit as any).connect();
+    } catch {
+      // Some wallets don't require connect, continue
+    }
+  }
+};
+
+// Helper function to sign transaction with Ledger module using nonBlindTx
+const signWithLedgerModule = async (
+  kit: StellarWalletsKit,
+  xdr: string,
+  address: string
+): Promise<string> => {
+  const selectedModule = (kit as any).selectedModule;
+  const networkResult = await kit.getNetwork();
+  
+  if (selectedModule && typeof selectedModule.signTransaction === 'function') {
+    const result = await selectedModule.signTransaction(xdr, {
+      networkPassphrase: networkResult.networkPassphrase,
+      address,
+      nonBlindTx: true
+    });
+    return result.signedTxXdr;
+  } else {
+    // Fallback to regular signing if module access fails
+    const result = await kit.signTransaction(xdr);
+    return result.signedTxXdr;
+  }
+};
+
+export const signTransaction = async (
+  xdr: string,
+  walletId: string,
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): Promise<string> => {
   try {
-    const { signedTxXdr } = await stellarKit.signTransaction(xdr);
-    return signedTxXdr;
+    const kit = createStellarKit(network);
+    kit.setWallet(walletId);
+    
+    await tryConnectWallet(kit);
+    const { address } = await kit.getAddress();
+    
+    // Auto-detect Ledger wallet and enable clear signing (nonBlindTx)
+    const isLedger = walletId.toLowerCase().includes('ledger');
+    
+    if (isLedger) {
+      return await signWithLedgerModule(kit, xdr, address);
+    } else {
+      // For non-Ledger wallets, use standard signing
+      const result = await kit.signTransaction(xdr);
+      return result.signedTxXdr;
+    }
   } catch (error) {
     throw new Error('Failed to sign transaction');
   }
+};
+
+export const signWithWallet = async (
+  xdr: string,
+  walletId: string,
+  network: 'mainnet' | 'testnet'
+): Promise<{ signedXdr: string; address: string; walletName: string }> => {
+  const kit = createStellarKit(network);
+  kit.setWallet(walletId);
+
+  await tryConnectWallet(kit);
+  const { address } = await kit.getAddress();
+  
+  // Auto-detect Ledger wallet and enable clear signing (nonBlindTx)
+  const isLedger = walletId.toLowerCase().includes('ledger');
+  
+  let signedTxXdr: string;
+  if (isLedger) {
+    signedTxXdr = await signWithLedgerModule(kit, xdr, address);
+  } else {
+    // For non-Ledger wallets, use standard signing
+    const result = await kit.signTransaction(xdr);
+    signedTxXdr = result.signedTxXdr;
+  }
+
+  const supported = await kit.getSupportedWallets();
+  const info = supported.find(w => w.id === walletId);
+
+  return { signedXdr: signedTxXdr, address, walletName: info?.name || walletId };
 };
 
 export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<any> => {

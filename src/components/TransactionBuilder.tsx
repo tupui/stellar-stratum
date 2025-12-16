@@ -21,7 +21,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { signTransaction, submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
-import { signWithWallet } from '@/lib/walletKit';
+import { signWithWallet } from '@/lib/stellar';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
@@ -597,12 +597,12 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
     }
 
     setIsSigning(true);
-    
+
     try {
       const signedXdr = await signTransaction(xdrToSign);
-      
+
       setXdrData(prev => ({ ...prev, output: signedXdr }));
-      
+
       toast({
         title: "Transaction signed",
         description: "Transaction has been signed successfully",

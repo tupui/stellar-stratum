@@ -62,7 +62,10 @@ export const resolveSorobanDomain = async (
       return { error: 'Domain not found', success: false };
     }
   } catch (error: any) {
-    console.error('Soroban domain resolution error:', error);
+    // Log error in development only
+    if (import.meta.env.DEV) {
+      console.error('Soroban domain resolution error:', error);
+    }
     let errorMessage = 'Failed to resolve domain';
     
     // Check for specific error types

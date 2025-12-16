@@ -81,7 +81,7 @@ export const LandingPage = ({
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center items-center w-full max-w-md sm:max-w-none mx-auto animate-fade-in">
             <Button 
               size="lg" 
-              className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 md:px-12 text-sm sm:text-base md:text-lg font-semibold bg-stellar-yellow text-black hover:bg-stellar-yellow/90 transition-all duration-300 hover:scale-105 hover-scale" 
+              className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 md:px-12 text-sm sm:text-base md:text-lg font-semibold !bg-stellar-yellow !text-black hover:!bg-stellar-yellow/90 transition-all duration-300 hover:scale-105 hover-scale" 
               onClick={() => setShowWalletModal(true)}
             >
               Connect wallet

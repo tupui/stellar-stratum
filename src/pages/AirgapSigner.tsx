@@ -11,7 +11,7 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractXdrFromData } from '@/lib/sep7';
 import { tryParseTransaction } from '@/lib/xdr/parse';
-import { signWithWallet } from '@/lib/walletKit';
+import { signWithWallet } from '@/lib/stellar';
 
 export const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();

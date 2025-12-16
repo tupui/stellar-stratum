@@ -226,7 +226,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
             </div>
             <Button 
               onClick={onInitiateTransaction} 
-              className="bg-gradient-primary hover:opacity-90 w-full sm:w-auto text-sm sm:text-base"
+              className="!bg-stellar-yellow !text-black hover:!bg-stellar-yellow/90 w-full sm:w-auto text-sm sm:text-base"
             >
               <span className="sm:hidden">Create Transaction</span>
               <span className="hidden sm:inline">Initiate Multisig Transaction</span>

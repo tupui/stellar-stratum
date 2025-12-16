@@ -9,8 +9,8 @@ export const useDeepMemo = <T>(
   factory: () => T,
   deps: DependencyList
 ): T => {
-  const depsRef = useRef<DependencyList>();
-  const valueRef = useRef<T>();
+  const depsRef = useRef<DependencyList | undefined>(undefined);
+  const valueRef = useRef<T | undefined>(undefined);
 
   return useMemo(() => {
     const depsChanged = !depsRef.current || 
@@ -46,7 +46,16 @@ export const useMemoWithCleanup = <T>(
   cleanup: (value: T) => void,
   deps: DependencyList
 ): T => {
-  const valueRef = useRef<T>();
+  const valueRef = useRef<T | undefined>(undefined);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (valueRef.current !== undefined) {
+        cleanup(valueRef.current);
+      }
+    };
+  }, []);
 
   return useMemo(() => {
     // Clean up previous value if it exists
@@ -66,7 +75,7 @@ export const useAsyncMemo = <T>(
   initialValue: T
 ): T => {
   const [value, setValue] = useState<T>(initialValue);
-  const lastDeps = useRef<DependencyList>();
+  const lastDeps = useRef<DependencyList | undefined>(undefined);
 
   useEffect(() => {
     const depsChanged = !lastDeps.current || 

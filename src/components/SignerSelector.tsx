@@ -10,7 +10,7 @@ import { Transaction, TransactionBuilder as StellarTransactionBuilder, StrKey } 
 import { getSupportedWallets, getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
-import { signWithWallet } from '@/lib/walletKit';
+import { signWithWallet } from '@/lib/stellar';
 
 interface Signer {
   key: string;

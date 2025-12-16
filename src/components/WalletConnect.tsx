@@ -35,7 +35,7 @@ export const WalletConnect = ({
   const [loading, setLoading] = useState(true);
   const [manualAddress, setManualAddress] = useState('');
   const [activeInput, setActiveInput] = useState<'manual' | 'soroban' | null>(null);
-  const [sorobanDomain, setSorobanDomain] = useState('');
+  const [sorobanDomain, setSorobanDomain] = useState('tansu');
   const [resolvingDomain, setResolvingDomain] = useState(false);
   const [showMoreWallets, setShowMoreWallets] = useState(false);
   const {

@@ -19,7 +19,7 @@ All colors MUST be HSL.
     --popover: 220 13% 11%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 45 100% 60%;
+    --primary: 48 96% 53%;
     --primary-foreground: 220 13% 9%;
 
     --secondary: 220 13% 15%;
@@ -95,7 +95,7 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 45 100% 60%;
+    --primary: 48 96% 53%;
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -204,11 +204,12 @@ All colors MUST be HSL.
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
 
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     font-display: swap;
     font-optical-sizing: auto;
@@ -232,13 +233,19 @@ All colors MUST be HSL.
 @layer components {
   /* Currency symbol styling with premium fonts */
   .currency-symbol {
-    @apply text-primary text-2xl font-bold;
+    color: hsl(var(--primary));
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
     font-feature-settings: 'ss01' on, 'cv01' on;
   }
   
   .currency-symbol-large {
-    @apply text-primary text-3xl font-bold;
+    color: hsl(var(--primary));
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
     font-feature-settings: 'ss01' on, 'cv01' on;
   }
@@ -700,12 +707,14 @@ All colors MUST be HSL.
 
   /* Enhanced button styles with glow */
   .btn-primary-glow {
-    @apply bg-primary text-primary-foreground transition-all duration-300 ease-out;
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    transition: all 300ms ease-out;
     box-shadow: 0 2px 8px hsl(var(--primary) / 0.2);
   }
 
   .btn-primary-glow:hover {
-    @apply bg-primary/90;
+    background-color: hsl(var(--primary) / 0.9);
     box-shadow: 0 0 30px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.2);
     animation: glow-pulse 1s ease-in-out;
   }
@@ -715,12 +724,14 @@ All colors MUST be HSL.
   }
 
   .btn-success-glow {
-    @apply bg-success text-success-foreground transition-all duration-300 ease-out;
+    background-color: hsl(var(--success));
+    color: hsl(var(--success-foreground));
+    transition: all 300ms ease-out;
     box-shadow: 0 2px 8px hsl(var(--success) / 0.2);
   }
 
   .btn-success-glow:hover {
-    @apply bg-success/90;
+    background-color: hsl(var(--success) / 0.9);
     box-shadow: 0 0 30px hsl(var(--success) / 0.4), 0 0 60px hsl(var(--success) / 0.2);
     animation: glow-pulse-purple 1s ease-in-out;
   }
