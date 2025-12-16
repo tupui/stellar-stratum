@@ -95,5 +95,11 @@
   },
   "browser": {
     "usb": false
+  },
+  "optionalDependencies": {
+    "usb": "^2.16.0"
+  },
+  "overrides": {
+    "usb": "npm:empty-npm-package@1.0.0"
   }
 }
