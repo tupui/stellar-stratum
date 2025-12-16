@@ -10,7 +10,7 @@ interface DeepLinkHandlerProps {
 
 export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
   const location = useLocation();
-  
+
   const { toast } = useToast();
 
   useEffect(() => {

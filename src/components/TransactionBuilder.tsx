@@ -713,7 +713,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
       const xdr = await pullFromRefractor(id);
       setXdrData(prev => ({ ...prev, input: xdr, output: '' }));
       setSignedBy([]);
-      
+
       toast({
         title: "Transaction pulled from Refractor",
         description: "XDR loaded successfully",

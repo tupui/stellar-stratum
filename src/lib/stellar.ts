@@ -312,9 +312,9 @@ export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 
 // Refractor integration functions
 export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testnet'): Promise<string> => {
   try {
-    const apiNetwork = network === 'testnet' ? 'testnet' : 'public';
-    
-    
+    // Always use mainnet for Refractor regardless of the network parameter
+    const apiNetwork = 'public';
+
     const response = await fetch(`${appConfig.REFRACTOR_API_BASE}`, {
       method: 'POST',
       headers: {
