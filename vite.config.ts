@@ -73,6 +73,8 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Stub out native 'usb' module - not needed in browser (uses WebUSB instead)
+      "usb": path.resolve(__dirname, "./src/lib/empty-module.ts"),
     },
     dedupe: ["react", "react-dom"],
   },
