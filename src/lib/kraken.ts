@@ -304,15 +304,41 @@ export const getUsdRateForDateByAsset = async (asset: string, date: Date, cacheO
 // XLM helpers removed - use getUsdRateForDateByAsset('XLM', ...) directly
 
 // Fiat pair helpers
+// Cache version v2 - invalidates stale FX data with wrong rates
+const FIAT_CACHE_VERSION = 'v2';
+
 const getFiatCacheKeys = (fromCurrency: string, toCurrency: string) => {
   const pair = `${fromCurrency}${toCurrency}`.toUpperCase();
   return {
-    cacheKey: `kraken_fx_${pair}_ohlc_daily_v1`,
-    lastFetchKey: `kraken_fx_${pair}_last_fetch_v1`
+    cacheKey: `kraken_fx_${pair}_ohlc_daily_${FIAT_CACHE_VERSION}`,
+    lastFetchKey: `kraken_fx_${pair}_last_fetch_${FIAT_CACHE_VERSION}`
   };
 };
 
+// One-time migration to clear old v1 FX caches
+const clearOldFxCaches = (() => {
+  let done = false;
+  return () => {
+    if (done) return;
+    done = true;
+    const migrationKey = 'kraken_fx_cache_migrated_v2';
+    if (localStorage.getItem(migrationKey)) return;
+    
+    // Clear all old v1 FX caches
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('kraken_fx_') && key.includes('_v1')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    localStorage.setItem(migrationKey, String(Date.now()));
+  };
+})();
+
 const loadFiatCache = (fromCurrency: string, toCurrency: string): DailyMap => {
+  clearOldFxCaches(); // Run migration on first access
   try {
     const { cacheKey } = getFiatCacheKeys(fromCurrency, toCurrency);
     const raw = localStorage.getItem(cacheKey);
