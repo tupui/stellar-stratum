@@ -14,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useRequestDeduplication } from '@/hooks/useRequestDeduplication';
-import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 
 interface AccountData {
   publicKey: string;
@@ -49,9 +48,6 @@ const Index = memo(() => {
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>('');
   const [deepLinkReady, setDeepLinkReady] = useState(false);
-
-  // Performance monitoring for development
-  usePerformanceMonitor('Index');
 
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
 
