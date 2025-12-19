@@ -46,23 +46,25 @@ const Index = memo(() => {
   const [connectedWallet, setConnectedWallet] = useState<string>('');
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [publicKey, setPublicKey] = useState<string>('');
+  const [publicKey, setPublicKey] = useState<string>(''); // Connected wallet's public key (signer)
+  const [sourceAccount, setSourceAccount] = useState<string>(''); // Source account for transactions (editable)
   const [deepLinkReady, setDeepLinkReady] = useState(false);
 
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
 
 
   // Optimized account data fetching with deduplication
-  const handleDeepLinkLoaded = useCallback(async (sourceAccount: string) => {
+  const handleDeepLinkLoaded = useCallback(async (xdrSourceAccount: string) => {
     // Load account data from the XDR's source account
-    setPublicKey(sourceAccount);
+    setSourceAccount(xdrSourceAccount);
+    setPublicKey(xdrSourceAccount); // Set as initial signer if no wallet connected
     setLoading(true);
     
     try {
       // Use dedupe to prevent duplicate requests for same account
       const realAccountData = await dedupe(
-        `account-${sourceAccount}-${network}`,
-        () => fetchAccountData(sourceAccount, network)
+        `account-${xdrSourceAccount}-${network}`,
+        () => fetchAccountData(xdrSourceAccount, network)
       );
       setAccountData(realAccountData);
       setDeepLinkReady(true);
@@ -86,9 +88,10 @@ const Index = memo(() => {
     }
   }, [network, dedupe, toast]);
 
-  const handleWalletConnect = useCallback(async (walletType: string, publicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
+  const handleWalletConnect = useCallback(async (walletType: string, walletPublicKey: string, selectedNetwork: 'mainnet' | 'testnet') => {
     setConnectedWallet(walletType);
-    setPublicKey(publicKey);
+    setPublicKey(walletPublicKey);
+    setSourceAccount(walletPublicKey); // Default source account to connected wallet
     setNetwork(selectedNetwork);
     setLoading(true);
     
@@ -98,6 +101,11 @@ const Index = memo(() => {
     // Immediately switch to appropriate state for better perceived performance
     const deepLinkXdr = sessionStorage.getItem('deeplink-xdr');
     if (deepLinkXdr) {
+      // If there's a deep link, use its source account
+      const deepLinkSourceAccount = sessionStorage.getItem('deeplink-source-account');
+      if (deepLinkSourceAccount) {
+        setSourceAccount(deepLinkSourceAccount);
+      }
       setDeepLinkReady(true);
       setAppState('transaction');
     } else {
@@ -108,10 +116,11 @@ const Index = memo(() => {
     // Defer account data fetching to not block TTI
     setTimeout(async () => {
       try {
-        // Use regular version for consistency with transaction history revert
+        // Fetch account data for the source account (may differ from connected wallet with deep links)
+        const accountToFetch = sessionStorage.getItem('deeplink-source-account') || walletPublicKey;
         const realAccountData = await dedupe(
-          `account-${publicKey}-${selectedNetwork}`,
-          () => fetchAccountData(publicKey, selectedNetwork)
+          `account-${accountToFetch}-${selectedNetwork}`,
+          () => fetchAccountData(accountToFetch, selectedNetwork)
         );
         setAccountData(realAccountData);
         setLoading(false);
@@ -149,20 +158,52 @@ const Index = memo(() => {
   const handleDisconnect = useCallback(() => {
     setConnectedWallet('');
     setPublicKey('');
+    setSourceAccount('');
     setAccountData(null);
     setDeepLinkReady(false);
     setAppState('connecting');
   }, []);
 
-  // Memoized account refresh function
+  // Handler for when user changes the source account
+  const handleSourceAccountChange = useCallback(async (newSourceAccount: string) => {
+    if (!newSourceAccount || newSourceAccount === sourceAccount) return;
+    
+    setSourceAccount(newSourceAccount);
+    setLoading(true);
+    
+    try {
+      const realAccountData = await dedupe(
+        `account-${newSourceAccount}-${network}`,
+        () => fetchAccountData(newSourceAccount, network)
+      );
+      setAccountData(realAccountData);
+      toast({
+        title: 'Source Account Updated',
+        description: 'Account data loaded for new source account',
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Failed to load source account:', error);
+      toast({
+        title: 'Failed to load account',
+        description: error instanceof Error ? error.message : 'Could not load account data',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [sourceAccount, network, dedupe, toast]);
+
+  // Memoized account refresh function - uses sourceAccount for transactions
   const handleAccountRefresh = useCallback(async () => {
-    if (!publicKey) return;
+    const accountToRefresh = sourceAccount || publicKey;
+    if (!accountToRefresh) return;
     const realAccountData = await dedupe(
-      `account-${publicKey}-${network}`,
-      () => fetchAccountData(publicKey, network)
+      `account-${accountToRefresh}-${network}`,
+      () => fetchAccountData(accountToRefresh, network)
     );
     setAccountData(realAccountData);
-  }, [publicKey, network, dedupe]);
+  }, [sourceAccount, publicKey, network, dedupe]);
 
   return (
     <FiatCurrencyProvider>
@@ -185,12 +226,14 @@ const Index = memo(() => {
               </div>
             }>
               <TransactionBuilder
-                key={`${appState}-${publicKey}`}
+                key={`${appState}-${sourceAccount}`}
                 onBack={handleBackToDashboard}
-                accountPublicKey={publicKey || ''}
+                accountPublicKey={sourceAccount || publicKey || ''}
+                signerPublicKey={publicKey}
                 accountData={accountData}
                 initialTab={appState === 'multisig-config' ? 'multisig' : (deepLinkReady ? 'import' : 'payment')}
                 onAccountRefresh={handleAccountRefresh}
+                onSourceAccountChange={handleSourceAccountChange}
               />
             </Suspense>
           )}
