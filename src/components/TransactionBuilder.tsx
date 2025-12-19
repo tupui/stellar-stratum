@@ -34,6 +34,7 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { PaymentForm } from './payment/PaymentForm';
 import { ImportTab } from './ImportTab';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
+import { SourceAccountSelector } from './SourceAccountSelector';
 
 
 interface PaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; memo?: string }
@@ -42,7 +43,8 @@ interface PathPaymentData { destination: string; amount: string; asset: string; 
 
 interface TransactionBuilderProps {
   onBack: () => void;
-  accountPublicKey: string;
+  accountPublicKey: string; // Source account for transactions (editable)
+  signerPublicKey?: string; // Connected wallet's public key (signer)
   accountData: {
     balances: Array<{
       asset_type: string;
@@ -65,9 +67,10 @@ interface TransactionBuilderProps {
   pendingId?: string;
   initialXdr?: string;
   onAccountRefresh?: () => Promise<void>;
+  onSourceAccountChange?: (newSourceAccount: string) => void;
 }
 
-export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, initialTab = 'payment', pendingId, initialXdr, onAccountRefresh }: TransactionBuilderProps) => {
+export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, accountData, initialTab = 'payment', pendingId, initialXdr, onAccountRefresh, onSourceAccountChange }: TransactionBuilderProps) => {
   const { toast } = useToast();
   const { network: currentNetwork, setNetwork: setCurrentNetwork } = useNetwork();
   const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
@@ -859,17 +862,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, accountData, init
           </div>
         </div>
 
-        {/* Source Account Info - Only show when account is connected */}
-        {accountPublicKey && accountData && (
+        {/* Source Account Selector - Editable */}
+        {accountData && (
           <Card className="shadow-card">
             <CardContent className="pt-4 sm:pt-6">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="min-w-0 flex-1">
-                  <Label className="text-sm text-muted-foreground">Source Account</Label>
-                  <p className="font-address text-xs sm:text-sm mt-1 break-all">{accountPublicKey}</p>
-                </div>
-                <Badge variant="outline" className="shrink-0">Connected</Badge>
-              </div>
+              <SourceAccountSelector
+                sourceAccount={accountPublicKey}
+                connectedWalletKey={signerPublicKey || ''}
+                onSourceAccountChange={(newAccount) => onSourceAccountChange?.(newAccount)}
+                network={currentNetwork}
+              />
             </CardContent>
           </Card>
         )}
