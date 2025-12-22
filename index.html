@@ -74,6 +74,7 @@
         --background: 220 13% 9%;
         --foreground: 210 40% 98%;
         --primary: 48 96% 53%;
+        --stellar-yellow: 45 100% 60%;
         --muted: 220 13% 15%;
         --muted-foreground: 217 12% 72%;
         --border: 220 13% 26%;
@@ -122,18 +123,148 @@
         color: hsl(var(--muted-foreground));
       }
       
-      .loader-spinner {
-        width: 40px;
-        height: 40px;
+      /* Node network animation */
+      .node-network {
+        width: 200px;
+        height: 200px;
+        position: relative;
         margin: 2rem auto 0;
-        border: 3px solid hsl(var(--border));
-        border-top-color: hsl(var(--primary));
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
       }
       
-      @keyframes spin {
-        to { transform: rotate(360deg); }
+      .node {
+        width: 12px;
+        height: 12px;
+        background: hsl(var(--stellar-yellow));
+        border-radius: 50%;
+        position: absolute;
+        opacity: 0.6;
+        box-shadow: 0 0 10px hsl(var(--stellar-yellow) / 0.5);
+        transition: all 0.3s ease-out;
+      }
+      
+      .node.center {
+        width: 20px;
+        height: 20px;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 1;
+        background: hsl(var(--stellar-yellow));
+        box-shadow: 0 0 20px hsl(var(--stellar-yellow) / 0.8);
+        animation: centerPulse 2s ease-in-out infinite;
+      }
+      
+      .node.connected {
+        opacity: 1;
+        box-shadow: 0 0 15px hsl(var(--stellar-yellow) / 0.8);
+      }
+      
+      .node.neon-yellow {
+        box-shadow: 
+          0 0 10px hsl(var(--stellar-yellow)),
+          0 0 20px hsl(var(--stellar-yellow) / 0.8),
+          0 0 30px hsl(var(--stellar-yellow) / 0.6),
+          0 0 40px hsl(var(--stellar-yellow) / 0.4);
+      }
+      
+      /* Outer nodes positioned in a circle */
+      .node:nth-child(1) { left: 50%; top: 0; transform: translate(-50%, 0); animation: bigOscillate1 3s ease-in-out infinite; }
+      .node:nth-child(2) { left: 85%; top: 15%; transform: translate(-50%, -50%); animation: bigOscillate2 3.2s ease-in-out infinite; }
+      .node:nth-child(3) { left: 100%; top: 50%; transform: translate(-100%, -50%); animation: bigOscillate3 2.8s ease-in-out infinite; }
+      .node:nth-child(4) { left: 85%; top: 85%; transform: translate(-50%, -50%); animation: bigOscillate4 3.1s ease-in-out infinite; }
+      .node:nth-child(5) { left: 50%; top: 100%; transform: translate(-50%, -100%); animation: bigOscillate5 2.9s ease-in-out infinite; }
+      .node:nth-child(6) { left: 15%; top: 85%; transform: translate(-50%, -50%); animation: bigOscillate6 3.3s ease-in-out infinite; }
+      .node:nth-child(7) { left: 0; top: 50%; transform: translate(0, -50%); animation: bigOscillate7 3s ease-in-out infinite; }
+      .node:nth-child(8) { left: 15%; top: 15%; transform: translate(-50%, -50%); animation: bigOscillate8 2.7s ease-in-out infinite; }
+      .node:nth-child(9) { left: 65%; top: 35%; transform: translate(-50%, -50%); animation: bigOscillate9 3.4s ease-in-out infinite; }
+      
+      .connection {
+        position: absolute;
+        height: 2px;
+        background: linear-gradient(90deg, hsl(var(--stellar-yellow) / 0.8), hsl(var(--stellar-yellow) / 0.3));
+        transform-origin: left center;
+        opacity: 0;
+        transition: opacity 0.3s ease-out;
+        left: 50%;
+        top: 50%;
+      }
+      
+      .connection.active {
+        opacity: 1;
+      }
+      
+      @keyframes bigOscillate1 {
+        0%, 100% { transform: translate(-50%, 0) translate(0px, 0px); }
+        25% { transform: translate(-50%, 0) translate(8px, 6px); }
+        50% { transform: translate(-50%, 0) translate(-5px, 10px); }
+        75% { transform: translate(-50%, 0) translate(-8px, 3px); }
+      }
+      
+      @keyframes bigOscillate2 {
+        0%, 100% { transform: translate(-50%, -50%) translate(0px, 0px); }
+        25% { transform: translate(-50%, -50%) translate(-6px, 8px); }
+        50% { transform: translate(-50%, -50%) translate(10px, 5px); }
+        75% { transform: translate(-50%, -50%) translate(4px, -7px); }
+      }
+      
+      @keyframes bigOscillate3 {
+        0%, 100% { transform: translate(-100%, -50%) translate(0px, 0px); }
+        25% { transform: translate(-100%, -50%) translate(-8px, -6px); }
+        50% { transform: translate(-100%, -50%) translate(-4px, 9px); }
+        75% { transform: translate(-100%, -50%) translate(6px, 4px); }
+      }
+      
+      @keyframes bigOscillate4 {
+        0%, 100% { transform: translate(-50%, -50%) translate(0px, 0px); }
+        25% { transform: translate(-50%, -50%) translate(7px, -8px); }
+        50% { transform: translate(-50%, -50%) translate(-9px, -4px); }
+        75% { transform: translate(-50%, -50%) translate(-5px, 7px); }
+      }
+      
+      @keyframes bigOscillate5 {
+        0%, 100% { transform: translate(-50%, -100%) translate(0px, 0px); }
+        25% { transform: translate(-50%, -100%) translate(-7px, -6px); }
+        50% { transform: translate(-50%, -100%) translate(5px, -10px); }
+        75% { transform: translate(-50%, -100%) translate(8px, -3px); }
+      }
+      
+      @keyframes bigOscillate6 {
+        0%, 100% { transform: translate(-50%, -50%) translate(0px, 0px); }
+        25% { transform: translate(-50%, -50%) translate(6px, -8px); }
+        50% { transform: translate(-50%, -50%) translate(-10px, -5px); }
+        75% { transform: translate(-50%, -50%) translate(-4px, 7px); }
+      }
+      
+      @keyframes bigOscillate7 {
+        0%, 100% { transform: translate(0, -50%) translate(0px, 0px); }
+        25% { transform: translate(0, -50%) translate(8px, 6px); }
+        50% { transform: translate(0, -50%) translate(4px, -9px); }
+        75% { transform: translate(0, -50%) translate(-6px, -4px); }
+      }
+      
+      @keyframes bigOscillate8 {
+        0%, 100% { transform: translate(-50%, -50%) translate(0px, 0px); }
+        25% { transform: translate(-50%, -50%) translate(-7px, 8px); }
+        50% { transform: translate(-50%, -50%) translate(9px, 4px); }
+        75% { transform: translate(-50%, -50%) translate(5px, -7px); }
+      }
+      
+      @keyframes bigOscillate9 {
+        0%, 100% { transform: translate(-50%, -50%) translate(0px, 0px); }
+        25% { transform: translate(-50%, -50%) translate(5px, -9px); }
+        50% { transform: translate(-50%, -50%) translate(-8px, 6px); }
+        75% { transform: translate(-50%, -50%) translate(7px, 8px); }
+      }
+      
+      @keyframes centerPulse {
+        0%, 100% { 
+          transform: translate(-50%, -50%) scale(1);
+          box-shadow: 0 0 20px hsl(var(--stellar-yellow) / 0.8);
+        }
+        50% { 
+          transform: translate(-50%, -50%) scale(1.15);
+          box-shadow: 0 0 30px hsl(var(--stellar-yellow));
+        }
       }
     </style>
   </head>
@@ -143,7 +274,27 @@
       <div class="loader-content">
         <div class="loader-title">Stratum</div>
         <div class="loader-subtitle">Loading Stellar Multisig Wallet...</div>
-        <div class="loader-spinner"></div>
+        <div class="node-network">
+          <div class="node"></div>
+          <div class="node"></div>
+          <div class="node"></div>
+          <div class="node"></div>
+          <div class="node"></div>
+          <div class="node"></div>
+          <div class="node"></div>
+          <div class="node"></div>
+          <div class="node"></div>
+          <div class="node center"></div>
+          <div class="connection"></div>
+          <div class="connection"></div>
+          <div class="connection"></div>
+          <div class="connection"></div>
+          <div class="connection"></div>
+          <div class="connection"></div>
+          <div class="connection"></div>
+          <div class="connection"></div>
+          <div class="connection"></div>
+        </div>
       </div>
     </div>
     
@@ -151,13 +302,115 @@
     <script type="module" src="/src/main.tsx"></script>
     
     <script>
+      // Preload critical resources during animation
+      function preloadResources() {
+        return new Promise((resolve) => {
+          const resources = [
+            'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap'
+          ];
+          
+          let loaded = 0;
+          const total = resources.length;
+          
+          resources.forEach(url => {
+            const link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.href = url;
+            link.onload = link.onerror = () => {
+              loaded++;
+              if (loaded >= total) resolve();
+            };
+            document.head.appendChild(link);
+          });
+          
+          // Fallback timeout
+          setTimeout(resolve, 2000);
+        });
+      }
+      
+      // Setup the network animation
+      function setupNetworkAnimation() {
+        const nodes = document.querySelectorAll('.node:not(.center)');
+        const connections = document.querySelectorAll('.connection');
+        const centerNode = document.querySelector('.node.center');
+        
+        if (!nodes.length || !connections.length || !centerNode) return;
+        
+        const networkContainer = document.querySelector('.node-network');
+        const containerRect = networkContainer.getBoundingClientRect();
+        const centerX = containerRect.width / 2;
+        const centerY = containerRect.height / 2;
+        
+        // Animate connections sequentially
+        nodes.forEach((node, index) => {
+          setTimeout(() => {
+            const nodeRect = node.getBoundingClientRect();
+            const networkRect = networkContainer.getBoundingClientRect();
+            
+            const nodeX = nodeRect.left - networkRect.left + nodeRect.width / 2;
+            const nodeY = nodeRect.top - networkRect.top + nodeRect.height / 2;
+            
+            const dx = nodeX - centerX;
+            const dy = nodeY - centerY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+            
+            const connection = connections[index];
+            if (connection) {
+              connection.style.width = `${distance}px`;
+              connection.style.transform = `rotate(${angle}deg)`;
+              connection.classList.add('active');
+            }
+            
+            // Mark node as connected and freeze its position
+            node.classList.add('connected');
+            node.style.animation = 'none';
+            
+            // Add neon glow after all connections
+            if (index === nodes.length - 1) {
+              setTimeout(() => {
+                nodes.forEach(n => n.classList.add('neon-yellow'));
+                centerNode.classList.add('neon-yellow');
+              }, 200);
+            }
+          }, 300 + index * 130);
+        });
+      }
+      
       document.addEventListener('DOMContentLoaded', function() {
         const root = document.getElementById('root');
         const loader = document.getElementById('app-loader');
         
-        const hideLoader = () => {
-          if (root && root.children.length > 0 && loader) {
+        // Start animation and preloading
+        setupNetworkAnimation();
+        const preloadPromise = preloadResources();
+        
+        let animationComplete = false;
+        let reactReady = false;
+        let preloadComplete = false;
+        
+        // Animation completes after all nodes connect
+        const animationDuration = 300 + (9 * 130) + 500; // Start delay + all connections + final glow
+        setTimeout(() => {
+          animationComplete = true;
+          checkReady();
+        }, animationDuration);
+        
+        preloadPromise.then(() => {
+          preloadComplete = true;
+          checkReady();
+        });
+        
+        function checkReady() {
+          if (animationComplete && reactReady && preloadComplete && loader) {
             loader.classList.add('hidden');
+          }
+        }
+        
+        const hideLoader = () => {
+          if (root && root.children.length > 0) {
+            reactReady = true;
+            checkReady();
             return true;
           }
           return false;
