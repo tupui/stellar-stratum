@@ -667,7 +667,7 @@ const RemoveLiquidityForm = ({ network, accountPublicKey, onBuild, isBuilding, i
                     </Badge>
                   </div>
                   <span className="font-mono text-xs text-muted-foreground">
-                    {pos.userShares.toLocaleString()} shares
+                    {(Number(pos.userPosition) / 10_000_000).toFixed(4)} LP
                   </span>
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
@@ -690,9 +690,9 @@ const RemoveLiquidityForm = ({ network, accountPublicKey, onBuild, isBuilding, i
               variant="ghost"
               size="sm"
               className="h-6 text-xs px-2"
-              onClick={() => setLpAmount((selectedPosition.userShares / 10_000_000).toFixed(7))}
+              onClick={() => setLpAmount((Number(selectedPosition.userPosition) / 10_000_000).toFixed(7))}
             >
-              Max: {(selectedPosition.userShares / 10_000_000).toFixed(4)}
+              Max: {(Number(selectedPosition.userPosition) / 10_000_000).toFixed(4)}
             </Button>
           </div>
           <Input
