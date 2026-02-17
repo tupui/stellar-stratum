@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle, ArrowLeftRight, Landmark } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Transaction, 
@@ -36,6 +36,8 @@ import { PaymentForm } from './payment/PaymentForm';
 import { ImportTab } from './ImportTab';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 import { SourceAccountSelector } from './SourceAccountSelector';
+import { SoroswapTab } from './soroswap/SoroswapTab';
+import { DeFindexTab } from './defindex/DeFindexTab';
 
 
 interface PaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; memo?: string }
@@ -107,11 +109,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     setRefractorId('');
     setSuccessData(null);
 
+    setIsTransactionBuilt(false);
+
     if (activeTab === 'import') {
       // Switching to Import view: clear payment-only state, keep XDR intact
       setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
-    } else if (activeTab === 'payment') {
-      // Switching to payment-related tabs: clear XDR state
+    } else {
+      // For payment, soroswap, defindex tabs — clear XDR state
       setXdrData({ input: '', output: '' });
     }
   }, [activeTab]);
@@ -591,6 +595,17 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   };
 
 
+  const handleSdkBuild = (xdr: string) => {
+    setXdrData(prev => ({ ...prev, output: xdr }));
+    setIsTransactionBuilt(true);
+    setSignedBy([]);
+    toast({
+      title: 'Transaction built',
+      description: 'Review the transaction details below and sign when ready.',
+      duration: 3000,
+    });
+  };
+
   // Note: Signing is handled through handleSignWithSigner which correctly passes walletId
 
   const handleSignWithSigner = async (signerKey: string, walletId: string) => {
@@ -888,26 +903,40 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
               Build Transaction
             </CardTitle>
             <CardDescription>
-              Create a payment or import XDR/Refractor transactions for signing
+              Create payments, swap tokens, manage vaults, or import transactions for signing
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <div className="p-2 bg-muted/50 rounded-lg">
-                <TabsList className="grid grid-cols-2 w-full p-0 bg-transparent gap-2">
-                  <TabsTrigger 
-                    value="payment" 
+                <TabsList className="grid grid-cols-4 w-full p-0 bg-transparent gap-2">
+                  <TabsTrigger
+                    value="payment"
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <Send className="w-4 h-4" />
                     <span>Payment</span>
                   </TabsTrigger>
-                  <TabsTrigger 
+                  <TabsTrigger
                     value="import"
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <FileCode className="w-4 h-4" />
                     <span>Import</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="soroswap"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                  >
+                    <ArrowLeftRight className="w-4 h-4" />
+                    <span>Soroswap</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="defindex"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                  >
+                    <Landmark className="w-4 h-4" />
+                    <span>DeFindex</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -961,6 +990,27 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
                   onPullTransaction={handlePullFromRefractor}
                   lastRefractorId={refractorId}
                   network={currentNetwork}
+                />
+              </TabsContent>
+
+              <TabsContent value="soroswap" className="space-y-4 mt-6">
+                <SoroswapTab
+                  accountPublicKey={accountPublicKey}
+                  network={currentNetwork}
+                  onBuild={handleSdkBuild}
+                  isBuilding={isBuilding}
+                  isTransactionBuilt={isTransactionBuilt}
+                />
+              </TabsContent>
+
+              <TabsContent value="defindex" className="space-y-4 mt-6">
+                <DeFindexTab
+                  accountPublicKey={accountPublicKey}
+                  accountData={accountData}
+                  network={currentNetwork}
+                  onBuild={handleSdkBuild}
+                  isBuilding={isBuilding}
+                  isTransactionBuilt={isTransactionBuilt}
                 />
               </TabsContent>
 
