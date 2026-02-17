@@ -11,10 +11,11 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { extractXdrFromData } from '@/lib/sep7';
 import { tryParseTransaction } from '@/lib/xdr/parse';
-import { signWithWallet } from '@/lib/stellar';
+import { useWalletKit } from '@/contexts/WalletKitContext';
 
 export const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
+  const { signWithWallet } = useWalletKit();
   const { toast } = useToast();
   const [xdr, setXdr] = useState<string>('');
   const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
@@ -103,7 +104,7 @@ export const AirgapSigner = () => {
   ) => {
     try {
       // Actually sign the transaction with the wallet
-      const { signedXdr, address } = await signWithWallet(xdr, walletId, network);
+      const { signedXdr, address } = await signWithWallet(xdr, walletId);
       
       // Update the XDR with the new signature
       setXdr(signedXdr);
