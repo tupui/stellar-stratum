@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { NetworkProvider } from "@/contexts/NetworkContext";
+import { WalletKitProvider } from "@/contexts/WalletKitContext";
 import Index from "./pages/Index";
 import AirgapSigner from "./pages/AirgapSigner";
 import NotFound from "./pages/NotFound";
@@ -13,8 +14,9 @@ const queryClient = new QueryClient();
 const App = () => (
   <ErrorBoundary>
     <NetworkProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
+      <WalletKitProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
           <Toaster />
           <BrowserRouter>
             <Routes>
@@ -24,8 +26,9 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </WalletKitProvider>
     </NetworkProvider>
   </ErrorBoundary>
 );

@@ -7,10 +7,10 @@ import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Users, CheckCircle, Circle, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { Transaction, TransactionBuilder as StellarTransactionBuilder, StrKey } from '@stellar/stellar-sdk';
-import { getSupportedWallets, getNetworkPassphrase } from '@/lib/stellar';
+import { getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useWalletKit } from '@/contexts/WalletKitContext';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
-import { signWithWallet } from '@/lib/stellar';
 
 interface Signer {
   key: string;
@@ -51,23 +51,12 @@ export const SignerSelector = ({
   pendingId
 }: SignerSelectorProps) => {
   const { network: contextNetwork } = useNetwork(); // Renamed to avoid conflict with prop
+  const { wallets: allWallets, signWithWallet: contextSignWithWallet } = useWalletKit();
+  const wallets = allWallets.filter(w => w.isAvailable);
   const [selectedSigner, setSelectedSigner] = useState<string>('');
   const [selectedWalletId, setSelectedWalletId] = useState<string>('');
-  const [wallets, setWallets] = useState<ISupportedWallet[]>([]);
   const [existingSignatures, setExistingSignatures] = useState<string[]>([]);
   const [isCollapsed, setIsCollapsed] = useState(false);
-
-  // Load available wallets for signing (no manual/domains here)
-  useEffect(() => {
-    (async () => {
-      try {
-        const ws = await getSupportedWallets();
-        setWallets(ws.filter(w => w.isAvailable));
-      } catch (e) {
-        // Ignore wallet loading errors
-      }
-    })();
-  }, []);
   // Extract existing signatures from XDR
   useEffect(() => {
     try {
@@ -156,7 +145,7 @@ export const SignerSelector = ({
   const handleSign = async () => {
     if (freeMode && selectedWalletId) {
       // In free mode, we use the wallet address as the signer key
-      const { signedXdr, address } = await signWithWallet(xdr, selectedWalletId, contextNetwork);
+      const { signedXdr, address } = await contextSignWithWallet(xdr, selectedWalletId);
       // Signature added successfully
       onSigned(signedXdr, address);
       setSelectedWalletId('');

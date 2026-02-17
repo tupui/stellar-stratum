@@ -13,6 +13,7 @@ import { fetchAccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { FiatCurrencyProvider } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useRequestDeduplication } from '@/hooks/useRequestDeduplication';
 
 interface AccountData {
@@ -40,6 +41,7 @@ type AppState = 'connecting' | 'dashboard' | 'transaction' | 'multisig-config';
 const Index = memo(() => {
   const { toast } = useToast();
   const { network, setNetwork } = useNetwork();
+  const { disconnectWallet } = useWalletKit();
   const { dedupe } = useRequestDeduplication();
   
   const [appState, setAppState] = useState<AppState>('connecting');
@@ -156,13 +158,17 @@ const Index = memo(() => {
   }, []);
 
   const handleDisconnect = useCallback(() => {
+    disconnectWallet();
+    sessionStorage.removeItem('deeplink-xdr');
+    sessionStorage.removeItem('deeplink-refractor-id');
+    sessionStorage.removeItem('deeplink-source-account');
     setConnectedWallet('');
     setPublicKey('');
     setSourceAccount('');
     setAccountData(null);
     setDeepLinkReady(false);
     setAppState('connecting');
-  }, []);
+  }, [disconnectWallet]);
 
   // Handler for when user changes the source account
   const handleSourceAccountChange = useCallback(async (newSourceAccount: string) => {
