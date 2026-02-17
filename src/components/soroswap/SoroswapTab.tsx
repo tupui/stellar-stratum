@@ -40,14 +40,26 @@ export const SoroswapTab = ({
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch asset list on mount
+  const xlmContract = network === 'mainnet'
+    ? 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA'
+    : 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+
+  const xlmAsset: AssetInfo = {
+    code: 'XLM',
+    name: 'Stellar Lumens',
+    contract: xlmContract,
+    decimals: 7,
+  };
+
+  // Fetch asset list on mount / network change
   useEffect(() => {
     const fetchAssets = async () => {
       setIsLoadingAssets(true);
       try {
         const list = await soroswapSDK.getAssetList(SupportedAssetLists.SOROSWAP);
         if ('assets' in list) {
-          setAssets(list.assets);
+          const hasXlm = list.assets.some((a) => a.contract === xlmContract);
+          setAssets(hasXlm ? list.assets : [xlmAsset, ...list.assets]);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load asset list');
@@ -56,7 +68,7 @@ export const SoroswapTab = ({
       }
     };
     fetchAssets();
-  }, []);
+  }, [network, xlmContract]);
 
   if (isLoadingAssets) {
     return (
