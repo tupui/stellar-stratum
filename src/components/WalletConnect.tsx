@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info, KeyRound, Plus, Globe, ChevronDown } from 'lucide-react';
-import { getSupportedWallets, connectWallet, getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
 import { appConfig } from '@/lib/appConfig';
@@ -42,52 +42,31 @@ export const WalletConnect = ({
     network: selectedNetwork,
     setNetwork: setSelectedNetwork
   } = useNetwork();
-  const loadWallets = useCallback(async () => {
-    setLoading(true);
-    // Defer wallet loading to improve TTI, but keep loading state true
-    setTimeout(async () => {
-      try {
-        const wallets = await getSupportedWallets(selectedNetwork);
-        setSupportedWallets(wallets);
-      } catch (error) {
-        toast({
-          title: 'Failed to load wallets',
-          description: error instanceof Error ? error.message : 'Could not load wallet options',
-          variant: 'destructive',
-        });
-      } finally {
-        // Only set loading to false after wallets are actually loaded/failed
-        setLoading(false);
-      }
-    }, 200); // Small delay to allow UI to render first
-  }, [selectedNetwork, toast]);
-  useEffect(() => {
-    const checkWallets = async () => {
-      await loadWallets();
-      
-      // Stop scanning if we found available wallets
-      if (supportedWallets.some(wallet => wallet.isAvailable)) {
-        clearInterval(interval);
-        clearTimeout(timeout);
-        setLoading(false);
-      }
-    };
+  const { wallets: kitWallets, connectWallet, refreshWallets } = useWalletKit();
 
-    // Check for wallet availability using config values
-    const interval: NodeJS.Timeout = setInterval(checkWallets, appConfig.WALLET_CHECK_INTERVAL);
-    const timeout: NodeJS.Timeout = setTimeout(() => {
+  // Sync wallet list from context
+  useEffect(() => {
+    setSupportedWallets(kitWallets);
+    if (kitWallets.length > 0) {
+      setLoading(false);
+    }
+  }, [kitWallets]);
+
+  // Polling for extension availability
+  useEffect(() => {
+    refreshWallets();
+
+    const interval = setInterval(refreshWallets, appConfig.WALLET_CHECK_INTERVAL);
+    const timeout = setTimeout(() => {
       clearInterval(interval);
-      clearTimeout(timeout);
       setLoading(false);
     }, appConfig.WALLET_TIMEOUT);
-    
-    checkWallets();
-    
+
     return () => {
       clearInterval(interval);
       clearTimeout(timeout);
     };
-  }, [selectedNetwork, loadWallets, supportedWallets]); // Re-run when network changes
+  }, [selectedNetwork, refreshWallets]);
 
   const getWalletIcon = (wallet: ISupportedWallet) => {
     const isLedger = wallet.id.toLowerCase().includes('ledger');
@@ -217,7 +196,7 @@ export const WalletConnect = ({
     }
     
     try {
-      const result = await connectWallet(walletId, selectedNetwork);
+      const result = await connectWallet(walletId);
       if (result && result.publicKey) {
         onConnect(walletName, result.publicKey, selectedNetwork);
       } else {
@@ -277,7 +256,7 @@ export const WalletConnect = ({
         </div> : supportedWallets.length === 0 ? <div className="flex flex-col items-center justify-center py-8 text-center">
           <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">No wallets found</p>
-          <Button variant="outline" size="sm" onClick={loadWallets} className="mt-2">
+          <Button variant="outline" size="sm" onClick={refreshWallets} className="mt-2">
             Try Again
           </Button>
         </div> : <div className="space-y-3">
