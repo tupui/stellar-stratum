@@ -167,9 +167,31 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
               </div>
 
               {/* Operations */}
+              <Collapsible>
               <div className="space-y-2">
-                <h4 className="font-medium">Operations ({operations.length})</h4>
-                <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium">Operations ({operations.length})</h4>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <ChevronDown className="h-4 w-4" />
+                      <span className="ml-1 text-xs">Details</span>
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+                <div className="space-y-1">
+                  {operations.map((op, index) => (
+                    <div key={index} className="flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded text-sm">
+                      <Badge variant="outline" className="text-xs">{op.type}</Badge>
+                      {op.type === 'payment' && (
+                        <span className="text-muted-foreground text-xs truncate">
+                          {(op as PaymentOp).amount} {(op as PaymentOp).asset?.code || 'XLM'}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <CollapsibleContent>
+                <div className="space-y-2 mt-2">
                   {operations.map((op, index) => (
                     <div key={index} className="p-3 bg-secondary/30 rounded-lg">
                       <div className="flex items-center justify-between">
@@ -342,7 +364,9 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     </div>
                   ))}
                 </div>
+                </CollapsibleContent>
               </div>
+              </Collapsible>
 
               {/* Memo */}
               {memo && memo.type !== 'none' && (

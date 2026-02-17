@@ -570,8 +570,21 @@ const RemoveLiquidityForm = ({ network, accountPublicKey, onBuild, isBuilding, i
           accountPublicKey,
           getSoroswapNetwork(network)
         );
+        console.log('[RemoveLiquidity] Raw positions response:', JSON.stringify(result, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2));
+        result.forEach((pos, i) => {
+          console.log(`[RemoveLiquidity] Position ${i}:`, {
+            pool: pos.poolInformation.address,
+            tokenA: pos.poolInformation.tokenA,
+            tokenB: pos.poolInformation.tokenB,
+            userShares: pos.userShares,
+            userPosition: pos.userPosition?.toString(),
+            tokenAEquiv: pos.tokenAAmountEquivalent?.toString(),
+            tokenBEquiv: pos.tokenBAmountEquivalent?.toString(),
+          });
+        });
         setPositions(result);
       } catch (err) {
+        console.error('[RemoveLiquidity] Error fetching positions:', err);
         onError(err instanceof Error ? err.message : 'Failed to load positions');
       } finally {
         setIsLoadingPositions(false);
