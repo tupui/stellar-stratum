@@ -20,7 +20,8 @@ import {
   StrKey
 } from '@stellar/stellar-sdk';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase, signWithWallet } from '@/lib/stellar';
+import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
+import { useWalletKit } from '@/contexts/WalletKitContext';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { NetworkSelector } from './NetworkSelector';
@@ -73,6 +74,7 @@ interface TransactionBuilderProps {
 export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, accountData, initialTab = 'payment', pendingId, initialXdr, onAccountRefresh, onSourceAccountChange }: TransactionBuilderProps) => {
   const { toast } = useToast();
   const { network: currentNetwork, setNetwork: setCurrentNetwork } = useNetwork();
+  const { signWithWallet } = useWalletKit();
   const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [paymentData, setPaymentData] = useState({
@@ -595,7 +597,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
 
     setIsSigning(true);
     try {
-      const { signedXdr, address, walletName } = await signWithWallet(xdrToSign, walletId, currentNetwork);
+      const { signedXdr, address, walletName } = await signWithWallet(xdrToSign, walletId);
 
       if (address !== signerKey) {
         throw new Error(
