@@ -17,6 +17,7 @@ interface WalletKitContextType {
   wallets: ISupportedWallet[];
   connectedWallet: { id: string; name: string } | null;
   connectWallet: (walletId: string) => Promise<{ publicKey: string; walletName: string }>;
+  disconnectWallet: () => void;
   signWithWallet: (xdr: string, walletId: string) => Promise<{ signedXdr: string; address: string; walletName: string }>;
   refreshWallets: () => Promise<void>;
 }
@@ -183,6 +184,10 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     }
   }, []);
 
+  const disconnectWallet = useCallback(() => {
+    setConnectedWallet(null);
+  }, []);
+
   const signWithWallet = useCallback(async (
     xdr: string,
     walletId: string
@@ -211,7 +216,7 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
   }, []);
 
   return (
-    <WalletKitContext.Provider value={{ kit, wallets, connectedWallet, connectWallet, signWithWallet, refreshWallets }}>
+    <WalletKitContext.Provider value={{ kit, wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets }}>
       {children}
     </WalletKitContext.Provider>
   );

@@ -144,6 +144,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       // Clear the deep link data to prevent reprocessing
       sessionStorage.removeItem('deeplink-xdr');
       sessionStorage.removeItem('deeplink-refractor-id');
+      sessionStorage.removeItem('deeplink-source-account');
       toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
     } else if (initialXdr) {
       // Pre-load XDR from multisig flow
@@ -164,6 +165,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
         if (deepLinkRefractorId) setRefractorId(deepLinkRefractorId);
         sessionStorage.removeItem('deeplink-xdr');
         sessionStorage.removeItem('deeplink-refractor-id');
+        sessionStorage.removeItem('deeplink-source-account');
         toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
       }
     };
