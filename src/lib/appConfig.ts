@@ -34,4 +34,14 @@ export const appConfig = {
   // Limits
   MAX_OPERATIONS_PER_TX: 100,
   DEFAULT_BASE_FEE: 100,
+
+  // Soroswap DEX
+  SOROSWAP_API_KEY: '',
+  SOROSWAP_API_URL: 'https://api.soroswap.finance',
+
+  // DeFindex Vaults
+  DEFINDEX_API_KEY: '',
+  DEFINDEX_API_URL: 'https://api.defindex.io',
+  DEFINDEX_VAULT_ADDRESS: 'CA2FIPJ7U6BG3N7EOZFI74XPJZOEOD4TYWXFVCIO5VDCHTVAGS6F4UKK',
+  DEFINDEX_VAULT_NAME: 'Soroswap USDC Vault',
 } as const;
