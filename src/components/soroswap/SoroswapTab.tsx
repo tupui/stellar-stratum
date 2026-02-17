@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowDownUp, Plus, Minus, Loader2, RefreshCw } from 'lucide-react';
 import { soroswapSDK, getSoroswapNetwork } from '@/lib/soroswap-client';
 import {
@@ -233,9 +233,9 @@ const SwapForm = ({ assets, network, accountPublicKey, onBuild, isBuilding, isTr
           </SelectTrigger>
           <SelectContent>
             {assets.map((a) => (
-              <option key={a.contract} value={a.contract!}>
+              <SelectItem key={a.contract} value={a.contract!}>
                 {a.code || a.name || a.contract}
-              </option>
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -250,9 +250,9 @@ const SwapForm = ({ assets, network, accountPublicKey, onBuild, isBuilding, isTr
           </SelectTrigger>
           <SelectContent>
             {assets.map((a) => (
-              <option key={a.contract} value={a.contract!}>
+              <SelectItem key={a.contract} value={a.contract!}>
                 {a.code || a.name || a.contract}
-              </option>
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -441,9 +441,9 @@ const AddLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBuildi
           </SelectTrigger>
           <SelectContent>
             {assets.map((a) => (
-              <option key={a.contract} value={a.contract!}>
+              <SelectItem key={a.contract} value={a.contract!}>
                 {a.code || a.name || a.contract}
-              </option>
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -458,9 +458,9 @@ const AddLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBuildi
           </SelectTrigger>
           <SelectContent>
             {assets.map((a) => (
-              <option key={a.contract} value={a.contract!}>
+              <SelectItem key={a.contract} value={a.contract!}>
                 {a.code || a.name || a.contract}
-              </option>
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
