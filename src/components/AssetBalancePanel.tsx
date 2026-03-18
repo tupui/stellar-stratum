@@ -202,7 +202,7 @@ export const AssetBalancePanel = ({
             <Clock className="w-3 h-3" />
             <span>Prices updated {formatLastUpdate(lastUpdateTime)}</span>
             <span className="text-muted-foreground/60">• </span>
-            <a href="https://reflector.space" target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1">
+            <a href="https://reflector.network/" target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1">
               via Reflector
               <ExternalLink className="w-3 h-3" />
             </a>
