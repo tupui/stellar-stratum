@@ -92,7 +92,7 @@
     "globals": "^17.4.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.1.18",
-    "typescript": "~5.9.3",
+    "typescript": "~6.0.2",
     "vite": "^8.0.2",
     "vite-plugin-node-polyfills": "^0.25.0"
   },
