@@ -31,6 +31,7 @@ interface PaymentData {
   receiveAssetIssuer?: string;
   receiveAmount?: string;
   slippageTolerance?: number;
+  exactOut?: boolean;
 }
 interface Asset {
   code: string;
@@ -47,10 +48,12 @@ interface CompactPayment {
   assetIssuer: string;
   receiveAsset?: string;
   receiveAssetIssuer?: string;
+  receiveAmount?: string;
   memo: string;
   slippageTolerance?: number;
   fiatValue?: string;
   isAccountClosure?: boolean;
+  exactOut?: boolean;
 }
 interface PaymentFormProps {
   paymentData: PaymentData;
@@ -570,10 +573,12 @@ export const PaymentForm = ({
       assetIssuer: paymentData.assetIssuer,
       receiveAsset: paymentData.receiveAsset,
       receiveAssetIssuer: paymentData.receiveAssetIssuer,
+      receiveAmount: paymentData.receiveAmount,
       memo: paymentData.memo,
       slippageTolerance: paymentData.slippageTolerance,
       fiatValue: currentFiatValue,
-      isAccountClosure: isAccountClosure
+      isAccountClosure: isAccountClosure,
+      exactOut: paymentData.exactOut,
     };
     setCompactPayments([...compactPayments, compactPayment]);
 
@@ -653,10 +658,12 @@ export const PaymentForm = ({
       assetIssuer: paymentData.assetIssuer,
       receiveAsset: paymentData.receiveAsset,
       receiveAssetIssuer: paymentData.receiveAssetIssuer,
+      receiveAmount: paymentData.receiveAmount,
       memo: paymentData.memo,
       slippageTolerance: paymentData.slippageTolerance,
       fiatValue: updatedFiat,
-      isAccountClosure
+      isAccountClosure,
+      exactOut: paymentData.exactOut,
     } : p));
 
     setEditingPaymentId(null);
@@ -771,10 +778,12 @@ export const PaymentForm = ({
         assetIssuer: paymentData.assetIssuer,
         receiveAsset: paymentData.receiveAsset,
         receiveAssetIssuer: paymentData.receiveAssetIssuer,
+        receiveAmount: paymentData.receiveAmount,
         memo: paymentData.memo,
         slippageTolerance: paymentData.slippageTolerance,
         fiatValue: fiatValue,
-        isAccountClosure: currentPaymentIsAccountClosure
+        isAccountClosure: currentPaymentIsAccountClosure,
+        exactOut: paymentData.exactOut,
       }];
       
       // Build all payments as a batch transaction (including any account closures)
@@ -1205,14 +1214,17 @@ export const PaymentForm = ({
               slippageTolerance: t
             })}
             onReceiveAmountChange={(amount) => {
-              // Handle manual receive amount input for swaps
               if (paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset) {
-                // This is a cross-asset swap, store the manual receive amount
-                onPaymentDataChange({
-                  ...paymentData,
-                  receiveAmount: amount
-                });
+                onPaymentDataChange({ ...paymentData, receiveAmount: amount });
               }
+            }}
+            exactOut={paymentData.exactOut}
+            onExactOutChange={(exactOut) => {
+              onPaymentDataChange({
+                ...paymentData,
+                exactOut,
+                receiveAmount: exactOut ? (paymentData.receiveAmount || '') : undefined,
+              });
             }}
             assetPrices={assetPrices}
             onFetchAssetPrice={onFetchAssetPrice}

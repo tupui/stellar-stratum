@@ -41,8 +41,8 @@ import { DeFindexTab } from './defindex/DeFindexTab';
 
 
 interface PaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; memo?: string }
-interface BatchPayment { destination: string; amount?: string; asset?: string; assetIssuer?: string; memo?: string; isAccountClosure?: boolean; receiveAsset?: string; receiveAssetIssuer?: string; slippageTolerance?: number }
-interface PathPaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; receiveAsset: string; receiveAssetIssuer?: string; slippageTolerance?: number; memo?: string }
+interface BatchPayment { destination: string; amount?: string; asset?: string; assetIssuer?: string; memo?: string; isAccountClosure?: boolean; receiveAsset?: string; receiveAssetIssuer?: string; receiveAmount?: string; slippageTolerance?: number; exactOut?: boolean }
+interface PathPaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; receiveAsset: string; receiveAssetIssuer?: string; receiveAmount?: string; slippageTolerance?: number; exactOut?: boolean; memo?: string }
 
 interface TransactionBuilderProps {
   onBack: () => void;
@@ -296,11 +296,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   const estimatePathReceive = (amount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
     const send = parseFloat(amount) || 0;
     if (send <= 0) return 0;
-    
+
     // Get prices for both assets
     const fromPrice = assetPrices[fromAssetCode] || 0;
     const toPrice = assetPrices[toAssetCode] || 0;
-    
+
     let converted = send;
     if (fromPrice > 0 && toPrice > 0) {
       // Calculate direct exchange rate: how much of toAsset per unit of fromAsset
@@ -308,10 +308,24 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       converted = send * exchangeRate;
     }
     // If we don't have prices, assume 1:1 (fallback for unknown assets)
-    
+
     // Apply slippage tolerance to get minimum receive amount
     const slippageAdjustment = 1 - (slippageTolerance / 100);
     return parseFloat((converted * slippageAdjustment).toFixed(7));
+  };
+
+  // Inverse: given an exact destAmount, estimate the maximum the sender should pay (with slippage buffer)
+  const estimatePathSendMax = (destAmount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
+    const dest = parseFloat(destAmount) || 0;
+    if (dest <= 0) return 0;
+    const fromPrice = assetPrices[fromAssetCode] || 0;
+    const toPrice = assetPrices[toAssetCode] || 0;
+    let converted = dest;
+    if (fromPrice > 0 && toPrice > 0) {
+      converted = dest * (toPrice / fromPrice);
+    }
+    const slippageBuffer = 1 + (slippageTolerance / 100);
+    return parseFloat((converted * slippageBuffer).toFixed(7));
   };
   
   const handlePaymentBuild = async (paymentData?: PaymentData, isAccountMerge = false, batchPayments?: BatchPayment[], pathPayment?: PathPaymentData) => {
@@ -410,17 +424,29 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
               ? Asset.native()
               : new Asset(payment.receiveAsset, payment.receiveAssetIssuer);
 
-            // Calculate destMin using proper exchange rates from prices when available
-            const destMin = estimatePathReceive(payment.amount, payment.asset, payment.receiveAsset, payment.slippageTolerance);
-
-            transaction.addOperation(Operation.pathPaymentStrictSend({
-              sendAsset,
-               sendAmount: payment.amount,
-               destination: payment.destination,
-               destAsset,
-               destMin: destMin.toString(),
-              path: [],
-            }));
+            if (payment.exactOut && payment.receiveAmount) {
+              // PathPaymentStrictReceive: receiver gets exactly destAmount, sender pays ≤ sendMax
+              const sendMax = estimatePathSendMax(payment.receiveAmount, payment.asset, payment.receiveAsset, payment.slippageTolerance);
+              transaction.addOperation(Operation.pathPaymentStrictReceive({
+                sendAsset,
+                sendMax: sendMax.toString(),
+                destination: payment.destination,
+                destAsset,
+                destAmount: payment.receiveAmount,
+                path: [],
+              }));
+            } else {
+              // PathPaymentStrictSend: sender sends exactly sendAmount, receiver gets ≥ destMin
+              const destMin = estimatePathReceive(payment.amount, payment.asset, payment.receiveAsset, payment.slippageTolerance);
+              transaction.addOperation(Operation.pathPaymentStrictSend({
+                sendAsset,
+                sendAmount: payment.amount,
+                destination: payment.destination,
+                destAsset,
+                destMin: destMin.toString(),
+                path: [],
+              }));
+            }
             continue;
           }
 
@@ -440,29 +466,42 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
         
       } else if (pathPayment) {
         // Path payment operation
-        if (!pathPayment.destination || !pathPayment.amount || !pathPayment.asset || !pathPayment.receiveAsset) {
+        if (!pathPayment.destination || !pathPayment.asset || !pathPayment.receiveAsset) {
           throw new Error('Missing required fields for path payment');
         }
-        
-        const sendAsset = pathPayment.asset === 'XLM' 
-          ? Asset.native() 
+
+        const sendAsset = pathPayment.asset === 'XLM'
+          ? Asset.native()
           : new Asset(pathPayment.asset, pathPayment.assetIssuer);
-          
-        const destAsset = pathPayment.receiveAsset === 'XLM' 
-          ? Asset.native() 
+
+        const destAsset = pathPayment.receiveAsset === 'XLM'
+          ? Asset.native()
           : new Asset(pathPayment.receiveAsset, pathPayment.receiveAssetIssuer);
 
-         // Calculate destination amount with slippage using proper exchange rates
-         const destMin = estimatePathReceive(pathPayment.amount, pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance);
-
-        transaction.addOperation(Operation.pathPaymentStrictSend({
-          sendAsset,
-          sendAmount: pathPayment.amount,
-           destination: pathPayment.destination,
-           destAsset,
-           destMin: destMin.toString(),
-          path: [], // In real implementation, find optimal path
-        }));
+        if (pathPayment.exactOut && pathPayment.receiveAmount) {
+          // PathPaymentStrictReceive: receiver gets exactly destAmount, sender pays ≤ sendMax
+          const sendMax = estimatePathSendMax(pathPayment.receiveAmount, pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance);
+          transaction.addOperation(Operation.pathPaymentStrictReceive({
+            sendAsset,
+            sendMax: sendMax.toString(),
+            destination: pathPayment.destination,
+            destAsset,
+            destAmount: pathPayment.receiveAmount,
+            path: [],
+          }));
+        } else {
+          if (!pathPayment.amount) throw new Error('Missing send amount for path payment');
+          // PathPaymentStrictSend: sender sends exactly sendAmount, receiver gets ≥ destMin
+          const destMin = estimatePathReceive(pathPayment.amount, pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance);
+          transaction.addOperation(Operation.pathPaymentStrictSend({
+            sendAsset,
+            sendAmount: pathPayment.amount,
+            destination: pathPayment.destination,
+            destAsset,
+            destMin: destMin.toString(),
+            path: [],
+          }));
+        }
         
       } else {
         // Regular payment operation

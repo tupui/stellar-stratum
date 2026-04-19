@@ -40,6 +40,8 @@ interface SwapInterfaceProps {
   onSlippageToleranceChange?: (tolerance: number) => void;
   onReceiveAmountChange?: (amount: string) => void;
   onSwapDirection?: () => void;
+  exactOut?: boolean;
+  onExactOutChange?: (exactOut: boolean) => void;
   className?: string;
   willCloseAccount?: boolean;
   assetPrices?: Record<string, number>;
@@ -65,6 +67,8 @@ export const SwapInterface = ({
   onSlippageToleranceChange,
   onReceiveAmountChange,
   onSwapDirection,
+  exactOut = false,
+  onExactOutChange,
   className,
   willCloseAccount = false,
   assetPrices = {},
@@ -215,7 +219,23 @@ export const SwapInterface = ({
   };
   
   const displayReceiveAmount = calculateReceiveAmount();
-  
+
+  // For exact-out mode: calculate the max send amount from the exact receive amount
+  const calculateSendMax = () => {
+    if (!isPathPayment || !exactOut) return amount;
+    const destAmt = parseFloat(receiveAmount || manualReceiveAmount || '0');
+    if (!destAmt) return '0';
+    const fp = assetPrices[fromAsset] || 0;
+    const tp = assetPrices[toAsset || ''] || 0;
+    if (fp > 0 && tp > 0) {
+      const buffer = 1 + (slippageTolerance / 100);
+      return (destAmt * (tp / fp) * buffer).toFixed(7);
+    }
+    return '0';
+  };
+
+  const displaySendMax = calculateSendMax();
+
   // Handle manual receive amount input
   const handleReceiveAmountChange = (newAmount: string) => {
     setManualReceiveAmount(newAmount);
@@ -279,7 +299,9 @@ export const SwapInterface = ({
       )}>
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">You send</span>
+            <span className="text-sm text-muted-foreground">
+              {isPathPayment && exactOut ? 'You pay (max)' : 'You send'}
+            </span>
             {willCloseAccount && (
               <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
                 <Merge className="h-3 w-3 mr-1" />
@@ -288,9 +310,29 @@ export const SwapInterface = ({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs bg-success/10 text-success hover:bg-success/20 hover:text-success border border-success/20" onClick={handleMaxClick}>
-              MAX
-            </Button>
+            {isPathPayment && onExactOutChange && (
+              <div className="flex items-center rounded-full border border-border/60 overflow-hidden text-xs">
+                <button
+                  type="button"
+                  onClick={() => onExactOutChange(false)}
+                  className={`px-3 py-1 transition-colors ${!exactOut ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Exact In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onExactOutChange(true)}
+                  className={`px-3 py-1 transition-colors ${exactOut ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Exact Out
+                </button>
+              </div>
+            )}
+            {!exactOut && (
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs bg-success/10 text-success hover:bg-success/20 hover:text-success border border-success/20" onClick={handleMaxClick}>
+                MAX
+              </Button>
+            )}
           </div>
         </div>
 
@@ -333,34 +375,44 @@ export const SwapInterface = ({
           </Select>
 
           <div className="flex-1 sm:min-w-0">
-            {isEditingAmount ? <Input type="text" inputMode="decimal" value={editValue} onChange={e => {
-            let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
-            const parts = sanitized.split('.');
-            if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-            if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
-            setEditValue(sanitized);
-          }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full" placeholder="0.0" autoFocus /> : <div className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors w-full" onClick={() => setIsEditingAmount(true)}>
+            {isPathPayment && exactOut ? (
+              <div className="text-right sm:text-right text-xl font-amount text-muted-foreground w-full p-2">
+                {displaySendMax !== '0' ? `≤ ${formatAmount(displaySendMax)}` : '—'}
+              </div>
+            ) : isEditingAmount ? (
+              <Input type="text" inputMode="decimal" value={editValue} onChange={e => {
+                let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
+                const parts = sanitized.split('.');
+                if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+                if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+                setEditValue(sanitized);
+              }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full" placeholder="0.0" autoFocus />
+            ) : (
+              <div className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors w-full" onClick={() => setIsEditingAmount(true)}>
                 {amount ? formatAmount(amount) : '0.0'}
-              </div>}
-            {fiatValue && <div className="text-sm text-muted-foreground mt-1 text-right font-amount">
+              </div>
+            )}
+            {fiatValue && !exactOut && <div className="text-sm text-muted-foreground mt-1 text-right font-amount">
                 ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '').replace(/\s[A-Z]{3}$/, '')}
               </div>}
           </div>
         </div>
 
-        {/* Golden Slider */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Amount</span>
-            <span className="font-amount">{Math.round(currentPercentage)}%</span>
+        {/* Golden Slider — hidden in exact-out mode since receive is the primary input */}
+        {!(isPathPayment && exactOut) && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Amount</span>
+              <span className="font-amount">{Math.round(currentPercentage)}%</span>
+            </div>
+            <input type="range" min="0" max="100" step="1" value={sliderValue[0]} onChange={e => handleSliderChange([parseInt(e.target.value)])} className="stellar-slider w-full" style={{
+            '--slider-progress': `${sliderValue[0]}%`
+          } as React.CSSProperties} />
+            <div className="flex justify-between items-center text-xs text-muted-foreground">
+              <span className="font-amount">Available: {formatBalance(availableAmount)} {fromAsset}</span>
+            </div>
           </div>
-          <input type="range" min="0" max="100" step="1" value={sliderValue[0]} onChange={e => handleSliderChange([parseInt(e.target.value)])} className="stellar-slider w-full" style={{
-          '--slider-progress': `${sliderValue[0]}%`
-        } as React.CSSProperties} />
-          <div className="flex justify-between items-center text-xs text-muted-foreground">
-            <span className="font-amount">Available: {formatBalance(availableAmount)} {fromAsset}</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Swap Direction Button */}
@@ -385,7 +437,9 @@ export const SwapInterface = ({
       {/* To Section */}
       <div className="bg-card/60 border border-border/60 rounded-2xl p-6 mt-2">
         <div className="flex justify-between items-center mb-4">
-          <span className="text-sm text-muted-foreground">They receive</span>
+          <span className="text-sm text-muted-foreground">
+            {isPathPayment && exactOut ? 'They receive (exact)' : 'They receive'}
+          </span>
           {recipientAssets.length > 0 && <div className="text-sm text-muted-foreground truncate min-w-0">
               Current: <span className="font-amount">{formatBalance(toAssetBalance)}</span>
             </div>}
@@ -456,7 +510,8 @@ export const SwapInterface = ({
           </Select>
 
           <div className="flex-1 sm:min-w-0">
-            {isPathPayment && isManualInput ? (
+            {isPathPayment && exactOut ? (
+              // Exact Out: receive amount is the primary editable input
               <div>
                 {isEditingReceiveAmount ? (
                   <Input
@@ -478,7 +533,42 @@ export const SwapInterface = ({
                     autoFocus
                   />
                 ) : (
-                  <div 
+                  <div
+                    className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors text-white w-full"
+                    onClick={() => {
+                      setEditReceiveValue(receiveAmount || manualReceiveAmount || '');
+                      setIsEditingReceiveAmount(true);
+                    }}
+                  >
+                    {receiveAmount || manualReceiveAmount ? formatAmount(receiveAmount || manualReceiveAmount) : <span className="text-muted-foreground">0.0</span>}
+                  </div>
+                )}
+                <div className="text-xs text-muted-foreground mt-1 text-right">Exact amount</div>
+              </div>
+            ) : isPathPayment && isManualInput ? (
+              // Exact In, manual input (no prices available)
+              <div>
+                {isEditingReceiveAmount ? (
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    value={editReceiveValue}
+                    onChange={(e) => {
+                      let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
+                      const parts = sanitized.split('.');
+                      if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+                      if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+                      setEditReceiveValue(sanitized);
+                    }}
+                    onBlur={handleReceiveAmountSubmit}
+                    onKeyDown={handleReceiveAmountKeyDown}
+                    onFocus={e => e.currentTarget.select()}
+                    className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full"
+                    placeholder="0.0"
+                    autoFocus
+                  />
+                ) : (
+                  <div
                     className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors text-white w-full"
                     onClick={() => {
                       setEditReceiveValue(displayReceiveAmount);
