@@ -18,7 +18,7 @@
   "dependencies": {
     "@creit.tech/sorobandomains-sdk": "^0.1.6",
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
-    "@defindex/sdk": "^0.3.0-alpha.1",
+    "@defindex/sdk": "^0.3.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.8",
