@@ -1,72 +1,52 @@
-## Goal
+## Fixes
 
-Tighten the codebase before release: remove all unused files, components, and npm dependencies; simplify the wallet-kit module that exists only to dodge a build failure; confirm a clean production build.
+### 1. Activity transaction list rates not updating
 
-## Audit findings (read-only)
+**Where:** `src/components/history/TransactionHistoryPanel.tsx`
 
-### Unused source files (zero importers in `src/`)
-- `src/components/ui/enhanced-skeleton.tsx`
-- `src/lib/enhanced-cache.ts`
-- `src/lib/orderbook-pricing.ts`
-- `src/lib/empty-module.ts` — superseded by the `usb` `overrides` in `package.json`
-- `src/lib/walletConfig.ts` — only feeds the dead Trezor/WalletConnect branch in `walletKit.ts` (configs are hardcoded empty)
+**Issue:** USD amounts are computed once per transaction set and cached against `lastTransactionIdsRef`. When the user switches asset / fiat or new prices arrive, `usdAmounts` is not recomputed because `hasNewTransactions` is false, so the FX step has stale (often zero) inputs and the list shows wrong/empty fiat. The fallback FX rate is also inverted vs Kraken convention, producing wrong values when historical rates miss.
 
-### Unused shadcn/ui components (24 files, 0 importers each)
-accordion, alert-dialog, aspect-ratio, avatar, breadcrumb, carousel, chart, command, context-menu, drawer, dropdown-menu, enhanced-skeleton, form, hover-card, input-otp, menubar, navigation-menu, pagination, progress, radio-group, resizable, scroll-area, sidebar, table
+**Fix:**
+- Drop the "skip if no new tx ids" guard so the USD step re-runs whenever transactions, selected asset filter, or network change. Keep the prime-once optimization by only re-priming Kraken caches for assets we have not seen yet (track in a ref).
+- When `getUsdRateForDateByAsset` returns 0 for a recent date, fall back to the live oracle price already used in `useAssetPrices` rather than zero.
+- Use `getFxRate` consistently: `getFxRate` returns USD-per-target, so `targetAmount = usdAmount / fxRate`. Remove the `1 / fallbackFxRate` inversion that conflicts with `convertFromUSD`. Verify against `useFiatConversion` so chart, list, and totals all use the same convention.
+- Show a small `LoadingPill` per row while `fiatLoading` is true instead of a stale "0".
 
-### Unused npm dependencies (no `src/` imports)
-Confirmed zero usage:
-- `lovable-tagger` (componentTagger plugin already commented out in `vite.config.ts`)
-- `@creit.tech/sorobandomains-sdk` (project uses its own `src/lib/soroban-domains.ts`)
-- `react-is`
+### 2. Operation Thresholds badge order in multisig
 
-Used **only** by unused UI components above (safe to drop together with those files):
-- `embla-carousel-react` (carousel) · `react-resizable-panels` (resizable) · `cmdk` (command) · `input-otp` · `react-day-picker` (calendar — but `calendar.tsx` IS used; **keep** `react-day-picker`) · `vaul` (drawer) · `recharts` (chart) · `qrcode.react` (only ui/sidebar — confirm; app uses `qrcode` + `jsqr`)
-- Radix packages tied to unused UI files: `@radix-ui/react-accordion`, `react-alert-dialog`, `react-aspect-ratio`, `react-avatar`, `react-context-menu`, `react-dropdown-menu`, `react-hover-card`, `react-menubar`, `react-navigation-menu`, `react-progress`, `react-radio-group`, `react-scroll-area`
+**Where:** `src/components/AccountOverview.tsx` (lines 354–376) and the matching read-only display in `MultisigConfigBuilder` if any.
 
-Verify before drop (each step preceded by a final `rg`):
-- `react-day-picker` is needed (calendar.tsx is used).
-- `recharts` only appears in unused `ui/chart.tsx` — drop with chart.
+**Issue:** Badges currently render `{currentWeight}/{threshold}` (e.g. `0/M`). The user wants `{required}/{have}` style — i.e. how many more weights are needed vs the M signers we have. Today the order is confusing because the left number is "have" and right is "required" but the visual reads as a fraction.
 
-### `src/lib/walletKit.ts` simplification
+**Fix:** Render as `Required {threshold} · Have {currentWeight}` with two distinct chips (or swap the order to `{threshold}/{currentWeight}` with a tooltip "required / available"). Apply the same change anywhere `{currentWeight}/{requiredWeight}` is shown for clarity (`SignerSelector` line 172, `TransactionSubmitter`). Color the badge green only when `have >= required`.
 
-Current file uses variable-based dynamic imports + `@vite-ignore` to dodge bundler analysis of optional Trezor / WalletConnect modules — but `walletConfig.ts` hardcodes empty values so those branches are dead. Replace with:
+### 3. Merge Account button on Payment ops
 
-```ts
-import { StellarWalletsKit } from '@creit-tech/stellar-wallets-kit/sdk';
-import { defaultModules } from '@creit-tech/stellar-wallets-kit/modules/utils';
-import { LedgerModule } from '@creit-tech/stellar-wallets-kit/modules/ledger';
+**Where:** `src/components/payment/PaymentForm.tsx` (`canCloseAccount`, button at line 1221, `handleMergeAccount` line 484, build path line 755).
 
-StellarWalletsKit.init({ modules: [...defaultModules(), new LedgerModule()] });
-export { StellarWalletsKit };
-```
+**Issue:** `canCloseAccount()` returns true whenever the account has only XLM (no other trustlines), regardless of whether the user has actually entered an amount that drains the account or whether a valid destination exists. Clicking with an unset/invalid destination crashes downstream when `accountMerge` is built with empty strings.
 
-This eliminates the hack and the original Trezor build failure root cause.
+**Fix:**
+- Only render the Merge Account button when ALL of:
+  - source account has zero non-XLM trustlines AND no other planned outflows would leave residue,
+  - a valid destination is entered (`isValidStellarAddress(paymentData.destination)`) and it differs from `accountPublicKey`,
+  - the destination account exists on-chain (`recipientExists === true`),
+  - selected asset is XLM and no path-payment / receiveAsset is selected.
+- In `handleMergeAccount` and `handleBuild` (line 755), guard against empty destination — if invalid, show a toast instead of calling `onBuild`. Wrap the merge build in a try/catch surfaced via the existing error toast so a malformed XDR never crashes the page.
+- Add a tooltip on the disabled state explaining why it is unavailable.
 
-### `vite.config.ts` cleanup
-- Remove `usb` alias and delete `src/lib/empty-module.ts` (overrides handle it).
-- Remove commented-out `componentTagger` plugin line, the `mode` arg, and `.filter(Boolean)`.
-- Remove `@trezor/*` and `…/modules/trezor` entries from `optimizeDeps.exclude`.
-- Keep `manualChunks` but drop now-irrelevant chunks (e.g. `charts` for recharts).
+### 4. Wallet logos cropped / padding
 
-### Other
-- Delete committed `tsconfig.app.tsbuildinfo` and `tsconfig.node.tsbuildinfo` build artifacts; ensure `.gitignore` covers them.
+**Where:** `src/components/WalletConnect.tsx` (`getWalletIcon`, lines 71–95 and the wrapping `<div className="w-8 h-8 flex items-center justify-center">` at lines 385/420/457).
 
-## Plan
+**Issue:** Some wallet icons (Ledger SVG, Soroban Domains) are full-bleed inside a fixed 32×32 box that sits flush against the bottom of a 56–64 px row, so glyphs touch the row border.
 
-1. Delete dead source files (5 lib/component files listed above).
-2. Delete the 24 unused shadcn UI files.
-3. Rewrite `src/lib/walletKit.ts` to the 4-line version.
-4. Clean `vite.config.ts` (alias, plugin comment, optimizeDeps, manualChunks).
-5. Prune `package.json` deps confirmed unused (each re-checked with `rg` immediately before removal):
-   - `lovable-tagger`, `@creit.tech/sorobandomains-sdk`, `react-is`
-   - `embla-carousel-react`, `react-resizable-panels`, `cmdk`, `input-otp`, `vaul`, `recharts`, `qrcode.react`
-   - 12 unused `@radix-ui/*` packages listed above
-6. Remove committed `tsconfig.*.tsbuildinfo` files.
-7. Run `bun install` then `bun run build`; fix any fallout.
-8. Smoke check: landing renders, Freighter connect works, sign flow loads, console silent.
+**Fix:** Bump the icon container to `w-9 h-9` with `p-1` (or wrap each `<img>` in `object-contain p-0.5`), and ensure the row's flex alignment is `items-center` (it already is) but add `py-2` inside the button so the icon never touches the bottom edge. Verify Ledger PNG and Soroban Domains PNG render with consistent padding across mainnet/testnet panes.
 
-## Out of scope
+## Verification
 
-- No feature changes, no styling changes, no major version bumps beyond what's already current.
-- Keep wallet set as `defaultModules()` + Ledger.
+Use Tansu account on mainnet (`https://github.com/Consulting-Manao/tansu`) connected via Soroban Domains:
+1. Open Activity tab — confirm fiat amounts populate, switch USD ↔ EUR ↔ GBP and confirm values recompute correctly.
+2. Open Multisig tab — confirm threshold badges read naturally (required vs have).
+3. Build a payment — confirm Merge Account button only appears when applicable; clicking it with no destination no longer crashes.
+4. Open wallet picker — confirm Ledger and other wallet logos have visible padding and are not clipped.
