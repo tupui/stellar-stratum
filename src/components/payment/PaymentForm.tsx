@@ -483,19 +483,25 @@ export const PaymentForm = ({
   };
   const handleMergeAccount = () => {
     if (!canCloseAccount()) return;
+    if (!isValidStellarAddress(paymentData.destination) || paymentData.destination === accountPublicKey) {
+      toast({
+        title: 'Destination required',
+        description: 'Enter a valid destination account before merging.',
+        variant: 'destructive'
+      });
+      return;
+    }
     
     // For merge, show the leftover balance that will be transferred
     const leftoverBalance = getLeftoverBalance('XLM');
     
-    // Use current destination if provided, otherwise require user input
-    // For account merge, receiving asset must be XLM
     onPaymentDataChange({
       ...paymentData,
       asset: 'XLM',
       assetIssuer: '',
       receiveAsset: 'XLM',
       receiveAssetIssuer: '',
-      destination: paymentData.destination || '',
+      destination: paymentData.destination,
       amount: leftoverBalance.toString()
     });
     setWillCloseAccount(true);
