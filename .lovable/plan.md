@@ -1,52 +1,45 @@
-## Fixes
+## Problem
 
-### 1. Activity transaction list rates not updating
+In `src/components/history/TransactionHistoryPanel.tsx` the fiat conversion is split into two `useEffect`s coordinated through `usdAmountsRef` / `rateInfoRef` plus an early-exit guard that compares transaction ids. Symptoms:
 
-**Where:** `src/components/history/TransactionHistoryPanel.tsx`
+- After the first paint the rates often stick (Step 1's guard `!hasNewTransactions && usdAmounts.size >= transactions.length` skips recomputation, so when an asset list arrives later or `selectedAsset` changes nothing recalculates).
+- Switching USD → EUR → USD sometimes leaves stale per-row rates because Step 2 reads `rateInfoRef.current` while Step 1 is still writing it (race during async `for` loops).
+- The "per asset" rate label (`assetRate * fxRate`) inconsistently uses fallback `1/fallbackFxRate` from `getFxRate` (Reflector oracle), conflicting with Kraken's already-inverted historical pair, producing different numbers per refresh.
+- For old transactions where Kraken has no daily close (>1y back) we render `N/A` correctly, but the rate caption still appears for some rows because `rateInfo` is written even when `usdPrice === 0`.
 
-**Issue:** USD amounts are computed once per transaction set and cached against `lastTransactionIdsRef`. When the user switches asset / fiat or new prices arrive, `usdAmounts` is not recomputed because `hasNewTransactions` is false, so the FX step has stale (often zero) inputs and the list shows wrong/empty fiat. The fallback FX rate is also inverted vs Kraken convention, producing wrong values when historical rates miss.
+The two-effect / two-ref design is also more complex than needed.
 
-**Fix:**
-- Drop the "skip if no new tx ids" guard so the USD step re-runs whenever transactions, selected asset filter, or network change. Keep the prime-once optimization by only re-priming Kraken caches for assets we have not seen yet (track in a ref).
-- When `getUsdRateForDateByAsset` returns 0 for a recent date, fall back to the live oracle price already used in `useAssetPrices` rather than zero.
-- Use `getFxRate` consistently: `getFxRate` returns USD-per-target, so `targetAmount = usdAmount / fxRate`. Remove the `1 / fallbackFxRate` inversion that conflicts with `convertFromUSD`. Verify against `useFiatConversion` so chart, list, and totals all use the same convention.
-- Show a small `LoadingPill` per row while `fiatLoading` is true instead of a stale "0".
+## Fix
 
-### 2. Operation Thresholds badge order in multisig
+Collapse the logic into a single derivation: one `useEffect` that, whenever `transactions` or `quoteCurrency` change, primes caches and writes `fiatAmounts` + `rateInfo` in one shot. Caching stays exactly where it is (Kraken localStorage, 24h TTL, supported-pairs cache, in-flight dedupe) — we do not add new caches.
 
-**Where:** `src/components/AccountOverview.tsx` (lines 354–376) and the matching read-only display in `MultisigConfigBuilder` if any.
+### Changes in `src/components/history/TransactionHistoryPanel.tsx`
 
-**Issue:** Badges currently render `{currentWeight}/{threshold}` (e.g. `0/M`). The user wants `{required}/{have}` style — i.e. how many more weights are needed vs the M signers we have. Today the order is confusing because the left number is "have" and right is "required" but the visual reads as a fraction.
+1. Delete `usdAmounts` state, `usdAmountsRef`, `rateInfoRef`, `lastTransactionIdsRef`, and both existing `useEffect`s (Step 1 + Step 2).
+2. Add one `useEffect` keyed on `[transactions, quoteCurrency, network]` that:
+   - Returns early if `transactions.length === 0`.
+   - Builds the unique asset set from the current `transactions` (XLM + every `assetCode` + swap from/to codes).
+   - Primes once: `Promise.all([...assets].map(primeUsdRatesForAsset))` and, when `quoteCurrency !== 'USD'`, `primeHistoricalFxRates('USD', quoteCurrency)`. These are already deduped and read from localStorage on hit, so we are at most 1 fetch per asset + 1 per FX pair per 24h.
+   - Iterates transactions synchronously over the now-warm cache using `getUsdRateForDateByAsset(asset, date, true)` (cache-only) and `getHistoricalFxRate('USD', quoteCurrency, date, true)` (cache-only). No per-row awaits.
+   - Computes `fiatAmount = usdPrice * amount * fxRate` where `fxRate = 1` for USD or the cached Kraken value (already stored as target-per-USD by `fetchFullYearForFiatPair`).
+   - Only writes `rateInfo` for rows where `usdPrice > 0` (so the "per asset" caption never appears when we will render `N/A`).
+   - Sets `fiatAmounts`, `rateInfo`, and `setFiatLoading(false)` at the end.
+3. Remove the fallback-inversion branch entirely. If a date has no Kraken FX rate, the row falls back to USD-only display via the existing `showNA` path — we no longer mix Reflector (oracle) FX with Kraken historical FX in the same calculation, which was the source of inconsistent values.
+4. Drop the now-unused import of `getFxRate` and `getAssetPrice` from this file (they are still used elsewhere). Keep `convertFromUSD` for the portfolio-value effects (those are correct already and only depend on `totalPortfolioValueUSD` + `quoteCurrency`).
 
-**Fix:** Render as `Required {threshold} · Have {currentWeight}` with two distinct chips (or swap the order to `{threshold}/{currentWeight}` with a tooltip "required / available"). Apply the same change anywhere `{currentWeight}/{requiredWeight}` is shown for clarity (`SignerSelector` line 172, `TransactionSubmitter`). Color the badge green only when `have >= required`.
+### No changes needed in
 
-### 3. Merge Account button on Payment ops
+- `src/lib/kraken.ts` — caching is already optimal (1y of daily OHLC per asset + per FX pair, 24h TTL, localStorage, supported-pairs cache, in-flight dedupe, 20 req/min limiter).
+- `src/lib/fiat-currencies.ts` — Reflector oracle FX path stays as-is for `useFiatConversion` / portfolio totals.
+- `src/components/history/GroupedTransactionItem.tsx` — already gates the rate caption on `rateInfo.has(id)` and `!showNA`; once we stop populating `rateInfo` for zero-price rows it will be correct automatically.
 
-**Where:** `src/components/payment/PaymentForm.tsx` (`canCloseAccount`, button at line 1221, `handleMergeAccount` line 484, build path line 755).
+## Verification (mainnet, Tansu account via Soroban Domains)
 
-**Issue:** `canCloseAccount()` returns true whenever the account has only XLM (no other trustlines), regardless of whether the user has actually entered an amount that drains the account or whether a valid destination exists. Clicking with an unset/invalid destination crashes downstream when `accountMerge` is built with empty strings.
+1. Open Activity, observe rates appear once (no flicker, no stale 0).
+2. Switch quote currency USD → EUR → GBP → USD and back; values for the same row recompute deterministically and the per-asset caption matches `formatFiatAmount(row) / amount`.
+3. Spot check three transactions at different dates (e.g. one from this week, one ~3 months old, one ~10 months old) — all show non-zero values with consistent rates across currency switches. Anything older than the 1-year Kraken window shows `N/A` and no caption.
+4. Network tab: at most one `OHLC` request per asset and one per FX pair per 24h; subsequent currency toggles are pure cache reads.
 
-**Fix:**
-- Only render the Merge Account button when ALL of:
-  - source account has zero non-XLM trustlines AND no other planned outflows would leave residue,
-  - a valid destination is entered (`isValidStellarAddress(paymentData.destination)`) and it differs from `accountPublicKey`,
-  - the destination account exists on-chain (`recipientExists === true`),
-  - selected asset is XLM and no path-payment / receiveAsset is selected.
-- In `handleMergeAccount` and `handleBuild` (line 755), guard against empty destination — if invalid, show a toast instead of calling `onBuild`. Wrap the merge build in a try/catch surfaced via the existing error toast so a malformed XDR never crashes the page.
-- Add a tooltip on the disabled state explaining why it is unavailable.
+## Out of scope
 
-### 4. Wallet logos cropped / padding
-
-**Where:** `src/components/WalletConnect.tsx` (`getWalletIcon`, lines 71–95 and the wrapping `<div className="w-8 h-8 flex items-center justify-center">` at lines 385/420/457).
-
-**Issue:** Some wallet icons (Ledger SVG, Soroban Domains) are full-bleed inside a fixed 32×32 box that sits flush against the bottom of a 56–64 px row, so glyphs touch the row border.
-
-**Fix:** Bump the icon container to `w-9 h-9` with `p-1` (or wrap each `<img>` in `object-contain p-0.5`), and ensure the row's flex alignment is `items-center` (it already is) but add `py-2` inside the button so the icon never touches the bottom edge. Verify Ledger PNG and Soroban Domains PNG render with consistent padding across mainnet/testnet panes.
-
-## Verification
-
-Use Tansu account on mainnet (`https://github.com/Consulting-Manao/tansu`) connected via Soroban Domains:
-1. Open Activity tab — confirm fiat amounts populate, switch USD ↔ EUR ↔ GBP and confirm values recompute correctly.
-2. Open Multisig tab — confirm threshold badges read naturally (required vs have).
-3. Build a payment — confirm Merge Account button only appears when applicable; clicking it with no destination no longer crashes.
-4. Open wallet picker — confirm Ledger and other wallet logos have visible padding and are not clipped.
+No new caches, no refactor of `useAccountHistory`, no oracle changes.

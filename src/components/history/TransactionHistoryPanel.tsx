@@ -29,7 +29,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { useAccountHistory } from '@/hooks/useAccountHistory';
 import { useFiatConversion } from '@/hooks/useFiatConversion';
 import { getUsdRateForDateByAsset, primeUsdRatesForAsset, getHistoricalFxRate, primeHistoricalFxRates } from '@/lib/kraken';
-import { convertFromUSD, getFxRate } from '@/lib/fiat-currencies';
+import { convertFromUSD } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { getHorizonTransactionUrl } from '@/lib/horizon-utils';
