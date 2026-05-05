@@ -1,134 +1,72 @@
 ## Goal
 
-Bring every dependency to its latest version and adapt the codebase to the breaking changes. The biggest item is **Stellar Wallets Kit v1 → v2** (a full rewrite). The rest is mostly version bumps + a couple of small type fixes.
+Tighten the codebase before release: remove all unused files, components, and npm dependencies; simplify the wallet-kit module that exists only to dodge a build failure; confirm a clean production build.
 
----
+## Audit findings (read-only)
 
-## 1. Stellar Wallets Kit v1.9.5 → v2.1.0 (breaking)
+### Unused source files (zero importers in `src/`)
+- `src/components/ui/enhanced-skeleton.tsx`
+- `src/lib/enhanced-cache.ts`
+- `src/lib/orderbook-pricing.ts`
+- `src/lib/empty-module.ts` — superseded by the `usb` `overrides` in `package.json`
+- `src/lib/walletConfig.ts` — only feeds the dead Trezor/WalletConnect branch in `walletKit.ts` (configs are hardcoded empty)
 
-The package itself moved. v2 is published on **JSR** under `@creit-tech/...` (dash) instead of `@creit.tech/...` (dot). Tansu uses the same setup we'll use:
+### Unused shadcn/ui components (24 files, 0 importers each)
+accordion, alert-dialog, aspect-ratio, avatar, breadcrumb, carousel, chart, command, context-menu, drawer, dropdown-menu, enhanced-skeleton, form, hover-card, input-otp, menubar, navigation-menu, pagination, progress, radio-group, resizable, scroll-area, sidebar, table
 
-```json
-"@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.1.0"
-```
+### Unused npm dependencies (no `src/` imports)
+Confirmed zero usage:
+- `lovable-tagger` (componentTagger plugin already commented out in `vite.config.ts`)
+- `@creit.tech/sorobandomains-sdk` (project uses its own `src/lib/soroban-domains.ts`)
+- `react-is`
 
-Other v2 changes affecting our code:
+Used **only** by unused UI components above (safe to drop together with those files):
+- `embla-carousel-react` (carousel) · `react-resizable-panels` (resizable) · `cmdk` (command) · `input-otp` · `react-day-picker` (calendar — but `calendar.tsx` IS used; **keep** `react-day-picker`) · `vaul` (drawer) · `recharts` (chart) · `qrcode.react` (only ui/sidebar — confirm; app uses `qrcode` + `jsqr`)
+- Radix packages tied to unused UI files: `@radix-ui/react-accordion`, `react-alert-dialog`, `react-aspect-ratio`, `react-avatar`, `react-context-menu`, `react-dropdown-menu`, `react-hover-card`, `react-menubar`, `react-navigation-menu`, `react-progress`, `react-radio-group`, `react-scroll-area`
 
-- **Subpath imports** (no more single barrel):
-  - `@creit-tech/stellar-wallets-kit/sdk` → `StellarWalletsKit`
-  - `@creit-tech/stellar-wallets-kit/modules/utils` → `defaultModules`, `allowAllModules`, `sep43Modules`
-  - `@creit-tech/stellar-wallets-kit/modules/ledger` → `LedgerModule`
-  - `@creit-tech/stellar-wallets-kit/modules/walletconnect` → `WalletConnectModule`, `WalletConnectAllowedMethods`
-  - `@creit-tech/stellar-wallets-kit/modules/trezor` → `TrezorModule`
-  - `@creit-tech/stellar-wallets-kit/state` → types like `ISupportedWallet`, `WalletNetwork`
-- **Singleton API**: `StellarWalletsKit` is no longer instantiated with `new`. Use `StellarWalletsKit.init({ modules: [...] })` once at module load (Tansu pattern).
-- `openModal` was removed → replaced by `authModal()` (returns the picked wallet/address as a promise).
-- Network is set per-call via `signTransaction(xdr, { networkPassphrase, address })` rather than baked into the constructor; we need to pass `networkPassphrase` from our `NetworkContext` whenever we sign.
-- New `subscribe(...)` event API exists; we don't need it — current code only reads address on demand.
+Verify before drop (each step preceded by a final `rg`):
+- `react-day-picker` is needed (calendar.tsx is used).
+- `recharts` only appears in unused `ui/chart.tsx` — drop with chart.
 
-### Refactor of `src/contexts/WalletKitContext.tsx`
+### `src/lib/walletKit.ts` simplification
 
-- Move kit creation to a tiny module `src/lib/walletKit.ts` (mirrors Tansu's `stellar-wallets-kit.ts`):
-  ```ts
-  import { StellarWalletsKit } from '@creit-tech/stellar-wallets-kit/sdk';
-  import { defaultModules } from '@creit-tech/stellar-wallets-kit/modules/utils';
-  import { LedgerModule } from '@creit-tech/stellar-wallets-kit/modules/ledger';
-  import { WalletConnectModule, WalletConnectAllowedMethods } from '@creit-tech/stellar-wallets-kit/modules/walletconnect';
-  import { TrezorModule } from '@creit-tech/stellar-wallets-kit/modules/trezor';
-
-  const modules: any[] = [...defaultModules(), new LedgerModule()];
-  // optional WalletConnect / Trezor pushed exactly as today
-  StellarWalletsKit.init({ modules });
-  export { StellarWalletsKit };
-  ```
-- The provider becomes a thin wrapper:
-  - `wallets`: from `StellarWalletsKit.getSupportedWallets()` (still async, same API)
-  - `connectWallet(id)`:
-    - `StellarWalletsKit.setWallet(id)`
-    - `const { address } = await StellarWalletsKit.getAddress();`
-    - For Freighter etc. v2 may throw if `authModal` was never used; we keep the existing try/catch around `connect()` and handle the error path by calling `StellarWalletsKit.authModal()` as a fallback for wallets that need explicit auth.
-  - `signWithWallet(xdr, id)`:
-    - `StellarWalletsKit.setWallet(id)`
-    - `await StellarWalletsKit.signTransaction(xdr, { networkPassphrase: getNetworkPassphrase(network), address })`
-    - The Ledger fallback (calling `selectedModule.signTransaction` directly) is no longer needed — v2 routes signing through the module correctly. We can drop `signWithLedgerModule`.
-  - `disconnectWallet()`: call `StellarWalletsKit.disconnect()` (new in v2) then clear local state.
-- Network change effect: just re-fetch the wallet list; passphrase is now passed at signing time, no kit re-creation.
-
-### Type imports in consumers
-
-- `src/components/WalletConnect.tsx` and `src/components/SignerSelector.tsx`:
-  ```ts
-  import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/state';
-  ```
-
----
-
-## 2. Other dependency upgrades
-
-Bumping to the current latest on npm (verified via `npm view`):
-
-| Package | From | To |
-|---|---|---|
-| `@stellar/stellar-sdk` | `^14.6.1` | `^15.0.1` |
-| `@tanstack/react-query` | `^5.100.5` | `^5.100.9` |
-| `@soroswap/sdk` | `^0.4.0-alpha.1` | `^0.4.0` |
-| `@defindex/sdk` | `^0.3.0-alpha.1` | `^0.3.0` |
-| `lucide-react` | `^1.11.0` | `^1.14.0` |
-| `recharts` | `^3.8.1` | `^3.8.1` (already latest) |
-| `react-day-picker` | `^9.14.0` | `^9.14.0` (already latest) |
-| `tailwindcss` | `^4.1.18` | `^4.2.4` |
-| `eslint` | `^9.39.2` | `^10.2.1` |
-| `vite` | `^8.0.10` | `^8.0.10` (already latest) |
-| All Radix `@radix-ui/*` | current | latest minor (`npm view` per-package, then bump) |
-
-`@stellar/stellar-sdk` v15 is API-compatible with our usage (`Horizon.Server`, `TransactionBuilder.fromXDR`, `Networks.*`) — Tansu also runs on 15.0.1. No code changes expected; if a deprecation surfaces during `tsc -b`, fix in place.
-
-`@creit.tech/sorobandomains-sdk` (`^0.1.6`) — already latest, kept as-is. Note this still uses the dot package; that's a separate library.
-
----
-
-## 3. Build error fix in `vite.config.ts`
-
-Vite 8 / Rollup 4 tightened the `manualChunks` types when `output` is an object. Fix without changing behaviour by switching to the function form (this is the recommended Rollup 4 idiom):
+Current file uses variable-based dynamic imports + `@vite-ignore` to dodge bundler analysis of optional Trezor / WalletConnect modules — but `walletConfig.ts` hardcodes empty values so those branches are dead. Replace with:
 
 ```ts
-output: {
-  manualChunks(id) {
-    if (id.includes('react-dom') || id.match(/\/node_modules\/react\//)) return 'vendor';
-    if (id.includes('@stellar/stellar-sdk') || id.includes('node_modules/buffer/')) return 'stellar';
-    if (id.includes('stellar-wallets-kit')) return 'wallets';
-    if (id.includes('qrcode') || id.includes('jsqr') || id.includes('@zxing')) return 'qr';
-    if (id.includes('@radix-ui')) return 'ui';
-    if (id.includes('@tanstack/react-query')) return 'query';
-    if (id.includes('recharts')) return 'charts';
-    if (id.includes('clsx') || id.includes('class-variance-authority') || id.includes('date-fns')) return 'utils';
-  },
-},
+import { StellarWalletsKit } from '@creit-tech/stellar-wallets-kit/sdk';
+import { defaultModules } from '@creit-tech/stellar-wallets-kit/modules/utils';
+import { LedgerModule } from '@creit-tech/stellar-wallets-kit/modules/ledger';
+
+StellarWalletsKit.init({ modules: [...defaultModules(), new LedgerModule()] });
+export { StellarWalletsKit };
 ```
 
-This satisfies the `ManualChunksFunction` type that the new build complains about and produces the same chunks.
+This eliminates the hack and the original Trezor build failure root cause.
 
----
+### `vite.config.ts` cleanup
+- Remove `usb` alias and delete `src/lib/empty-module.ts` (overrides handle it).
+- Remove commented-out `componentTagger` plugin line, the `mode` arg, and `.filter(Boolean)`.
+- Remove `@trezor/*` and `…/modules/trezor` entries from `optimizeDeps.exclude`.
+- Keep `manualChunks` but drop now-irrelevant chunks (e.g. `charts` for recharts).
 
-## 4. Files to change
+### Other
+- Delete committed `tsconfig.app.tsbuildinfo` and `tsconfig.node.tsbuildinfo` build artifacts; ensure `.gitignore` covers them.
 
-- `package.json` — version bumps + wallets-kit JSR alias.
-- `src/lib/walletKit.ts` — new singleton init module.
-- `src/contexts/WalletKitContext.tsx` — refactor to use the singleton + v2 API.
-- `src/components/WalletConnect.tsx` — update `ISupportedWallet` import path.
-- `src/components/SignerSelector.tsx` — update `ISupportedWallet` import path.
-- `vite.config.ts` — `manualChunks` as a function.
-- `bun.lock` — regenerated by install.
+## Plan
 
-No changes needed in `src/lib/walletConfig.ts`, `src/lib/stellar.ts`, `src/lib/soroban-domains.ts` (uses sorobandomains-sdk, not wallets-kit).
+1. Delete dead source files (5 lib/component files listed above).
+2. Delete the 24 unused shadcn UI files.
+3. Rewrite `src/lib/walletKit.ts` to the 4-line version.
+4. Clean `vite.config.ts` (alias, plugin comment, optimizeDeps, manualChunks).
+5. Prune `package.json` deps confirmed unused (each re-checked with `rg` immediately before removal):
+   - `lovable-tagger`, `@creit.tech/sorobandomains-sdk`, `react-is`
+   - `embla-carousel-react`, `react-resizable-panels`, `cmdk`, `input-otp`, `vaul`, `recharts`, `qrcode.react`
+   - 12 unused `@radix-ui/*` packages listed above
+6. Remove committed `tsconfig.*.tsbuildinfo` files.
+7. Run `bun install` then `bun run build`; fix any fallout.
+8. Smoke check: landing renders, Freighter connect works, sign flow loads, console silent.
 
----
+## Out of scope
 
-## 5. Verification
-
-After install:
-1. `tsc -b` passes (the harness will run the build).
-2. Landing page → "Connect wallet" lists Freighter/xBull/Ledger/Lobstr/Hot/Albedo as today.
-3. Connect with Freighter end-to-end on testnet (smoke test by user).
-4. Sign a transaction (multisig flow) — confirms the new `signTransaction({ networkPassphrase, address })` path.
-5. Hardware wallet (Ledger) modal still opens — uses kit's built-in modal in v2.
+- No feature changes, no styling changes, no major version bumps beyond what's already current.
+- Keep wallet set as `defaultModules()` + Ledger.
