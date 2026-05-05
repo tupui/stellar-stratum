@@ -1,19 +1,11 @@
-import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
-import {
-  StellarWalletsKit,
-  ISupportedWallet,
-  allowAllModules,
-  WalletNetwork
-} from '@creit.tech/stellar-wallets-kit';
-import { LedgerModule } from '@creit.tech/stellar-wallets-kit/modules/ledger.module';
-import { WalletConnectModule, WalletConnectAllowedMethods } from '@creit.tech/stellar-wallets-kit/modules/walletconnect.module';
-import { TrezorModule } from '@creit.tech/stellar-wallets-kit/modules/trezor.module';
-import { walletConnectConfig, trezorConfig } from '@/lib/walletConfig';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
+import { StellarWalletsKit } from '@/lib/walletKit';
 import { getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface WalletKitContextType {
-  kit: StellarWalletsKit | null;
+  kit: typeof StellarWalletsKit;
   wallets: ISupportedWallet[];
   connectedWallet: { id: string; name: string } | null;
   connectWallet: (walletId: string) => Promise<{ publicKey: string; walletName: string }>;
@@ -46,122 +38,39 @@ const sortWallets = (wallets: ISupportedWallet[]): ISupportedWallet[] =>
       return a.name.localeCompare(b.name);
     });
 
-const createKit = (network: 'mainnet' | 'testnet'): StellarWalletsKit => {
-  const passphrase = getNetworkPassphrase(network);
-  const modules: unknown[] = [...allowAllModules(), new LedgerModule()];
-
-  try {
-    if (walletConnectConfig.projectId) {
-      modules.push(
-        new WalletConnectModule({
-          url: walletConnectConfig.url ?? (typeof window !== 'undefined' ? window.location.origin : ''),
-          projectId: walletConnectConfig.projectId,
-          method: WalletConnectAllowedMethods.SIGN,
-          description: walletConnectConfig.description ?? 'Connect with WalletConnect',
-          name: walletConnectConfig.name ?? 'Stellar DApp',
-          icons: walletConnectConfig.iconUrl ? [walletConnectConfig.iconUrl] : [],
-          network: network === 'testnet' ? WalletNetwork.TESTNET : WalletNetwork.PUBLIC,
-        })
-      );
-    }
-  } catch {
-    // WalletConnect not available
-  }
-
-  try {
-    if (trezorConfig.url && trezorConfig.email) {
-      modules.push(new TrezorModule({ appUrl: trezorConfig.url, email: trezorConfig.email, appName: 'Stellar Multisig' }));
-    }
-  } catch {
-    // Trezor not available
-  }
-
-  return new StellarWalletsKit({
-    modules: modules as any[],
-    // @ts-expect-error - Freighter types not available - library accepts both enum and passphrase string
-    network: passphrase,
-  });
-};
-
-const tryConnectWallet = async (kit: StellarWalletsKit): Promise<void> => {
-  if (typeof (kit as any).connect === 'function') {
-    try {
-      await (kit as any).connect();
-    } catch {
-      // Some wallets don't require connect, continue
-    }
-  }
-};
-
-const signWithLedgerModule = async (
-  kit: StellarWalletsKit,
-  xdr: string,
-  address: string
-): Promise<string> => {
-  const selectedModule = (kit as any).selectedModule;
-  const networkResult = await kit.getNetwork();
-
-  if (selectedModule && typeof selectedModule.signTransaction === 'function') {
-    const result = await selectedModule.signTransaction(xdr, {
-      networkPassphrase: networkResult.networkPassphrase,
-      address,
-      nonBlindTx: true
-    });
-    return result.signedTxXdr;
-  }
-
-  // Fallback to regular signing if module access fails
-  const result = await kit.signTransaction(xdr);
-  return result.signedTxXdr;
-};
-
 interface WalletKitProviderProps {
   children: ReactNode;
 }
 
 export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
   const { network } = useNetwork();
-  const kitRef = useRef<StellarWalletsKit | null>(null);
-  const [kit, setKit] = useState<StellarWalletsKit | null>(null);
   const [wallets, setWallets] = useState<ISupportedWallet[]>([]);
   const [connectedWallet, setConnectedWallet] = useState<{ id: string; name: string } | null>(null);
 
-  // Recreate kit when network changes
-  useEffect(() => {
-    const instance = createKit(network);
-    kitRef.current = instance;
-    setKit(instance);
-
-    // Fetch wallets for the new kit
-    instance.getSupportedWallets().then((supportedWallets) => {
-      setWallets(sortWallets(supportedWallets));
-    }).catch(() => {
-      // Wallet fetch failed silently
-    });
-  }, [network]);
-
   const refreshWallets = useCallback(async () => {
-    const currentKit = kitRef.current;
-    if (!currentKit) return;
-
     try {
-      const supportedWallets = await currentKit.getSupportedWallets();
+      const supportedWallets = await StellarWalletsKit.refreshSupportedWallets();
       setWallets(sortWallets(supportedWallets));
     } catch {
       // Wallet refresh failed silently
     }
   }, []);
 
+  useEffect(() => {
+    refreshWallets();
+  }, [network, refreshWallets]);
+
   const connectWallet = useCallback(async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
-    const currentKit = kitRef.current;
-    if (!currentKit) throw new Error('Wallet kit not initialized');
-
     try {
-      currentKit.setWallet(walletId);
-      await tryConnectWallet(currentKit);
-      const { address } = await currentKit.getAddress();
+      StellarWalletsKit.setWallet(walletId);
+      let address: string;
+      try {
+        ({ address } = await StellarWalletsKit.fetchAddress());
+      } catch {
+        ({ address } = await StellarWalletsKit.getAddress());
+      }
 
-      const supportedWallets = await currentKit.getSupportedWallets();
+      const supportedWallets = await StellarWalletsKit.refreshSupportedWallets();
       const walletInfo = supportedWallets.find(w => w.id === walletId);
       const walletName = walletInfo?.name || walletId;
 
@@ -185,6 +94,7 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
   }, []);
 
   const disconnectWallet = useCallback(() => {
+    StellarWalletsKit.disconnect().catch(() => {/* ignore */});
     setConnectedWallet(null);
   }, []);
 
@@ -192,31 +102,28 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     xdr: string,
     walletId: string
   ): Promise<{ signedXdr: string; address: string; walletName: string }> => {
-    const currentKit = kitRef.current;
-    if (!currentKit) throw new Error('Wallet kit not initialized');
-
-    currentKit.setWallet(walletId);
-    await tryConnectWallet(currentKit);
-    const { address } = await currentKit.getAddress();
-
-    const isLedger = walletId.toLowerCase().includes('ledger');
-
-    let signedTxXdr: string;
-    if (isLedger) {
-      signedTxXdr = await signWithLedgerModule(currentKit, xdr, address);
-    } else {
-      const result = await currentKit.signTransaction(xdr);
-      signedTxXdr = result.signedTxXdr;
+    StellarWalletsKit.setWallet(walletId);
+    let address: string;
+    try {
+      ({ address } = await StellarWalletsKit.getAddress());
+    } catch {
+      ({ address } = await StellarWalletsKit.fetchAddress());
     }
 
-    const supported = await currentKit.getSupportedWallets();
+    const networkPassphrase = getNetworkPassphrase(network);
+    const result = await StellarWalletsKit.signTransaction(xdr, {
+      networkPassphrase,
+      address,
+    });
+
+    const supported = await StellarWalletsKit.refreshSupportedWallets();
     const info = supported.find(w => w.id === walletId);
 
-    return { signedXdr: signedTxXdr, address, walletName: info?.name || walletId };
-  }, []);
+    return { signedXdr: result.signedTxXdr, address, walletName: info?.name || walletId };
+  }, [network]);
 
   return (
-    <WalletKitContext.Provider value={{ kit, wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets }}>
+    <WalletKitContext.Provider value={{ kit: StellarWalletsKit, wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets }}>
       {children}
     </WalletKitContext.Provider>
   );

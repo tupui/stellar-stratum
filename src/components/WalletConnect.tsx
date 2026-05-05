@@ -13,7 +13,7 @@ import { Wallet, Shield, ArrowRight, RefreshCw, AlertCircle, Usb, Info, KeyRound
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
-import { ISupportedWallet } from '@creit.tech/stellar-wallets-kit';
+import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
 import { appConfig } from '@/lib/appConfig';
 import { resolveSorobanDomain } from '@/lib/soroban-domains';
 import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
