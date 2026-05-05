@@ -15,35 +15,16 @@ export default defineConfig(({ mode }) => ({
     sourcemap: true, // Generate source maps for better debugging and SEO compliance
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Core React libraries
-          vendor: ['react', 'react-dom'],
-          
-          // Stellar SDK and related crypto libraries - large bundle
-          stellar: ['@stellar/stellar-sdk', 'buffer'],
-          
-          // Wallet integration modules - loaded on demand
-          wallets: [
-            '@creit.tech/stellar-wallets-kit',
-            '@creit.tech/stellar-wallets-kit/modules/ledger.module',
-            '@creit.tech/stellar-wallets-kit/modules/walletconnect.module',
-            '@creit.tech/stellar-wallets-kit/modules/trezor.module'
-          ],
-          
-          // QR code libraries - separate chunk for better caching
-          qr: ['qrcode', 'qrcode.react', 'jsqr', '@zxing/browser', '@zxing/library'],
-          
-          // UI components and utilities
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],
-          
-          // Data fetching and state management
-          query: ['@tanstack/react-query'],
-          
-          // Chart and visualization libraries
-          charts: ['recharts'],
-          
-          // Utilities and validation
-          utils: ['clsx', 'class-variance-authority', 'date-fns']
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('@stellar/stellar-sdk') || id.match(/node_modules\/buffer\//)) return 'stellar';
+          if (id.includes('stellar-wallets-kit')) return 'wallets';
+          if (id.includes('qrcode') || id.includes('jsqr') || id.includes('@zxing')) return 'qr';
+          if (id.includes('@radix-ui')) return 'ui';
+          if (id.includes('@tanstack/react-query')) return 'query';
+          if (id.includes('recharts')) return 'charts';
+          if (id.includes('clsx') || id.includes('class-variance-authority') || id.includes('date-fns')) return 'utils';
+          if (id.match(/node_modules\/react(-dom)?\//)) return 'vendor';
         },
       },
     },
