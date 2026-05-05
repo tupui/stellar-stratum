@@ -6,16 +6,17 @@ import { walletConnectConfig, trezorConfig } from '@/lib/walletConfig';
 const modules: any[] = [...defaultModules(), new LedgerModule()];
 
 // Optional WalletConnect (only when projectId configured)
+// Use variable-based dynamic import paths so the bundler does not statically
+// analyze and try to bundle these optional/native-dependent modules.
 if (walletConnectConfig.projectId) {
   try {
-    // Dynamic so the module is only loaded when configured
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const wc = await import('@creit-tech/stellar-wallets-kit/modules/wallet-connect');
+    const wcPath = /* @vite-ignore */ '@creit-tech/stellar-wallets-kit/modules/wallet-connect';
+    const wc: any = await import(/* @vite-ignore */ wcPath);
     modules.push(
-      new (wc as any).WalletConnectModule({
+      new wc.WalletConnectModule({
         url: walletConnectConfig.url ?? (typeof window !== 'undefined' ? window.location.origin : ''),
         projectId: walletConnectConfig.projectId,
-        method: (wc as any).WalletConnectAllowedMethods.SIGN,
+        method: wc.WalletConnectAllowedMethods.SIGN,
         description: walletConnectConfig.description ?? 'Connect with WalletConnect',
         name: walletConnectConfig.name ?? 'Stellar DApp',
         icons: walletConnectConfig.iconUrl ? [walletConnectConfig.iconUrl] : [],
@@ -28,9 +29,10 @@ if (walletConnectConfig.projectId) {
 
 if (trezorConfig.url && trezorConfig.email) {
   try {
-    const tz = await import('@creit-tech/stellar-wallets-kit/modules/trezor');
+    const tzPath = /* @vite-ignore */ '@creit-tech/stellar-wallets-kit/modules/trezor';
+    const tz: any = await import(/* @vite-ignore */ tzPath);
     modules.push(
-      new (tz as any).TrezorModule({
+      new tz.TrezorModule({
         appUrl: trezorConfig.url,
         email: trezorConfig.email,
         appName: 'Stellar Multisig',
