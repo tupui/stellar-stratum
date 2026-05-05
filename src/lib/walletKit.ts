@@ -5,42 +5,40 @@ import { walletConnectConfig, trezorConfig } from '@/lib/walletConfig';
 
 const modules: any[] = [...defaultModules(), new LedgerModule()];
 
-// Optional WalletConnect module (only when projectId configured)
-try {
-  if (walletConnectConfig.projectId) {
-    // Lazy require to avoid throwing in environments where it's not bundled
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const wc = require('@creit-tech/stellar-wallets-kit/modules/walletconnect');
+// Optional WalletConnect (only when projectId configured)
+if (walletConnectConfig.projectId) {
+  try {
+    // Dynamic so the module is only loaded when configured
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const wc = await import('@creit-tech/stellar-wallets-kit/modules/wallet-connect');
     modules.push(
-      new wc.WalletConnectModule({
+      new (wc as any).WalletConnectModule({
         url: walletConnectConfig.url ?? (typeof window !== 'undefined' ? window.location.origin : ''),
         projectId: walletConnectConfig.projectId,
-        method: wc.WalletConnectAllowedMethods.SIGN,
+        method: (wc as any).WalletConnectAllowedMethods.SIGN,
         description: walletConnectConfig.description ?? 'Connect with WalletConnect',
         name: walletConnectConfig.name ?? 'Stellar DApp',
         icons: walletConnectConfig.iconUrl ? [walletConnectConfig.iconUrl] : [],
       })
     );
+  } catch {
+    // WalletConnect not available
   }
-} catch {
-  // WalletConnect not available
 }
 
-// Optional Trezor module
-try {
-  if (trezorConfig.url && trezorConfig.email) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const tz = require('@creit-tech/stellar-wallets-kit/modules/trezor');
+if (trezorConfig.url && trezorConfig.email) {
+  try {
+    const tz = await import('@creit-tech/stellar-wallets-kit/modules/trezor');
     modules.push(
-      new tz.TrezorModule({
+      new (tz as any).TrezorModule({
         appUrl: trezorConfig.url,
         email: trezorConfig.email,
         appName: 'Stellar Multisig',
       })
     );
+  } catch {
+    // Trezor not available
   }
-} catch {
-  // Trezor not available
 }
 
 StellarWalletsKit.init({ modules });
