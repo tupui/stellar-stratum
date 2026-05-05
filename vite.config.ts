@@ -59,6 +59,11 @@ export default defineConfig(({ mode }) => ({
   },
   optimizeDeps: {
     include: ["buffer", "process"],
+    exclude: [
+      "@trezor/connect-web",
+      "@trezor/connect-plugin-stellar",
+      "@creit-tech/stellar-wallets-kit/modules/trezor",
+    ],
     esbuildOptions: {
       target: 'es2020', // Modern target for dependency optimization
     },
