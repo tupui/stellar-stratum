@@ -98,7 +98,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   });
 
   const [showFilters, setShowFilters] = useState(false);
-  const [usdAmounts, setUsdAmounts] = useState<Map<string, number>>(new Map()); // USD amounts cached once
   const [fiatAmounts, setFiatAmounts] = useState<Map<string, number>>(new Map());
   const [rateInfo, setRateInfo] = useState<Map<string, { assetRate: number; fxRate: number; asset: string }>>(new Map());
   const [fiatLoading, setFiatLoading] = useState<boolean>(true);
@@ -106,13 +105,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   const [currentPortfolioFiat, setCurrentPortfolioFiat] = useState<number>(0);
   const [currentXLMFiat, setCurrentXLMFiat] = useState<number>(0);
   const [currentAssetFiat, setCurrentAssetFiat] = useState<number>(0);
-  
-  // Track the last known transaction IDs to detect when transactions are cleared vs actually empty
-  const lastTransactionIdsRef = useRef<Set<string>>(new Set());
-  
-  // Use refs to always get latest values in effects (avoids stale closures)
-  const usdAmountsRef = useRef<Map<string, number>>(new Map());
-  const rateInfoRef = useRef<Map<string, { assetRate: number; fxRate: number; asset: string }>>(new Map());
 
   // Build asset options from balances
   const assetOptions = useMemo(() => {
@@ -136,68 +128,49 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     });
   }, [balances]);
 
-  // Step 1: Calculate USD amounts for all transactions (only when transactions change)
+  // Single derivation: prime caches once, then synchronously compute fiat amounts
+  // for every transaction. Re-runs when transactions or quote currency change.
   useEffect(() => {
-    const calculateUsdAmounts = async () => {
-      const currentTxIds = new Set(transactions.map(t => t.id));
-      const lastTxIds = lastTransactionIdsRef.current;
-      
-      // If transactions went to 0 temporarily (race condition), preserve existing data
-      if (transactions.length === 0 && lastTxIds.size > 0) {
-        return;
-      }
-      
-      // If transactions is empty for real (initial state), skip
+    let cancelled = false;
+
+    const compute = async () => {
       if (transactions.length === 0) {
+        setFiatAmounts(new Map());
+        setRateInfo(new Map());
+        setFiatLoading(false);
         return;
       }
-      
-      // Check if we need to recalculate (new transactions added, or no USD data yet)
-      const hasNewTransactions = transactions.some(t => !lastTxIds.has(t.id));
-      if (!hasNewTransactions && usdAmounts.size >= transactions.length && usdAmounts.size > 0) {
-        return;
-      }
-      
-      // Update our tracking
-      lastTransactionIdsRef.current = currentTxIds;
 
-      // Prime all asset rates first
-      try {
-        await primeUsdRatesForAsset('XLM');
-      } catch {
-        // Silent - cache will handle failures
-      }
+      setFiatLoading(true);
 
-      const assets = new Set<string>();
+      // Collect every asset that appears in the visible history
+      const assets = new Set<string>(['XLM']);
       transactions.forEach(t => {
-        if (t.assetType !== 'native' && t.assetCode) {
-          assets.add(t.assetCode);
-        }
+        if (t.assetType !== 'native' && t.assetCode) assets.add(t.assetCode);
         if (t.category === 'swap') {
-          if (t.swapFromAssetType !== 'native' && t.swapFromAssetCode) {
-            assets.add(t.swapFromAssetCode);
-          }
-          if (t.swapToAssetType !== 'native' && t.swapToAssetCode) {
-            assets.add(t.swapToAssetCode);
-          }
+          if (t.swapFromAssetType !== 'native' && t.swapFromAssetCode) assets.add(t.swapFromAssetCode);
+          if (t.swapToAssetType !== 'native' && t.swapToAssetCode) assets.add(t.swapToAssetCode);
         }
       });
-      
-      await Promise.all(Array.from(assets).map(code => 
-        primeUsdRatesForAsset(code).catch(() => {})
-      ));
 
-      // Now calculate USD amounts for each transaction
-      const newUsdAmounts = new Map<string, number>();
-      const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
+      // Prime once. These are deduped + 24h-cached in localStorage by kraken.ts.
+      await Promise.all([
+        ...Array.from(assets).map(code => primeUsdRatesForAsset(code).catch(() => {})),
+        quoteCurrency !== 'USD'
+          ? primeHistoricalFxRates('USD', quoteCurrency).catch(() => {})
+          : Promise.resolve(),
+      ]);
+
+      if (cancelled) return;
+
+      const newFiat = new Map<string, number>();
+      const newRate = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
 
       for (const tx of transactions) {
         const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
-        let usdPrice = 0;
-        let amount = 0;
-        let assetCode = '';
-        
-        // For swaps, use the source asset (what was spent)
+
+        let assetCode: string;
+        let amount: number;
         if (tx.category === 'swap') {
           assetCode = tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || 'XLM');
           amount = tx.swapFromAmount || 0;
@@ -205,159 +178,52 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           assetCode = tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM');
           amount = tx.amount || 0;
         }
-        
-        try {
-          // Cache-first: use cache-only mode since we already primed all asset data
-          usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, true);
-          
-          // If cache miss and it's today, try forcing a refresh
-          if (!usdPrice) {
-            const today = new Date();
-            const isToday = txDate.toDateString() === today.toDateString();
-            if (isToday) {
-              usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, false);
-            }
-          }
-        } catch (error) {
-          usdPrice = 0;
-        }
 
-        // For swaps, if source asset has no price, try using destination asset as fallback
+        // Cache-only reads: caches were primed above.
+        let usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, true);
+
+        // Swap fallback: if source asset has no historical price, try destination.
         if (tx.category === 'swap' && usdPrice === 0) {
-          const toAssetCode = tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || 'XLM');
-          if (toAssetCode !== assetCode && tx.swapToAmount) {
-            try {
-              const toUsdPrice = await getUsdRateForDateByAsset(toAssetCode, txDate, true);
-              if (toUsdPrice > 0) {
-                // Use destination asset price and amount as approximation
-                usdPrice = toUsdPrice;
-                amount = tx.swapToAmount;
-              }
-            } catch (error) {
-              // Silent fallback
+          const toCode = tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || 'XLM');
+          if (toCode !== assetCode && tx.swapToAmount) {
+            const toUsd = await getUsdRateForDateByAsset(toCode, txDate, true);
+            if (toUsd > 0) {
+              usdPrice = toUsd;
+              amount = tx.swapToAmount;
+              assetCode = toCode;
             }
           }
         }
 
-        // Calculate USD amount and store it
-        if (usdPrice > 0 && amount > 0) {
-          const usdAmount = usdPrice * amount;
-          newUsdAmounts.set(tx.id, usdAmount);
-          newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate: 1, asset: assetCode });
-        } else {
-          // No USD price available
-          newUsdAmounts.set(tx.id, 0);
-          newRateInfo.set(tx.id, { assetRate: usdPrice, fxRate: 1, asset: assetCode });
-        }
-      }
-      
-      // Update refs and state
-      usdAmountsRef.current = newUsdAmounts;
-      rateInfoRef.current = newRateInfo;
-      setUsdAmounts(newUsdAmounts);
-      setRateInfo(newRateInfo);
-    };
-
-    calculateUsdAmounts();
-  }, [transactions]);
-
-  // Step 2: Apply FX conversion when currency changes OR when USD amounts become available
-  // Uses HISTORICAL FX rates from Kraken for accurate per-transaction conversion
-  useEffect(() => {
-    const applyFxConversion = async () => {
-      // Use ref to get latest USD amounts (avoids stale closure)
-      const latestUsdAmounts = usdAmountsRef.current;
-      
-      // Wait for USD amounts to be calculated
-      if (latestUsdAmounts.size === 0) {
-        setFiatLoading(false);
-        return;
-      }
-
-      // If USD, just use the USD amounts directly (important: runs when usdAmounts changes!)
-      if (quoteCurrency === 'USD') {
-        setFiatAmounts(new Map(latestUsdAmounts));
-        setFiatLoading(false);
-        return;
-      }
-
-      // Prime historical FX rates for USD -> target currency
-      try {
-        await primeHistoricalFxRates('USD', quoteCurrency);
-      } catch {
-        // Silent - will fallback to current rate if needed
-      }
-
-      // Get current FX rate as fallback for dates where historical rate is unavailable
-      let fallbackFxRate = 0;
-      try {
-        fallbackFxRate = await getFxRate(quoteCurrency, network);
-      } catch {
-        // No fallback available
-      }
-
-      // Apply HISTORICAL FX rates to each transaction based on its date
-      const newFiatAmounts = new Map<string, number>();
-      const newRateInfo = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
-      
-      // Use refs to get latest values (avoids stale closures)
-      const latestRateInfo = rateInfoRef.current;
-      
-      // Iterate over latest USD amounts (from ref)
-      for (const [txId, usdAmount] of latestUsdAmounts.entries()) {
-        const oldInfo = latestRateInfo.get(txId);
-        
-        if (!usdAmount || usdAmount === 0) {
-          newFiatAmounts.set(txId, 0);
-          // Always create an entry, even if oldInfo is missing
-          newRateInfo.set(txId, oldInfo ? { ...oldInfo, fxRate: 0 } : { assetRate: 0, fxRate: 0, asset: 'XLM' });
+        if (usdPrice <= 0 || amount <= 0) {
+          newFiat.set(tx.id, 0);
+          // Skip rateInfo so the per-asset caption stays hidden for N/A rows.
           continue;
         }
 
-        // Find the transaction to get its date
-        const tx = transactions.find(t => t.id === txId);
-        let historicalFxRate = 0;
-        
-        if (tx) {
-          const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
-          // Get historical FX rate for this specific date (cache-only since we primed)
-          historicalFxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, true);
-          
-          // If cache miss, try without cache-only flag
-          if (!historicalFxRate) {
-            historicalFxRate = await getHistoricalFxRate('USD', quoteCurrency, txDate, false);
-          }
+        const fxRate = quoteCurrency === 'USD'
+          ? 1
+          : await getHistoricalFxRate('USD', quoteCurrency, txDate, true);
+
+        if (fxRate <= 0) {
+          // No FX rate for this date → show N/A.
+          newFiat.set(tx.id, 0);
+          continue;
         }
 
-        // Use historical rate if available, otherwise fallback to current rate
-        // Kraken returns target-per-USD, but getFxRate returns USD-per-target
-        // Invert fallback to match Kraken convention (multiply to convert)
-        const invertedFallback = fallbackFxRate > 0 ? 1 / fallbackFxRate : 0;
-        const fxRate = historicalFxRate > 0 ? historicalFxRate : invertedFallback;
-
-        if (fxRate > 0) {
-          // USD→target rate: targetAmount = usdAmount * fxRate
-          const fiatAmount = usdAmount * fxRate;
-          newFiatAmounts.set(txId, fiatAmount);
-          // Always create an entry, even if oldInfo is missing
-          newRateInfo.set(txId, oldInfo ? { ...oldInfo, fxRate: fxRate } : { assetRate: 0, fxRate: fxRate, asset: 'XLM' });
-        } else {
-          // No FX rate - mark as N/A
-          newFiatAmounts.set(txId, 0);
-          // Always create an entry, even if oldInfo is missing
-          newRateInfo.set(txId, oldInfo ? { ...oldInfo, fxRate: 0 } : { assetRate: 0, fxRate: 0, asset: 'XLM' });
-        }
+        newFiat.set(tx.id, usdPrice * amount * fxRate);
+        newRate.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
       }
-      
-      // Update refs and state in single batch
-      rateInfoRef.current = newRateInfo;
-      setFiatAmounts(newFiatAmounts);
-      setRateInfo(newRateInfo);
+
+      if (cancelled) return;
+      setFiatAmounts(newFiat);
+      setRateInfo(newRate);
       setFiatLoading(false);
     };
 
-    applyFxConversion();
-  }, [quoteCurrency, network, usdAmounts, transactions]); // Re-run when USD amounts or transactions change
+    compute();
+    return () => { cancelled = true; };
+  }, [transactions, quoteCurrency, network]);
 
   // Convert portfolio value to selected fiat currency
   useEffect(() => {
