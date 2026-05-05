@@ -1218,8 +1218,14 @@ export const PaymentForm = ({
             onFetchAssetPrice={onFetchAssetPrice}
           />
 
-          {/* Merge Account Button */}
-          {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
+          {/* Merge Account Button - only when fully eligible */}
+          {paymentData.asset === 'XLM' &&
+            !paymentData.receiveAsset &&
+            canCloseAccount() &&
+            !willCloseAccount &&
+            isValidStellarAddress(paymentData.destination) &&
+            paymentData.destination !== accountPublicKey &&
+            recipientExists === true && (
             <div className="text-center">
               <Button 
                 variant="outline" 
