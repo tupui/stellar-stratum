@@ -22,6 +22,7 @@ export default defineConfig({
           if (id.includes('qrcode') || id.includes('jsqr') || id.includes('@zxing')) return 'qr';
           if (id.includes('@radix-ui')) return 'ui';
           if (id.includes('@tanstack/react-query')) return 'query';
+          if (id.includes('recharts')) return 'charts';
           if (id.includes('clsx') || id.includes('class-variance-authority') || id.includes('date-fns')) return 'utils';
           if (id.match(/node_modules\/react(-dom)?\//)) return 'vendor';
         },
