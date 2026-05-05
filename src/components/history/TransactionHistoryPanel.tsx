@@ -152,9 +152,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         return;
       }
       
-      // Check if we need to recalculate (new transactions added)
+      // Check if we need to recalculate (new transactions added, or no USD data yet)
       const hasNewTransactions = transactions.some(t => !lastTxIds.has(t.id));
-      if (!hasNewTransactions && usdAmounts.size > 0) {
+      if (!hasNewTransactions && usdAmounts.size >= transactions.length && usdAmounts.size > 0) {
         return;
       }
       
