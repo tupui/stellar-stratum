@@ -314,7 +314,7 @@ export const WalletConnect = ({
               onClick={() => setActiveInput(activeInput === 'soroban' ? null : 'soroban')}
             >
               <div className="flex items-center gap-3">
-                <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-8 h-8 rounded" />
+                <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-7 h-7 rounded object-contain" />
                 <div className="text-left">
                   <div className="font-medium">Soroban Domains</div>
                 </div>
