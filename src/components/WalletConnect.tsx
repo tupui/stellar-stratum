@@ -72,7 +72,7 @@ export const WalletConnect = ({
     const isLedger = wallet.id.toLowerCase().includes('ledger');
     const isHardware = isLedger || wallet.id.toLowerCase().includes('trezor');
     if (isLedger) {
-      return <img src="/ledger-logo.png" alt="Ledger logo" className="w-8 h-8" onError={e => {
+      return <img src="/ledger-logo.png" alt="Ledger logo" className="w-7 h-7 object-contain" onError={e => {
         // Fallback to USB icon if SVG fails to load
         const target = e.target as HTMLImageElement;
         target.style.display = 'none';
@@ -81,15 +81,15 @@ export const WalletConnect = ({
       }} />;
     }
     if (isHardware) {
-      return <Usb className="w-8 h-8 text-primary" />;
+      return <Usb className="w-7 h-7 text-primary" />;
     }
-    return wallet.icon ? <img src={wallet.icon} alt={wallet.name} className="w-8 h-8 rounded" onError={e => {
+    return wallet.icon ? <img src={wallet.icon} alt={wallet.name} className="w-7 h-7 rounded object-contain" onError={e => {
       // Fallback to text icon if image fails to load
       const target = e.target as HTMLImageElement;
       target.style.display = 'none';
       const fallback = target.nextElementSibling as HTMLElement;
       if (fallback) fallback.style.display = 'flex';
-    }} /> : <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground">
+    }} /> : <div className="w-7 h-7 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground">
         {wallet.name.charAt(0)}
       </div>;
   };
