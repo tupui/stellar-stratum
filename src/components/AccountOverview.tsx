@@ -366,8 +366,10 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                               <p className="font-medium">{threshold.label}</p>
                               <p className="text-sm text-muted-foreground">Required: <span className="font-amount">{threshold.value}</span></p>
                             </div>
-                            <Badge variant={status.color === 'success' ? 'default' : 'secondary'}>
-                              <span className="font-amount">{currentWeight}/{threshold.value}</span>
+                            <Badge variant={status.color === 'success' ? 'default' : 'secondary'} className="font-amount">
+                              <span>Need {threshold.value}</span>
+                              <span className="mx-1 opacity-60">·</span>
+                              <span>Have {currentWeight}</span>
                             </Badge>
                           </div>
                         );
