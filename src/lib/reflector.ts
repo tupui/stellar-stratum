@@ -67,15 +67,7 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
         return reflectorPrice;
       }
 
-      // Fallback to orderbook pricing for non-XLM assets
-      if (assetCode && assetCode !== 'XLM') {
-        const { getOrderbookPrice } = await import('./orderbook-pricing');
-        const orderbookPrice = await getOrderbookPrice(assetCode, assetIssuer);
-        if (orderbookPrice > 0) {
-          setCachedPrice(assetKey, orderbookPrice);
-          return orderbookPrice;
-        }
-      }
+      // No orderbook fallback; rely on cached price below.
 
       // Final fallback to cached price
       const cachedPrice = getCachedPrice(assetKey);
