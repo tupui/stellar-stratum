@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/state';
+import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
 import { StellarWalletsKit } from '@/lib/walletKit';
 import { getNetworkPassphrase } from '@/lib/stellar';
 import { useNetwork } from '@/contexts/NetworkContext';
