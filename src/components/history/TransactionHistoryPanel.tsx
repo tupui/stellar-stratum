@@ -676,7 +676,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
               {selectedAsset.code === 'PORTFOLIO' ? (
                 <>
                   <p className="text-sm text-muted-foreground/80">Portfolio Value</p>
-                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">{formatFiatAmount(currentPortfolioFiat)}</p>
+                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">{formatFiat(currentPortfolioFiat)}</p>
                 </>
               ) : (
                 <>
@@ -684,7 +684,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                     {selectedAsset.code} Balance Value
                   </p>
                   <p className="text-2xl font-bold text-primary font-amount tabular-nums">
-                    {selectedAsset.code === 'XLM' ? formatFiatAmount(currentXLMFiat) : formatFiatAmount(currentAssetFiat)}
+                    {selectedAsset.code === 'XLM' ? formatFiat(currentXLMFiat) : formatFiat(currentAssetFiat)}
                   </p>
                 </>
               )}
@@ -729,7 +729,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                     fiatAmounts={fiatAmounts}
                     rateInfo={rateInfo}
                     fiatLoading={fiatLoading}
-                    formatFiatAmount={formatFiatAmount}
+                    formatFiatAmount={formatFiat}
                     truncateAddress={truncateAddress}
                     network={network}
                     quoteCurrency={quoteCurrency}
