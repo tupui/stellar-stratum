@@ -83,8 +83,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     getTransactionsByDateRange
   } = useAccountHistory(accountPublicKey);
   
-  const { formatFiatAmount } = useFiatConversion();
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
+  const formatFiat = (amount: number) => formatFiatAmount(amount, quoteCurrency);
 
   // Filter and selection state
   const [filters, setFilters] = useState<Filters>({
