@@ -569,10 +569,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                 currentAccountKey={accountData.publicKey}
                 signedBy={signedBy}
                 requiredWeight={getRequiredWeight()}
-                onSignWithSigner={async (signerKey, walletId) => {
-                  // Use the same interface as TransactionBuilder
-                  // Signing functionality integrated with TransactionBuilder
-                }}
+                onSignWithSigner={handleSignMultisigConfig}
                 isSigning={isSigning}
               />
             </CardContent>
