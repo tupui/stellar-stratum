@@ -12,6 +12,7 @@ const TransactionBuilder = lazy(() =>
   })),
 );
 import { fetchAccountData } from "@/lib/stellar";
+import { StrKey } from "@stellar/stellar-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { FiatCurrencyProvider } from "@/contexts/FiatCurrencyContext";
 import { useNetwork } from "@/contexts/NetworkContext";
