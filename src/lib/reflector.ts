@@ -234,16 +234,6 @@ const findAssetInMapping = (assetCode: string, assetIssuer?: string): { oracle: 
   return null;
 };
 
-// Create Asset object for oracle calls
-const createAssetObject = (assetCode: string, assetIssuer?: string): Asset => {
-  if (!assetCode || assetCode === 'XLM') {
-    return { type: AssetType.Other, code: 'XLM' };
-  } else if (assetIssuer) {
-    return { type: AssetType.Stellar, code: assetIssuer };
-  } else {
-    return { type: AssetType.Other, code: assetCode };
-  }
-};
 
 // Get available assets from oracle with retry logic
 const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number = 3): Promise<string[]> => {
