@@ -35,7 +35,7 @@ export const appConfig = {
   SOROSWAP_API_KEY: 'sk_df75c89937e66352dd34d18bf95cdad7704aee94ded214f0c0a30aca1f383ad6',
   SOROSWAP_API_URL: 'https://api.soroswap.finance',
 
-  // DeFindex Vaults
+  // DeFindex Vaults (public client API key — safe to ship in browser bundle; rotate via DeFindex dashboard if leaked)
   DEFINDEX_API_KEY: 'sk_99f6f96ec87e343e985ae5fb79a29e4497eff2de1863e2090787098c55152256',
   DEFINDEX_API_URL: 'https://api.defindex.io',
   DEFINDEX_VAULT_ADDRESS: 'CA2FIPJ7U6BG3N7EOZFI74XPJZOEOD4TYWXFVCIO5VDCHTVAGS6F4UKK',
