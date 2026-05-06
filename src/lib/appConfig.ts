@@ -14,8 +14,6 @@ export const appConfig = {
   
   // API endpoints
   REFRACTOR_API_BASE: 'https://api.refractor.space/tx',
-  LAB_BASE: 'https://laboratory.stellar.org/#xdr-viewer?input=',
-  
   // Soroban Domains
   SOROBAN_DOMAINS: {
     mainnet: 'CATRNPHYKNXAPNLHEYH55REB6YSAJLGCPA4YM6L3WUKSZOPI77M2UMKI',
