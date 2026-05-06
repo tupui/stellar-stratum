@@ -293,7 +293,14 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
         // Apply decimals scaling
         const price = rawPrice / Math.pow(10, oracle.decimals);
         
-        // Cache successful price
+        // Cache successful price (bounded to prevent memory creep)
+        const PRICE_CACHE_MAX = 200;
+        if (Object.keys(oraclePriceCache).length >= PRICE_CACHE_MAX) {
+          const cutoff = Date.now() - 60 * 60 * 1000; // drop entries older than 1h
+          for (const k of Object.keys(oraclePriceCache)) {
+            if (oraclePriceCache[k].timestamp < cutoff) delete oraclePriceCache[k];
+          }
+        }
         oraclePriceCache[cacheKey] = {
           price,
           timestamp: Date.now()
