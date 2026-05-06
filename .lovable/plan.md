@@ -1,45 +1,83 @@
-## Problem
+## Goal
 
-In `src/components/history/TransactionHistoryPanel.tsx` the fiat conversion is split into two `useEffect`s coordinated through `usdAmountsRef` / `rateInfoRef` plus an early-exit guard that compares transaction ids. Symptoms:
+Architect-level pass over the repo. Remove dead code, unused dependencies, dead config, and stale logic. Fix small but real bugs found during the review. Do **not** change anything that currently works (wallet flows, multisig, swap, defindex, history caching, deep links, airgap signer).
 
-- After the first paint the rates often stick (Step 1's guard `!hasNewTransactions && usdAmounts.size >= transactions.length` skips recomputation, so when an asset list arrives later or `selectedAsset` changes nothing recalculates).
-- Switching USD → EUR → USD sometimes leaves stale per-row rates because Step 2 reads `rateInfoRef.current` while Step 1 is still writing it (race during async `for` loops).
-- The "per asset" rate label (`assetRate * fxRate`) inconsistently uses fallback `1/fallbackFxRate` from `getFxRate` (Reflector oracle), conflicting with Kraken's already-inverted historical pair, producing different numbers per refresh.
-- For old transactions where Kraken has no daily close (>1y back) we render `N/A` correctly, but the rate caption still appears for some rows because `rateInfo` is written even when `usdPrice === 0`.
+## Findings & fixes
 
-The two-effect / two-ref design is also more complex than needed.
+### 1. Dead/empty source files
 
-## Fix
+- `src/lib/orderbook-pricing.ts` — empty (0 bytes), no imports anywhere. **Delete.**
+- `src/hooks/useFiatConversion.ts` — only `formatFiatAmount` is used (in `TransactionHistoryPanel`); `convertXLMToFiat`, `exchangeRate`, `isLoading`, `error` are dead. The hook also re-fetches `getFxRate` on every mount which duplicates work `convertFromUSD` already does. **Replace** the only consumer with a small inline `formatFiatAmount` (or move that pure helper into `src/lib/fiat-currencies.ts`) and delete the hook file.
+- `src/lib/service-worker.ts` → `preloadCriticalResources()` prefetches hard-coded chunk paths (`/assets/vendor.js`, `/assets/stellar.js`, `/assets/ui.js`) that **do not exist** — Vite emits hashed names. The `<link rel="prefetch">` tags 404 in production. Remove `preloadCriticalResources` entirely and the call from `main.tsx`. Keep `registerServiceWorker` and `trackPerformance` (the latter is dev-only logging, harmless). `clearAppCaches` is unused → delete.
+- `src/lib/reflector.ts` → `createAssetObject` and `resolveOracleAndAsset` are dead (replaced by `findAssetInMapping`). Delete both.
 
-Collapse the logic into a single derivation: one `useEffect` that, whenever `transactions` or `quoteCurrency` change, primes caches and writes `fiatAmounts` + `rateInfo` in one shot. Caching stays exactly where it is (Kraken localStorage, 24h TTL, supported-pairs cache, in-flight dedupe) — we do not add new caches.
+### 2. Unused npm dependencies
 
-### Changes in `src/components/history/TransactionHistoryPanel.tsx`
+Verified by `rg` across `src/`:
 
-1. Delete `usdAmounts` state, `usdAmountsRef`, `rateInfoRef`, `lastTransactionIdsRef`, and both existing `useEffect`s (Step 1 + Step 2).
-2. Add one `useEffect` keyed on `[transactions, quoteCurrency, network]` that:
-   - Returns early if `transactions.length === 0`.
-   - Builds the unique asset set from the current `transactions` (XLM + every `assetCode` + swap from/to codes).
-   - Primes once: `Promise.all([...assets].map(primeUsdRatesForAsset))` and, when `quoteCurrency !== 'USD'`, `primeHistoricalFxRates('USD', quoteCurrency)`. These are already deduped and read from localStorage on hit, so we are at most 1 fetch per asset + 1 per FX pair per 24h.
-   - Iterates transactions synchronously over the now-warm cache using `getUsdRateForDateByAsset(asset, date, true)` (cache-only) and `getHistoricalFxRate('USD', quoteCurrency, date, true)` (cache-only). No per-row awaits.
-   - Computes `fiatAmount = usdPrice * amount * fxRate` where `fxRate = 1` for USD or the cached Kraken value (already stored as target-per-USD by `fetchFullYearForFiatPair`).
-   - Only writes `rateInfo` for rows where `usdPrice > 0` (so the "per asset" caption never appears when we will render `N/A`).
-   - Sets `fiatAmounts`, `rateInfo`, and `setFiatLoading(false)` at the end.
-3. Remove the fallback-inversion branch entirely. If a date has no Kraken FX rate, the row falls back to USD-only display via the existing `showNA` path — we no longer mix Reflector (oracle) FX with Kraken historical FX in the same calculation, which was the source of inconsistent values.
-4. Drop the now-unused import of `getFxRate` and `getAssetPrice` from this file (they are still used elsewhere). Keep `convertFromUSD` for the portfolio-value effects (those are correct already and only depend on `totalPortfolioValueUSD` + `quoteCurrency`).
+- `react-hook-form` — zero imports. Remove from `package.json`.
+- `react-day-picker` — only imported by `src/components/ui/calendar.tsx`, which is itself unused (only `TransactionHistoryPanel` imports it via the date filter — confirm; if used, keep both; if not, drop both). Recheck: `Calendar` **is** imported by `TransactionHistoryPanel`. Keep `react-day-picker` and `calendar.tsx`.
+- All other deps verified in use.
 
-### No changes needed in
+### 3. Unused shadcn UI components
 
-- `src/lib/kraken.ts` — caching is already optimal (1y of daily OHLC per asset + per FX pair, 24h TTL, localStorage, supported-pairs cache, in-flight dedupe, 20 req/min limiter).
-- `src/lib/fiat-currencies.ts` — Reflector oracle FX path stays as-is for `useFiatConversion` / portfolio totals.
-- `src/components/history/GroupedTransactionItem.tsx` — already gates the rate caption on `rateInfo.has(id)` and `!showNA`; once we stop populating `rateInfo` for zero-price rows it will be correct automatically.
+- `src/components/ui/sheet.tsx` — zero imports. Delete (and drop `@radix-ui/react-dialog`-only? no, dialog is used elsewhere, keep that dep).
 
-## Verification (mainnet, Tansu account via Soroban Domains)
+All other UI files (`toggle`, `toggle-group`, `popover`, `calendar`, `skeleton`, `slider`, `switch`, `tabs`, `textarea`, `collapsible`, `tooltip`, `alert`, `checkbox`) have at least one consumer — keep.
 
-1. Open Activity, observe rates appear once (no flicker, no stale 0).
-2. Switch quote currency USD → EUR → GBP → USD and back; values for the same row recompute deterministically and the per-asset caption matches `formatFiatAmount(row) / amount`.
-3. Spot check three transactions at different dates (e.g. one from this week, one ~3 months old, one ~10 months old) — all show non-zero values with consistent rates across currency switches. Anything older than the 1-year Kraken window shows `N/A` and no caption.
-4. Network tab: at most one `OHLC` request per asset and one per FX pair per 24h; subsequent currency toggles are pure cache reads.
+### 4. Dead `appConfig` keys
+
+`LAB_BASE`, `PRICE_REFETCH_INTERVAL`, `MAX_OPERATIONS_PER_TX` have **zero usages**. Delete from `src/lib/appConfig.ts`.
+
+### 5. Hardcoded API keys in source
+
+`SOROSWAP_API_KEY` and `DEFINDEX_API_KEY` are committed in plaintext in `src/lib/appConfig.ts`. They look like public/publishable keys (used directly from the browser SDKs), but a real principal-engineer review would call them out:
+
+- Confirm with the user whether these are meant to be public. If yes, add a comment marking them as "public client key — safe to ship". If not, move them to env vars (`import.meta.env.VITE_*`) and rotate.
+- Plan default: **leave values in place** (the app is client-side only and they're already shipped to every user via the bundle), but add a comment + rotate-instructions note. No silent change.
+
+### 6. Bugs / bad logic
+
+a. **`useFiatConversion.convertXLMToFiat` is wrong twice over** — calls `getAssetPrice('XLM')` (a 5-min-cached oracle call) on every conversion and ignores the network passed into the context. Since the function is unused after fix #1, removal solves it.
+
+b. **Race in `FiatCurrencyContext.getCurrentCurrency`** — returns `availableCurrencies.find(...) || availableCurrencies[0]`. While the async `loadCurrencies` is in-flight `availableCurrencies` is `[USD]`, then it's replaced; if the user picks a non-USD currency before it loads we hand back USD silently. Low risk in practice (USD is selected by default), but fix by initializing with the static `CURRENCY_INFO` keys instead of `[USD]` so the dropdown is populated immediately and only gets pruned to oracle-supported currencies after load. Falls back to USD on error as today.
+
+c. **`fiat-currencies.ts` ignores `network` for cache key in `getAvailableFiatCurrencies`** — `availableCurrenciesCache` is a single global, but the function takes a `network` param. If a user switches networks the cache wins and may be wrong. Either drop the param (FX oracle is mainnet-only here) or key the cache by network. Drop the param since every call site uses the default.
+
+d. **`AccountOverview.tsx` line 10 / 27 imports `Select`/`useNetwork` etc. that are unused** — quick `noUnusedLocals` sweep. Run a lint pass and clean dead imports across `AccountOverview`, `TransactionBuilder`, `PaymentForm`, `TransactionHistoryPanel` only (the four largest files).
+
+e. **`TransactionHistoryPanel.tsx`** still imports `useFiatConversion` only for `formatFiatAmount`; after fix #1 that helper lives in `fiat-currencies.ts`. Update the import.
+
+f. **`reflector.ts` request dedup map leak** — `inflightPriceRequests` is cleaned in `finally`, good. But `oraclePriceCache` is module-scope and never bounded; over a long session with many issued assets it grows unbounded. Add a soft cap (e.g. drop entries older than 1h on insert when size > 200). Tiny change, prevents memory creep.
+
+g. **`Index.tsx` deep-link branch trusts `sessionStorage.getItem('deeplink-source-account')` without validating** that it is a valid Stellar address. If sessionStorage is corrupted, `fetchAccountData` will throw and the user falls back to the connect screen — acceptable today but worth a `StrKey.isValidEd25519PublicKey` guard before fetching. Add it.
+
+### 7. Tests
+
+`tests/fiat-switching-comprehensive.spec.ts` is the only Playwright spec and depends on a live network. Leave as-is; no change.
+
+### 8. Console noise
+
+Production silence is a memory rule. After review only the following remain:
+- `console.error` in error-handling (intentional, dev path)
+- `console.log` in `SoroswapTab.tsx` lines 573/575 — **remove**, these are debug prints.
+- `console.warn` in `horizon-utils.ts` for invalid dates — keep (legit data-quality warning) but gate behind `import.meta.env.DEV`.
 
 ## Out of scope
 
-No new caches, no refactor of `useAccountHistory`, no oracle changes.
+- No changes to caching strategy in `kraken.ts` / `reflector.ts` beyond the small dedup-map cap.
+- No refactor of `TransactionBuilder.tsx` / `PaymentForm.tsx` business logic.
+- No new features, no UI polish beyond removing dead imports.
+
+## Files touched
+
+Delete: `src/lib/orderbook-pricing.ts`, `src/hooks/useFiatConversion.ts`, `src/components/ui/sheet.tsx`.
+
+Edit: `src/lib/service-worker.ts`, `src/main.tsx`, `src/lib/reflector.ts`, `src/lib/fiat-currencies.ts`, `src/contexts/FiatCurrencyContext.tsx`, `src/lib/appConfig.ts`, `src/components/history/TransactionHistoryPanel.tsx`, `src/components/soroswap/SoroswapTab.tsx`, `src/lib/horizon-utils.ts`, `src/pages/Index.tsx`, `src/components/AccountOverview.tsx`, `src/components/TransactionBuilder.tsx`, `src/components/payment/PaymentForm.tsx`, `package.json`.
+
+## Verification
+
+1. `tsc --noEmit` clean.
+2. Smoke (Tansu mainnet via Soroban Domains): connect, view balances, switch USD↔EUR↔GBP, open Activity, open transaction builder (payment + swap + multisig tabs), open airgap signer route, scan-import flow surfaces correctly.
+3. Network tab: no 404s for `/assets/*.js` prefetch links anymore.
+4. Bundle size strictly smaller (no functional additions).
