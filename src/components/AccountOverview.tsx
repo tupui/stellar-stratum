@@ -22,6 +22,7 @@ import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { submitToRefractor } from '@/lib/stellar';
