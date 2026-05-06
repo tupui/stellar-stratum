@@ -127,7 +127,8 @@ const Index = memo(() => {
       setTimeout(async () => {
         try {
           // Fetch account data for the source account (may differ from connected wallet with deep links)
-          const accountToFetch = sessionStorage.getItem("deeplink-source-account") || walletPublicKey;
+          const stored = sessionStorage.getItem("deeplink-source-account");
+          const accountToFetch = stored && StrKey.isValidEd25519PublicKey(stored) ? stored : walletPublicKey;
           const realAccountData = await dedupe(`account-${accountToFetch}-${selectedNetwork}`, () =>
             fetchAccountData(accountToFetch, selectedNetwork),
           );
