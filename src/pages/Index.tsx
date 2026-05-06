@@ -110,8 +110,11 @@ const Index = memo(() => {
       if (deepLinkXdr) {
         // If there's a deep link, use its source account
         const deepLinkSourceAccount = sessionStorage.getItem("deeplink-source-account");
-        if (deepLinkSourceAccount) {
+        if (deepLinkSourceAccount && StrKey.isValidEd25519PublicKey(deepLinkSourceAccount)) {
           setSourceAccount(deepLinkSourceAccount);
+        } else if (deepLinkSourceAccount) {
+          // Corrupted deep-link source account; ignore it
+          sessionStorage.removeItem("deeplink-source-account");
         }
         setDeepLinkReady(true);
         setAppState("transaction");
