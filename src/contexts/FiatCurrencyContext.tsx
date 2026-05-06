@@ -33,8 +33,8 @@ export const FiatCurrencyProvider = ({ children }: FiatCurrencyProviderProps) =>
       try {
         const currencies = await getAvailableFiatCurrencies();
         setAvailableCurrencies(currencies);
-      } catch (error) {
-        console.warn('Failed to load available currencies:', error);
+      } catch {
+        // Silent failure - keep default USD-only list
       }
     };
     loadCurrencies();
