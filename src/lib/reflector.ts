@@ -234,16 +234,6 @@ const findAssetInMapping = (assetCode: string, assetIssuer?: string): { oracle: 
   return null;
 };
 
-// Create Asset object for oracle calls
-const createAssetObject = (assetCode: string, assetIssuer?: string): Asset => {
-  if (!assetCode || assetCode === 'XLM') {
-    return { type: AssetType.Other, code: 'XLM' };
-  } else if (assetIssuer) {
-    return { type: AssetType.Stellar, code: assetIssuer };
-  } else {
-    return { type: AssetType.Other, code: assetCode };
-  }
-};
 
 // Get available assets from oracle with retry logic
 const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number = 3): Promise<string[]> => {
@@ -282,55 +272,6 @@ const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number
   return [];
 };
 
-// Resolve which oracle supports the given asset AND the correct Asset shape for that oracle
-const resolveOracleAndAsset = (
-  assetCode: string,
-  assetIssuer?: string,
-  oracles: OracleConfig[] = [REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.FX]
-): { oracle: OracleConfig; asset: Asset } | null => {
-  
-  for (const oracle of oracles) {
-    const cacheKey = `assets_${oracle.contract}`;
-    const cached = oracleAssetsCache[cacheKey];
-    
-    if (cached && cached.assets) {
-      // 1) Direct symbol match (for assets like XLM, USDC, BTC, ETH)
-      if (cached.assets.includes(assetCode)) {
-        return { oracle, asset: { type: AssetType.Other, code: assetCode } };
-      }
-      
-      // 2) Issued/Stellar assets (for assets with issuer addresses)
-      if (assetIssuer) {
-        // Compute SAC contract ID for this asset
-        const contractId = computeStellarAssetContractId(assetCode, assetIssuer);
-        
-        // Try different formats that oracles might use
-        const formats = [
-          `stellar_${assetIssuer}`,        // Preferred stellar asset format
-          `stellar_${contractId}`,         // SAC contract ID format
-          contractId,                      // Direct contract ID
-          assetIssuer,                     // Direct issuer address
-          `${assetCode}_${assetIssuer}`,   // Asset code + issuer
-          `${assetCode}:${assetIssuer}`    // Alternative separator
-        ];
-        
-        for (const format of formats) {
-          if (cached.assets.includes(format)) {
-            // Determine the correct Asset type based on format
-            if (format.startsWith('stellar_') || format === contractId) {
-              const code = format.startsWith('stellar_') ? format.substring(8) : format;
-              return { oracle, asset: { type: AssetType.Stellar, code } };
-            } else {
-              return { oracle, asset: { type: AssetType.Stellar, code: assetIssuer } };
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  return null;
-};
 
 // Get individual asset price from oracle with retry logic
 const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, maxRetries: number = 3): Promise<number> => {
@@ -352,7 +293,14 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
         // Apply decimals scaling
         const price = rawPrice / Math.pow(10, oracle.decimals);
         
-        // Cache successful price
+        // Cache successful price (bounded to prevent memory creep)
+        const PRICE_CACHE_MAX = 200;
+        if (Object.keys(oraclePriceCache).length >= PRICE_CACHE_MAX) {
+          const cutoff = Date.now() - 60 * 60 * 1000; // drop entries older than 1h
+          for (const k of Object.keys(oraclePriceCache)) {
+            if (oraclePriceCache[k].timestamp < cutoff) delete oraclePriceCache[k];
+          }
+        }
         oraclePriceCache[cacheKey] = {
           price,
           timestamp: Date.now()

@@ -63,8 +63,28 @@ const FX_ORACLE = {
   decimals: 14
 } as const;
 
+// Format a numeric amount in a given currency code (Intl.NumberFormat with safe fallback)
+export const formatFiatAmount = (amount: number, currencyCode: string): string => {
+  const info = CURRENCY_INFO[currencyCode?.toUpperCase()];
+  const symbol = info?.symbol ?? '$';
+  if (!Number.isFinite(amount) || amount < 0) return `${symbol}0.00`;
+  if (amount > Number.MAX_SAFE_INTEGER) return `${symbol}∞`;
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${symbol}${amount.toFixed(2)}`;
+  }
+};
+
 // Get available fiat currencies from the FX oracle
-export const getAvailableFiatCurrencies = async (network: 'mainnet' | 'testnet' = 'mainnet'): Promise<FiatCurrency[]> => {
+// Note: FX oracle is mainnet-only in this app, so we ignore network and cache globally.
+export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
+  const network: 'mainnet' | 'testnet' = 'mainnet';
   // Return cached currencies if still valid
   if (availableCurrenciesCache) {
     return availableCurrenciesCache;

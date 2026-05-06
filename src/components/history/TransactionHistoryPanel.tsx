@@ -27,9 +27,8 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAccountHistory } from '@/hooks/useAccountHistory';
-import { useFiatConversion } from '@/hooks/useFiatConversion';
 import { getUsdRateForDateByAsset, primeUsdRatesForAsset, getHistoricalFxRate, primeHistoricalFxRates } from '@/lib/kraken';
-import { convertFromUSD } from '@/lib/fiat-currencies';
+import { convertFromUSD, formatFiatAmount } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { getHorizonTransactionUrl } from '@/lib/horizon-utils';
@@ -84,8 +83,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     getTransactionsByDateRange
   } = useAccountHistory(accountPublicKey);
   
-  const { formatFiatAmount } = useFiatConversion();
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
+  const formatFiat = (amount: number) => formatFiatAmount(amount, quoteCurrency);
 
   // Filter and selection state
   const [filters, setFilters] = useState<Filters>({
@@ -677,7 +676,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
               {selectedAsset.code === 'PORTFOLIO' ? (
                 <>
                   <p className="text-sm text-muted-foreground/80">Portfolio Value</p>
-                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">{formatFiatAmount(currentPortfolioFiat)}</p>
+                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">{formatFiat(currentPortfolioFiat)}</p>
                 </>
               ) : (
                 <>
@@ -685,7 +684,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                     {selectedAsset.code} Balance Value
                   </p>
                   <p className="text-2xl font-bold text-primary font-amount tabular-nums">
-                    {selectedAsset.code === 'XLM' ? formatFiatAmount(currentXLMFiat) : formatFiatAmount(currentAssetFiat)}
+                    {selectedAsset.code === 'XLM' ? formatFiat(currentXLMFiat) : formatFiat(currentAssetFiat)}
                   </p>
                 </>
               )}
@@ -730,7 +729,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                     fiatAmounts={fiatAmounts}
                     rateInfo={rateInfo}
                     fiatLoading={fiatLoading}
-                    formatFiatAmount={formatFiatAmount}
+                    formatFiatAmount={formatFiat}
                     truncateAddress={truncateAddress}
                     network={network}
                     quoteCurrency={quoteCurrency}

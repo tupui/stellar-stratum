@@ -12,6 +12,7 @@ const TransactionBuilder = lazy(() =>
   })),
 );
 import { fetchAccountData } from "@/lib/stellar";
+import { StrKey } from "@stellar/stellar-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { FiatCurrencyProvider } from "@/contexts/FiatCurrencyContext";
 import { useNetwork } from "@/contexts/NetworkContext";
@@ -109,8 +110,11 @@ const Index = memo(() => {
       if (deepLinkXdr) {
         // If there's a deep link, use its source account
         const deepLinkSourceAccount = sessionStorage.getItem("deeplink-source-account");
-        if (deepLinkSourceAccount) {
+        if (deepLinkSourceAccount && StrKey.isValidEd25519PublicKey(deepLinkSourceAccount)) {
           setSourceAccount(deepLinkSourceAccount);
+        } else if (deepLinkSourceAccount) {
+          // Corrupted deep-link source account; ignore it
+          sessionStorage.removeItem("deeplink-source-account");
         }
         setDeepLinkReady(true);
         setAppState("transaction");
@@ -123,7 +127,8 @@ const Index = memo(() => {
       setTimeout(async () => {
         try {
           // Fetch account data for the source account (may differ from connected wallet with deep links)
-          const accountToFetch = sessionStorage.getItem("deeplink-source-account") || walletPublicKey;
+          const stored = sessionStorage.getItem("deeplink-source-account");
+          const accountToFetch = stored && StrKey.isValidEd25519PublicKey(stored) ? stored : walletPublicKey;
           const realAccountData = await dedupe(`account-${accountToFetch}-${selectedNetwork}`, () =>
             fetchAccountData(accountToFetch, selectedNetwork),
           );
