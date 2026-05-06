@@ -1,34 +1,25 @@
-## Bug
+## Issue
 
-When editing the multisig configuration in `AccountOverview`, clicking **Sign** in the `SignerSelector` does nothing.
+[#16](https://github.com/tupui/stellar-stratum/issues/16): Stellar protocol allows the source and destination of a payment to be the same address (other wallets permit it, e.g. for testing/self-transfers). Stratum currently blocks it with a hard validation error.
 
-Root cause: `src/components/AccountOverview.tsx` (lines 540–543) wires `onSignWithSigner` to an **empty function** with only a placeholder comment ("Signing functionality integrated with TransactionBuilder"). The wallet is never invoked, no signature is added, no error is shown — silent no-op.
+## Root cause
 
-The equivalent flow in `TransactionBuilder.tsx` (`handleSignWithSigner`, line 611) properly calls `signWithWallet`, verifies the returned address matches the chosen signer, updates the XDR, and pushes to `signedBy`.
+`src/components/payment/PaymentForm.tsx` has three guards that prevent self-payments:
+
+- **Line 723–725** (`isFormValid`): early-returns `false` when `destination === accountPublicKey`, disabling the Build button.
+- **Line 1082–1087**: renders a destructive Alert "Source and destination addresses cannot be the same."
+- **Line 486** (merge flow) and **line 732** (`willCloseAccount` branch) and **line 1233** (Merge button visibility): correctly block account-merge to self — **these must stay**, since merging an account into itself is invalid at the protocol level (and already toasted at line 365 of `TransactionBuilder.tsx`).
 
 ## Fix
 
-In `AccountOverview.tsx`, replace the stub `onSignWithSigner` with a real handler that mirrors `TransactionBuilder`'s implementation, operating on `multisigConfigXdr`:
+In `src/components/payment/PaymentForm.tsx`:
 
-1. Pull `signWithWallet` from `useWalletKit()` (add to existing import/destructure if not already present).
-2. Add an `isSigning` state if not already managed (it's referenced on line 544 — verify and wire if missing).
-3. Implement the handler:
-   - Guard on `multisigConfigXdr`.
-   - `setIsSigning(true)`, call `signWithWallet(multisigConfigXdr, walletId)`.
-   - Verify `address === signerKey`; if not, throw a descriptive error.
-   - `setMultisigConfigXdr(signedXdr)` and append to `signedBy`.
-   - Toast success / failure.
-   - `finally` clear `isSigning`.
+1. Remove the `destination === accountPublicKey` early-return in `isFormValid` (lines 722–725) so a regular payment to self is buildable.
+2. Remove the destructive Alert block at lines 1081–1087.
+3. Leave all merge-related guards intact (lines 486, 732, 1233) — self-merge stays blocked.
 
-This is a small, surgical change — no other components are affected. The existing `onSigned` callback on the same `SignerSelector` (lines 530–534) already handles the free/air-gapped path correctly and stays untouched.
-
-## Verification
-
-- Load tansu account on mainnet via Soroban Domains.
-- Open multisig edit, modify a signer/threshold, build XDR.
-- Click Sign with a connected wallet → expect the wallet popup, the signature pill to appear, and weight to advance.
-- Confirm wrong-account selection surfaces the address-mismatch toast instead of silently failing.
+No other components reference these checks; the Stellar SDK and Horizon will accept the resulting payment op.
 
 ## Files
 
-- `src/components/AccountOverview.tsx` — replace stub handler, ensure `signWithWallet` and `isSigning` are wired.
+- `src/components/payment/PaymentForm.tsx`
