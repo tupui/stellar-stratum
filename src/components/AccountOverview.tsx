@@ -69,6 +69,37 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   const [isSigning, setIsSigning] = useState(false);
   
   const { toast } = useToast();
+  const { signWithWallet } = useWalletKit();
+
+  const handleSignMultisigConfig = async (signerKey: string, walletId: string) => {
+    if (!multisigConfigXdr) return;
+    setIsSigning(true);
+    try {
+      const { signedXdr, address, walletName } = await signWithWallet(multisigConfigXdr, walletId);
+      if (address !== signerKey) {
+        throw new Error(
+          `Selected wallet (${walletName}) returned a different address. ` +
+          `Expected ${signerKey.slice(0, 8)}... but got ${address.slice(0, 8)}... ` +
+          `Please switch account in the wallet to match the signer and try again.`
+        );
+      }
+      setMultisigConfigXdr(signedXdr);
+      setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
+      toast({
+        title: 'Transaction signed',
+        description: `Signed with ${walletName}`,
+        duration: 2000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Signing failed',
+        description: error instanceof Error ? error.message : 'Failed to sign transaction',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSigning(false);
+    }
+  };
   const { network: currentNetwork } = useNetwork();
   
   
