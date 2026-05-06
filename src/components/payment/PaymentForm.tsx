@@ -719,10 +719,6 @@ export const PaymentForm = ({
     setHasActiveForm(compactPayments.length > 0);
   };
   const isFormValid = () => {
-    // Prevent same source and destination addresses
-    if (paymentData.destination === accountPublicKey) {
-      return false;
-    }
     // New destination accounts can ONLY receive XLM (no cross-asset)
     if (recipientExists === false) {
       if (paymentData.asset !== 'XLM') return false;
@@ -1078,13 +1074,6 @@ export const PaymentForm = ({
             </div>}
 
         {!hasActiveForm && <>
-        {/* Same source and destination warning */}
-        {paymentData.destination === accountPublicKey && <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            <AlertDescription className="text-destructive">
-              Source and destination addresses cannot be the same.
-            </AlertDescription>
-          </Alert>}
 
         {/* Destination */}
         <div className="space-y-2">
