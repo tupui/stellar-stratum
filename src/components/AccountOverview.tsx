@@ -22,6 +22,7 @@ import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { submitToRefractor } from '@/lib/stellar';
@@ -68,6 +69,37 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   const [isSigning, setIsSigning] = useState(false);
   
   const { toast } = useToast();
+  const { signWithWallet } = useWalletKit();
+
+  const handleSignMultisigConfig = async (signerKey: string, walletId: string) => {
+    if (!multisigConfigXdr) return;
+    setIsSigning(true);
+    try {
+      const { signedXdr, address, walletName } = await signWithWallet(multisigConfigXdr, walletId);
+      if (address !== signerKey) {
+        throw new Error(
+          `Selected wallet (${walletName}) returned a different address. ` +
+          `Expected ${signerKey.slice(0, 8)}... but got ${address.slice(0, 8)}... ` +
+          `Please switch account in the wallet to match the signer and try again.`
+        );
+      }
+      setMultisigConfigXdr(signedXdr);
+      setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
+      toast({
+        title: 'Transaction signed',
+        description: `Signed with ${walletName}`,
+        duration: 2000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Signing failed',
+        description: error instanceof Error ? error.message : 'Failed to sign transaction',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSigning(false);
+    }
+  };
   const { network: currentNetwork } = useNetwork();
   
   
@@ -537,10 +569,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                 currentAccountKey={accountData.publicKey}
                 signedBy={signedBy}
                 requiredWeight={getRequiredWeight()}
-                onSignWithSigner={async (signerKey, walletId) => {
-                  // Use the same interface as TransactionBuilder
-                  // Signing functionality integrated with TransactionBuilder
-                }}
+                onSignWithSigner={handleSignMultisigConfig}
                 isSigning={isSigning}
               />
             </CardContent>
