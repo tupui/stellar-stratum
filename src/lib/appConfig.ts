@@ -27,13 +27,11 @@ export const appConfig = {
   DEFAULT_TX_TIMEOUT_SECONDS: 300,
   WALLET_CHECK_INTERVAL: 1000,
   WALLET_TIMEOUT: 30000,
-  PRICE_REFETCH_INTERVAL: 5 * 60 * 1000, // 5 minutes
-  
+
   // Limits
-  MAX_OPERATIONS_PER_TX: 100,
   DEFAULT_BASE_FEE: 100,
 
-  // Soroswap DEX
+  // Soroswap DEX (public client API key — safe to ship in browser bundle; rotate via Soroswap dashboard if leaked)
   SOROSWAP_API_KEY: 'sk_df75c89937e66352dd34d18bf95cdad7704aee94ded214f0c0a30aca1f383ad6',
   SOROSWAP_API_URL: 'https://api.soroswap.finance',
 
