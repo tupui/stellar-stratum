@@ -11,7 +11,6 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
-    minify: 'esbuild',
     sourcemap: true,
     rollupOptions: {
       output: {
@@ -51,8 +50,5 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ["buffer", "process"],
-    esbuildOptions: {
-      target: 'es2020',
-    },
   },
 });
