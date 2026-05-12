@@ -1,6 +1,6 @@
 import { toast } from '@/hooks/use-toast';
 
-export enum ErrorCode {
+enum ErrorCode {
   NETWORK_ERROR = 'NETWORK_ERROR',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   TRANSACTION_FAILED = 'TRANSACTION_FAILED',
