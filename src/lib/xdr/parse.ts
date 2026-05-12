@@ -59,25 +59,3 @@ export const getInnerTransaction = (tx: Transaction | FeeBumpTransaction): Trans
   }
   return tx as Transaction;
 };
-
-/**
- * Get source account from any transaction type
- */
-export const getSourceAccount = (tx: Transaction | FeeBumpTransaction): string => {
-  const innerTx = getInnerTransaction(tx);
-  return innerTx.source;
-};
-
-/**
- * Check if TransactionResult XDR indicates success
- */
-export const isSuccessfulResultXdr = (resultXdr: string): boolean => {
-  try {
-    const res = xdr.TransactionResult.fromXDR(resultXdr, 'base64');
-    const code = res.result().switch().name as string;
-    return code === 'txSuccess' || code === 'txFeeBumpInnerSuccess';
-  } catch {
-    // If we can't parse, don't block listing; treat as success
-    return true;
-  }
-};
