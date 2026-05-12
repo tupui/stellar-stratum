@@ -1,6 +1,6 @@
 import { Transaction, FeeBumpTransaction, TransactionBuilder, Networks, xdr } from '@stellar/stellar-sdk';
 
-export interface ParsedTransaction {
+interface ParsedTransaction {
   tx: Transaction | FeeBumpTransaction;
   network: 'public' | 'testnet';
   isFeeBump: boolean;
