@@ -29,9 +29,6 @@ export default defineConfig({
       },
     },
   },
-  esbuild: {
-    target: 'es2020',
-  },
   plugins: [
     nodePolyfills({
       include: ['buffer', 'process', 'crypto'],
