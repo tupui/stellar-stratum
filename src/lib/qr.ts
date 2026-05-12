@@ -1,6 +1,6 @@
 import { parseSEP7TxUri, extractXdrFromData } from './sep7';
 
-export interface QRResult {
+interface QRResult {
   type: 'sep7' | 'deeplink' | 'address' | 'xdr' | 'refractor-id' | 'unknown';
   data: string;
   metadata?: {

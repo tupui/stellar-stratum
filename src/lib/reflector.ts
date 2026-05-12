@@ -42,12 +42,6 @@ const REFLECTOR_ORACLES = {
 } as const satisfies Record<string, OracleConfig>;
 
 
-export interface AssetPrice {
-  symbol: string;
-  price: number; // Price in USD
-  timestamp: number;
-}
-
 export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): Promise<number> => {
   const assetKey = assetIssuer ? `${assetCode}:${assetIssuer}` : (assetCode || 'XLM');
   
@@ -413,18 +407,6 @@ const setCachedPrice = (assetKey: string, price: number): void => {
   }
 };
 
-export const getLastPriceUpdate = (): Date | null => {
-  try {
-    const cache = loadPriceCache();
-    const timestamps = Object.values(cache).map(entry => entry.timestamp);
-    if (timestamps.length === 0) return null;
-    
-    const latestTimestamp = Math.max(...timestamps);
-    return new Date(latestTimestamp);
-  } catch (error) {
-    return null;
-  }
-};
 
 // Clear price cache and reset mapping (for refresh functionality)
 export const clearPriceCache = async (): Promise<void> => {

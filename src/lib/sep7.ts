@@ -3,7 +3,7 @@
  * https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0007.md
  */
 
-export interface SEP7TxPayload {
+interface SEP7TxPayload {
   xdr: string;
   network?: 'public' | 'testnet';
   callback?: string;

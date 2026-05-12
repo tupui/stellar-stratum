@@ -127,7 +127,7 @@ export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
 };
 
 // Get exchange rate quoted in USD per 1 unit of target currency (e.g., EURUSD)
-export const getFxRate = async (targetCurrency: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<number> => {
+const getFxRate = async (targetCurrency: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<number> => {
   if (targetCurrency === 'USD') return 1;
   
   const upperCurrency = targetCurrency.toUpperCase();
