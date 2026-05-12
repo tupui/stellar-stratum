@@ -1,4 +1,4 @@
-import { DefindexSDK, SupportedNetworks } from '@defindex/sdk';
+import { DefindexSDK } from '@defindex/sdk';
 import { appConfig } from './appConfig';
 
 const defindexSDK = new DefindexSDK({
