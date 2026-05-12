@@ -19,8 +19,6 @@ export const createHorizonServer = (network: 'mainnet' | 'testnet' = 'mainnet', 
   return new Horizon.Server(horizonUrl);
 };
 
-// Default horizon server for mainnet (backward compatibility)
-export const horizonServer = createHorizonServer('mainnet');
 
 export interface AccountData {
   publicKey: string;
