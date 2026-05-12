@@ -48,43 +48,6 @@ export const isValidDomain = (domain: string): boolean => {
 };
 
 /**
- * CRITICAL: Validates XDR format for Stellar transactions
- * Invalid XDR could lead to transaction failures or fund loss
- */
-export const isValidXdr = (xdr: string): boolean => {
-  if (typeof xdr !== 'string') return false;
-  if (xdr.length === 0) return false;
-  
-  try {
-    // Basic XDR format validation - should be base64
-    const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-    if (!base64Regex.test(xdr)) return false;
-    
-    // Try to decode as base64
-    const decoded = atob(xdr);
-    if (decoded.length === 0) return false;
-    
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/**
- * CRITICAL: Validates asset code format
- * Invalid asset codes could lead to transaction failures
- */
-export const isValidAssetCode = (code: string): boolean => {
-  if (typeof code !== 'string') return false;
-  if (code.length === 0) return false;
-  if (code.length > 12) return false; // Stellar asset code limit
-  
-  // Asset codes can be alphanumeric
-  const assetCodeRegex = /^[A-Z0-9]+$/;
-  return assetCodeRegex.test(code);
-};
-
-/**
  * Sanitizes error messages for user display while preserving full error for logging
  */
 export const sanitizeError = (error: unknown): { userMessage: string; fullError: string } => {
