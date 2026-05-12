@@ -42,12 +42,6 @@ const REFLECTOR_ORACLES = {
 } as const satisfies Record<string, OracleConfig>;
 
 
-export interface AssetPrice {
-  symbol: string;
-  price: number; // Price in USD
-  timestamp: number;
-}
-
 export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): Promise<number> => {
   const assetKey = assetIssuer ? `${assetCode}:${assetIssuer}` : (assetCode || 'XLM');
   
