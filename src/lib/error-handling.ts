@@ -25,7 +25,7 @@ interface AppError {
  * @param context Optional context for logging (e.g., "Transaction submission").
  * @param isUserFacing Whether the error message should be shown to the user.
  */
-export function handleError(
+function handleError(
   error: unknown,
   context: string = 'Application',
   isUserFacing: boolean = true
