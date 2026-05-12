@@ -619,7 +619,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                           mode="single"
                           selected={filters.dateFrom}
                           onSelect={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
-                          initialFocus
                           className="p-3 pointer-events-auto"
                         />
                       </PopoverContent>
@@ -646,7 +645,6 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                           mode="single"
                           selected={filters.dateTo}
                           onSelect={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
-                          initialFocus
                           className="p-3 pointer-events-auto"
                         />
                       </PopoverContent>
