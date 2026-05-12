@@ -95,7 +95,7 @@ function isAppError(error: unknown): error is AppError {
 /**
  * Helper to create a specific AppError.
  */
-export function createError(
+function createError(
   code: ErrorCode,
   message: string,
   details?: unknown,
