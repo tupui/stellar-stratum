@@ -413,18 +413,6 @@ const setCachedPrice = (assetKey: string, price: number): void => {
   }
 };
 
-export const getLastPriceUpdate = (): Date | null => {
-  try {
-    const cache = loadPriceCache();
-    const timestamps = Object.values(cache).map(entry => entry.timestamp);
-    if (timestamps.length === 0) return null;
-    
-    const latestTimestamp = Math.max(...timestamps);
-    return new Date(latestTimestamp);
-  } catch (error) {
-    return null;
-  }
-};
 
 // Clear price cache and reset mapping (for refresh functionality)
 export const clearPriceCache = async (): Promise<void> => {
