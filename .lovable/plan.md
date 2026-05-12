@@ -1,25 +1,22 @@
-## Issue
+## Dependency Upgrade Plan
 
-[#16](https://github.com/tupui/stellar-stratum/issues/16): Stellar protocol allows the source and destination of a payment to be the same address (other wallets permit it, e.g. for testing/self-transfers). Stratum currently blocks it with a hard validation error.
+Most dependencies are already at the latest version. The following are outdated:
 
-## Root cause
+### Minor / patch upgrades (safe)
+- `@creit-tech/stellar-wallets-kit` 2.1.0 → 2.2.0
+- `@stellar/stellar-sdk` 15.0.1 → 15.1.0
+- `@typescript-eslint/parser` 8.50.0 → 8.59.3
+- `eslint` 10.2.1 → 10.3.0
+- `tailwindcss` 4.2.4 → 4.3.0
 
-`src/components/payment/PaymentForm.tsx` has three guards that prevent self-payments:
+### Major upgrade (potentially breaking)
+- `react-day-picker` 9.14.0 → 10.0.0 — major bump; v10 changes the className/styling API. Project uses it in `src/components/ui/calendar.tsx` (shadcn wrapper). I'll review the v10 migration notes and adjust the wrapper if needed.
 
-- **Line 723–725** (`isFormValid`): early-returns `false` when `destination === accountPublicKey`, disabling the Build button.
-- **Line 1082–1087**: renders a destructive Alert "Source and destination addresses cannot be the same."
-- **Line 486** (merge flow) and **line 732** (`willCloseAccount` branch) and **line 1233** (Merge button visibility): correctly block account-merge to self — **these must stay**, since merging an account into itself is invalid at the protocol level (and already toasted at line 365 of `TransactionBuilder.tsx`).
+### Steps
+1. Run `ncu -u` then `bun install` to update `package.json` and lockfile.
+2. Verify build passes; fix any breakage from `react-day-picker` v10.
+3. Smoke-test the preview (calendar/date pickers if used, wallet connect, swap).
 
-## Fix
-
-In `src/components/payment/PaymentForm.tsx`:
-
-1. Remove the `destination === accountPublicKey` early-return in `isFormValid` (lines 722–725) so a regular payment to self is buildable.
-2. Remove the destructive Alert block at lines 1081–1087.
-3. Leave all merge-related guards intact (lines 486, 732, 1233) — self-merge stays blocked.
-
-No other components reference these checks; the Stellar SDK and Horizon will accept the resulting payment op.
-
-## Files
-
-- `src/components/payment/PaymentForm.tsx`
+### Notes
+- `usb` override is preserved.
+- No runtime API key or env changes required.
