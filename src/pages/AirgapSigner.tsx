@@ -13,7 +13,7 @@ import { extractXdrFromData } from '@/lib/sep7';
 import { tryParseTransaction } from '@/lib/xdr/parse';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 
-export const AirgapSigner = () => {
+const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
   const { signWithWallet } = useWalletKit();
   const { toast } = useToast();
