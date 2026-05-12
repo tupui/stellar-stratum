@@ -1,4 +1,4 @@
-import { Transaction, FeeBumpTransaction, TransactionBuilder, Networks, xdr } from '@stellar/stellar-sdk';
+import { Transaction, FeeBumpTransaction, TransactionBuilder, Networks } from '@stellar/stellar-sdk';
 
 interface ParsedTransaction {
   tx: Transaction | FeeBumpTransaction;
