@@ -6,7 +6,4 @@ const defindexSDK = new DefindexSDK({
   baseUrl: appConfig.DEFINDEX_API_URL,
 });
 
-export const getDefindexNetwork = (network: 'mainnet' | 'testnet'): SupportedNetworks =>
-  network === 'testnet' ? SupportedNetworks.TESTNET : SupportedNetworks.MAINNET;
-
 export { defindexSDK };
