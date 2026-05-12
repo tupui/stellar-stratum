@@ -1,7 +1,8 @@
 import { createHorizonServer } from './stellar';
 
 // Shared constants for filtering transactions/payments
-export type ActivityCategory = 'transfer' | 'swap' | 'contract' | 'config';
+const MIN_NATIVE_PAYMENT_XLM = 1; // Minimum XLM amount to avoid spam
+const ALLOWED_TYPES = ['payment', 'create_account'] as const;
 
 // Cache durations
 export const TRANSACTION_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
