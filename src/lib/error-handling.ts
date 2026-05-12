@@ -11,7 +11,7 @@ enum ErrorCode {
   UNEXPECTED_ERROR = 'UNEXPECTED_ERROR',
 }
 
-export interface AppError {
+interface AppError {
   code: ErrorCode;
   message: string;
   details?: unknown;
