@@ -80,7 +80,7 @@ const Index = memo(() => {
           duration: 3000,
         });
       } catch (error) {
-        console.error("Failed to load source account:", error);
+        if (import.meta.env.DEV) console.error("Failed to load source account:", error);
         toast({
           title: "Failed to load source account",
           description: error instanceof Error ? error.message : "Could not load account data",
@@ -135,7 +135,7 @@ const Index = memo(() => {
           setAccountData(realAccountData);
           setLoading(false);
         } catch (error) {
-          console.error("Failed to load account:", error);
+          if (import.meta.env.DEV) console.error("Failed to load account:", error);
           toast({
             title: "Failed to load account",
             description: error instanceof Error ? error.message : "Could not load account data",
@@ -199,7 +199,7 @@ const Index = memo(() => {
           duration: 3000,
         });
       } catch (error) {
-        console.error("Failed to load source account:", error);
+        if (import.meta.env.DEV) console.error("Failed to load source account:", error);
         toast({
           title: "Failed to load account",
           description: error instanceof Error ? error.message : "Could not load account data",
