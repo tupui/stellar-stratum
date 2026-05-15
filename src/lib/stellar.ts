@@ -41,6 +41,7 @@ export interface AccountData {
 }
 
 export const fetchAccountData = async (publicKey: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AccountData> => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   try {
     const server = createHorizonServer(network);
     const account = await server.loadAccount(publicKey);
@@ -89,20 +90,29 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
       );
     }
 
-    // For other errors, provide a generic message
-    throw new Error('Failed to load account data from Horizon');
+    // For other errors, preserve the original message for diagnosability
+    const original = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to load account data from Horizon: ${original}`);
   }
 };
 
-export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<any> => {
+export const submitTransaction = async (
+  signedXdr: string,
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): Promise<Horizon.HorizonApi.SubmitTransactionResponse> => {
   try {
     const config = getNetworkConfig(network);
     const transaction = TransactionBuilder.fromXDR(signedXdr, config.passphrase);
     const server = createHorizonServer(network);
-    const result = await server.submitTransaction(transaction);
-    return result;
-  } catch (error) {
-    throw new Error('Failed to submit transaction');
+    return await server.submitTransaction(transaction);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    const codes = error?.response?.data?.extras?.result_codes;
+    const codeSummary = codes
+      ? ` (${[codes.transaction, ...(codes.operations || [])].filter(Boolean).join(', ')})`
+      : '';
+    const base = error instanceof Error ? error.message : 'Failed to submit transaction';
+    throw new Error(`${base}${codeSummary}`);
   }
 };
 
