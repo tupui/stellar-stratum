@@ -59,8 +59,10 @@ function handleError(
     };
   }
 
-  // Log the error for debugging
-  console.error(`[${context} Error - ${appError.code}]`, appError.message, appError.details);
+  // Log the error for debugging (dev only — production console must stay silent)
+  if (import.meta.env.DEV) {
+    console.error(`[${context} Error - ${appError.code}]`, appError.message, appError.details);
+  }
 
   // Show user-facing toast if applicable
   if (appError.isUserFacing) {

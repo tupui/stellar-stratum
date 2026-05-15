@@ -25,27 +25,10 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { submitToRefractor } from '@/lib/stellar';
+import { submitToRefractor, submitTransaction } from '@/lib/stellar';
 import { SuccessModal } from './SuccessModal';
 
-interface AccountData {
-  publicKey: string;
-  balances: Array<{
-    asset_type: string;
-    asset_code?: string;
-    balance: string;
-  }>;
-  thresholds: {
-    low_threshold: number;
-    med_threshold: number;
-    high_threshold: number;
-  };
-  signers: Array<{
-    key: string;
-    weight: number;
-    type: string;
-  }>;
-}
+import type { AccountData } from '@/lib/stellar';
 
 interface AccountOverviewProps {
   accountData: AccountData;
@@ -196,19 +179,24 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
     
     setIsSubmittingToNetwork(true);
     try {
-      // Network submission will be implemented when backend integration is added
-      // Simulate success for now
-      setTimeout(() => {
-        setSuccessData({
-          type: 'network',
-          hash: 'mock-hash-' + Date.now(),
-          network: currentNetwork,
-          xdr: multisigConfigXdr
-        });
-        setIsSubmittingToNetwork(false);
-      }, 2000);
+      const result = await submitTransaction(multisigConfigXdr, currentNetwork);
+      const hash = (result as { hash?: string })?.hash || '';
+      setSuccessData({
+        type: 'network',
+        hash,
+        network: currentNetwork,
+        xdr: multisigConfigXdr,
+      });
     } catch (error) {
-      console.error('Network submission failed:', error);
+      if (import.meta.env.DEV) {
+        console.error('Network submission failed:', error);
+      }
+      toast({
+        title: 'Network submission failed',
+        description: error instanceof Error ? error.message : 'Failed to submit to the Stellar network',
+        variant: 'destructive',
+      });
+    } finally {
       setIsSubmittingToNetwork(false);
     }
   };
