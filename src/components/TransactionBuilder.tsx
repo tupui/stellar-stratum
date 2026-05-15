@@ -271,7 +271,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   const createTrustlineRemovalOperations = () => {
     // Create operations to remove all existing trustlines before account merge
     // Note: XLM (native asset) cannot be closed and is automatically skipped
-    const trustlineRemovalOps: any[] = [];
+    const trustlineRemovalOps: ReturnType<typeof Operation.changeTrust>[] = [];
     
     if (!accountData?.balances) return trustlineRemovalOps;
     
@@ -345,7 +345,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
         fee = (100000 * (1 + trustlineCount)).toString();
       }
       
-      const transaction = new StellarTransactionBuilder(sourceAccount, { fee, networkPassphrase }) as any;
+      const transaction = new StellarTransactionBuilder(sourceAccount, { fee, networkPassphrase });
 
       if (isAccountMerge) {
         // Account merge operation
