@@ -28,24 +28,7 @@ import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { submitToRefractor, submitTransaction } from '@/lib/stellar';
 import { SuccessModal } from './SuccessModal';
 
-interface AccountData {
-  publicKey: string;
-  balances: Array<{
-    asset_type: string;
-    asset_code?: string;
-    balance: string;
-  }>;
-  thresholds: {
-    low_threshold: number;
-    med_threshold: number;
-    high_threshold: number;
-  };
-  signers: Array<{
-    key: string;
-    weight: number;
-    type: string;
-  }>;
-}
+import type { AccountData } from '@/lib/stellar';
 
 interface AccountOverviewProps {
   accountData: AccountData;
