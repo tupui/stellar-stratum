@@ -3,14 +3,21 @@
  * This is FUNDAMENTAL to preventing fund loss in self-custody applications
  */
 
+import { StrKey } from '@stellar/stellar-sdk';
+
 /**
- * CRITICAL: Validates a Stellar public key format
- * Invalid keys could lead to fund loss
+ * CRITICAL: Validates a Stellar Ed25519 public key.
+ * Uses StrKey to verify the checksum — a regex alone would accept typo'd
+ * addresses with a valid alphabet but invalid checksum, risking fund loss.
  */
 export const isValidPublicKey = (key: string): boolean => {
   if (typeof key !== 'string') return false;
-  if (key.length !== 56) return false;
-  return key.match(/^G[A-Z2-7]{55}$/) !== null;
+  if (key.length !== 56 || key[0] !== 'G') return false;
+  try {
+    return StrKey.isValidEd25519PublicKey(key);
+  } catch {
+    return false;
+  }
 };
 
 /**
