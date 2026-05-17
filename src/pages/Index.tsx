@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy, memo, useCallback, useMemo } from "react";
+import { useState, Suspense, lazy, memo, useCallback } from "react";
 import { LandingPage } from "@/components/LandingPage";
 import { LoadingPill } from "@/components/ui/loading-pill";
 import { Footer } from "@/components/Footer";
@@ -11,33 +11,13 @@ const TransactionBuilder = lazy(() =>
     default: module.TransactionBuilder,
   })),
 );
-import { fetchAccountData } from "@/lib/stellar";
+import { fetchAccountData, type AccountData } from "@/lib/stellar";
 import { StrKey } from "@stellar/stellar-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { FiatCurrencyProvider } from "@/contexts/FiatCurrencyContext";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { useWalletKit } from "@/contexts/WalletKitContext";
 import { useRequestDeduplication } from "@/hooks/useRequestDeduplication";
-
-interface AccountData {
-  publicKey: string;
-  balances: Array<{
-    asset_type: string;
-    asset_code?: string;
-    asset_issuer?: string;
-    balance: string;
-  }>;
-  thresholds: {
-    low_threshold: number;
-    med_threshold: number;
-    high_threshold: number;
-  };
-  signers: Array<{
-    key: string;
-    weight: number;
-    type: string;
-  }>;
-}
 
 type AppState = "connecting" | "dashboard" | "transaction" | "multisig-config";
 

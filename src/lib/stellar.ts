@@ -159,8 +159,22 @@ export const pullFromRefractor = async (refractorId: string): Promise<string> =>
     }
 
     const result = await response.json();
-    return result.xdr;
+    const xdr = result?.xdr;
+    if (typeof xdr !== 'string' || xdr.length < 100) {
+      throw new Error('Refractor returned an invalid XDR payload');
+    }
+
+    // Validate XDR parses on at least one known network before handing it back
+    let parses = false;
+    for (const passphrase of [appConfig.MAINNET_PASSPHRASE, appConfig.TESTNET_PASSPHRASE]) {
+      try { TransactionBuilder.fromXDR(xdr, passphrase); parses = true; break; } catch { /* try next */ }
+    }
+    if (!parses) {
+      throw new Error('Refractor returned a payload that is not a valid Stellar transaction');
+    }
+
+    return xdr;
   } catch (error) {
-    throw new Error('Failed to fetch transaction from Refractor');
+    throw new Error(error instanceof Error ? error.message : 'Failed to fetch transaction from Refractor');
   }
 };
