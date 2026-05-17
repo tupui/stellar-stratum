@@ -28,6 +28,7 @@ import {
   Horizon
 } from '@stellar/stellar-sdk';
 import { createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
+import { appConfig } from '@/lib/appConfig';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface Signer {
@@ -237,7 +238,7 @@ export const MultisigConfigBuilder = ({
       
       // Create transaction builder
       const transaction = new StellarTransactionBuilder(sourceAccount, {
-        fee: '100000', // 0.01 XLM
+        fee: appConfig.DEFAULT_BASE_FEE_STROOPS.toString(),
         networkPassphrase,
       });
 
