@@ -9,18 +9,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle, ArrowLeftRight, Landmark } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Transaction, 
+import {
+  Transaction,
   TransactionBuilder as StellarTransactionBuilder,
-  Networks,
   Operation,
   Asset,
   Memo,
-  Horizon,
-  StrKey
+  StrKey,
 } from '@stellar/stellar-sdk';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
+import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase, type AccountData } from '@/lib/stellar';
+import { appConfig } from '@/lib/appConfig';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
@@ -48,24 +47,7 @@ interface TransactionBuilderProps {
   onBack: () => void;
   accountPublicKey: string; // Source account for transactions (editable)
   signerPublicKey?: string; // Connected wallet's public key (signer)
-  accountData: {
-    balances: Array<{
-      asset_type: string;
-      asset_code?: string;
-      asset_issuer?: string;
-      balance: string;
-    }>;
-    signers: Array<{
-      key: string;
-      weight: number;
-      type: string;
-    }>;
-    thresholds: {
-      low_threshold: number;
-      med_threshold: number;
-      high_threshold: number;
-    };
-  } | null;
+  accountData: AccountData | null;
   initialTab?: string;
   pendingId?: string;
   initialXdr?: string;
