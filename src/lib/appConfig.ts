@@ -30,6 +30,8 @@ export const appConfig = {
 
   // Limits
   DEFAULT_BASE_FEE: 100,
+  // Base fee in stroops used as per-operation fee for built transactions (0.01 XLM)
+  DEFAULT_BASE_FEE_STROOPS: 100_000,
 
   // Soroswap DEX (public client API key — safe to ship in browser bundle; rotate via Soroswap dashboard if leaked)
   SOROSWAP_API_KEY: 'sk_df75c89937e66352dd34d18bf95cdad7704aee94ded214f0c0a30aca1f383ad6',
