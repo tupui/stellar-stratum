@@ -274,28 +274,57 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     return trustlineRemovalOps;
   };
 
-  // Calculate direct exchange rate between any two assets and apply slippage
+  // UI-only estimate of receive amount based on oracle USD prices.
+  // NOTE: this is NOT used as the on-chain destMin — for that we query Horizon's
+  // strict-send path-finder so the value reflects actual DEX liquidity.
   const estimatePathReceive = (amount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
     const send = parseFloat(amount) || 0;
     if (send <= 0) return 0;
-    
-    // Get prices for both assets
     const fromPrice = assetPrices[fromAssetCode] || 0;
     const toPrice = assetPrices[toAssetCode] || 0;
-    
     let converted = send;
     if (fromPrice > 0 && toPrice > 0) {
-      // Calculate direct exchange rate: how much of toAsset per unit of fromAsset
-      const exchangeRate = fromPrice / toPrice;
-      converted = send * exchangeRate;
+      converted = send * (fromPrice / toPrice);
     }
-    // If we don't have prices, assume 1:1 (fallback for unknown assets)
-    
-    // Apply slippage tolerance to get minimum receive amount
     const slippageAdjustment = 1 - (slippageTolerance / 100);
     return parseFloat((converted * slippageAdjustment).toFixed(7));
   };
-  
+
+  // Query Horizon's strict-send path-finder and return { destMin, path } honoring slippage.
+  // Falls back to an oracle-derived estimate (with an empty path) if Horizon returns nothing.
+  const quoteStrictSendPath = async (
+    sendAsset: Asset,
+    sendAmount: string,
+    destAsset: Asset,
+    sendAssetCode: string,
+    destAssetCode: string,
+    slippageTolerance = 0.5,
+  ): Promise<{ destMin: string; path: Asset[] }> => {
+    const slippageAdjustment = 1 - (slippageTolerance / 100);
+    try {
+      const server = createHorizonServer(currentNetwork);
+      const paths = await server
+        .strictSendPaths(sendAsset, sendAmount, [destAsset])
+        .call();
+      const best = paths.records?.[0];
+      if (best && best.destination_amount) {
+        const dest = parseFloat(best.destination_amount) * slippageAdjustment;
+        const pathAssets = (best.path || []).map(p =>
+          p.asset_type === 'native'
+            ? Asset.native()
+            : new Asset(p.asset_code as string, p.asset_issuer as string),
+        );
+        return { destMin: dest.toFixed(7), path: pathAssets };
+      }
+    } catch {
+      // fall through to oracle estimate
+    }
+    return {
+      destMin: estimatePathReceive(sendAmount, sendAssetCode, destAssetCode, slippageTolerance).toString(),
+      path: [],
+    };
+  };
+
   const handlePaymentBuild = async (paymentData?: PaymentData, isAccountMerge = false, batchPayments?: BatchPayment[], pathPayment?: PathPaymentData) => {
     setIsBuilding(true);
     setTrustlineError('');
@@ -304,29 +333,11 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       const networkPassphrase = getNetworkPassphrase(currentNetwork);
       const server = createHorizonServer(currentNetwork);
       const sourceAccount = await server.loadAccount(accountPublicKey);
-      
-      let fee = '100000'; // Default fee
-      
-      if (batchPayments) {
-        // Calculate fee based on total operations including trustline removals for account merges
-        let totalOps = batchPayments.length;
-        
-        // Count additional trustline removal operations for account merges
-        const accountMergeCount = batchPayments.filter(p => p.isAccountClosure).length;
-        if (accountMergeCount > 0 && accountData?.balances) {
-          const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
-          totalOps += (trustlineCount * accountMergeCount);
-        }
-        
-        fee = (100000 * totalOps).toString();
-      } else if (pathPayment) {
-        fee = '200000'; // Higher fee for path payments
-      } else if (isAccountMerge && accountData?.balances) {
-        // Account merge requires additional operations for trustline removal
-        const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
-        fee = (100000 * (1 + trustlineCount)).toString();
-      }
-      
+
+      // The SDK multiplies base fee by op count internally. Pass per-op base fee.
+      // Path payments are charged the same as other operations on-chain — no need to bump.
+      const fee = appConfig.DEFAULT_BASE_FEE_STROOPS.toString();
+
       const transaction = new StellarTransactionBuilder(sourceAccount, { fee, networkPassphrase });
 
       if (isAccountMerge) {
