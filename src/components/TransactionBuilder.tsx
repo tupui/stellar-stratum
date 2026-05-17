@@ -403,16 +403,19 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
               ? Asset.native()
               : new Asset(payment.receiveAsset, payment.receiveAssetIssuer);
 
-            // Calculate destMin using proper exchange rates from prices when available
-            const destMin = estimatePathReceive(payment.amount, payment.asset, payment.receiveAsset, payment.slippageTolerance);
+            // Quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
+            const { destMin, path } = await quoteStrictSendPath(
+              sendAsset, payment.amount, destAsset,
+              payment.asset, payment.receiveAsset, payment.slippageTolerance,
+            );
 
             transaction.addOperation(Operation.pathPaymentStrictSend({
               sendAsset,
-               sendAmount: payment.amount,
-               destination: payment.destination,
-               destAsset,
-               destMin: destMin.toString(),
-              path: [],
+              sendAmount: payment.amount,
+              destination: payment.destination,
+              destAsset,
+              destMin,
+              path,
             }));
             continue;
           }
@@ -445,16 +448,19 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
           ? Asset.native() 
           : new Asset(pathPayment.receiveAsset, pathPayment.receiveAssetIssuer);
 
-         // Calculate destination amount with slippage using proper exchange rates
-         const destMin = estimatePathReceive(pathPayment.amount, pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance);
+        // Quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
+        const { destMin, path } = await quoteStrictSendPath(
+          sendAsset, pathPayment.amount, destAsset,
+          pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance,
+        );
 
         transaction.addOperation(Operation.pathPaymentStrictSend({
           sendAsset,
           sendAmount: pathPayment.amount,
-           destination: pathPayment.destination,
-           destAsset,
-           destMin: destMin.toString(),
-          path: [], // In real implementation, find optimal path
+          destination: pathPayment.destination,
+          destAsset,
+          destMin,
+          path,
         }));
         
       } else {
