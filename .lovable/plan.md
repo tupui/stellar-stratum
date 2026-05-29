@@ -1,60 +1,47 @@
-# Full app review — proposed fixes
+# Independent review — findings & proposed fixes
 
-After reading the app architecture end-to-end (App/Router, NetworkContext, WalletKitContext, Index/TransactionBuilder/AccountOverview, DeepLinkHandler, AirgapSigner, lib/stellar, lib/sep7, lib/qr, lib/xdr/{parse,fingerprint}, lib/reflector + oracle client, lib/validation, vite/index.html/CSP), the code is in good shape after the prior pass. The remaining findings below are concrete and worth fixing. Nothing here changes user-visible features — only correctness, safety, and polish.
+Re-read the app end-to-end (router, contexts, Index, TransactionBuilder, AccountOverview, MultisigConfigBuilder, AirgapSigner, DeepLinkHandler, lib/stellar, lib/validation, lib/appConfig, vite/index.html). The previous pass landed cleanly; the items below are **new** findings.
 
-## A. Blockchain correctness (high priority)
+## A. Correctness bugs (real, ship-blockers for one flow)
 
-1. **Fee math in `TransactionBuilder.handlePaymentBuild` overpays.** The `fee` passed to `new StellarTransactionBuilder(account, { fee, … })` is the **base fee per operation**; the SDK multiplies by op count. Today we set `fee = 100000 * totalOps` (and similarly for account-merge/path-payment), so the wallet effectively charges `100000 × totalOps × totalOps` stroops. Fix: pass a flat base fee (e.g. `'100000'`) regardless of op count; if we want a bump for path payments, double the base fee, not multiply by ops.
+1. **AccountOverview multisig signature detection is hardcoded to mainnet.** `getExistingSignedKeys` in `src/components/AccountOverview.tsx` (line 107) parses the multisig-config XDR with `Networks.PUBLIC` regardless of `currentNetwork`. On testnet, signature verification fails for every signer, so `currentWeight` always reports 0 and "Submit to network" never enables — even with valid signatures. Fix: pull `getNetworkPassphrase(currentNetwork)` from `@/lib/stellar` and use that in `StellarTransactionBuilder.fromXDR` and the subsequent `transaction.hash()` call.
 
-2. **Path-payment `destMin` is computed from USD oracle prices.** `estimatePathReceive` divides oracle USD prices, which is unrelated to actual DEX liquidity and can slip badly (or fail with `op_too_few_offers` / over-pay). Fix: query Horizon `strictSendPaths(sendAsset, sendAmount, [destAsset])` (already a Horizon-native endpoint, no extra dep), take the best path's `destination_amount`, apply slippage, and also populate `path` from that result instead of `[]`. Keep the oracle-based number only as a UI hint, not as on-chain `destMin`.
+2. **TransactionBuilder uses signature `hint()` matching with `as any` casts.** `getExistingSignedKeys` in `src/components/TransactionBuilder.tsx` (line 756–784) matches hints (last 4 bytes of public key). Two signers whose addresses collide in their last 4 bytes are indistinguishable and both get counted. Fix: switch to the same `Keypair.verify(tx.hash(), sig.signature())` approach already used in `AccountOverview` (handles fee-bump inner tx via `parsed.innerTransaction ?? parsed`). This also lets us drop the `as any` casts.
 
-3. **AirgapSigner doesn't align the UI network with the loaded XDR.** When `?xdr=` is provided without an explicit `network` URL param, the fingerprint/hash uses whichever network is currently selected — which can silently mismatch the XDR and produce an invalid signature. Fix: after `tryParseTransaction(extractedXdr)` succeeds, call `setNetwork(parsed.network === 'public' ? 'mainnet' : 'testnet')` (same pattern as `DeepLinkHandler`). Do the same in `handleXdrReceived` for scanned QRs.
+## B. Dead code / redundancies
 
-4. **`isValidPublicKey` uses a regex only.** It accepts strings with a valid alphabet but invalid checksum, which can route funds to a typo address that "looks" valid. Fix: delegate to `StrKey.isValidEd25519PublicKey` from `@stellar/stellar-sdk` (the regex stays as a cheap pre-check).
+3. **Unused `fingerprint` constant in `AirgapSigner`** (line 138 of `src/pages/AirgapSigner.tsx`) — computed every render, never referenced. The render path computes a fresh fingerprint inside `onShowOfflineModal` anyway. Delete.
 
-## B. Safety / robustness
+4. **NetworkContext double-persists.** `setNetwork` writes to `localStorage` and a `useEffect` then writes again on every state change. Drop the `useEffect`, keep the explicit write inside `setNetwork`.
 
-5. **`pullFromRefractor` returns whatever the API responds with.** If the upstream returns a non-XDR payload, we still stash it in `sessionStorage` and propagate downstream. Fix: validate with `tryParseTransaction` before resolving; throw a typed error on parse failure.
+5. **Unused `Transaction` and `Horizon` imports in `MultisigConfigBuilder.tsx`** (lines 24, 28). Drop them.
 
-6. **AirgapSigner `XMLHttpRequest` override uses `as any`.** Replace with a typed shim (`window.XMLHttpRequest = (function FakeXHR(){ throw new Error('…') }) as unknown as typeof XMLHttpRequest`) and add an early-return guard so re-mounts don't double-wrap `originalFetch`.
+6. **WalletKit address-lookup order inconsistent.** `connectWallet` tries `fetchAddress` → `getAddress`; `signWithWallet` tries `getAddress` → `fetchAddress`. Standardize to the `signWithWallet` order (`getAddress` first, which doesn't re-prompt for hardware wallets that are already unlocked).
 
-7. **CSP `connect-src` is wide-open (`https: wss:`).** Tighten to the actual hosts we call: Horizon (mainnet+testnet), `rpc.lightsail.network`, `api.refractor.space`, `api.soroswap.finance`, `api.defindex.io`, Kraken, Soroban Domains, and Reflector. Keep `data:` / `blob:` for QR/image decoding. This shrinks attack surface (no rogue script can exfiltrate to arbitrary domains).
+7. **`canSubmitToRefractor` (AccountOverview line 158–160) returns `string | boolean`.** Wrap in `Boolean(...)` so the function signature actually returns `boolean`.
 
-## C. Code quality / consistency
+## C. Question to confirm (no code change yet)
 
-8. **Duplicate `AccountData` interface** still inlined in `Index.tsx` and `TransactionBuilder.tsx` props type. Replace with the shared `AccountData` import from `@/lib/stellar` (already done in `AccountOverview`).
+8. **`SOROSWAP_API_KEY` and `DEFINDEX_API_KEY` in `src/lib/appConfig.ts` start with `sk_`.** The inline comment says "public client API key — safe to ship in browser bundle," but the `sk_` prefix is the conventional marker for *secret* keys (Stripe-style). I will **not** touch these without confirmation — if they are publishable, fine; if they're actually secret, shipping them in the SPA bundle leaks them to every visitor (anyone can scrape `/assets/*.js`) and they need to be rotated and either re-issued as public keys or fronted by a tiny proxy. Could you confirm with Soroswap/DeFindex what the `sk_` prefix means for their APIs? Until then I'll leave them as-is.
 
-9. **Hard-coded `'100000'` literal fee.** Centralize in `appConfig` (e.g. `DEFAULT_BASE_FEE_STROOPS = 100_000`) and reuse across `TransactionBuilder` and `MultisigConfigBuilder`.
+## D. Explicitly NOT changing
 
-10. **Dead `useMemo` import in `Index.tsx`** (imported, never used). Drop it.
-
-11. **`TransactionBuilder` imports `Memo`, `Networks`, `Horizon`** that aren't referenced. Drop unused imports (helps the `stellar` chunk tree-shake one notch better).
-
-## D. Out of scope / explicitly NOT changing
-
-- Visual design, tabs layout, copy.
-- Lovable Cloud (disabled — and not needed; app is intentionally client-side).
-- Wallet selection order, supported wallet set.
-- The "mock multisig submit" — already fixed in the previous pass.
+- CSP `connect-src 'self' https: data: blob:` stays as-is. Tightening to an explicit allowlist of Stellar/Soroban/Refractor/Soroswap/DeFindex/Kraken/Reflector hosts was attempted in the previous pass and you accepted the current form. Won't re-litigate.
+- Visual design, tabs, copy, wallet list, fiat list, asset metadata fetching strategy (per project memory: only XLM is hardcoded), USB shim, production-console silence.
 
 ## Technical details
 
 ```text
 Files touched
 ─────────────
-src/components/TransactionBuilder.tsx   fee math (#1), path-payment destMin (#2),
-                                        AccountData import (#8), fee constant (#9),
-                                        unused imports (#11)
-src/pages/AirgapSigner.tsx              network alignment (#3), typed XHR shim (#6)
-src/lib/validation.ts                   StrKey-based pub-key check (#4)
-src/lib/stellar.ts                      pullFromRefractor validation (#5)
-index.html                              CSP connect-src tightening (#7)
-src/pages/Index.tsx                     drop AccountData duplicate (#8), unused useMemo (#10)
-src/lib/appConfig.ts                    add DEFAULT_BASE_FEE_STROOPS (#9)
+src/components/AccountOverview.tsx       fix #1 (network-aware sig check), fix #7
+src/components/TransactionBuilder.tsx    fix #2 (Keypair.verify, drop `as any`)
+src/pages/AirgapSigner.tsx               fix #3 (drop dead fingerprint)
+src/contexts/NetworkContext.tsx          fix #4 (drop redundant useEffect)
+src/components/MultisigConfigBuilder.tsx fix #5 (prune imports)
+src/contexts/WalletKitContext.tsx        fix #6 (standardize address lookup)
 ```
 
-Verification:
-- Type-check via `tsc -b --noEmit` (automatic in harness).
-- Manually walk: build a payment, build a 3-op batch, attempt a path payment (verify destMin comes from Horizon paths, not oracle USD), load a mainnet XDR while UI is on testnet (should auto-switch), paste an XDR with a typo in destination (should be rejected by StrKey check).
+Verification: `tsc -b --noEmit` (automatic). Manual: switch to testnet, build a multisig config change, sign with two test signers, confirm "Submit to network" enables once threshold met (regression test for #1).
 
-Total: ~6 files, no API/UX changes, no schema work, no dependency changes.
+Scope: 6 files, no API/UX changes, no dependency changes, no schema work.

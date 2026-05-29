@@ -20,12 +20,9 @@ import {
 import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { useToast } from '@/hooks/use-toast';
 import { isValidPublicKey, sanitizeError } from '@/lib/validation';
-import { 
-  Transaction, 
+import {
   TransactionBuilder as StellarTransactionBuilder,
-  Networks,
   Operation,
-  Horizon
 } from '@stellar/stellar-sdk';
 import { createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
 import { appConfig } from '@/lib/appConfig';

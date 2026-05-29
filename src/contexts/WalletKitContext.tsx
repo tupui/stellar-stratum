@@ -65,9 +65,9 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
       StellarWalletsKit.setWallet(walletId);
       let address: string;
       try {
-        ({ address } = await StellarWalletsKit.fetchAddress());
-      } catch {
         ({ address } = await StellarWalletsKit.getAddress());
+      } catch {
+        ({ address } = await StellarWalletsKit.fetchAddress());
       }
 
       const supportedWallets = await StellarWalletsKit.refreshSupportedWallets();

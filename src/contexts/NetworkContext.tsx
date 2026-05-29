@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
 
 type Network = 'mainnet' | 'testnet';
 
@@ -33,10 +33,6 @@ export const NetworkProvider = ({ children }: NetworkProviderProps) => {
     localStorage.setItem('stellar-network', newNetwork);
   };
 
-  useEffect(() => {
-    // Save to localStorage whenever network changes
-    localStorage.setItem('stellar-network', network);
-  }, [network]);
 
   return (
     <NetworkContext.Provider value={{ network, setNetwork }}>
