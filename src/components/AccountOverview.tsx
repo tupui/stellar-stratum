@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TransactionBuilder as StellarTransactionBuilder, Networks, Keypair } from '@stellar/stellar-sdk';
+import { TransactionBuilder as StellarTransactionBuilder, Keypair } from '@stellar/stellar-sdk';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -25,7 +25,7 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { submitToRefractor, submitTransaction } from '@/lib/stellar';
+import { submitToRefractor, submitTransaction, getNetworkPassphrase } from '@/lib/stellar';
 import { SuccessModal } from './SuccessModal';
 
 import type { AccountData } from '@/lib/stellar';
@@ -102,17 +102,25 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   // Helper functions for TransactionSubmitter (copied from TransactionBuilder)
   const getExistingSignedKeys = () => {
     if (!multisigConfigXdr) return [];
-    
+
     try {
-      const transaction = StellarTransactionBuilder.fromXDR(multisigConfigXdr, Networks.PUBLIC);
-      const signatures = transaction.signatures || [];
+      const parsed = StellarTransactionBuilder.fromXDR(
+        multisigConfigXdr,
+        getNetworkPassphrase(currentNetwork),
+      );
+      // Fee-bump txs sign the inner tx hash; verify against innerTransaction when present.
+      const tx = 'innerTransaction' in parsed && parsed.innerTransaction
+        ? parsed.innerTransaction
+        : parsed;
+      const signatures = tx.signatures || [];
+      const txHash = tx.hash();
       const set = new Set<string>();
-      
+
       for (const sig of signatures) {
         for (const signer of accountData.signers) {
           try {
             const keypair = Keypair.fromPublicKey(signer.key);
-            if (keypair.verify(transaction.hash(), sig.signature())) {
+            if (keypair.verify(txHash, sig.signature())) {
               set.add(signer.key);
               break;
             }
@@ -155,8 +163,8 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
     return getCurrentWeight() >= getRequiredWeight();
   };
 
-  const canSubmitToRefractor = () => {
-    return multisigConfigXdr && multisigConfigXdr.length > 0;
+  const canSubmitToRefractor = (): boolean => {
+    return Boolean(multisigConfigXdr && multisigConfigXdr.length > 0);
   };
 
   // Computed values for TransactionSubmitter (matching TransactionBuilder pattern)
