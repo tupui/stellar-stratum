@@ -15,7 +15,7 @@ import {
   Operation,
   Asset,
   Memo,
-  StrKey,
+  Keypair,
 } from '@stellar/stellar-sdk';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase, type AccountData } from '@/lib/stellar';
@@ -757,25 +757,31 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     const xdrToCheck = xdrData.output || xdrData.input;
     if (!xdrToCheck || !accountData?.signers) return [];
     try {
-      const parsed = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork)) as any;
-      const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
-      const hints: Buffer[] = parsed?.innerTransaction
-        ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
-        : collectHints(parsed);
+      const parsed = StellarTransactionBuilder.fromXDR(
+        xdrToCheck,
+        getNetworkPassphrase(currentNetwork),
+      );
+      // Fee-bump txs sign the inner tx hash; verify against innerTransaction when present.
+      const tx = 'innerTransaction' in parsed && parsed.innerTransaction
+        ? parsed.innerTransaction
+        : parsed;
+      const signatures = tx.signatures || [];
+      const txHash = tx.hash();
       const set = new Set<string>();
-      hints.forEach((hint) => {
-        accountData.signers.forEach((signer) => {
+
+      for (const sig of signatures) {
+        for (const signer of accountData.signers) {
           try {
-            const raw = Buffer.from(StrKey.decodeEd25519PublicKey(signer.key));
-            const signerHint = raw.subarray(raw.length - 4);
-            if (Buffer.compare(hint, signerHint) === 0) {
+            const keypair = Keypair.fromPublicKey(signer.key);
+            if (keypair.verify(txHash, sig.signature())) {
               set.add(signer.key);
+              break;
             }
           } catch {
-            // Invalid signer key format, skip
+            // Invalid signer key or signature, skip
           }
-        });
-      });
+        }
+      }
       return Array.from(set);
     } catch {
       // XDR parsing failed
