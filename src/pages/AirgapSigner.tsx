@@ -135,7 +135,7 @@ const AirgapSigner = () => {
     }
   };
 
-  const fingerprint = xdr ? generateDetailedFingerprint(xdr, network) : null;
+  
 
   const renderScanStep = () => (
     <div className="space-y-6">
