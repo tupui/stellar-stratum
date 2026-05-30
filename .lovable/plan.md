@@ -1,47 +1,81 @@
-# Independent review — findings & proposed fixes
+# Pricing Flow Review — Issues & Fixes
 
-Re-read the app end-to-end (router, contexts, Index, TransactionBuilder, AccountOverview, MultisigConfigBuilder, AirgapSigner, DeepLinkHandler, lib/stellar, lib/validation, lib/appConfig, vite/index.html). The previous pass landed cleanly; the items below are **new** findings.
+After tracing the full pricing pipeline (Reflector oracle → `useAssetPrices` → fiat conversion via FX oracle → Kraken historical → UI panels), here are the concrete problems and the fix for each.
 
-## A. Correctness bugs (real, ship-blockers for one flow)
+## 1. `useAssetPrices` seeds fake data (`src/hooks/useAssetPrices.ts`)
 
-1. **AccountOverview multisig signature detection is hardcoded to mainnet.** `getExistingSignedKeys` in `src/components/AccountOverview.tsx` (line 107) parses the multisig-config XDR with `Networks.PUBLIC` regardless of `currentNetwork`. On testnet, signature verification fails for every signer, so `currentWeight` always reports 0 and "Submit to network" never enables — even with valid signatures. Fix: pull `getNetworkPassphrase(currentNetwork)` from `@/lib/stellar` and use that in `StellarTransactionBuilder.fromXDR` and the subsequent `transaction.hash()` call.
+Lines 88–104 inject a hardcoded `0.2201` USD price for XLM as the initial state ("matching live version"). This shows misleading numbers for a flash before the real oracle resolves, and on stale-cache + oracle failure it lingers.
 
-2. **TransactionBuilder uses signature `hint()` matching with `as any` casts.** `getExistingSignedKeys` in `src/components/TransactionBuilder.tsx` (line 756–784) matches hints (last 4 bytes of public key). Two signers whose addresses collide in their last 4 bytes are indistinguishable and both get counted. Fix: switch to the same `Keypair.verify(tx.hash(), sig.signature())` approach already used in `AccountOverview` (handles fee-bump inner tx via `parsed.innerTransaction ?? parsed`). This also lets us drop the `as any` casts.
+**Fix:** Initialize with `priceUSD: 0`, `valueUSD: 0` and let the oracle/localStorage cache populate. Remove the literal price.
 
-## B. Dead code / redundancies
+## 2. Dead `-1` loading-pill branch in `AssetBalancePanel.tsx`
 
-3. **Unused `fingerprint` constant in `AirgapSigner`** (line 138 of `src/pages/AirgapSigner.tsx`) — computed every render, never referenced. The render path computes a fresh fingerprint inside `onShowOfflineModal` anyway. Delete.
+Lines 271 and 284 render `<LoadingPill>` when `asset.priceUSD === -1`, but nothing in `useAssetPrices` ever sets `-1`. Loading UI is unreachable.
 
-4. **NetworkContext double-persists.** `setNetwork` writes to `localStorage` and a `useEffect` then writes again on every state change. Drop the `useEffect`, keep the explicit write inside `setNetwork`.
+**Fix:** Use the hook's `loading` flag for per-row skeleton, or seed `priceUSD: -1` while pending and drop it after resolution. Pick one — preference: seed `-1` in the hook so per-row pill works.
 
-5. **Unused `Transaction` and `Horizon` imports in `MultisigConfigBuilder.tsx`** (lines 24, 28). Drop them.
+## 3. `AssetBalancePanel.tsx` hardcoded future "last update" timestamp
 
-6. **WalletKit address-lookup order inconsistent.** `connectWallet` tries `fetchAddress` → `getAddress`; `signWithWallet` tries `getAddress` → `fetchAddress`. Standardize to the `signWithWallet` order (`getAddress` first, which doesn't re-prompt for hardware wallets that are already unlocked).
+Line 43: `useState<Date | null>(new Date('2025-12-10T12:00:00Z'))`. `getLastFetchTimestamp` and `clearPriceCache` are imported but never used.
 
-7. **`canSubmitToRefractor` (AccountOverview line 158–160) returns `string | boolean`.** Wrap in `Boolean(...)` so the function signature actually returns `boolean`.
+**Fix:** Initialize with `getLastFetchTimestamp()`; on `refetch` set to `new Date()`; remove unused `clearPriceCache` import.
 
-## C. Question to confirm (no code change yet)
+## 4. Manual refresh does not bust the 5-min price cache
 
-8. **`SOROSWAP_API_KEY` and `DEFINDEX_API_KEY` in `src/lib/appConfig.ts` start with `sk_`.** The inline comment says "public client API key — safe to ship in browser bundle," but the `sk_` prefix is the conventional marker for *secret* keys (Stripe-style). I will **not** touch these without confirmation — if they are publishable, fine; if they're actually secret, shipping them in the SPA bundle leaks them to every visitor (anyone can scrape `/assets/*.js`) and they need to be rotated and either re-issued as public keys or fronted by a tiny proxy. Could you confirm with Soroswap/DeFindex what the `sk_` prefix means for their APIs? Until then I'll leave them as-is.
+`useAssetPrices.refetch` re-runs `getAssetPrice`, but the reflector module returns cached values for 5 min. User pressing the refresh button within that window gets stale data.
 
-## D. Explicitly NOT changing
+**Fix:** In `refetch`, call `clearPriceCache()` (or a narrower "invalidate in-memory cache" helper) before refetching so the user sees a real round-trip.
 
-- CSP `connect-src 'self' https: data: blob:` stays as-is. Tightening to an explicit allowlist of Stellar/Soroban/Refractor/Soroswap/DeFindex/Kraken/Reflector hosts was attempted in the previous pass and you accepted the current form. Won't re-litigate.
-- Visual design, tabs, copy, wallet list, fiat list, asset metadata fetching strategy (per project memory: only XLM is hardcoded), USB shim, production-console silence.
+## 5. `computeStellarAssetContractId` is mainnet-only (`src/lib/reflector.ts`)
 
-## Technical details
+Line 15 hashes `Networks.PUBLIC` regardless of network. On testnet the resulting SAC ID is wrong, so issued-asset oracle lookups by contract ID silently fail.
 
-```text
-Files touched
-─────────────
-src/components/AccountOverview.tsx       fix #1 (network-aware sig check), fix #7
-src/components/TransactionBuilder.tsx    fix #2 (Keypair.verify, drop `as any`)
-src/pages/AirgapSigner.tsx               fix #3 (drop dead fingerprint)
-src/contexts/NetworkContext.tsx          fix #4 (drop redundant useEffect)
-src/components/MultisigConfigBuilder.tsx fix #5 (prune imports)
-src/contexts/WalletKitContext.tsx        fix #6 (standardize address lookup)
-```
+**Fix:** The Reflector oracle is mainnet-only by design, so either (a) early-return `''` on testnet to avoid wasted lookups, or (b) accept a network arg. Choose (a) — keeps current "mainnet prices everywhere" behavior explicit and adds a comment.
 
-Verification: `tsc -b --noEmit` (automatic). Manual: switch to testnet, build a multisig config change, sign with two test signers, confirm "Submit to network" enables once threshold met (regression test for #1).
+## 6. `convertFromUSD` loop is sequential (`AssetBalancePanel.tsx`)
 
-Scope: 6 files, no API/UX changes, no dependency changes, no schema work.
+Lines 101–121 `await` per-asset conversion inside a `for` loop. Each FX call is cached/deduped, but the sequencing still serializes promise microtasks unnecessarily.
+
+**Fix:** Build the work as a `Promise.all` over `assetsWithPrices.map(...)`. Also add `network` to the effect dep array.
+
+## 7. `useAssetPrices` memoizes balances via `JSON.stringify` deps
+
+Line 21: `useMemo(() => balances, [JSON.stringify(balances)])`. Stringifies the whole balances array on every render.
+
+**Fix:** Replace with a cheap structural key, e.g. `useMemo(() => balances, [balances.map(b => \`${b.asset_code}:${b.asset_issuer}:${b.balance}\`).join('|')])`, or just depend on `balances` and trust upstream identity.
+
+## 8. `fiat-currencies.ts` cache shape inconsistency
+
+`getAvailableFiatCurrencies` stores `availableAssets` as-returned in `oracleAssetsCache` (line ~100), but `getFxRate` later (line ~147) overwrites with uppercased entries. The `includes(upperCurrency)` check then depends on which path warmed the cache.
+
+**Fix:** Normalize once on write — always store uppercase in `oracleAssetsCache`. Drop the `(OracleClient as any)` casts (the export is a value, not a type).
+
+## 9. `OracleClient` always uses `Networks.PUBLIC` and mainnet RPC
+
+`src/lib/reflector-client/oracle-client.ts` builds simulation TXs with `Networks.PUBLIC` and `createOracleRpcServer` defaults to mainnet regardless of the `network` constructor arg. Simulations don't enforce the passphrase, but the inconsistency hides intent.
+
+**Fix:** Either honor the `network` parameter end-to-end (passphrase + RPC) or remove the parameter and document that Reflector is mainnet-only. Recommend the second (matches reality).
+
+## 10. Stale-price fallback window too short (`reflector.ts`)
+
+`PRICE_CACHE_DURATION` and the localStorage `CACHE_DURATION` are both 5 min. If the oracle fails for >5 min, the UI flips to "N/A" instead of showing the last-known price. Other crypto wallets keep a stale price for hours and just flag it.
+
+**Fix:** Extend localStorage fallback to 24h (display only on oracle failure); keep the in-memory 5-min TTL for "fresh enough". `getCachedPrice` becomes the safety net, not the primary cache.
+
+## 11. Minor
+
+- `src/lib/defindex-client.ts` / `soroswap-client.ts`: API keys ship in the browser (already flagged previously). Not addressed unless requested.
+- `useAssetPrices` exports `error` but the conversion loop in `AssetBalancePanel` swallows errors — fine; documenting.
+
+## Out of scope (no change)
+
+- Two parallel `useAssetPrices` instances (in `AccountOverview` and `AssetBalancePanel`) are deduped by the inflight map; acceptable.
+- `primeUsdRatesForAsset(_start, _end)` ignoring the date range is intentional (always pulls 1y, cached).
+
+## Files to change
+
+- `src/hooks/useAssetPrices.ts`
+- `src/components/AssetBalancePanel.tsx`
+- `src/lib/reflector.ts`
+- `src/lib/fiat-currencies.ts`
+- `src/lib/reflector-client/oracle-client.ts` (optional; tag #9)

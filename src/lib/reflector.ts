@@ -7,6 +7,9 @@ import { createHorizonServer } from './stellar';
 
 // Reflector Oracle Contracts
 // Helper: compute SAC (contract) ID for classic assets on PUBLIC network
+// Reflector oracles are mainnet-only by design; SAC IDs are computed against the
+// public network passphrase. Testnet callers will simply miss the contract-id
+// branch in `findAssetInMapping` and fall back to symbol/issuer lookups.
 const computeStellarAssetContractId = (assetCode: string, assetIssuer: string): string => {
   try {
     if (!assetIssuer || assetCode === 'XLM') return '';
@@ -320,8 +323,11 @@ const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, 
 
 
 
-// Price cache for fallback to previous values with localStorage persistence
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+// Price cache for fallback to previous values with localStorage persistence.
+// Window is intentionally long: this is the "stale-but-displayed" safety net
+// shown only when the oracle itself fails. The 5-min in-memory `PRICE_CACHE_DURATION`
+// above still controls how often we hit the oracle for "fresh" prices.
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24h fallback window
 const CACHE_KEY = 'stellar_asset_prices';
 const FETCH_TIMESTAMP_KEY = 'stellar_price_fetch_timestamp';
 
@@ -379,18 +385,17 @@ const savePriceCache = (cache: PriceCache): void => {
 const getCachedPrice = (assetKey: string): number => {
   const cache = loadPriceCache();
   const cached = cache[assetKey];
-  
+
   if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-    
     return cached.price;
   }
-  
+
   // Clean expired entry
   if (cached && (Date.now() - cached.timestamp) >= CACHE_DURATION) {
     delete cache[assetKey];
     savePriceCache(cache);
   }
-  
+
   return 0;
 };
 
