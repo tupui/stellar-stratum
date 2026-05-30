@@ -91,24 +91,23 @@ export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
   }
   
   try {
-    const { OracleClient, AssetType } = await import('./reflector-client');
-    const client = new (OracleClient as any)(FX_ORACLE.contract, network);
-    
+    const { OracleClient } = await import('./reflector-client');
+    const client = new OracleClient(FX_ORACLE.contract, network);
+
     // Fetch available assets (currencies) from FX oracle
-    const availableAssets = await client.getAssets();
-    
-    // Cache oracle assets for validation
-    oracleAssetsCache = availableAssets;
+    const availableAssets: string[] = await client.getAssets();
+
+    // Cache oracle assets for validation — always normalized to uppercase
+    oracleAssetsCache = availableAssets.map((a) => a.toUpperCase());
     oracleAssetsCacheTimestamp = Date.now();
-    
+
     // Always include USD as base currency
     const currencies: FiatCurrency[] = [
       { code: 'USD', symbol: '$', name: 'US Dollar' }
     ];
-    
+
     // Add other currencies that are available from the oracle
-    availableAssets.forEach((asset: string) => {
-      const upperAsset = asset.toUpperCase();
+    oracleAssetsCache.forEach((upperAsset) => {
       if (upperAsset !== 'USD' && CURRENCY_INFO[upperAsset]) {
         currencies.push({
           code: upperAsset,
@@ -117,7 +116,7 @@ export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
         });
       }
     });
-    
+
     availableCurrenciesCache = currencies;
     return currencies;
   } catch (error) {
@@ -146,12 +145,12 @@ const getFxRate = async (targetCurrency: string, network: 'mainnet' | 'testnet' 
   const ratePromise = (async (): Promise<number> => {
     try {
       const { OracleClient, AssetType } = await import('./reflector-client');
-      const client = new (OracleClient as any)(FX_ORACLE.contract, network);
-      
-      // Preload available assets if not cached
+      const client = new OracleClient(FX_ORACLE.contract, network);
+
+      // Preload available assets if not cached (always normalized to uppercase)
       if (!oracleAssetsCache || (Date.now() - oracleAssetsCacheTimestamp) > CURRENCIES_CACHE_DURATION) {
-        const availableAssets = await client.getAssets();
-        oracleAssetsCache = availableAssets.map((a: string) => a.toUpperCase());
+        const availableAssets: string[] = await client.getAssets();
+        oracleAssetsCache = availableAssets.map((a) => a.toUpperCase());
         oracleAssetsCacheTimestamp = Date.now();
       }
       
