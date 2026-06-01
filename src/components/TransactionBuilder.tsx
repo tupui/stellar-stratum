@@ -40,8 +40,8 @@ import { DeFindexTab } from './defindex/DeFindexTab';
 
 
 interface PaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; memo?: string }
-interface BatchPayment { destination: string; amount?: string; asset?: string; assetIssuer?: string; memo?: string; isAccountClosure?: boolean; receiveAsset?: string; receiveAssetIssuer?: string; slippageTolerance?: number }
-interface PathPaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; receiveAsset: string; receiveAssetIssuer?: string; slippageTolerance?: number; memo?: string }
+interface BatchPayment { destination: string; amount?: string; asset?: string; assetIssuer?: string; memo?: string; isAccountClosure?: boolean; receiveAsset?: string; receiveAssetIssuer?: string; receiveAmount?: string; slippageTolerance?: number; exactOut?: boolean }
+interface PathPaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; receiveAsset: string; receiveAssetIssuer?: string; receiveAmount?: string; slippageTolerance?: number; exactOut?: boolean; memo?: string }
 
 interface TransactionBuilderProps {
   onBack: () => void;
@@ -290,6 +290,20 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     return parseFloat((converted * slippageAdjustment).toFixed(7));
   };
 
+  // Inverse: given an exact destAmount, estimate the maximum the sender should pay (with slippage buffer)
+  const estimatePathSendMax = (destAmount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
+    const dest = parseFloat(destAmount) || 0;
+    if (dest <= 0) return 0;
+    const fromPrice = assetPrices[fromAssetCode] || 0;
+    const toPrice = assetPrices[toAssetCode] || 0;
+    let converted = dest;
+    if (fromPrice > 0 && toPrice > 0) {
+      converted = dest * (toPrice / fromPrice);
+    }
+    const slippageBuffer = 1 + (slippageTolerance / 100);
+    return parseFloat((converted * slippageBuffer).toFixed(7));
+  };
+
   // Query Horizon's strict-send path-finder and return { destMin, path } honoring slippage.
   // Falls back to an oracle-derived estimate (with an empty path) if Horizon returns nothing.
   const quoteStrictSendPath = async (
@@ -403,20 +417,32 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
               ? Asset.native()
               : new Asset(payment.receiveAsset, payment.receiveAssetIssuer);
 
-            // Quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
-            const { destMin, path } = await quoteStrictSendPath(
-              sendAsset, payment.amount, destAsset,
-              payment.asset, payment.receiveAsset, payment.slippageTolerance,
-            );
-
-            transaction.addOperation(Operation.pathPaymentStrictSend({
-              sendAsset,
-              sendAmount: payment.amount,
-              destination: payment.destination,
-              destAsset,
-              destMin,
-              path,
-            }));
+            if (payment.exactOut && payment.receiveAmount) {
+              // PathPaymentStrictReceive: receiver gets exactly destAmount, sender pays ≤ sendMax
+              const sendMax = estimatePathSendMax(payment.receiveAmount, payment.asset, payment.receiveAsset, payment.slippageTolerance);
+              transaction.addOperation(Operation.pathPaymentStrictReceive({
+                sendAsset,
+                sendMax: sendMax.toString(),
+                destination: payment.destination,
+                destAsset,
+                destAmount: payment.receiveAmount,
+                path: [],
+              }));
+            } else {
+              // PathPaymentStrictSend: quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
+              const { destMin, path } = await quoteStrictSendPath(
+                sendAsset, payment.amount, destAsset,
+                payment.asset, payment.receiveAsset, payment.slippageTolerance,
+              );
+              transaction.addOperation(Operation.pathPaymentStrictSend({
+                sendAsset,
+                sendAmount: payment.amount,
+                destination: payment.destination,
+                destAsset,
+                destMin,
+                path,
+              }));
+            }
             continue;
           }
 
@@ -436,32 +462,45 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
         
       } else if (pathPayment) {
         // Path payment operation
-        if (!pathPayment.destination || !pathPayment.amount || !pathPayment.asset || !pathPayment.receiveAsset) {
+        if (!pathPayment.destination || !pathPayment.asset || !pathPayment.receiveAsset) {
           throw new Error('Missing required fields for path payment');
         }
-        
-        const sendAsset = pathPayment.asset === 'XLM' 
-          ? Asset.native() 
+
+        const sendAsset = pathPayment.asset === 'XLM'
+          ? Asset.native()
           : new Asset(pathPayment.asset, pathPayment.assetIssuer);
-          
-        const destAsset = pathPayment.receiveAsset === 'XLM' 
-          ? Asset.native() 
+
+        const destAsset = pathPayment.receiveAsset === 'XLM'
+          ? Asset.native()
           : new Asset(pathPayment.receiveAsset, pathPayment.receiveAssetIssuer);
 
-        // Quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
-        const { destMin, path } = await quoteStrictSendPath(
-          sendAsset, pathPayment.amount, destAsset,
-          pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance,
-        );
-
-        transaction.addOperation(Operation.pathPaymentStrictSend({
-          sendAsset,
-          sendAmount: pathPayment.amount,
-          destination: pathPayment.destination,
-          destAsset,
-          destMin,
-          path,
-        }));
+        if (pathPayment.exactOut && pathPayment.receiveAmount) {
+          // PathPaymentStrictReceive: receiver gets exactly destAmount, sender pays ≤ sendMax
+          const sendMax = estimatePathSendMax(pathPayment.receiveAmount, pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance);
+          transaction.addOperation(Operation.pathPaymentStrictReceive({
+            sendAsset,
+            sendMax: sendMax.toString(),
+            destination: pathPayment.destination,
+            destAsset,
+            destAmount: pathPayment.receiveAmount,
+            path: [],
+          }));
+        } else {
+          if (!pathPayment.amount) throw new Error('Missing send amount for path payment');
+          // PathPaymentStrictSend: quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
+          const { destMin, path } = await quoteStrictSendPath(
+            sendAsset, pathPayment.amount, destAsset,
+            pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance,
+          );
+          transaction.addOperation(Operation.pathPaymentStrictSend({
+            sendAsset,
+            sendAmount: pathPayment.amount,
+            destination: pathPayment.destination,
+            destAsset,
+            destMin,
+            path,
+          }));
+        }
         
       } else {
         // Regular payment operation

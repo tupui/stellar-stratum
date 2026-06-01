@@ -49,6 +49,6 @@ export default defineConfig({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    include: ["buffer", "process"],
+    include: ["buffer", "process", "@stellar/stellar-base"],
   },
 });
