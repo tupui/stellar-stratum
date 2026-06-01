@@ -13,7 +13,9 @@ export const generateTransactionFingerprint = (
     
     return parsed.tx.hash().toString('hex');
   } catch (error) {
-    console.error('Error generating fingerprint:', error);
+    if (import.meta.env.DEV) {
+      console.error('Error generating fingerprint:', error);
+    }
     return '';
   }
 };
@@ -47,7 +49,9 @@ export const generateDetailedFingerprint = (
       sourceAccount
     };
   } catch (error) {
-    console.error('Error generating detailed fingerprint:', error);
+    if (import.meta.env.DEV) {
+      console.error('Error generating detailed fingerprint:', error);
+    }
     return {
       hash: '',
       operationSummary: 'Unknown ops',

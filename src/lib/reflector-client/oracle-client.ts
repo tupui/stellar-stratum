@@ -61,6 +61,11 @@ export class OracleClient {
   private static ASSETS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
   private static PRICE_TTL_MS = 60 * 1000; // 60s
 
+  // Reflector oracles in this app are mainnet-only contracts. The `network`
+  // arg only chooses which Soroban RPC URL is used for simulation; the
+  // simulation transaction itself uses Networks.PUBLIC because that is the
+  // contract's deployed network. Simulations do not validate the passphrase,
+  // but using PUBLIC keeps intent consistent with the contract being called.
   constructor(contractId: string, network: 'mainnet' | 'testnet' = 'mainnet') {
     this.contractId = contractId;
     this.contract = new Contract(contractId);

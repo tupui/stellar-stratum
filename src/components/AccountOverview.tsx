@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TransactionBuilder as StellarTransactionBuilder, Networks, Keypair } from '@stellar/stellar-sdk';
+import { TransactionBuilder as StellarTransactionBuilder, Keypair } from '@stellar/stellar-sdk';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -22,29 +22,13 @@ import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { submitToRefractor } from '@/lib/stellar';
+import { submitToRefractor, submitTransaction, getNetworkPassphrase } from '@/lib/stellar';
 import { SuccessModal } from './SuccessModal';
 
-interface AccountData {
-  publicKey: string;
-  balances: Array<{
-    asset_type: string;
-    asset_code?: string;
-    balance: string;
-  }>;
-  thresholds: {
-    low_threshold: number;
-    med_threshold: number;
-    high_threshold: number;
-  };
-  signers: Array<{
-    key: string;
-    weight: number;
-    type: string;
-  }>;
-}
+import type { AccountData } from '@/lib/stellar';
 
 interface AccountOverviewProps {
   accountData: AccountData;
@@ -68,6 +52,37 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   const [isSigning, setIsSigning] = useState(false);
   
   const { toast } = useToast();
+  const { signWithWallet } = useWalletKit();
+
+  const handleSignMultisigConfig = async (signerKey: string, walletId: string) => {
+    if (!multisigConfigXdr) return;
+    setIsSigning(true);
+    try {
+      const { signedXdr, address, walletName } = await signWithWallet(multisigConfigXdr, walletId);
+      if (address !== signerKey) {
+        throw new Error(
+          `Selected wallet (${walletName}) returned a different address. ` +
+          `Expected ${signerKey.slice(0, 8)}... but got ${address.slice(0, 8)}... ` +
+          `Please switch account in the wallet to match the signer and try again.`
+        );
+      }
+      setMultisigConfigXdr(signedXdr);
+      setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
+      toast({
+        title: 'Transaction signed',
+        description: `Signed with ${walletName}`,
+        duration: 2000,
+      });
+    } catch (error) {
+      toast({
+        title: 'Signing failed',
+        description: error instanceof Error ? error.message : 'Failed to sign transaction',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSigning(false);
+    }
+  };
   const { network: currentNetwork } = useNetwork();
   
   
@@ -87,17 +102,25 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   // Helper functions for TransactionSubmitter (copied from TransactionBuilder)
   const getExistingSignedKeys = () => {
     if (!multisigConfigXdr) return [];
-    
+
     try {
-      const transaction = StellarTransactionBuilder.fromXDR(multisigConfigXdr, Networks.PUBLIC);
-      const signatures = transaction.signatures || [];
+      const parsed = StellarTransactionBuilder.fromXDR(
+        multisigConfigXdr,
+        getNetworkPassphrase(currentNetwork),
+      );
+      // Fee-bump txs sign the inner tx hash; verify against innerTransaction when present.
+      const tx = 'innerTransaction' in parsed && parsed.innerTransaction
+        ? parsed.innerTransaction
+        : parsed;
+      const signatures = tx.signatures || [];
+      const txHash = tx.hash();
       const set = new Set<string>();
-      
+
       for (const sig of signatures) {
         for (const signer of accountData.signers) {
           try {
             const keypair = Keypair.fromPublicKey(signer.key);
-            if (keypair.verify(transaction.hash(), sig.signature())) {
+            if (keypair.verify(txHash, sig.signature())) {
               set.add(signer.key);
               break;
             }
@@ -140,8 +163,8 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
     return getCurrentWeight() >= getRequiredWeight();
   };
 
-  const canSubmitToRefractor = () => {
-    return multisigConfigXdr && multisigConfigXdr.length > 0;
+  const canSubmitToRefractor = (): boolean => {
+    return Boolean(multisigConfigXdr && multisigConfigXdr.length > 0);
   };
 
   // Computed values for TransactionSubmitter (matching TransactionBuilder pattern)
@@ -164,19 +187,24 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
     
     setIsSubmittingToNetwork(true);
     try {
-      // Network submission will be implemented when backend integration is added
-      // Simulate success for now
-      setTimeout(() => {
-        setSuccessData({
-          type: 'network',
-          hash: 'mock-hash-' + Date.now(),
-          network: currentNetwork,
-          xdr: multisigConfigXdr
-        });
-        setIsSubmittingToNetwork(false);
-      }, 2000);
+      const result = await submitTransaction(multisigConfigXdr, currentNetwork);
+      const hash = (result as { hash?: string })?.hash || '';
+      setSuccessData({
+        type: 'network',
+        hash,
+        network: currentNetwork,
+        xdr: multisigConfigXdr,
+      });
     } catch (error) {
-      console.error('Network submission failed:', error);
+      if (import.meta.env.DEV) {
+        console.error('Network submission failed:', error);
+      }
+      toast({
+        title: 'Network submission failed',
+        description: error instanceof Error ? error.message : 'Failed to submit to the Stellar network',
+        variant: 'destructive',
+      });
+    } finally {
       setIsSubmittingToNetwork(false);
     }
   };
@@ -366,8 +394,10 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                               <p className="font-medium">{threshold.label}</p>
                               <p className="text-sm text-muted-foreground">Required: <span className="font-amount">{threshold.value}</span></p>
                             </div>
-                            <Badge variant={status.color === 'success' ? 'default' : 'secondary'}>
-                              <span className="font-amount">{currentWeight}/{threshold.value}</span>
+                            <Badge variant={status.color === 'success' ? 'default' : 'secondary'} className="font-amount">
+                              <span>Need {threshold.value}</span>
+                              <span className="mx-1 opacity-60">·</span>
+                              <span>Have {currentWeight}</span>
                             </Badge>
                           </div>
                         );
@@ -535,10 +565,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                 currentAccountKey={accountData.publicKey}
                 signedBy={signedBy}
                 requiredWeight={getRequiredWeight()}
-                onSignWithSigner={async (signerKey, walletId) => {
-                  // Use the same interface as TransactionBuilder
-                  // Signing functionality integrated with TransactionBuilder
-                }}
+                onSignWithSigner={handleSignMultisigConfig}
                 isSigning={isSigning}
               />
             </CardContent>

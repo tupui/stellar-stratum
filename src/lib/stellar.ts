@@ -19,8 +19,6 @@ export const createHorizonServer = (network: 'mainnet' | 'testnet' = 'mainnet', 
   return new Horizon.Server(horizonUrl);
 };
 
-// Default horizon server for mainnet (backward compatibility)
-export const horizonServer = createHorizonServer('mainnet');
 
 export interface AccountData {
   publicKey: string;
@@ -43,6 +41,7 @@ export interface AccountData {
 }
 
 export const fetchAccountData = async (publicKey: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AccountData> => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   try {
     const server = createHorizonServer(network);
     const account = await server.loadAccount(publicKey);
@@ -91,20 +90,29 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
       );
     }
 
-    // For other errors, provide a generic message
-    throw new Error('Failed to load account data from Horizon');
+    // For other errors, preserve the original message for diagnosability
+    const original = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to load account data from Horizon: ${original}`);
   }
 };
 
-export const submitTransaction = async (signedXdr: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<any> => {
+export const submitTransaction = async (
+  signedXdr: string,
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): Promise<Horizon.HorizonApi.SubmitTransactionResponse> => {
   try {
     const config = getNetworkConfig(network);
     const transaction = TransactionBuilder.fromXDR(signedXdr, config.passphrase);
     const server = createHorizonServer(network);
-    const result = await server.submitTransaction(transaction);
-    return result;
-  } catch (error) {
-    throw new Error('Failed to submit transaction');
+    return await server.submitTransaction(transaction);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    const codes = error?.response?.data?.extras?.result_codes;
+    const codeSummary = codes
+      ? ` (${[codes.transaction, ...(codes.operations || [])].filter(Boolean).join(', ')})`
+      : '';
+    const base = error instanceof Error ? error.message : 'Failed to submit transaction';
+    throw new Error(`${base}${codeSummary}`);
   }
 };
 
@@ -151,8 +159,22 @@ export const pullFromRefractor = async (refractorId: string): Promise<string> =>
     }
 
     const result = await response.json();
-    return result.xdr;
+    const xdr = result?.xdr;
+    if (typeof xdr !== 'string' || xdr.length < 100) {
+      throw new Error('Refractor returned an invalid XDR payload');
+    }
+
+    // Validate XDR parses on at least one known network before handing it back
+    let parses = false;
+    for (const passphrase of [appConfig.MAINNET_PASSPHRASE, appConfig.TESTNET_PASSPHRASE]) {
+      try { TransactionBuilder.fromXDR(xdr, passphrase); parses = true; break; } catch { /* try next */ }
+    }
+    if (!parses) {
+      throw new Error('Refractor returned a payload that is not a valid Stellar transaction');
+    }
+
+    return xdr;
   } catch (error) {
-    throw new Error('Failed to fetch transaction from Refractor');
+    throw new Error(error instanceof Error ? error.message : 'Failed to fetch transaction from Refractor');
   }
 };

@@ -9,7 +9,7 @@ import { LoadingPill } from '@/components/ui/loading-pill';
 import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, ExternalLink } from 'lucide-react';
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
-import { getLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
+import { getLastFetchTimestamp } from '@/lib/reflector';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
@@ -40,10 +40,19 @@ export const AssetBalancePanel = ({
     getCurrentCurrency
   } = useFiatCurrency();
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
-  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(new Date('2025-12-10T12:00:00Z'));
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(() => getLastFetchTimestamp());
   const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
   const [convertedAssetValues, setConvertedAssetValues] = useState<Record<number, number>>({});
   const [convertedAssetPrices, setConvertedAssetPrices] = useState<Record<number, number>>({});
+
+  // Reflect the latest cache timestamp whenever prices resolve
+  useEffect(() => {
+    if (!loading) {
+      const ts = getLastFetchTimestamp();
+      if (ts) setLastUpdateTime(ts);
+    }
+  }, [loading, totalValueUSD]);
+
   const handleRefresh = useCallback(async () => {
     try {
       if (onRefreshBalances) {
@@ -53,7 +62,6 @@ export const AssetBalancePanel = ({
     } catch (e) {
       // Ignore refresh errors - balances will be updated on next successful fetch
     } finally {
-      // Always update timestamp after any operation
       setLastUpdateTime(new Date());
     }
   }, [onRefreshBalances, refetch]);
@@ -77,6 +85,7 @@ export const AssetBalancePanel = ({
 
   // Update converted values when currency changes
   useEffect(() => {
+    let cancelled = false;
     const convertAllValues = async () => {
       if (quoteCurrency === 'USD') {
         setConvertedTotalValue(totalValueUSD);
@@ -85,43 +94,38 @@ export const AssetBalancePanel = ({
         return;
       }
 
-      // Convert total value
-      if (totalValueUSD) {
-        try {
-          const convertedTotal = await convertFromUSD(totalValueUSD, quoteCurrency, network);
-          setConvertedTotalValue(convertedTotal);
-        } catch (error) {
-          setConvertedTotalValue(totalValueUSD);
-        }
-      }
+      // Run all conversions in parallel (getFxRate is cached + deduped internally)
+      const totalPromise = totalValueUSD
+        ? convertFromUSD(totalValueUSD, quoteCurrency, network).catch(() => totalValueUSD)
+        : Promise.resolve(totalValueUSD);
 
-      // Convert individual asset values and prices
+      const perAsset = assetsWithPrices.map((asset, i) =>
+        Promise.all([
+          asset.valueUSD > 0
+            ? convertFromUSD(asset.valueUSD, quoteCurrency, network).catch(() => null)
+            : Promise.resolve(null),
+          asset.priceUSD > 0
+            ? convertFromUSD(asset.priceUSD, quoteCurrency, network).catch(() => null)
+            : Promise.resolve(null),
+        ]).then(([v, p]) => ({ i, v, p }))
+      );
+
+      const [convertedTotal, results] = await Promise.all([totalPromise, Promise.all(perAsset)]);
+      if (cancelled) return;
+
+      setConvertedTotalValue(convertedTotal);
       const newConvertedValues: Record<number, number> = {};
       const newConvertedPrices: Record<number, number> = {};
-      for (let i = 0; i < assetsWithPrices.length; i++) {
-        const asset = assetsWithPrices[i];
-        if (asset.valueUSD > 0) {
-          try {
-            const convertedValue = await convertFromUSD(asset.valueUSD, quoteCurrency, network);
-            newConvertedValues[i] = convertedValue;
-          } catch (error) {
-            // Ignore conversion errors - use USD fallback
-          }
-        }
-        if (asset.priceUSD > 0) {
-          try {
-            const convertedPrice = await convertFromUSD(asset.priceUSD, quoteCurrency, network);
-            newConvertedPrices[i] = convertedPrice;
-          } catch (error) {
-            // Ignore conversion errors - use USD fallback
-          }
-        }
+      for (const { i, v, p } of results) {
+        if (v !== null) newConvertedValues[i] = v;
+        if (p !== null) newConvertedPrices[i] = p;
       }
       setConvertedAssetValues(newConvertedValues);
       setConvertedAssetPrices(newConvertedPrices);
     };
     convertAllValues();
-  }, [totalValueUSD, quoteCurrency, assetsWithPrices]);
+    return () => { cancelled = true; };
+  }, [totalValueUSD, quoteCurrency, assetsWithPrices, network]);
   const formatPriceSync = (price: number, assetIndex: number): string => {
     const currency = getCurrentCurrency();
     if (price === 0) return 'N/A';

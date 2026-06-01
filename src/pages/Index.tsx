@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy, memo, useCallback, useMemo } from "react";
+import { useState, Suspense, lazy, memo, useCallback } from "react";
 import { LandingPage } from "@/components/LandingPage";
 import { LoadingPill } from "@/components/ui/loading-pill";
 import { Footer } from "@/components/Footer";
@@ -11,32 +11,13 @@ const TransactionBuilder = lazy(() =>
     default: module.TransactionBuilder,
   })),
 );
-import { fetchAccountData } from "@/lib/stellar";
+import { fetchAccountData, type AccountData } from "@/lib/stellar";
+import { StrKey } from "@stellar/stellar-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { FiatCurrencyProvider } from "@/contexts/FiatCurrencyContext";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { useWalletKit } from "@/contexts/WalletKitContext";
 import { useRequestDeduplication } from "@/hooks/useRequestDeduplication";
-
-interface AccountData {
-  publicKey: string;
-  balances: Array<{
-    asset_type: string;
-    asset_code?: string;
-    asset_issuer?: string;
-    balance: string;
-  }>;
-  thresholds: {
-    low_threshold: number;
-    med_threshold: number;
-    high_threshold: number;
-  };
-  signers: Array<{
-    key: string;
-    weight: number;
-    type: string;
-  }>;
-}
 
 type AppState = "connecting" | "dashboard" | "transaction" | "multisig-config";
 
@@ -79,7 +60,7 @@ const Index = memo(() => {
           duration: 3000,
         });
       } catch (error) {
-        console.error("Failed to load source account:", error);
+        if (import.meta.env.DEV) console.error("Failed to load source account:", error);
         toast({
           title: "Failed to load source account",
           description: error instanceof Error ? error.message : "Could not load account data",
@@ -109,8 +90,11 @@ const Index = memo(() => {
       if (deepLinkXdr) {
         // If there's a deep link, use its source account
         const deepLinkSourceAccount = sessionStorage.getItem("deeplink-source-account");
-        if (deepLinkSourceAccount) {
+        if (deepLinkSourceAccount && StrKey.isValidEd25519PublicKey(deepLinkSourceAccount)) {
           setSourceAccount(deepLinkSourceAccount);
+        } else if (deepLinkSourceAccount) {
+          // Corrupted deep-link source account; ignore it
+          sessionStorage.removeItem("deeplink-source-account");
         }
         setDeepLinkReady(true);
         setAppState("transaction");
@@ -123,14 +107,15 @@ const Index = memo(() => {
       setTimeout(async () => {
         try {
           // Fetch account data for the source account (may differ from connected wallet with deep links)
-          const accountToFetch = sessionStorage.getItem("deeplink-source-account") || walletPublicKey;
+          const stored = sessionStorage.getItem("deeplink-source-account");
+          const accountToFetch = stored && StrKey.isValidEd25519PublicKey(stored) ? stored : walletPublicKey;
           const realAccountData = await dedupe(`account-${accountToFetch}-${selectedNetwork}`, () =>
             fetchAccountData(accountToFetch, selectedNetwork),
           );
           setAccountData(realAccountData);
           setLoading(false);
         } catch (error) {
-          console.error("Failed to load account:", error);
+          if (import.meta.env.DEV) console.error("Failed to load account:", error);
           toast({
             title: "Failed to load account",
             description: error instanceof Error ? error.message : "Could not load account data",
@@ -194,7 +179,7 @@ const Index = memo(() => {
           duration: 3000,
         });
       } catch (error) {
-        console.error("Failed to load source account:", error);
+        if (import.meta.env.DEV) console.error("Failed to load source account:", error);
         toast({
           title: "Failed to load account",
           description: error instanceof Error ? error.message : "Could not load account data",

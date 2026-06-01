@@ -9,18 +9,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle, ArrowLeftRight, Landmark } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Transaction, 
+import {
+  Transaction,
   TransactionBuilder as StellarTransactionBuilder,
-  Networks,
   Operation,
   Asset,
   Memo,
-  Horizon,
-  StrKey
+  Keypair,
 } from '@stellar/stellar-sdk';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
+import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase, type AccountData } from '@/lib/stellar';
+import { appConfig } from '@/lib/appConfig';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
@@ -48,24 +47,7 @@ interface TransactionBuilderProps {
   onBack: () => void;
   accountPublicKey: string; // Source account for transactions (editable)
   signerPublicKey?: string; // Connected wallet's public key (signer)
-  accountData: {
-    balances: Array<{
-      asset_type: string;
-      asset_code?: string;
-      asset_issuer?: string;
-      balance: string;
-    }>;
-    signers: Array<{
-      key: string;
-      weight: number;
-      type: string;
-    }>;
-    thresholds: {
-      low_threshold: number;
-      med_threshold: number;
-      high_threshold: number;
-    };
-  } | null;
+  accountData: AccountData | null;
   initialTab?: string;
   pendingId?: string;
   initialXdr?: string;
@@ -271,7 +253,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   const createTrustlineRemovalOperations = () => {
     // Create operations to remove all existing trustlines before account merge
     // Note: XLM (native asset) cannot be closed and is automatically skipped
-    const trustlineRemovalOps: any[] = [];
+    const trustlineRemovalOps: ReturnType<typeof Operation.changeTrust>[] = [];
     
     if (!accountData?.balances) return trustlineRemovalOps;
     
@@ -292,24 +274,18 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     return trustlineRemovalOps;
   };
 
-  // Calculate direct exchange rate between any two assets and apply slippage
+  // UI-only estimate of receive amount based on oracle USD prices.
+  // NOTE: this is NOT used as the on-chain destMin — for that we query Horizon's
+  // strict-send path-finder so the value reflects actual DEX liquidity.
   const estimatePathReceive = (amount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
     const send = parseFloat(amount) || 0;
     if (send <= 0) return 0;
-
-    // Get prices for both assets
     const fromPrice = assetPrices[fromAssetCode] || 0;
     const toPrice = assetPrices[toAssetCode] || 0;
-
     let converted = send;
     if (fromPrice > 0 && toPrice > 0) {
-      // Calculate direct exchange rate: how much of toAsset per unit of fromAsset
-      const exchangeRate = fromPrice / toPrice;
-      converted = send * exchangeRate;
+      converted = send * (fromPrice / toPrice);
     }
-    // If we don't have prices, assume 1:1 (fallback for unknown assets)
-
-    // Apply slippage tolerance to get minimum receive amount
     const slippageAdjustment = 1 - (slippageTolerance / 100);
     return parseFloat((converted * slippageAdjustment).toFixed(7));
   };
@@ -327,7 +303,42 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     const slippageBuffer = 1 + (slippageTolerance / 100);
     return parseFloat((converted * slippageBuffer).toFixed(7));
   };
-  
+
+  // Query Horizon's strict-send path-finder and return { destMin, path } honoring slippage.
+  // Falls back to an oracle-derived estimate (with an empty path) if Horizon returns nothing.
+  const quoteStrictSendPath = async (
+    sendAsset: Asset,
+    sendAmount: string,
+    destAsset: Asset,
+    sendAssetCode: string,
+    destAssetCode: string,
+    slippageTolerance = 0.5,
+  ): Promise<{ destMin: string; path: Asset[] }> => {
+    const slippageAdjustment = 1 - (slippageTolerance / 100);
+    try {
+      const server = createHorizonServer(currentNetwork);
+      const paths = await server
+        .strictSendPaths(sendAsset, sendAmount, [destAsset])
+        .call();
+      const best = paths.records?.[0];
+      if (best && best.destination_amount) {
+        const dest = parseFloat(best.destination_amount) * slippageAdjustment;
+        const pathAssets = (best.path || []).map(p =>
+          p.asset_type === 'native'
+            ? Asset.native()
+            : new Asset(p.asset_code as string, p.asset_issuer as string),
+        );
+        return { destMin: dest.toFixed(7), path: pathAssets };
+      }
+    } catch {
+      // fall through to oracle estimate
+    }
+    return {
+      destMin: estimatePathReceive(sendAmount, sendAssetCode, destAssetCode, slippageTolerance).toString(),
+      path: [],
+    };
+  };
+
   const handlePaymentBuild = async (paymentData?: PaymentData, isAccountMerge = false, batchPayments?: BatchPayment[], pathPayment?: PathPaymentData) => {
     setIsBuilding(true);
     setTrustlineError('');
@@ -336,30 +347,12 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       const networkPassphrase = getNetworkPassphrase(currentNetwork);
       const server = createHorizonServer(currentNetwork);
       const sourceAccount = await server.loadAccount(accountPublicKey);
-      
-      let fee = '100000'; // Default fee
-      
-      if (batchPayments) {
-        // Calculate fee based on total operations including trustline removals for account merges
-        let totalOps = batchPayments.length;
-        
-        // Count additional trustline removal operations for account merges
-        const accountMergeCount = batchPayments.filter(p => p.isAccountClosure).length;
-        if (accountMergeCount > 0 && accountData?.balances) {
-          const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
-          totalOps += (trustlineCount * accountMergeCount);
-        }
-        
-        fee = (100000 * totalOps).toString();
-      } else if (pathPayment) {
-        fee = '200000'; // Higher fee for path payments
-      } else if (isAccountMerge && accountData?.balances) {
-        // Account merge requires additional operations for trustline removal
-        const trustlineCount = accountData.balances.filter(b => b.asset_type !== 'native').length;
-        fee = (100000 * (1 + trustlineCount)).toString();
-      }
-      
-      const transaction = new StellarTransactionBuilder(sourceAccount, { fee, networkPassphrase }) as any;
+
+      // The SDK multiplies base fee by op count internally. Pass per-op base fee.
+      // Path payments are charged the same as other operations on-chain — no need to bump.
+      const fee = appConfig.DEFAULT_BASE_FEE_STROOPS.toString();
+
+      const transaction = new StellarTransactionBuilder(sourceAccount, { fee, networkPassphrase });
 
       if (isAccountMerge) {
         // Account merge operation
@@ -436,15 +429,18 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
                 path: [],
               }));
             } else {
-              // PathPaymentStrictSend: sender sends exactly sendAmount, receiver gets ≥ destMin
-              const destMin = estimatePathReceive(payment.amount, payment.asset, payment.receiveAsset, payment.slippageTolerance);
+              // PathPaymentStrictSend: quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
+              const { destMin, path } = await quoteStrictSendPath(
+                sendAsset, payment.amount, destAsset,
+                payment.asset, payment.receiveAsset, payment.slippageTolerance,
+              );
               transaction.addOperation(Operation.pathPaymentStrictSend({
                 sendAsset,
                 sendAmount: payment.amount,
                 destination: payment.destination,
                 destAsset,
-                destMin: destMin.toString(),
-                path: [],
+                destMin,
+                path,
               }));
             }
             continue;
@@ -491,15 +487,18 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
           }));
         } else {
           if (!pathPayment.amount) throw new Error('Missing send amount for path payment');
-          // PathPaymentStrictSend: sender sends exactly sendAmount, receiver gets ≥ destMin
-          const destMin = estimatePathReceive(pathPayment.amount, pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance);
+          // PathPaymentStrictSend: quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
+          const { destMin, path } = await quoteStrictSendPath(
+            sendAsset, pathPayment.amount, destAsset,
+            pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance,
+          );
           transaction.addOperation(Operation.pathPaymentStrictSend({
             sendAsset,
             sendAmount: pathPayment.amount,
             destination: pathPayment.destination,
             destAsset,
-            destMin: destMin.toString(),
-            path: [],
+            destMin,
+            path,
           }));
         }
         
@@ -797,25 +796,31 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     const xdrToCheck = xdrData.output || xdrData.input;
     if (!xdrToCheck || !accountData?.signers) return [];
     try {
-      const parsed = StellarTransactionBuilder.fromXDR(xdrToCheck, getNetworkPassphrase(currentNetwork)) as any;
-      const collectHints = (tx: any) => (tx?.signatures || []).map((s: any) => s.hint());
-      const hints: Buffer[] = parsed?.innerTransaction
-        ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
-        : collectHints(parsed);
+      const parsed = StellarTransactionBuilder.fromXDR(
+        xdrToCheck,
+        getNetworkPassphrase(currentNetwork),
+      );
+      // Fee-bump txs sign the inner tx hash; verify against innerTransaction when present.
+      const tx = 'innerTransaction' in parsed && parsed.innerTransaction
+        ? parsed.innerTransaction
+        : parsed;
+      const signatures = tx.signatures || [];
+      const txHash = tx.hash();
       const set = new Set<string>();
-      hints.forEach((hint) => {
-        accountData.signers.forEach((signer) => {
+
+      for (const sig of signatures) {
+        for (const signer of accountData.signers) {
           try {
-            const raw = Buffer.from(StrKey.decodeEd25519PublicKey(signer.key));
-            const signerHint = raw.subarray(raw.length - 4);
-            if (Buffer.compare(hint, signerHint) === 0) {
+            const keypair = Keypair.fromPublicKey(signer.key);
+            if (keypair.verify(txHash, sig.signature())) {
               set.add(signer.key);
+              break;
             }
           } catch {
-            // Invalid signer key format, skip
+            // Invalid signer key or signature, skip
           }
-        });
-      });
+        }
+      }
       return Array.from(set);
     } catch {
       // XDR parsing failed

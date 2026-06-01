@@ -44,58 +44,6 @@ export const registerServiceWorker = () => {
   }
 };
 
-// Preload critical resources
-export const preloadCriticalResources = () => {
-  // Preload critical chunks
-  const criticalChunks = [
-    '/assets/vendor.js',
-    '/assets/stellar.js',
-    '/assets/ui.js'
-  ];
-
-  criticalChunks.forEach(chunk => {
-    const link = document.createElement('link');
-    link.rel = 'prefetch';
-    link.href = chunk;
-    document.head.appendChild(link);
-  });
-
-  // Preconnect to external domains
-  const domains = [
-    'https://horizon.stellar.org',
-    'https://horizon-testnet.stellar.org'
-  ];
-
-  domains.forEach(domain => {
-    const link = document.createElement('link');
-    link.rel = 'preconnect';
-    link.href = domain;
-    document.head.appendChild(link);
-  });
-};
-
-// Cache management utilities
-export const clearAppCaches = async () => {
-  try {
-    // Clear all caches
-    const cacheNames = await caches.keys();
-    await Promise.all(
-      cacheNames.map(cacheName => caches.delete(cacheName))
-    );
-
-    // Clear localStorage caches
-    const keys = Object.keys(localStorage);
-    keys.forEach(key => {
-      if (key.startsWith('stellar-cache-') || key.startsWith('enhanced-cache-')) {
-        localStorage.removeItem(key);
-      }
-    });
-
-    // All application caches have been cleared
-  } catch (error) {
-    console.error('Failed to clear caches:', error);
-  }
-};
 
 // Performance monitoring
 export const trackPerformance = () => {

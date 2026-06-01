@@ -486,19 +486,25 @@ export const PaymentForm = ({
   };
   const handleMergeAccount = () => {
     if (!canCloseAccount()) return;
+    if (!isValidStellarAddress(paymentData.destination) || paymentData.destination === accountPublicKey) {
+      toast({
+        title: 'Destination required',
+        description: 'Enter a valid destination account before merging.',
+        variant: 'destructive'
+      });
+      return;
+    }
     
     // For merge, show the leftover balance that will be transferred
     const leftoverBalance = getLeftoverBalance('XLM');
     
-    // Use current destination if provided, otherwise require user input
-    // For account merge, receiving asset must be XLM
     onPaymentDataChange({
       ...paymentData,
       asset: 'XLM',
       assetIssuer: '',
       receiveAsset: 'XLM',
       receiveAssetIssuer: '',
-      destination: paymentData.destination || '',
+      destination: paymentData.destination,
       amount: leftoverBalance.toString()
     });
     setWillCloseAccount(true);
@@ -720,9 +726,7 @@ export const PaymentForm = ({
     setHasActiveForm(compactPayments.length > 0);
   };
   const isFormValid = () => {
-    if (paymentData.destination === accountPublicKey) {
-      return false;
-    }
+    // New destination accounts can ONLY receive XLM (no cross-asset)
     if (recipientExists === false) {
       if (paymentData.asset !== 'XLM') return false;
       if (paymentData.receiveAsset && paymentData.receiveAsset !== 'XLM') return false;
@@ -1084,13 +1088,6 @@ export const PaymentForm = ({
             </div>}
 
         {!hasActiveForm && <>
-        {/* Same source and destination warning */}
-        {paymentData.destination === accountPublicKey && <Alert variant="destructive" className="border-destructive/50 bg-destructive/5">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            <AlertDescription className="text-destructive">
-              Source and destination addresses cannot be the same.
-            </AlertDescription>
-          </Alert>}
 
         {/* Destination */}
         <div className="space-y-2">
@@ -1233,8 +1230,14 @@ export const PaymentForm = ({
             onFetchAssetPrice={onFetchAssetPrice}
           />
 
-          {/* Merge Account Button */}
-          {paymentData.asset === 'XLM' && canCloseAccount() && !willCloseAccount && (
+          {/* Merge Account Button - only when fully eligible */}
+          {paymentData.asset === 'XLM' &&
+            !paymentData.receiveAsset &&
+            canCloseAccount() &&
+            !willCloseAccount &&
+            isValidStellarAddress(paymentData.destination) &&
+            paymentData.destination !== accountPublicKey &&
+            recipientExists === true && (
             <div className="text-center">
               <Button 
                 variant="outline" 

@@ -1,6 +1,6 @@
 import { toast } from '@/hooks/use-toast';
 
-export enum ErrorCode {
+enum ErrorCode {
   NETWORK_ERROR = 'NETWORK_ERROR',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   TRANSACTION_FAILED = 'TRANSACTION_FAILED',
@@ -11,7 +11,7 @@ export enum ErrorCode {
   UNEXPECTED_ERROR = 'UNEXPECTED_ERROR',
 }
 
-export interface AppError {
+interface AppError {
   code: ErrorCode;
   message: string;
   details?: unknown;
@@ -25,7 +25,7 @@ export interface AppError {
  * @param context Optional context for logging (e.g., "Transaction submission").
  * @param isUserFacing Whether the error message should be shown to the user.
  */
-export function handleError(
+function handleError(
   error: unknown,
   context: string = 'Application',
   isUserFacing: boolean = true
@@ -59,8 +59,10 @@ export function handleError(
     };
   }
 
-  // Log the error for debugging
-  console.error(`[${context} Error - ${appError.code}]`, appError.message, appError.details);
+  // Log the error for debugging (dev only — production console must stay silent)
+  if (import.meta.env.DEV) {
+    console.error(`[${context} Error - ${appError.code}]`, appError.message, appError.details);
+  }
 
   // Show user-facing toast if applicable
   if (appError.isUserFacing) {
@@ -95,7 +97,7 @@ function isAppError(error: unknown): error is AppError {
 /**
  * Helper to create a specific AppError.
  */
-export function createError(
+function createError(
   code: ErrorCode,
   message: string,
   details?: unknown,

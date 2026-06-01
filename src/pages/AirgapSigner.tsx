@@ -13,7 +13,7 @@ import { extractXdrFromData } from '@/lib/sep7';
 import { tryParseTransaction } from '@/lib/xdr/parse';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 
-export const AirgapSigner = () => {
+const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
   const { signWithWallet } = useWalletKit();
   const { toast } = useToast();
@@ -25,42 +25,52 @@ export const AirgapSigner = () => {
 
   // Disable network features for true air-gapped operation
   useEffect(() => {
-    // Disable service workers
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(registrations => {
         registrations.forEach(registration => registration.unregister());
       });
     }
-    
-    // Block network requests for security
+
     const originalFetch = window.fetch;
     const originalXHR = window.XMLHttpRequest;
-    
-    window.fetch = () => Promise.reject(new Error('Network requests disabled in air-gapped mode'));
-    window.XMLHttpRequest = function() {
+
+    // Guard against double-wrapping (StrictMode double-invoke, re-mount).
+    type AirgapMarkedFetch = typeof window.fetch & { __airgap?: true };
+    type AirgapMarkedXHR = typeof window.XMLHttpRequest & { __airgap?: true };
+    if ((window.fetch as AirgapMarkedFetch).__airgap) return;
+
+    const blockedFetch: AirgapMarkedFetch = (() => {
+      return Promise.reject(new Error('Network requests disabled in air-gapped mode'));
+    }) as AirgapMarkedFetch;
+    blockedFetch.__airgap = true;
+
+    const BlockedXHR = function BlockedXHR() {
       throw new Error('Network requests disabled in air-gapped mode');
-    } as any;
-    
+    } as unknown as AirgapMarkedXHR;
+    BlockedXHR.__airgap = true;
+
+    window.fetch = blockedFetch;
+    window.XMLHttpRequest = BlockedXHR;
+
     return () => {
       window.fetch = originalFetch;
       window.XMLHttpRequest = originalXHR;
     };
   }, []);
 
-  // Removed online/offline indicator and listeners
-
   // Check URL parameters for XDR
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const xdrParam = urlParams.get('xdr');
-    const networkParam = urlParams.get('network') as 'mainnet' | 'testnet';
-    
+    const networkParam = urlParams.get('network') as 'mainnet' | 'testnet' | null;
+
     if (xdrParam) {
       const extractedXdr = extractXdrFromData(decodeURIComponent(xdrParam));
       if (extractedXdr) {
-        // Validate XDR before setting
         const parsed = tryParseTransaction(extractedXdr);
         if (parsed) {
+          // Align UI network to the XDR so fingerprint/hash don't mismatch.
+          setNetwork(parsed.network === 'public' ? 'mainnet' : 'testnet');
           setXdr(extractedXdr);
           setStep('loaded');
         } else {
@@ -71,15 +81,12 @@ export const AirgapSigner = () => {
           });
         }
       }
-    }
-    
-    if (networkParam) {
+    } else if (networkParam) {
       setNetwork(networkParam);
     }
   }, [setNetwork, toast]);
 
   const handleXdrReceived = (receivedXdr: string) => {
-    // Validate XDR
     const parsed = tryParseTransaction(receivedXdr);
     if (!parsed) {
       toast({
@@ -89,7 +96,9 @@ export const AirgapSigner = () => {
       });
       return;
     }
-    
+
+    // Align UI network to the scanned XDR.
+    setNetwork(parsed.network === 'public' ? 'mainnet' : 'testnet');
     setXdr(receivedXdr);
     setStep('loaded');
     toast({
@@ -126,7 +135,7 @@ export const AirgapSigner = () => {
     }
   };
 
-  const fingerprint = xdr ? generateDetailedFingerprint(xdr, network) : null;
+  
 
   const renderScanStep = () => (
     <div className="space-y-6">
