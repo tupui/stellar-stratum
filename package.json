@@ -47,6 +47,7 @@
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@soroswap/sdk": "^0.4.0-alpha.1",
+    "@stellar/stellar-base": "^15.0.0",
     "@stellar/stellar-sdk": "^14.6.1",
     "@tanstack/react-query": "^5.99.0",
     "@zxing/browser": "^0.1.5",

@@ -720,17 +720,20 @@ export const PaymentForm = ({
     setHasActiveForm(compactPayments.length > 0);
   };
   const isFormValid = () => {
-    // Prevent same source and destination addresses
     if (paymentData.destination === accountPublicKey) {
       return false;
     }
-    // New destination accounts can ONLY receive XLM (no cross-asset)
     if (recipientExists === false) {
       if (paymentData.asset !== 'XLM') return false;
       if (paymentData.receiveAsset && paymentData.receiveAsset !== 'XLM') return false;
     }
     if (willCloseAccount) {
       return paymentData.destination && paymentData.destination !== accountPublicKey && canCloseAccount();
+    }
+    const isPathPayment = paymentData.receiveAsset && paymentData.receiveAsset !== paymentData.asset;
+    // In exact-out mode the user sets receiveAmount (not amount) as the primary input
+    if (paymentData.exactOut && isPathPayment) {
+      return paymentData.destination && paymentData.receiveAmount && paymentData.asset && (paymentData.asset === 'XLM' || paymentData.assetIssuer) && (!trustlineError || trustlineError.includes('will create a new'));
     }
     return paymentData.destination && paymentData.amount && paymentData.asset && (paymentData.asset === 'XLM' || paymentData.assetIssuer) && (!trustlineError || trustlineError.includes('will create a new'));
   };

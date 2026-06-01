@@ -77,7 +77,7 @@ export default defineConfig(({ mode }) => ({
     dedupe: ["react", "react-dom"],
   },
   optimizeDeps: {
-    include: ["buffer", "process"],
+    include: ["buffer", "process", "@stellar/stellar-base"],
     esbuildOptions: {
       target: 'es2020', // Modern target for dependency optimization
     },

@@ -597,20 +597,29 @@ export const SwapInterface = ({
             </AlertDescription>
           </Alert>
         )}
-
-        {/* Slippage Tolerance Slider (only when cross-asset and no price error) */}
-        {isPathPayment && !priceError && onSlippageToleranceChange && <div className="space-y-2 mt-4">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Slippage Tolerance</span>
-              <span className="font-amount tabular-nums">{slippageTolerance.toFixed(1)}%</span>
-            </div>
-            <input type="range" min="0.1" max="5" step="0.1" value={slippageTolerance} onChange={e => onSlippageToleranceChange(parseFloat(e.target.value))} className="stellar-slider stellar-slider-purple w-full" style={{
-          '--slider-progress': `${(slippageTolerance - 0.1) / 4.9 * 100}%`
-        } as React.CSSProperties} />
-            <div className="flex justify-between items-center text-xs text-muted-foreground">
-              {isManualInput && <span className="text-info text-xs">Adjusted for manual input</span>}
-            </div>
-          </div>}
       </div>
+
+      {/* Slippage Tolerance — separate section below the two cards */}
+      {isPathPayment && !priceError && onSlippageToleranceChange && (
+        <div className="bg-card/40 border border-border/40 rounded-2xl px-6 py-4 mt-2 space-y-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Slippage Tolerance</span>
+            <span className="font-amount tabular-nums">{slippageTolerance.toFixed(1)}%</span>
+          </div>
+          <input
+            type="range"
+            min="0.1"
+            max="5"
+            step="0.1"
+            value={slippageTolerance}
+            onChange={e => onSlippageToleranceChange(parseFloat(e.target.value))}
+            className="stellar-slider stellar-slider-purple w-full"
+            style={{ '--slider-progress': `${(slippageTolerance - 0.1) / 4.9 * 100}%` } as React.CSSProperties}
+          />
+          {isManualInput && (
+            <div className="text-xs text-info">Adjusted for manual input</div>
+          )}
+        </div>
+      )}
     </div>;
 };
