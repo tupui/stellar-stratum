@@ -35,7 +35,19 @@ export const loadContractSpec = async (
   }
 
   const server = new rpc.Server(rpcUrlFor(network));
-  const wasm = await server.getContractWasmByContractId(contractId);
+
+  let wasm: Buffer;
+  try {
+    wasm = await server.getContractWasmByContractId(contractId);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // SACs (Stellar Asset Contracts) have no WASM — the RPC returns a native
+    // executable and the SDK can't fetch bytecode for them.
+    if (/executable|not.*wasm|stellar.*asset/i.test(msg)) {
+      throw new Error('This looks like a Stellar Asset Contract (SAC), which has no on-chain WASM. Custom contract calls only work for WASM-backed contracts.');
+    }
+    throw new Error(`Failed to load contract: ${msg}`);
+  }
   const spec = await contract.Spec.fromWasm(wasm);
 
   const functions = spec
