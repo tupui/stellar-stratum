@@ -1,15 +1,22 @@
-// Price fetching using Reflector Oracles
+// Price fetching via Reflector Oracles.
+//
+// Responsibilities of this file:
+//   - map an asset (code/issuer) to the oracle that can price it
+//   - apply decimals scaling to raw oracle prices
+//   - maintain a small localStorage-backed stale-price fallback so the UI can
+//     still render a number when the oracle is temporarily unreachable
+//
+// TTL + inflight deduplication for individual oracle calls lives inside
+// OracleClient. Do not add another retry/cache layer here.
+
 import { OracleClient, type OracleConfig, AssetType, type Asset } from './reflector-client';
 import { xdr, Asset as StellarAsset, hash, StrKey, Networks } from '@stellar/stellar-sdk';
 import { appConfig } from './appConfig';
-import { createHorizonServer } from './stellar';
-// Removed pricing logger - using consolidated system
+import { safeStorage } from './storage';
 
-// Reflector Oracle Contracts
-// Helper: compute SAC (contract) ID for classic assets on PUBLIC network
-// Reflector oracles are mainnet-only by design; SAC IDs are computed against the
-// public network passphrase. Testnet callers will simply miss the contract-id
-// branch in `findAssetInMapping` and fall back to symbol/issuer lookups.
+// Reflector oracles are mainnet-only by design; SAC IDs are always computed
+// against the public network passphrase. On testnet, callers simply miss the
+// contract-id branch in `findAssetInMapping` and fall back to symbol lookups.
 const computeStellarAssetContractId = (assetCode: string, assetIssuer: string): string => {
   try {
     if (!assetIssuer || assetCode === 'XLM') return '';
@@ -19,9 +26,8 @@ const computeStellarAssetContractId = (assetCode: string, assetIssuer: string): 
       contractIdPreimage: xdr.ContractIdPreimage.contractIdPreimageFromAsset(stellarAsset.toXDRObject()),
     });
     const envelope = xdr.HashIdPreimage.envelopeTypeContractId(preimage);
-    const cid = StrKey.encodeContract(hash(envelope.toXDR()));
-    return cid;
-  } catch (e) {
+    return StrKey.encodeContract(hash(envelope.toXDR()));
+  } catch {
     return '';
   }
 };
@@ -30,417 +36,185 @@ const REFLECTOR_ORACLES = {
   CEX_DEX: {
     contract: 'CAFJZQWSED6YAWZU3GWRTOCNPPCGBN32L7QV43XX5LZLFTK6JLN34DLN',
     base: 'USD',
-    decimals: 14
+    decimals: 14,
   },
   STELLAR: {
     contract: 'CALI2BYU2JE6WVRUFYTS6MSBNEHGJ35P4AVCZYF3B6QOE3QKOB2PLE6M',
     base: 'USDC',
-    decimals: 14
+    decimals: 14,
   },
   FX: {
     contract: appConfig.ORACLE_CONTRACT,
     base: 'USD',
-    decimals: 14
-  }
+    decimals: 14,
+  },
 } as const satisfies Record<string, OracleConfig>;
 
+const ALL_ORACLES = [REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.FX];
 
-export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): Promise<number> => {
-  const assetKey = assetIssuer ? `${assetCode}:${assetIssuer}` : (assetCode || 'XLM');
-  
-  // Request deduplication - if same asset is being fetched, return the same promise
-  if (inflightPriceRequests.has(assetKey)) {
-    // Removed pricing logger({ type: 'cache_hit', asset: assetKey });
-    return inflightPriceRequests.get(assetKey)!;
-  }
-  
-  const pricePromise = (async (): Promise<number> => {
-    try {
-      // Try Reflector oracles for all assets
-      const reflectorPrice = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
-      if (reflectorPrice > 0) {
-        // Removed pricing logging - using consolidated system
-        setCachedPrice(assetKey, reflectorPrice);
-        return reflectorPrice;
-      }
+// Stale-price fallback shown only when the oracle itself fails. OracleClient
+// handles the "fresh" TTL for live calls internally (60 s for prices, 24 h for
+// asset lists).
+const STALE_PRICE_FALLBACK_MS = 24 * 60 * 60 * 1000;
+const CACHE_KEY = 'stellar_asset_prices';
+const FETCH_TIMESTAMP_KEY = 'stellar_price_fetch_timestamp';
 
-      // No orderbook fallback; rely on cached price below.
-
-      // Final fallback to cached price
-      const cachedPrice = getCachedPrice(assetKey);
-      return cachedPrice;
-
-    } catch (error) {
-      // Error occurred, return cached price if available
-      const cachedPrice = getCachedPrice(assetKey);
-      return cachedPrice;
-    } finally {
-      // Remove from inflight requests
-      inflightPriceRequests.delete(assetKey);
-    }
-  })();
-  
-  inflightPriceRequests.set(assetKey, pricePromise);
-  return pricePromise;
-};
-
-
-// Cache for oracle price data
-const oraclePriceCache: Record<string, { price: number; timestamp: number }> = {};
-const PRICE_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// Global request deduplication for price fetches - prevents duplicate calls from multiple components
+// Per-asset request deduplication across concurrent callers.
 const inflightPriceRequests = new Map<string, Promise<number>>();
 
-// Cache for available assets per oracle
-const oracleAssetsCache: Record<string, { assets: string[]; timestamp: number }> = {};
-const ASSETS_CACHE_DURATION = 24 * 60 * 60 * 1000; // 1 day
-
-// In-memory cache to track which oracle asset lists are loaded
-const loadedOracles = new Set<string>();
-
-// Global client cache to prevent multiple instances for same contract
+// Client cache — one instance per contract.
 const oracleClients = new Map<string, OracleClient>();
-
 const getOracleClient = (contractId: string): OracleClient => {
-  if (!oracleClients.has(contractId)) {
-    oracleClients.set(contractId, new OracleClient(contractId));
+  let client = oracleClients.get(contractId);
+  if (!client) {
+    client = new OracleClient(contractId);
+    oracleClients.set(contractId, client);
   }
-  return oracleClients.get(contractId)!;
+  return client;
 };
 
-const ensureAssetListsLoaded = async (oraclesToLoad: OracleConfig[]): Promise<void> => {
-  const toLoad = oraclesToLoad.filter((o) => !loadedOracles.has(o.contract));
-  if (toLoad.length === 0) return;
-  await Promise.all(toLoad.map(oracle => getOracleAssetsWithRetry(oracle)));
-  toLoad.forEach(o => loadedOracles.add(o.contract));
-};
-
-// Sleep utility for retry delays
-const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
-// Asset to oracle mapping cache
+// Asset → oracle mapping, built once by querying every oracle's asset list.
 const assetOracleMapping: Record<string, { oracle: OracleConfig; asset: Asset }> = {};
-let mappingInitialized = false;
 let mappingPromise: Promise<void> | null = null;
 
-// Initialize the asset-to-oracle mapping by querying all 3 contracts (singleton with promise)
-const initializeAssetMapping = async (): Promise<void> => {
-  if (mappingInitialized) return;
-  
-  // If already in progress, wait for the existing promise
-  if (mappingPromise) {
-    await mappingPromise;
-    return;
-  }
-  
-  // Start the initialization process
+const initializeAssetMapping = (): Promise<void> => {
+  if (mappingPromise) return mappingPromise;
+
   mappingPromise = (async () => {
     try {
-      const allOracles = [REFLECTOR_ORACLES.CEX_DEX, REFLECTOR_ORACLES.STELLAR, REFLECTOR_ORACLES.FX];
-      
-      // Load asset lists from all oracles in parallel
-      await Promise.all(allOracles.map(oracle => getOracleAssetsWithRetry(oracle)));
-      
-      // Build the mapping - simplified approach
-      let totalAssets = 0;
-      for (const oracle of allOracles) {
-        const cacheKey = `assets_${oracle.contract}`;
-        const cached = oracleAssetsCache[cacheKey];
-        
-        if (cached && cached.assets) {
-          for (const assetId of cached.assets) {
-            totalAssets++;
-            
-            // Simplified mapping: if it starts with stellar_, use Stellar type, otherwise Other
-            if (assetId.startsWith('stellar_')) {
-              const code = assetId.substring(8);
-              assetOracleMapping[assetId] = { 
-                oracle, 
-                asset: { type: AssetType.Stellar, code } 
-              };
-            } else {
-              // Direct symbol mapping (XLM, USDC, BTC, etc.)
-              assetOracleMapping[assetId] = { 
-                oracle, 
-                asset: { type: AssetType.Other, code: assetId } 
-              };
-            }
+      const assetLists = await Promise.all(
+        ALL_ORACLES.map((oracle) => getOracleClient(oracle.contract).getAssets().catch(() => [])),
+      );
+      ALL_ORACLES.forEach((oracle, idx) => {
+        for (const assetId of assetLists[idx]) {
+          if (assetId.startsWith('stellar_')) {
+            const code = assetId.substring(8);
+            assetOracleMapping[assetId] = { oracle, asset: { type: AssetType.Stellar, code } };
+          } else {
+            assetOracleMapping[assetId] = { oracle, asset: { type: AssetType.Other, code: assetId } };
           }
         }
-      }
-      
-      mappingInitialized = true;
-      } catch (error) {
-        // Silent - mapping will retry on next call
-        mappingPromise = null; // Reset to allow retry
-        throw error;
-      }
+      });
+    } catch (error) {
+      // Allow a retry on the next call
+      mappingPromise = null;
+      throw error;
+    }
   })();
-  
-  await mappingPromise;
+
+  return mappingPromise;
 };
 
-// Fetch price using the asset-to-oracle mapping
-const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
-  // Initialize mapping if not done yet
-  if (!mappingInitialized) {
-    await initializeAssetMapping();
-  }
-  
-  // Find the oracle for this specific asset
-  const resolved = findAssetInMapping(assetCode, assetIssuer);
-  if (!resolved) {
-    return 0; // Silently return 0 for assets without oracles
+const findAssetInMapping = (assetCode: string, assetIssuer?: string): { oracle: OracleConfig; asset: Asset } | null => {
+  const code = (assetCode || 'XLM').toUpperCase();
+
+  if (assetOracleMapping[code]) return assetOracleMapping[code];
+
+  if (assetIssuer) {
+    const stellarKey = `stellar_${assetIssuer}`;
+    if (assetOracleMapping[stellarKey]) return assetOracleMapping[stellarKey];
+
+    const contractId = computeStellarAssetContractId(code, assetIssuer);
+    if (contractId && assetOracleMapping[contractId]) return assetOracleMapping[contractId];
   }
 
-  const { oracle, asset } = resolved;
-  
+  return null;
+};
+
+const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
+  await initializeAssetMapping();
+
+  const resolved = findAssetInMapping(assetCode, assetIssuer);
+  if (!resolved) return 0;
+
   try {
-    const price = await getOracleAssetPriceWithRetry(oracle, asset);
-    return price;
-  } catch (error) {
-    // Silent - return 0 for failed price fetches
+    const rawPrice = await getOracleClient(resolved.oracle.contract).getLastPrice(resolved.asset);
+    return rawPrice > 0 ? rawPrice / Math.pow(10, resolved.oracle.decimals) : 0;
+  } catch {
     return 0;
   }
 };
 
-// Simplified oracle mapping - no more complex guessing
-const findAssetInMapping = (assetCode: string, assetIssuer?: string): { oracle: OracleConfig; asset: Asset } | null => {
-  const code = (assetCode || 'XLM').toUpperCase();
-  
-  // 1) Direct symbol lookup (XLM, USDC, BTC, etc.)
-  if (assetOracleMapping[code]) {
-    return assetOracleMapping[code];
-  }
-  
-  // 2) For issued assets with issuer, try stellar format
-  if (assetIssuer) {
-    const stellarKey = `stellar_${assetIssuer}`;
-    if (assetOracleMapping[stellarKey]) {
-      return assetOracleMapping[stellarKey];
-    }
-    
-    // Try contract ID format
-    const contractId = computeStellarAssetContractId(code, assetIssuer);
-    if (contractId && assetOracleMapping[contractId]) {
-      return assetOracleMapping[contractId];
-    }
-  }
-  
-  return null;
-};
-
-
-// Get available assets from oracle with retry logic
-const getOracleAssetsWithRetry = async (oracle: OracleConfig, maxRetries: number = 3): Promise<string[]> => {
-  const cacheKey = `assets_${oracle.contract}`;
-  const cached = oracleAssetsCache[cacheKey];
-  
-  // Return cached assets if still valid
-  if (cached && (Date.now() - cached.timestamp) < ASSETS_CACHE_DURATION) {
-    
-    return cached.assets;
-  }
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const client = getOracleClient(oracle.contract);
-      const assets = await client.getAssets();
-      if (assets.length > 0) {
-        // Cache successful result
-        oracleAssetsCache[cacheKey] = {
-          assets,
-          timestamp: Date.now()
-        };
-        
-        return assets;
-      }
-      
-      // If no assets but still have more attempts, continue immediately
-      if (attempt < maxRetries - 1) {
-        // Continue immediately
-      }
-    } catch (error) {
-      // Silent - continue to next attempt
-    }
-  }
-  
-  return [];
-};
-
-
-// Get individual asset price from oracle with retry logic
-const getOracleAssetPriceWithRetry = async (oracle: OracleConfig, asset: Asset, maxRetries: number = 3): Promise<number> => {
-  const cacheKey = `${oracle.contract}:${asset.code}:${asset.type}`;
-  const cached = oraclePriceCache[cacheKey];
-  
-  // Return cached price if still valid
-  if (cached && (Date.now() - cached.timestamp) < PRICE_CACHE_DURATION) {
-    
-    return cached.price;
-  }
-  
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const client = getOracleClient(oracle.contract);
-      const rawPrice = await client.getLastPrice(asset);
-      
-      if (rawPrice > 0) {
-        // Apply decimals scaling
-        const price = rawPrice / Math.pow(10, oracle.decimals);
-        
-        // Cache successful price (bounded to prevent memory creep)
-        const PRICE_CACHE_MAX = 200;
-        if (Object.keys(oraclePriceCache).length >= PRICE_CACHE_MAX) {
-          const cutoff = Date.now() - 60 * 60 * 1000; // drop entries older than 1h
-          for (const k of Object.keys(oraclePriceCache)) {
-            if (oraclePriceCache[k].timestamp < cutoff) delete oraclePriceCache[k];
-          }
-        }
-        oraclePriceCache[cacheKey] = {
-          price,
-          timestamp: Date.now()
-        };
-        
-        
-        return price;
-      }
-      
-      // If no price but still have attempts, continue immediately
-      if (attempt < maxRetries - 1 && rawPrice === 0) {
-        // Continue immediately
-      }
-    } catch (error) {
-      // Silent - continue to next attempt
-    }
-  }
-  
-  // Don't cache failed results (N/A)
-  return 0;
-};
-
-
-
-
-// Price cache for fallback to previous values with localStorage persistence.
-// Window is intentionally long: this is the "stale-but-displayed" safety net
-// shown only when the oracle itself fails. The 5-min in-memory `PRICE_CACHE_DURATION`
-// above still controls how often we hit the oracle for "fresh" prices.
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24h fallback window
-const CACHE_KEY = 'stellar_asset_prices';
-const FETCH_TIMESTAMP_KEY = 'stellar_price_fetch_timestamp';
-
-// Set last fetch timestamp
-export const setLastFetchTimestamp = (): void => {
-  try {
-    localStorage.setItem(FETCH_TIMESTAMP_KEY, Date.now().toString());
-  } catch (error) {
-    // Ignore localStorage errors (private mode, quota exceeded)
-  }
-};
-
-// Get last fetch timestamp
-export const getLastFetchTimestamp = (): Date | null => {
-  try {
-    const timestamp = localStorage.getItem(FETCH_TIMESTAMP_KEY);
-    if (timestamp) {
-      return new Date(parseInt(timestamp));
-    }
-  } catch (error) {
-    // Ignore localStorage errors (private mode, quota exceeded)
-  }
-  return null;
-};
+// --- Stale-price fallback (localStorage) -------------------------------------
 
 interface PriceCacheEntry {
   price: number;
   timestamp: number;
 }
+type PriceCache = Record<string, PriceCacheEntry>;
 
-interface PriceCache {
-  [assetKey: string]: PriceCacheEntry;
-}
-
-const loadPriceCache = (): PriceCache => {
-  try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (error) {
-    // Ignore localStorage errors (private mode, quota exceeded)
-  }
-  return {};
-};
-
-const savePriceCache = (cache: PriceCache): void => {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-  } catch (error) {
-    // Ignore localStorage errors (private mode, quota exceeded)
-  }
-};
+const loadPriceCache = (): PriceCache => safeStorage.getJSON<PriceCache>(CACHE_KEY, {});
+const savePriceCache = (cache: PriceCache): void => safeStorage.setJSON(CACHE_KEY, cache);
 
 const getCachedPrice = (assetKey: string): number => {
   const cache = loadPriceCache();
   const cached = cache[assetKey];
+  if (!cached) return 0;
 
-  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+  if (Date.now() - cached.timestamp < STALE_PRICE_FALLBACK_MS) {
     return cached.price;
   }
 
-  // Clean expired entry
-  if (cached && (Date.now() - cached.timestamp) >= CACHE_DURATION) {
-    delete cache[assetKey];
-    savePriceCache(cache);
-  }
-
+  // Expired — drop it.
+  delete cache[assetKey];
+  savePriceCache(cache);
   return 0;
 };
 
 const setCachedPrice = (assetKey: string, price: number): void => {
-  if (price > 0) {
-    const cache = loadPriceCache();
-    cache[assetKey] = {
-      price,
-      timestamp: Date.now()
-    };
-    savePriceCache(cache);
-    // Update last fetch timestamp when we successfully cache a new price
-    setLastFetchTimestamp();
-  }
+  if (price <= 0) return;
+  const cache = loadPriceCache();
+  cache[assetKey] = { price, timestamp: Date.now() };
+  savePriceCache(cache);
+  setLastFetchTimestamp();
 };
 
+export const setLastFetchTimestamp = (): void => {
+  safeStorage.set(FETCH_TIMESTAMP_KEY, Date.now().toString());
+};
 
-// Clear price cache and reset mapping (for refresh functionality)
+export const getLastFetchTimestamp = (): Date | null => {
+  const raw = safeStorage.get(FETCH_TIMESTAMP_KEY);
+  if (!raw) return null;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? new Date(n) : null;
+};
+
+// --- Public API --------------------------------------------------------------
+
+export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): Promise<number> => {
+  const assetKey = assetIssuer ? `${assetCode}:${assetIssuer}` : (assetCode || 'XLM');
+
+  const existing = inflightPriceRequests.get(assetKey);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    try {
+      const price = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
+      if (price > 0) {
+        setCachedPrice(assetKey, price);
+        return price;
+      }
+      return getCachedPrice(assetKey);
+    } catch {
+      return getCachedPrice(assetKey);
+    } finally {
+      inflightPriceRequests.delete(assetKey);
+    }
+  })();
+
+  inflightPriceRequests.set(assetKey, promise);
+  return promise;
+};
+
+// Clear every layer so a manual refresh actually re-hits the oracle.
 export const clearPriceCache = async (): Promise<void> => {
-  try {
-    // Clear in-memory price cache
-    Object.keys(oraclePriceCache).forEach(key => delete oraclePriceCache[key]);
-    
-    // Clear inflight requests
-    inflightPriceRequests.clear();
-    
-    // Clear localStorage price cache
-    localStorage.removeItem(CACHE_KEY);
-    
-    // Reset asset mapping to force re-initialization
-    Object.keys(assetOracleMapping).forEach(key => delete assetOracleMapping[key]);
-    mappingInitialized = false;
-    mappingPromise = null;
-    loadedOracles.clear();
-    
-    // Log cache clear event
-    // Removed pricing logger({ type: 'cache_miss', asset: 'cache_cleared' });
-    
-    // Clear assets cache as well
-    Object.keys(oracleAssetsCache).forEach(key => delete oracleAssetsCache[key]);
-    
-    // Clear orderbook cache as well
-    // orderbook cache clearing functionality moved to pricing.ts
-    
-  } catch (error) {
-    // Ignore localStorage errors (private mode, quota exceeded)
-  }
+  inflightPriceRequests.clear();
+  safeStorage.remove(CACHE_KEY);
+
+  for (const key of Object.keys(assetOracleMapping)) delete assetOracleMapping[key];
+  mappingPromise = null;
+
+  // Drop cached data inside every oracle client (asset lists + prices).
+  for (const client of oracleClients.values()) client.clearCache();
 };
