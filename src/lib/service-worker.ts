@@ -64,17 +64,5 @@ export const trackPerformance = () => {
           console.table(metrics);
         }
       }, 0);
-    });
-
-    // Track resource loading performance - disabled to keep console clean
-    // const observer = new PerformanceObserver((list) => {
-    //   for (const entry of list.getEntries()) {
-    //     if (entry.duration > 1000 && import.meta.env.DEV) {
-    //       console.warn(`Slow resource: ${entry.name} took ${entry.duration}ms`);
-    //     }
-    //   }
-    // });
-
-    // observer.observe({ entryTypes: ['resource'] });
   }
 };
