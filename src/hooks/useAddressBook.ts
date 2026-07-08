@@ -143,42 +143,44 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
           if (paymentsPage.records.length === 0) break;
 
           // Update cursor to the first (most recent) record
-          if (pagesProcessed === 0 && paymentsPage.records.length > 0) {
-            newCursor = (paymentsPage.records[0] as any).paging_token;
+          type PaymentLike = {
+            paging_token: string;
+            created_at: string;
+            type: string;
+            from?: string;
+            to?: string;
+            asset_type?: string;
+            amount?: string;
+            funder?: string;
+            account?: string;
+            starting_balance?: string;
+          };
+          const records = paymentsPage.records as unknown as PaymentLike[];
+
+          if (pagesProcessed === 0 && records.length > 0) {
+            newCursor = records[0].paging_token;
           }
 
-          for (const op of paymentsPage.records) {
+          for (const op of records) {
             try {
-              const opDate = new Date((op as any).created_at);
+              const opDate = new Date(op.created_at);
               let counterparty: string | null = null;
               let amount = 0;
 
               if (op.type === 'payment') {
-                const from = (op as any).from;
-                const to = (op as any).to;
-                if (from === accountPublicKey) {
-                  counterparty = to;
-                } else if (to === accountPublicKey) {
-                  counterparty = from;
-                }
-                
+                if (op.from === accountPublicKey) counterparty = op.to ?? null;
+                else if (op.to === accountPublicKey) counterparty = op.from ?? null;
+
                 // Only process native XLM to avoid expensive price lookups
-                const assetType = (op as any).asset_type;
-                if (assetType === 'native') {
-                  amount = Math.abs(parseFloat((op as any).amount || '0'));
+                if (op.asset_type === 'native') {
+                  amount = Math.abs(parseFloat(op.amount || '0'));
                 } else {
-                  // Skip non-native assets to reduce API load
                   continue;
                 }
               } else if (op.type === 'create_account') {
-                const funder = (op as any).funder;
-                const account = (op as any).account;
-                if (funder === accountPublicKey) {
-                  counterparty = account;
-                } else if (account === accountPublicKey) {
-                  counterparty = funder;
-                }
-                amount = Math.abs(parseFloat((op as any).starting_balance || '0'));
+                if (op.funder === accountPublicKey) counterparty = op.account ?? null;
+                else if (op.account === accountPublicKey) counterparty = op.funder ?? null;
+                amount = Math.abs(parseFloat(op.starting_balance || '0'));
               } else {
                 continue;
               }
@@ -200,7 +202,7 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
                   });
                 }
               }
-            } catch (error) {
+            } catch {
               // Skip operations that fail to parse
               continue;
             }
