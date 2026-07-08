@@ -132,6 +132,41 @@ const Index = memo(() => {
     [setNetwork, dedupe, toast],
   );
 
+  // Watch-only deep link: ?address=G...&network=mainnet|testnet
+  useEffect(() => {
+    if (addressDeepLinkHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const address = params.get("address");
+    if (!address) return;
+    addressDeepLinkHandled.current = true;
+
+    if (!StrKey.isValidEd25519PublicKey(address)) {
+      toast({
+        title: "Invalid address",
+        description: "The address in the URL is not a valid Stellar public key.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If a Refractor deep-link is also present, let DeepLinkHandler take precedence.
+    if (params.get("r")) return;
+
+    const netParam = params.get("network");
+    const selectedNetwork: "mainnet" | "testnet" =
+      netParam === "testnet" ? "testnet" : netParam === "mainnet" ? "mainnet" : network;
+
+    // Clean the query params from the URL, preserving pathname/hash.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("address");
+    cleanUrl.searchParams.delete("network");
+    window.history.replaceState({}, "", cleanUrl.toString());
+
+    handleWalletConnect("watch-only", address, selectedNetwork);
+  }, [network, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
+
   // Memoize frequently used callbacks
   const handleInitiateTransaction = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
