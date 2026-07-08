@@ -25,12 +25,13 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Stable key based on identity of each balance, avoids JSON.stringify on every render
-  const balancesKey = useMemo(
-    () => balances.map(b => `${assetKey(b)}|${b.balance}`).join('~'),
-    [balances]
+  // Memoize the balances array by a stable content key so callers passing a
+  // fresh array reference each render don't re-trigger the price fetch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const memoizedBalances = useMemo(
+    () => balances,
+    [balances.map((b) => `${assetKey(b)}|${b.balance}`).join('~')],
   );
-  const memoizedBalances = useMemo(() => balances, [balancesKey]);
 
   const resolvePrices = useCallback(async (invalidateCache: boolean) => {
     if (!memoizedBalances || memoizedBalances.length === 0) {

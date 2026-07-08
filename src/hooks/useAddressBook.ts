@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createHorizonServer } from '@/lib/stellar';
 import { resolveSorobanDomain } from '@/lib/soroban-domains';
 import { retryWithBackoff } from '@/lib/horizon-utils';
+import { safeStorage } from '@/lib/storage';
 
 export interface AddressBookEntry {
   address: string;
@@ -41,43 +42,32 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
   // Load cached address book from localStorage
   useEffect(() => {
     if (!accountPublicKey) return;
-    
-    const cached = localStorage.getItem(getStorageKey());
-    if (cached) {
-      try {
-        const parsed: CachedAddressBook = JSON.parse(cached);
-        if (Array.isArray(parsed.entries)) {
-          const entriesWithDates = parsed.entries.map((entry: any) => ({
-            ...entry,
-            lastUsed: new Date(entry.lastUsed),
-            firstUsed: new Date(entry.firstUsed),
-          }));
-          setEntries(entriesWithDates);
-        }
-        if (parsed.lastSync) {
-          setLastSync(new Date(parsed.lastSync));
-        }
-        if (parsed.cursor) {
-          setCursor(parsed.cursor);
-        }
-      } catch (error) {
-      }
+
+    const parsed = safeStorage.getJSON<CachedAddressBook | null>(getStorageKey(), null);
+    if (!parsed) return;
+
+    if (Array.isArray(parsed.entries)) {
+      setEntries(
+        parsed.entries.map((entry) => ({
+          ...entry,
+          lastUsed: new Date(entry.lastUsed),
+          firstUsed: new Date(entry.firstUsed),
+        })),
+      );
     }
+    if (parsed.lastSync) setLastSync(new Date(parsed.lastSync));
+    if (parsed.cursor) setCursor(parsed.cursor);
   }, [accountPublicKey, network]);
 
   // Save address book to localStorage
   const saveToStorage = (addressBook: AddressBookEntry[], syncTime: Date, newCursor?: string) => {
     if (!accountPublicKey) return;
-    
-    try {
-      const data: CachedAddressBook = {
-        entries: addressBook,
-        lastSync: syncTime.toISOString(),
-        cursor: newCursor,
-      };
-      localStorage.setItem(getStorageKey(), JSON.stringify(data));
-    } catch (error) {
-    }
+    const data: CachedAddressBook = {
+      entries: addressBook,
+      lastSync: syncTime.toISOString(),
+      cursor: newCursor,
+    };
+    safeStorage.setJSON(getStorageKey(), data);
   };
 
   // Check if sync is needed (respects cooldown)
@@ -153,42 +143,44 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
           if (paymentsPage.records.length === 0) break;
 
           // Update cursor to the first (most recent) record
-          if (pagesProcessed === 0 && paymentsPage.records.length > 0) {
-            newCursor = (paymentsPage.records[0] as any).paging_token;
+          type PaymentLike = {
+            paging_token: string;
+            created_at: string;
+            type: string;
+            from?: string;
+            to?: string;
+            asset_type?: string;
+            amount?: string;
+            funder?: string;
+            account?: string;
+            starting_balance?: string;
+          };
+          const records = paymentsPage.records as unknown as PaymentLike[];
+
+          if (pagesProcessed === 0 && records.length > 0) {
+            newCursor = records[0].paging_token;
           }
 
-          for (const op of paymentsPage.records) {
+          for (const op of records) {
             try {
-              const opDate = new Date((op as any).created_at);
+              const opDate = new Date(op.created_at);
               let counterparty: string | null = null;
               let amount = 0;
 
               if (op.type === 'payment') {
-                const from = (op as any).from;
-                const to = (op as any).to;
-                if (from === accountPublicKey) {
-                  counterparty = to;
-                } else if (to === accountPublicKey) {
-                  counterparty = from;
-                }
-                
+                if (op.from === accountPublicKey) counterparty = op.to ?? null;
+                else if (op.to === accountPublicKey) counterparty = op.from ?? null;
+
                 // Only process native XLM to avoid expensive price lookups
-                const assetType = (op as any).asset_type;
-                if (assetType === 'native') {
-                  amount = Math.abs(parseFloat((op as any).amount || '0'));
+                if (op.asset_type === 'native') {
+                  amount = Math.abs(parseFloat(op.amount || '0'));
                 } else {
-                  // Skip non-native assets to reduce API load
                   continue;
                 }
               } else if (op.type === 'create_account') {
-                const funder = (op as any).funder;
-                const account = (op as any).account;
-                if (funder === accountPublicKey) {
-                  counterparty = account;
-                } else if (account === accountPublicKey) {
-                  counterparty = funder;
-                }
-                amount = Math.abs(parseFloat((op as any).starting_balance || '0'));
+                if (op.funder === accountPublicKey) counterparty = op.account ?? null;
+                else if (op.account === accountPublicKey) counterparty = op.funder ?? null;
+                amount = Math.abs(parseFloat(op.starting_balance || '0'));
               } else {
                 continue;
               }
@@ -210,7 +202,7 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
                   });
                 }
               }
-            } catch (error) {
+            } catch {
               // Skip operations that fail to parse
               continue;
             }
@@ -256,15 +248,12 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
         setLastSync(syncTime);
         saveToStorage(cappedEntries, syncTime, newCursor);
 
-      } catch (error) {
-        throw error;
       } finally {
         setIsLoading(false);
       }
     })();
 
     syncPromises.set(syncKey, syncPromise);
-    
     try {
       await syncPromise;
     } finally {

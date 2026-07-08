@@ -5,20 +5,16 @@ import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 // Network configuration using centralized config
 const getNetworkConfig = (network: 'mainnet' | 'testnet') => ({
   passphrase: network === 'testnet' ? appConfig.TESTNET_PASSPHRASE : appConfig.MAINNET_PASSPHRASE,
-  horizonUrl: network === 'testnet' ? appConfig.TESTNET_HORIZON : appConfig.MAINNET_HORIZON
+  horizonUrl: network === 'testnet' ? appConfig.TESTNET_HORIZON : appConfig.MAINNET_HORIZON,
 });
 
-// Export network configuration getter for reuse
 export const getNetworkPassphrase = (network: 'mainnet' | 'testnet') => getNetworkConfig(network).passphrase;
 export const getHorizonUrl = (network: 'mainnet' | 'testnet') => getNetworkConfig(network).horizonUrl;
 
-// Create Horizon server for specific network
 export const createHorizonServer = (network: 'mainnet' | 'testnet' = 'mainnet', customUrl?: string) => {
   const config = getNetworkConfig(network);
-  const horizonUrl = customUrl || config.horizonUrl;
-  return new Horizon.Server(horizonUrl);
+  return new Horizon.Server(customUrl || config.horizonUrl);
 };
-
 
 export interface AccountData {
   publicKey: string;
@@ -40,57 +36,65 @@ export interface AccountData {
   }>;
 }
 
+// Narrow the various shapes Horizon errors can take without leaking `any`.
+type HorizonErrorShape = {
+  name?: string;
+  message?: string;
+  response?: {
+    status?: number;
+    type?: string;
+    data?: {
+      extras?: {
+        result_codes?: { transaction?: string; operations?: string[] };
+      };
+    };
+  };
+};
+const asHorizonError = (error: unknown): HorizonErrorShape => (error && typeof error === 'object' ? (error as HorizonErrorShape) : {});
+
 export const fetchAccountData = async (publicKey: string, network: 'mainnet' | 'testnet' = 'mainnet'): Promise<AccountData> => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   try {
     const server = createHorizonServer(network);
     const account = await server.loadAccount(publicKey);
 
     return {
       publicKey,
-      balances: account.balances.map(balance => {
-        const baseBalance = {
-          asset_type: balance.asset_type,
-          balance: balance.balance
-        };
-
-        // Add asset_code and asset_issuer for non-native assets
+      balances: account.balances.map((balance) => {
+        const baseBalance = { asset_type: balance.asset_type, balance: balance.balance };
         if (balance.asset_type !== 'native' && 'asset_code' in balance) {
           return {
             ...baseBalance,
             asset_code: balance.asset_code,
-            asset_issuer: balance.asset_issuer
+            asset_issuer: balance.asset_issuer,
           };
         }
-
         return baseBalance;
       }),
       thresholds: {
         low_threshold: account.thresholds.low_threshold,
         med_threshold: account.thresholds.med_threshold,
-        high_threshold: account.thresholds.high_threshold
+        high_threshold: account.thresholds.high_threshold,
       },
-      signers: account.signers.map(signer => ({
+      signers: account.signers.map((signer) => ({
         key: signer.key,
         weight: signer.weight,
-        type: signer.type
-      }))
+        type: signer.type,
+      })),
     };
-  } catch (error: any) {
-
-    // Check if it's a NotFoundError (account doesn't exist)
-    if (error?.name === 'NotFoundError' ||
-        error?.response?.status === 404 ||
-        error?.response?.type === 'https://stellar.org/horizon-errors/not_found') {
+  } catch (error) {
+    const err = asHorizonError(error);
+    const isNotFound =
+      err.name === 'NotFoundError' ||
+      err.response?.status === 404 ||
+      err.response?.type === 'https://stellar.org/horizon-errors/not_found';
+    if (isNotFound) {
       const networkName = network === 'mainnet' ? 'Mainnet' : 'Testnet';
       throw new Error(
         `Account not found on Stellar ${networkName}. ` +
-        `This account doesn't exist yet. To use this account, you need to either: ` +
-        `1) Switch to the correct network, or 2) Fund the account first to activate it on ${networkName}.`
+          `This account doesn't exist yet. To use this account, you need to either: ` +
+          `1) Switch to the correct network, or 2) Fund the account first to activate it on ${networkName}.`,
       );
     }
-
-    // For other errors, preserve the original message for diagnosability
     const original = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to load account data from Horizon: ${original}`);
   }
@@ -98,16 +102,15 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
 
 export const submitTransaction = async (
   signedXdr: string,
-  network: 'mainnet' | 'testnet' = 'mainnet'
+  network: 'mainnet' | 'testnet' = 'mainnet',
 ): Promise<Horizon.HorizonApi.SubmitTransactionResponse> => {
   try {
     const config = getNetworkConfig(network);
     const transaction = TransactionBuilder.fromXDR(signedXdr, config.passphrase);
     const server = createHorizonServer(network);
     return await server.submitTransaction(transaction);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (error: any) {
-    const codes = error?.response?.data?.extras?.result_codes;
+  } catch (error) {
+    const codes = asHorizonError(error).response?.data?.extras?.result_codes;
     const codeSummary = codes
       ? ` (${[codes.transaction, ...(codes.operations || [])].filter(Boolean).join(', ')})`
       : '';
@@ -119,19 +122,14 @@ export const submitTransaction = async (
 // Refractor integration functions
 export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testnet'): Promise<string> => {
   try {
-    // Always use mainnet for Refractor regardless of the network parameter
-    const apiNetwork = 'public';
-
     const response = await fetch(`${appConfig.REFRACTOR_API_BASE}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
-      body: JSON.stringify({
-        network: apiNetwork,
-        xdr,
-      }),
+      // Refractor always speaks to public network XDR regardless of client network.
+      body: JSON.stringify({ network: 'public', xdr }),
     });
 
     if (!response.ok) {
@@ -142,9 +140,7 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
     // Compute hash (ID) to share based on network
     const config = getNetworkConfig(network);
     const tx = TransactionBuilder.fromXDR(xdr, config.passphrase);
-    const txHash = tx.hash().toString('hex');
-
-    return txHash;
+    return tx.hash().toString('hex');
   } catch (error) {
     throw new Error(`Failed to submit to Refractor: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -153,10 +149,7 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
 export const pullFromRefractor = async (refractorId: string): Promise<string> => {
   try {
     const response = await fetch(`${appConfig.REFRACTOR_API_BASE}/${refractorId}`);
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch from Refractor');
-    }
+    if (!response.ok) throw new Error('Failed to fetch from Refractor');
 
     const result = await response.json();
     const xdr = result?.xdr;
@@ -167,12 +160,15 @@ export const pullFromRefractor = async (refractorId: string): Promise<string> =>
     // Validate XDR parses on at least one known network before handing it back
     let parses = false;
     for (const passphrase of [appConfig.MAINNET_PASSPHRASE, appConfig.TESTNET_PASSPHRASE]) {
-      try { TransactionBuilder.fromXDR(xdr, passphrase); parses = true; break; } catch { /* try next */ }
+      try {
+        TransactionBuilder.fromXDR(xdr, passphrase);
+        parses = true;
+        break;
+      } catch {
+        /* try next */
+      }
     }
-    if (!parses) {
-      throw new Error('Refractor returned a payload that is not a valid Stellar transaction');
-    }
-
+    if (!parses) throw new Error('Refractor returned a payload that is not a valid Stellar transaction');
     return xdr;
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : 'Failed to fetch transaction from Refractor');

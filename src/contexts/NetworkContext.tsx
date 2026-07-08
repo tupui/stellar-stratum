@@ -1,6 +1,9 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
+import { safeStorage } from '@/lib/storage';
 
 type Network = 'mainnet' | 'testnet';
+
+const NETWORK_STORAGE_KEY = 'stellar-network';
 
 interface NetworkContextType {
   network: Network;
@@ -23,16 +26,14 @@ interface NetworkProviderProps {
 
 export const NetworkProvider = ({ children }: NetworkProviderProps) => {
   const [network, setNetworkState] = useState<Network>(() => {
-    // Load from localStorage or default to mainnet
-    const saved = localStorage.getItem('stellar-network');
-    return (saved === 'testnet' || saved === 'mainnet') ? saved : 'mainnet';
+    const saved = safeStorage.get(NETWORK_STORAGE_KEY);
+    return saved === 'testnet' || saved === 'mainnet' ? saved : 'mainnet';
   });
 
   const setNetwork = (newNetwork: Network) => {
     setNetworkState(newNetwork);
-    localStorage.setItem('stellar-network', newNetwork);
+    safeStorage.set(NETWORK_STORAGE_KEY, newNetwork);
   };
-
 
   return (
     <NetworkContext.Provider value={{ network, setNetwork }}>

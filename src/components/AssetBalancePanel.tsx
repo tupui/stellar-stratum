@@ -41,9 +41,11 @@ export const AssetBalancePanel = ({
   } = useFiatCurrency();
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(() => getLastFetchTimestamp());
-  const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
-  const [convertedAssetValues, setConvertedAssetValues] = useState<Record<number, number>>({});
-  const [convertedAssetPrices, setConvertedAssetPrices] = useState<Record<number, number>>({});
+  const [converted, setConverted] = useState<{
+    total: number;
+    values: Record<number, number>;
+    prices: Record<number, number>;
+  }>({ total: totalValueUSD, values: {}, prices: {} });
 
   // Reflect the latest cache timestamp whenever prices resolve
   useEffect(() => {
@@ -78,76 +80,63 @@ export const AssetBalancePanel = ({
   }, []);
 
   // Filter assets based on hide small balances toggle (memoized for performance)
-  const filteredAssets = useMemo(() => 
+  const filteredAssets = useMemo(() =>
     hideSmallBalances ? assetsWithPrices.filter(asset => asset.valueUSD >= 1) : assetsWithPrices,
     [hideSmallBalances, assetsWithPrices]
   );
 
-  // Update converted values when currency changes
+  // Recompute converted values when currency or prices change.
   useEffect(() => {
-    let cancelled = false;
-    const convertAllValues = async () => {
-      if (quoteCurrency === 'USD') {
-        setConvertedTotalValue(totalValueUSD);
-        setConvertedAssetValues({});
-        setConvertedAssetPrices({});
-        return;
-      }
+    if (quoteCurrency === 'USD') {
+      setConverted({ total: totalValueUSD, values: {}, prices: {} });
+      return;
+    }
 
-      // Run all conversions in parallel (getFxRate is cached + deduped internally)
+    let cancelled = false;
+    (async () => {
       const totalPromise = totalValueUSD
-        ? convertFromUSD(totalValueUSD, quoteCurrency, network).catch(() => totalValueUSD)
+        ? convertFromUSD(totalValueUSD, quoteCurrency).catch(() => totalValueUSD)
         : Promise.resolve(totalValueUSD);
 
       const perAsset = assetsWithPrices.map((asset, i) =>
         Promise.all([
-          asset.valueUSD > 0
-            ? convertFromUSD(asset.valueUSD, quoteCurrency, network).catch(() => null)
-            : Promise.resolve(null),
-          asset.priceUSD > 0
-            ? convertFromUSD(asset.priceUSD, quoteCurrency, network).catch(() => null)
-            : Promise.resolve(null),
-        ]).then(([v, p]) => ({ i, v, p }))
+          asset.valueUSD > 0 ? convertFromUSD(asset.valueUSD, quoteCurrency).catch(() => null) : Promise.resolve(null),
+          asset.priceUSD > 0 ? convertFromUSD(asset.priceUSD, quoteCurrency).catch(() => null) : Promise.resolve(null),
+        ]).then(([v, p]) => ({ i, v, p })),
       );
 
-      const [convertedTotal, results] = await Promise.all([totalPromise, Promise.all(perAsset)]);
+      const [total, results] = await Promise.all([totalPromise, Promise.all(perAsset)]);
       if (cancelled) return;
 
-      setConvertedTotalValue(convertedTotal);
-      const newConvertedValues: Record<number, number> = {};
-      const newConvertedPrices: Record<number, number> = {};
+      const values: Record<number, number> = {};
+      const prices: Record<number, number> = {};
       for (const { i, v, p } of results) {
-        if (v !== null) newConvertedValues[i] = v;
-        if (p !== null) newConvertedPrices[i] = p;
+        if (v !== null) values[i] = v;
+        if (p !== null) prices[i] = p;
       }
-      setConvertedAssetValues(newConvertedValues);
-      setConvertedAssetPrices(newConvertedPrices);
-    };
-    convertAllValues();
+      setConverted({ total, values, prices });
+    })();
+
     return () => { cancelled = true; };
-  }, [totalValueUSD, quoteCurrency, assetsWithPrices, network]);
+  }, [totalValueUSD, quoteCurrency, assetsWithPrices]);
+
   const formatPriceSync = (price: number, assetIndex: number): string => {
-    const currency = getCurrentCurrency();
     if (price === 0) return 'N/A';
-
-    // Use converted price if available, otherwise use USD price
-    const displayPrice = quoteCurrency !== 'USD' && convertedAssetPrices[assetIndex] ? convertedAssetPrices[assetIndex] : price;
-
-    // If we couldn't convert and it's not USD, show USD as fallback
-    const symbol = quoteCurrency !== 'USD' && !convertedAssetPrices[assetIndex] ? '$' : currency.symbol;
+    const currency = getCurrentCurrency();
+    const convertedPrice = converted.prices[assetIndex];
+    // If we're in a non-USD quote but conversion failed, fall back to USD display
+    const displayPrice = convertedPrice ?? price;
+    const symbol = quoteCurrency !== 'USD' && convertedPrice === undefined ? '$' : currency.symbol;
     if (displayPrice < 0.01) return `${symbol}${displayPrice.toFixed(6)}`;
     if (displayPrice < 1) return `${symbol}${displayPrice.toFixed(4)}`;
     return `${symbol}${displayPrice.toFixed(2)}`;
   };
   const formatValueForAsset = (value: number, assetIndex: number): string => {
-    const currency = getCurrentCurrency();
     if (value === 0) return 'N/A';
-
-    // Use converted value if available, otherwise use USD value
-    const displayValue = quoteCurrency !== 'USD' && convertedAssetValues[assetIndex] ? convertedAssetValues[assetIndex] : value;
-
-    // If we couldn't convert and it's not USD, show USD as fallback
-    const symbol = quoteCurrency !== 'USD' && !convertedAssetValues[assetIndex] ? '$' : currency.symbol;
+    const currency = getCurrentCurrency();
+    const convertedValue = converted.values[assetIndex];
+    const displayValue = convertedValue ?? value;
+    const symbol = quoteCurrency !== 'USD' && convertedValue === undefined ? '$' : currency.symbol;
     if (displayValue < 0.01) return `<${symbol}0.01`;
     return `${symbol}${displayValue.toLocaleString(undefined, {
       minimumFractionDigits: 2,
@@ -156,11 +145,11 @@ export const AssetBalancePanel = ({
   };
   const formatValueSync = (value: number): string => {
     const currency = getCurrentCurrency();
-    // Use the cached converted value for total, or fall back to simple conversion
-    const convertedValue = value === totalValueUSD ? convertedTotalValue : value;
-    if (convertedValue === 0) return 'N/A';
-    if (convertedValue < 0.01) return `<${currency.symbol}0.01`;
-    return `${currency.symbol}${convertedValue.toLocaleString(undefined, {
+    // The cached converted total is only valid for the top-line value.
+    const displayValue = value === totalValueUSD ? converted.total : value;
+    if (displayValue === 0) return 'N/A';
+    if (displayValue < 0.01) return `<${currency.symbol}0.01`;
+    return `${currency.symbol}${displayValue.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`;
