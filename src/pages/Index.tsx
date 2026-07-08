@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy, memo, useCallback } from "react";
+import { useState, Suspense, lazy, memo, useCallback, useEffect, useRef } from "react";
 import { LandingPage } from "@/components/LandingPage";
 import { LoadingPill } from "@/components/ui/loading-pill";
 import { Footer } from "@/components/Footer";
