@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy, memo, useCallback } from "react";
+import { useState, Suspense, lazy, memo, useCallback, useEffect, useRef } from "react";
 import { LandingPage } from "@/components/LandingPage";
 import { LoadingPill } from "@/components/ui/loading-pill";
 import { Footer } from "@/components/Footer";
@@ -34,6 +34,7 @@ const Index = memo(() => {
   const [publicKey, setPublicKey] = useState<string>(""); // Connected wallet's public key (signer)
   const [sourceAccount, setSourceAccount] = useState<string>(""); // Source account for transactions (editable)
   const [deepLinkReady, setDeepLinkReady] = useState(false);
+  const addressDeepLinkHandled = useRef(false);
 
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
 
@@ -130,6 +131,41 @@ const Index = memo(() => {
     },
     [setNetwork, dedupe, toast],
   );
+
+  // Watch-only deep link: ?address=G...&network=mainnet|testnet
+  useEffect(() => {
+    if (addressDeepLinkHandled.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const address = params.get("address");
+    if (!address) return;
+    addressDeepLinkHandled.current = true;
+
+    if (!StrKey.isValidEd25519PublicKey(address)) {
+      toast({
+        title: "Invalid address",
+        description: "The address in the URL is not a valid Stellar public key.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If a Refractor deep-link is also present, let DeepLinkHandler take precedence.
+    if (params.get("r")) return;
+
+    const netParam = params.get("network");
+    const selectedNetwork: "mainnet" | "testnet" =
+      netParam === "testnet" ? "testnet" : netParam === "mainnet" ? "mainnet" : network;
+
+    // Clean the query params from the URL, preserving pathname/hash.
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("address");
+    cleanUrl.searchParams.delete("network");
+    window.history.replaceState({}, "", cleanUrl.toString());
+
+    handleWalletConnect("watch-only", address, selectedNetwork);
+  }, [network, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
 
   // Memoize frequently used callbacks
   const handleInitiateTransaction = useCallback(() => {
