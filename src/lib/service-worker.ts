@@ -64,5 +64,6 @@ export const trackPerformance = () => {
           console.table(metrics);
         }
       }, 0);
+    });
   }
 };
