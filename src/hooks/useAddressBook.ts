@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createHorizonServer } from '@/lib/stellar';
 import { resolveSorobanDomain } from '@/lib/soroban-domains';
 import { retryWithBackoff } from '@/lib/horizon-utils';
+import { safeStorage } from '@/lib/storage';
 
 export interface AddressBookEntry {
   address: string;
@@ -41,43 +42,32 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
   // Load cached address book from localStorage
   useEffect(() => {
     if (!accountPublicKey) return;
-    
-    const cached = localStorage.getItem(getStorageKey());
-    if (cached) {
-      try {
-        const parsed: CachedAddressBook = JSON.parse(cached);
-        if (Array.isArray(parsed.entries)) {
-          const entriesWithDates = parsed.entries.map((entry: any) => ({
-            ...entry,
-            lastUsed: new Date(entry.lastUsed),
-            firstUsed: new Date(entry.firstUsed),
-          }));
-          setEntries(entriesWithDates);
-        }
-        if (parsed.lastSync) {
-          setLastSync(new Date(parsed.lastSync));
-        }
-        if (parsed.cursor) {
-          setCursor(parsed.cursor);
-        }
-      } catch (error) {
-      }
+
+    const parsed = safeStorage.getJSON<CachedAddressBook | null>(getStorageKey(), null);
+    if (!parsed) return;
+
+    if (Array.isArray(parsed.entries)) {
+      setEntries(
+        parsed.entries.map((entry) => ({
+          ...entry,
+          lastUsed: new Date(entry.lastUsed),
+          firstUsed: new Date(entry.firstUsed),
+        })),
+      );
     }
+    if (parsed.lastSync) setLastSync(new Date(parsed.lastSync));
+    if (parsed.cursor) setCursor(parsed.cursor);
   }, [accountPublicKey, network]);
 
   // Save address book to localStorage
   const saveToStorage = (addressBook: AddressBookEntry[], syncTime: Date, newCursor?: string) => {
     if (!accountPublicKey) return;
-    
-    try {
-      const data: CachedAddressBook = {
-        entries: addressBook,
-        lastSync: syncTime.toISOString(),
-        cursor: newCursor,
-      };
-      localStorage.setItem(getStorageKey(), JSON.stringify(data));
-    } catch (error) {
-    }
+    const data: CachedAddressBook = {
+      entries: addressBook,
+      lastSync: syncTime.toISOString(),
+      cursor: newCursor,
+    };
+    safeStorage.setJSON(getStorageKey(), data);
   };
 
   // Check if sync is needed (respects cooldown)
