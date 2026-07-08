@@ -10,7 +10,7 @@ export const appConfig = {
   
   // Soroban RPC URLs (for oracle pricing and domain resolution)
   MAINNET_SOROBAN_RPC: 'https://rpc.lightsail.network',
-  TESTNET_SOROBAN_RPC: 'https://rpc.lightsail.network',
+  TESTNET_SOROBAN_RPC: 'https://soroban-testnet.stellar.org',
   
   // API endpoints
   REFRACTOR_API_BASE: 'https://api.refractor.space/tx',
