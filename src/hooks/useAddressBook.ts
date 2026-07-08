@@ -248,15 +248,12 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
         setLastSync(syncTime);
         saveToStorage(cappedEntries, syncTime, newCursor);
 
-      } catch (error) {
-        throw error;
       } finally {
         setIsLoading(false);
       }
     })();
 
     syncPromises.set(syncKey, syncPromise);
-    
     try {
       await syncPromise;
     } finally {
