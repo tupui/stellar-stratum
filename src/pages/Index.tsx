@@ -34,6 +34,7 @@ const Index = memo(() => {
   const [publicKey, setPublicKey] = useState<string>(""); // Connected wallet's public key (signer)
   const [sourceAccount, setSourceAccount] = useState<string>(""); // Source account for transactions (editable)
   const [deepLinkReady, setDeepLinkReady] = useState(false);
+  const addressDeepLinkHandled = useRef(false);
 
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
 
