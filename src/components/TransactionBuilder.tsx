@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle, ArrowLeftRight, Landmark } from 'lucide-react';
+import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle, ArrowLeftRight, Landmark, Blocks, Coins } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Transaction,
@@ -37,6 +37,7 @@ import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 import { SourceAccountSelector } from './SourceAccountSelector';
 import { SoroswapTab } from './soroswap/SoroswapTab';
 import { DeFindexTab } from './defindex/DeFindexTab';
+import { ContractCallTab } from './contract/ContractCallTab';
 
 
 interface PaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; memo?: string }
@@ -61,6 +62,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   const { signWithWallet } = useWalletKit();
   const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [defiTab, setDefiTab] = useState<string>('soroswap');
   const [paymentData, setPaymentData] = useState({
     destination: '',
     amount: '',
@@ -947,7 +949,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
               Build Transaction
             </CardTitle>
             <CardDescription>
-              Create payments, swap tokens, manage vaults, or import transactions for signing
+              Send payments, call any Soroban contract, use DeFi protocols, or import a transaction to sign
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -962,25 +964,25 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
                     <span>Payment</span>
                   </TabsTrigger>
                   <TabsTrigger
+                    value="contract"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                  >
+                    <Blocks className="w-4 h-4" />
+                    <span>Contract</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="defi"
+                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+                  >
+                    <Coins className="w-4 h-4" />
+                    <span>DeFi</span>
+                  </TabsTrigger>
+                  <TabsTrigger
                     value="import"
                     className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
                   >
                     <FileCode className="w-4 h-4" />
                     <span>Import</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="soroswap"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
-                  >
-                    <ArrowLeftRight className="w-4 h-4" />
-                    <span>Soroswap</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="defindex"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
-                  >
-                    <Landmark className="w-4 h-4" />
-                    <span>DeFindex</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -1027,6 +1029,50 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
                 />
               </TabsContent>
 
+              <TabsContent value="contract" className="space-y-4 mt-6">
+                <ContractCallTab
+                  accountPublicKey={accountPublicKey}
+                  network={currentNetwork}
+                  onBuild={handleSdkBuild}
+                  isBuilding={isBuilding}
+                  isTransactionBuilt={isTransactionBuilt}
+                />
+              </TabsContent>
+
+              <TabsContent value="defi" className="space-y-4 mt-6">
+                <Tabs value={defiTab} onValueChange={setDefiTab}>
+                  <TabsList className="grid grid-cols-2 w-full">
+                    <TabsTrigger value="soroswap" className="flex items-center gap-2">
+                      <ArrowLeftRight className="w-4 h-4" />
+                      <span>Soroswap</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="defindex" className="flex items-center gap-2">
+                      <Landmark className="w-4 h-4" />
+                      <span>DeFindex</span>
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="soroswap" className="space-y-4 mt-4">
+                    <SoroswapTab
+                      accountPublicKey={accountPublicKey}
+                      network={currentNetwork}
+                      onBuild={handleSdkBuild}
+                      isBuilding={isBuilding}
+                      isTransactionBuilt={isTransactionBuilt}
+                    />
+                  </TabsContent>
+                  <TabsContent value="defindex" className="space-y-4 mt-4">
+                    <DeFindexTab
+                      accountPublicKey={accountPublicKey}
+                      accountData={accountData}
+                      network={currentNetwork}
+                      onBuild={handleSdkBuild}
+                      isBuilding={isBuilding}
+                      isTransactionBuilt={isTransactionBuilt}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </TabsContent>
+
               <TabsContent value="import" className="space-y-4 mt-6">
                 <ImportTab
                   xdrInput={xdrData.input}
@@ -1037,30 +1083,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
                 />
               </TabsContent>
 
-              <TabsContent value="soroswap" className="space-y-4 mt-6">
-                <SoroswapTab
-                  accountPublicKey={accountPublicKey}
-                  network={currentNetwork}
-                  onBuild={handleSdkBuild}
-                  isBuilding={isBuilding}
-                  isTransactionBuilt={isTransactionBuilt}
-                />
-              </TabsContent>
-
-              <TabsContent value="defindex" className="space-y-4 mt-6">
-                <DeFindexTab
-                  accountPublicKey={accountPublicKey}
-                  accountData={accountData}
-                  network={currentNetwork}
-                  onBuild={handleSdkBuild}
-                  isBuilding={isBuilding}
-                  isTransactionBuilt={isTransactionBuilt}
-                />
-              </TabsContent>
-
             </Tabs>
           </CardContent>
         </Card>
+
 
         {/* Transaction Verification */}
         {(xdrData.output || xdrData.input) && (
