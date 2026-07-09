@@ -89,6 +89,11 @@ export const DeFindexTab = ({
     (b) => b.asset_code === 'USDC'
   )?.balance ?? '0';
 
+  // Underlying USDC currently deposited in the vault (7 decimals)
+  const depositedUsdc = vaultBalance?.underlyingBalance?.[0]
+    ? vaultBalance.underlyingBalance[0] / 10_000_000
+    : 0;
+
   const handleBuild = async () => {
     setError('');
     setIsBuildingTx(true);
@@ -126,11 +131,7 @@ export const DeFindexTab = ({
     }
   };
 
-  const maxAmount = mode === 'deposit'
-    ? walletUsdcBalance
-    : vaultBalance?.underlyingBalance?.[0]
-      ? (vaultBalance.underlyingBalance[0] / 10_000_000).toFixed(7)
-      : '0';
+  const maxAmount = mode === 'deposit' ? walletUsdcBalance : depositedUsdc.toFixed(7);
 
   const loading = isBuildingTx || isBuilding;
 
@@ -158,15 +159,21 @@ export const DeFindexTab = ({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Wallet USDC</p>
                   <p className="font-mono">{parseFloat(walletUsdcBalance).toFixed(2)}</p>
                 </div>
                 <div>
+                  <p className="text-muted-foreground">Deposited (USDC)</p>
+                  <p className="font-mono font-semibold text-primary">
+                    {vaultBalance ? depositedUsdc.toFixed(2) : '—'}
+                  </p>
+                </div>
+                <div>
                   <p className="text-muted-foreground">Vault Shares</p>
                   <p className="font-mono">
-                    {vaultBalance ? vaultBalance.dfTokens.toLocaleString() : '—'}
+                    {vaultBalance ? (vaultBalance.dfTokens / 10_000_000).toFixed(2) : '—'}
                   </p>
                 </div>
               </div>

@@ -42,4 +42,6 @@ export const appConfig = {
   DEFINDEX_API_URL: 'https://api.defindex.io',
   DEFINDEX_VAULT_ADDRESS: 'CA2FIPJ7U6BG3N7EOZFI74XPJZOEOD4TYWXFVCIO5VDCHTVAGS6F4UKK',
   DEFINDEX_VAULT_NAME: 'Soroswap USDC Vault',
+  // Circle USDC issuer on mainnet (underlying asset of the DeFindex vault) — used to price vault deposits
+  USDC_ISSUER_MAINNET: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
 } as const;

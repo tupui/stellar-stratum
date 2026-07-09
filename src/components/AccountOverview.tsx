@@ -3,7 +3,7 @@ import { TransactionBuilder as StellarTransactionBuilder, Keypair } from '@stell
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp, X } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp, X, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,11 +15,12 @@ import { TransactionBuilder } from './TransactionBuilder';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
+import { useDefindexPositions } from '@/hooks/useDefindexPositions';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
@@ -92,6 +93,19 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+  };
+
+  // Shareable URL that reopens this account directly (?public_key=G...), skipping manual entry
+  const handleShareUrl = () => {
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('public_key', accountData.publicKey);
+    if (currentNetwork === 'testnet') url.searchParams.set('network', 'testnet');
+    navigator.clipboard.writeText(url.toString());
+    toast({
+      title: 'Account link copied',
+      description: `Opening it loads ${accountData.publicKey.slice(0, 8)}...${accountData.publicKey.slice(-8)} directly`,
+      duration: 3000,
+    });
   };
 
   const getThresholdStatus = (current: number, required: number) => {
@@ -171,8 +185,31 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   const canSubmitToNetworkValue = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
   const canSubmitToRefractorValue = Boolean(multisigConfigXdr) && currentNetwork === 'mainnet';
 
-  // Get portfolio value for TransactionHistoryPanel
-  const { totalValueUSD } = useAssetPrices(accountData.balances);
+  // DeFindex vault deposits — shown alongside wallet assets and counted in the portfolio total
+  const { positions: defindexPositions, refetch: refetchDefindex } = useDefindexPositions(
+    accountData.publicKey,
+    currentNetwork
+  );
+
+  const mergedBalances = useMemo(() => [
+    ...accountData.balances,
+    ...defindexPositions.map((p) => ({
+      asset_type: 'credit_alphanum4',
+      asset_code: p.assetCode,
+      asset_issuer: p.assetIssuer,
+      balance: p.balance,
+      source: 'defindex' as const,
+      sourceName: p.vaultName,
+      sourceAddress: p.vaultAddress,
+    })),
+  ], [accountData.balances, defindexPositions]);
+
+  const handleRefreshBalances = useCallback(async () => {
+    await Promise.all([onRefreshBalances(), refetchDefindex()]);
+  }, [onRefreshBalances, refetchDefindex]);
+
+  // Get portfolio value for TransactionHistoryPanel (includes DeFindex deposits)
+  const { totalValueUSD } = useAssetPrices(mergedBalances);
 
   const handleCopyXdr = () => {
     if (multisigConfigXdr) {
@@ -289,8 +326,17 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                     variant="ghost"
                     size="sm"
                     onClick={() => copyToClipboard(accountData.publicKey)}
+                    title="Copy public key"
                   >
                     <Copy className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleShareUrl}
+                    title="Copy shareable link to this account"
+                  >
+                    <Share2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -348,7 +394,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
           </div>
           
           <TabsContent value="balances" className="mt-6">
-            <AssetBalancePanel balances={accountData.balances} onRefreshBalances={onRefreshBalances} />
+            <AssetBalancePanel balances={mergedBalances} onRefreshBalances={handleRefreshBalances} />
           </TabsContent>
           
           <TabsContent value="activity" className="mt-6" forceMount>
