@@ -1,5 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getAvailableFiatCurrencies, type FiatCurrency } from '@/lib/fiat-currencies';
+import { safeStorage } from '@/lib/storage';
+
+const QUOTE_CURRENCY_STORAGE_KEY = 'stellar-quote-currency';
 
 interface FiatCurrencyContextType {
   quoteCurrency: string;
@@ -23,35 +26,32 @@ interface FiatCurrencyProviderProps {
 }
 
 export const FiatCurrencyProvider = ({ children }: FiatCurrencyProviderProps) => {
-  const [quoteCurrency, setQuoteCurrency] = useState('USD');
+  const [quoteCurrency, setQuoteCurrencyState] = useState<string>(
+    () => safeStorage.get(QUOTE_CURRENCY_STORAGE_KEY) || 'USD',
+  );
   const [availableCurrencies, setAvailableCurrencies] = useState<FiatCurrency[]>([
-    { code: 'USD', symbol: '$', name: 'US Dollar' }
+    { code: 'USD', symbol: '$', name: 'US Dollar' },
   ]);
 
   useEffect(() => {
-    const loadCurrencies = async () => {
-      try {
-        const currencies = await getAvailableFiatCurrencies();
-        setAvailableCurrencies(currencies);
-      } catch {
-        // Silent failure - keep default USD-only list
-      }
-    };
-    loadCurrencies();
+    getAvailableFiatCurrencies()
+      .then(setAvailableCurrencies)
+      .catch(() => {
+        // Silent failure — keep default USD-only list
+      });
   }, []);
 
-  const getCurrentCurrency = (): FiatCurrency => {
-    return availableCurrencies.find(c => c.code === quoteCurrency) || availableCurrencies[0];
+  const setQuoteCurrency = (currency: string) => {
+    setQuoteCurrencyState(currency);
+    safeStorage.set(QUOTE_CURRENCY_STORAGE_KEY, currency);
   };
 
+  const getCurrentCurrency = (): FiatCurrency =>
+    availableCurrencies.find((c) => c.code === quoteCurrency) || availableCurrencies[0];
+
   return (
-    <FiatCurrencyContext.Provider 
-      value={{ 
-        quoteCurrency, 
-        setQuoteCurrency, 
-        availableCurrencies, 
-        getCurrentCurrency 
-      }}
+    <FiatCurrencyContext.Provider
+      value={{ quoteCurrency, setQuoteCurrency, availableCurrencies, getCurrentCurrency }}
     >
       {children}
     </FiatCurrencyContext.Provider>

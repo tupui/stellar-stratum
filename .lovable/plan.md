@@ -1,81 +1,110 @@
-# Pricing Flow Review — Issues & Fixes
 
-After tracing the full pricing pipeline (Reflector oracle → `useAssetPrices` → fiat conversion via FX oracle → Kraken historical → UI panels), here are the concrete problems and the fix for each.
+# Arbitrary Soroban Contract Calls
 
-## 1. `useAssetPrices` seeds fake data (`src/hooks/useAssetPrices.ts`)
+Add a general-purpose contract invocation flow (like Stellar Lab / Scaffold / Tansu dapp): paste a contract address, load its interface from the network, pick a function, fill in typed parameters, simulate, then build an `InvokeHostFunction` XDR that flows through the existing sign / Refractor / submit pipeline.
 
-Lines 88–104 inject a hardcoded `0.2201` USD price for XLM as the initial state ("matching live version"). This shows misleading numbers for a flash before the real oracle resolves, and on stale-cache + oracle failure it lingers.
+While we're in there, reorganize the tabs so DeFi integrations live together and there's room to grow.
 
-**Fix:** Initialize with `priceUSD: 0`, `valueUSD: 0` and let the oracle/localStorage cache populate. Remove the literal price.
+## Tab reorganization
 
-## 2. Dead `-1` loading-pill branch in `AssetBalancePanel.tsx`
+Today `TransactionBuilder` has 4 flat tabs: Payment · Import · Soroswap · DeFindex.
 
-Lines 271 and 284 render `<LoadingPill>` when `asset.priceUSD === -1`, but nothing in `useAssetPrices` ever sets `-1`. Loading UI is unreachable.
+New top-level layout:
 
-**Fix:** Use the hook's `loading` flag for per-row skeleton, or seed `priceUSD: -1` while pending and drop it after resolution. Pick one — preference: seed `-1` in the hook so per-row pill works.
+```text
+[ Payment ] [ Contract ] [ DeFi ▾ ] [ Import ]
+                          └── Soroswap
+                          └── DeFindex
+                          └── (future: Blend, Aquarius, …)
+```
 
-## 3. `AssetBalancePanel.tsx` hardcoded future "last update" timestamp
+- **Contract** — new, generic contract call flow.
+- **DeFi** — one outer tab, inner Tabs for Soroswap/DeFindex. `SoroswapTab` and `DeFindexTab` stay untouched as leaf components.
+- `initialTab` mapping in `Index.tsx` (`'payment' | 'import' | 'multisig'`) unchanged; deep-link routing keeps working.
+- The tab-reset effect in `TransactionBuilder` is extended to clear contract state when leaving the Contract tab.
 
-Line 43: `useState<Date | null>(new Date('2025-12-10T12:00:00Z'))`. `getLastFetchTimestamp` and `clearPriceCache` are imported but never used.
+## Contract Call feature
 
-**Fix:** Initialize with `getLastFetchTimestamp()`; on `refetch` set to `new Date()`; remove unused `clearPriceCache` import.
+### UX (progressive, single screen)
 
-## 4. Manual refresh does not bust the 5-min price cache
+1. **Contract address input** — `C…` StrKey, validated with `StrKey.isValidContract`. Recents (top 5 per network) persisted with existing `safeLocalStorage`.
+2. **Load** → fetch spec, show a summary line (address + optional name from spec meta) and a **function selector**.
+3. **Function form** — one input per parameter, typed against the spec:
+   - `Address` → text input, `StrKey` validation (`G…` or `C…`).
+   - `U32 / I32 / U64 / I64 / U128 / I128 / U256 / I256` → numeric input, wide types parsed via `BigInt`.
+   - `Bool` → `Switch`.
+   - `Symbol / String` → text input.
+   - `Bytes / BytesN` → hex input, length-checked for `BytesN`.
+   - `Vec<T>` → dynamic list of `T` rows.
+   - `Map<K,V>` → dynamic key/value rows.
+   - `Option<T>` → "provide value" toggle + inner input.
+   - `Enum` / `Struct` (udt) → nested form generated from the spec's udt entries.
+   - Return type displayed read-only.
+4. **Simulate** — runs the invocation via Soroban RPC, shows decoded return value and resource fee estimate; errors surface through `ErrorHandlers`.
+5. **Build** — assembles the transaction (auth + resource fees applied) and emits XDR via the existing `handleSdkBuild(xdr)` path, so sign / Refractor / submit / air-gap all keep working with zero changes.
 
-`useAssetPrices.refetch` re-runs `getAssetPrice`, but the reflector module returns cached values for 5 min. User pressing the refresh button within that window gets stale data.
+### Loading and encoding
 
-**Fix:** In `refetch`, call `clearPriceCache()` (or a narrower "invalidate in-memory cache" helper) before refetching so the user sees a real round-trip.
+Use the SDK's contract module (already a dep, no new install):
 
-## 5. `computeStellarAssetContractId` is mainnet-only (`src/lib/reflector.ts`)
+```ts
+import { contract } from '@stellar/stellar-sdk';
 
-Line 15 hashes `Networks.PUBLIC` regardless of network. On testnet the resulting SAC ID is wrong, so issued-asset oracle lookups by contract ID silently fail.
+const client = await contract.Client.from({
+  contractId,
+  networkPassphrase: getNetworkPassphrase(network),
+  rpcUrl: network === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC,
+  publicKey: sourceAccount,
+});
+// client.spec is a contract.Spec — funcs(), getFunc(name), funcArgsToScVals(name, obj), funcResToNative(name, scval)
+```
 
-**Fix:** The Reflector oracle is mainnet-only by design, so either (a) early-return `''` on testnet to avoid wasted lookups, or (b) accept a network arg. Choose (a) — keeps current "mainnet prices everywhere" behavior explicit and adds a comment.
+Spec cached in memory per `${network}:${contractId}` for the session (WASM rarely changes; a "Refresh" button forces reload). No `localStorage` caching of specs.
 
-## 6. `convertFromUSD` loop is sequential (`AssetBalancePanel.tsx`)
+Assembly: `client.<fn>(argsObj)` returns an `AssembledTransaction`; `.simulate()` for preview, `.toXDR()` to hand off to `handleSdkBuild`. Fee-bump, source-account override, signer selection, multisig, and Refractor coordination all continue to work because they run after the XDR is produced.
 
-Lines 101–121 `await` per-asset conversion inside a `for` loop. Each FX call is cached/deduped, but the sequencing still serializes promise microtasks unnecessarily.
+### New files
 
-**Fix:** Build the work as a `Promise.all` over `assetsWithPrices.map(...)`. Also add `network` to the effect dep array.
+```text
+src/components/contract/
+  ContractCallTab.tsx        // orchestrator: address → function → form → simulate → build
+  ContractAddressInput.tsx   // address input + recents + load button
+  ContractFunctionForm.tsx   // renders inputs from a function spec
+  ContractValueInput.tsx     // recursive input for one ScSpecTypeDef (Vec/Map/Option/udt)
+src/lib/contract/
+  spec.ts                    // loadContractSpec(contractId, network) + in-memory cache
+  form-values.ts             // FormValue ↔ ScVal via spec helpers; ScVal → readable string
+  recent-contracts.ts        // localStorage recents via safeLocalStorage
+```
 
-## 7. `useAssetPrices` memoizes balances via `JSON.stringify` deps
+### Networks and edge cases
 
-Line 21: `useMemo(() => balances, [JSON.stringify(balances)])`. Stringifies the whole balances array on every render.
+- Both mainnet and testnet supported. Only DeFindex keeps its mainnet-only guard.
+- Contract not found → inline error, no crash.
+- SAC assets (`transfer`, `balance`, …) work out of the box since their spec loads normally — nice free coverage.
+- Source/signer flow unchanged; multisig via Refractor unchanged.
 
-**Fix:** Replace with a cheap structural key, e.g. `useMemo(() => balances, [balances.map(b => \`${b.asset_code}:${b.asset_issuer}:${b.balance}\`).join('|')])`, or just depend on `balances` and trust upstream identity.
+## Testing plan (on testnet, self-driven)
 
-## 8. `fiat-currencies.ts` cache shape inconsistency
+I'll drive Playwright against the local preview to exercise the whole flow end-to-end. Session credentials for testnet are not required — the app is client-side and uses the existing wallet flow; I'll use a locally-generated Stellar keypair funded via Friendbot for building/simulating, and stop short of broadcasting signatures I don't own.
 
-`getAvailableFiatCurrencies` stores `availableAssets` as-returned in `oracleAssetsCache` (line ~100), but `getFxRate` later (line ~147) overwrites with uppercased entries. The `includes(upperCurrency)` check then depends on which path warmed the cache.
+Steps:
 
-**Fix:** Normalize once on write — always store uppercase in `oracleAssetsCache`. Drop the `(OracleClient as any)` casts (the export is a value, not a type).
+1. Generate a testnet keypair with the SDK, fund via `https://friendbot.stellar.org`.
+2. Switch preview to Testnet, connect using that key (via the app's existing "enter public key" path or a wallet stub; if only wallet-based connect is available, use the source-account editor to point at the funded account).
+3. Load a well-known testnet contract — start with the native XLM SAC (`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`) and call `balance(Address)` and `decimals()` — both are read-only, safe to simulate/build.
+4. Load the Tansu testnet contract (address pulled from the linked repo's config) and simulate one of its read functions to confirm udt/enum rendering works.
+5. Deploy a tiny custom test contract only if the above two don't cover Vec/Map/Option/BytesN — otherwise skip.
+6. Build a state-changing call (e.g. an increment counter contract or a Tansu write function that only affects the funded test account), sign with the connected wallet path in the sandbox, and submit to Soroban testnet RPC. Verify hash on StellarExpert.
+7. Regression pass: Payment / Import / Soroswap / DeFindex tabs still build and submit unchanged; Refractor coordination unchanged.
+8. `tsgo` clean, existing Playwright specs pass.
 
-## 9. `OracleClient` always uses `Networks.PUBLIC` and mainnet RPC
+Any test-only helpers (scripts under `/tmp/browser/`) stay outside the project tree.
 
-`src/lib/reflector-client/oracle-client.ts` builds simulation TXs with `Networks.PUBLIC` and `createOracleRpcServer` defaults to mainnet regardless of the `network` constructor arg. Simulations don't enforce the passphrase, but the inconsistency hides intent.
+## Out of scope
 
-**Fix:** Either honor the `network` parameter end-to-end (passphrase + RPC) or remove the parameter and document that Reflector is mainnet-only. Recommend the second (matches reality).
-
-## 10. Stale-price fallback window too short (`reflector.ts`)
-
-`PRICE_CACHE_DURATION` and the localStorage `CACHE_DURATION` are both 5 min. If the oracle fails for >5 min, the UI flips to "N/A" instead of showing the last-known price. Other crypto wallets keep a stale price for hours and just flag it.
-
-**Fix:** Extend localStorage fallback to 24h (display only on oracle failure); keep the in-memory 5-min TTL for "fresh enough". `getCachedPrice` becomes the safety net, not the primary cache.
-
-## 11. Minor
-
-- `src/lib/defindex-client.ts` / `soroswap-client.ts`: API keys ship in the browser (already flagged previously). Not addressed unless requested.
-- `useAssetPrices` exports `error` but the conversion loop in `AssetBalancePanel` swallows errors — fine; documenting.
-
-## Out of scope (no change)
-
-- Two parallel `useAssetPrices` instances (in `AccountOverview` and `AssetBalancePanel`) are deduped by the inflight map; acceptable.
-- `primeUsdRatesForAsset(_start, _end)` ignoring the date range is intentional (always pulls 1y, cached).
-
-## Files to change
-
-- `src/hooks/useAssetPrices.ts`
-- `src/components/AssetBalancePanel.tsx`
-- `src/lib/reflector.ts`
-- `src/lib/fiat-currencies.ts`
-- `src/lib/reflector-client/oracle-client.ts` (optional; tag #9)
+- Persisted spec cache across reloads.
+- Named contract bookmarks with labels (recents only).
+- Contract deployment / WASM upload.
+- Batching a contract call with a classic op in the same tx.
+- Custom decoding for every Soroban host error (existing generic handler).

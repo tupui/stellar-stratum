@@ -16,24 +16,22 @@ interface SEP1TomlAsset {
 }
 
 // Generate deterministic color for asset based on code and issuer
-const generateAssetColor = (assetCode: string, assetIssuer?: string): { hue: number; saturation: number; lightness: number } => {
+export const getAssetColor = (assetCode: string, assetIssuer?: string): { hue: number; saturation: number; lightness: number } => {
   const input = `${assetCode}${assetIssuer || ''}`;
   let hash = 0;
-  
+
   for (let i = 0; i < input.length; i++) {
     hash = ((hash << 5) - hash) + input.charCodeAt(i);
     hash = hash & hash; // Convert to 32-bit integer
   }
-  
+
   // Generate visually pleasing colors
   const hue = Math.abs(hash % 360);
   const saturation = 65 + (Math.abs(hash >> 8) % 20); // 65-85%
   const lightness = 50 + (Math.abs(hash >> 16) % 15); // 50-65%
-  
+
   return { hue, saturation, lightness };
 };
-
-export const getAssetColor = generateAssetColor;
 
 // Enhanced caching system with TOML-level coherence
 interface CacheEntry<T> {
