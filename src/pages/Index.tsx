@@ -132,11 +132,11 @@ const Index = memo(() => {
     [setNetwork, dedupe, toast],
   );
 
-  // Watch-only deep link: ?address=G...&network=mainnet|testnet
+  // Watch-only deep link: ?address=G...&network=mainnet|testnet (?public_key= accepted as alias)
   useEffect(() => {
     if (addressDeepLinkHandled.current) return;
     const params = new URLSearchParams(window.location.search);
-    const address = params.get("address");
+    const address = params.get("address") ?? params.get("public_key");
     if (!address) return;
     addressDeepLinkHandled.current = true;
 
@@ -159,13 +159,12 @@ const Index = memo(() => {
     // Clean the query params from the URL, preserving pathname/hash.
     const cleanUrl = new URL(window.location.href);
     cleanUrl.searchParams.delete("address");
+    cleanUrl.searchParams.delete("public_key");
     cleanUrl.searchParams.delete("network");
     window.history.replaceState({}, "", cleanUrl.toString());
 
     handleWalletConnect("watch-only", address, selectedNetwork);
   }, [network, toast]); // eslint-disable-line react-hooks/exhaustive-deps
-
-
 
   // Memoize frequently used callbacks
   const handleInitiateTransaction = useCallback(() => {

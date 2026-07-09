@@ -6,6 +6,10 @@ interface AssetBalance {
   asset_code?: string;
   asset_issuer?: string;
   balance: string;
+  // Present when the balance is held outside the wallet (e.g. deposited in a DeFindex vault)
+  source?: 'defindex';
+  sourceName?: string;
+  sourceAddress?: string;
 }
 
 interface AssetWithPrice extends AssetBalance {
