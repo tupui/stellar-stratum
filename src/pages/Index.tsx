@@ -131,6 +131,14 @@ const Index = memo(() => {
     [setNetwork, dedupe, toast],
   );
 
+  // Account deep link (?public_key=G...) behaves exactly like manual address entry
+  const handleAccountDeepLink = useCallback(
+    (accountKey: string, linkNetwork: "mainnet" | "testnet" | null) => {
+      handleWalletConnect("Manual Address", accountKey, linkNetwork ?? network);
+    },
+    [handleWalletConnect, network],
+  );
+
   // Memoize frequently used callbacks
   const handleInitiateTransaction = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -204,7 +212,7 @@ const Index = memo(() => {
 
   return (
     <FiatCurrencyProvider>
-      <DeepLinkHandler onDeepLinkLoaded={handleDeepLinkLoaded} />
+      <DeepLinkHandler onDeepLinkLoaded={handleDeepLinkLoaded} onAccountDeepLink={handleAccountDeepLink} />
       <div className="min-h-screen bg-background flex flex-col">
         <div className="flex-1">
           {/* Landing Page */}

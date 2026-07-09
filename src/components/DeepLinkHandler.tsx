@@ -1,23 +1,50 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { pullFromRefractor } from '@/lib/stellar';
-import { Transaction, Networks } from '@stellar/stellar-sdk';
+import { Transaction, Networks, StrKey } from '@stellar/stellar-sdk';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface DeepLinkHandlerProps {
   onDeepLinkLoaded?: (sourceAccount: string) => void;
+  onAccountDeepLink?: (publicKey: string, network: 'mainnet' | 'testnet' | null) => void;
 }
 
-export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
+export const DeepLinkHandler = ({ onDeepLinkLoaded, onAccountDeepLink }: DeepLinkHandlerProps) => {
   const location = useLocation();
   const { toast } = useToast();
   const { setNetwork } = useNetwork();
+  // Prevent re-triggering the account deep link when unrelated state re-runs the effect
+  const handledAccountKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const handleDeepLink = async () => {
       const urlParams = new URLSearchParams(location.search);
       const refractorId = urlParams.get('r');
+
+      // Account deep link: ?public_key=G... loads the account read-only (like manual address entry)
+      const publicKeyParam = urlParams.get('public_key')?.trim();
+      if (!refractorId && publicKeyParam && handledAccountKeyRef.current !== publicKeyParam) {
+        handledAccountKeyRef.current = publicKeyParam;
+        if (StrKey.isValidEd25519PublicKey(publicKeyParam)) {
+          const networkParam = urlParams.get('network');
+          const linkNetwork = networkParam === 'testnet' ? 'testnet' : networkParam === 'mainnet' ? 'mainnet' : null;
+          toast({
+            title: 'Account loaded from link',
+            description: `${publicKeyParam.slice(0, 8)}...${publicKeyParam.slice(-8)}`,
+            duration: 4000,
+          });
+          onAccountDeepLink?.(publicKeyParam, linkNetwork);
+        } else {
+          toast({
+            title: 'Invalid account link',
+            description: 'The public_key in the URL is not a valid Stellar address',
+            variant: 'destructive',
+            duration: 5000,
+          });
+        }
+        return;
+      }
 
       if (refractorId) {
         try {
@@ -78,7 +105,7 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
     };
 
     handleDeepLink();
-  }, [location.search, toast, onDeepLinkLoaded, setNetwork]);
+  }, [location.search, toast, onDeepLinkLoaded, onAccountDeepLink, setNetwork]);
 
   return null;
 };

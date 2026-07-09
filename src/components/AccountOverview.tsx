@@ -3,7 +3,7 @@ import { TransactionBuilder as StellarTransactionBuilder, Keypair } from '@stell
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp, X } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp, X, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -93,6 +93,19 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+  };
+
+  // Shareable URL that reopens this account directly (?public_key=G...), skipping manual entry
+  const handleShareUrl = () => {
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('public_key', accountData.publicKey);
+    if (currentNetwork === 'testnet') url.searchParams.set('network', 'testnet');
+    navigator.clipboard.writeText(url.toString());
+    toast({
+      title: 'Account link copied',
+      description: `Opening it loads ${accountData.publicKey.slice(0, 8)}...${accountData.publicKey.slice(-8)} directly`,
+      duration: 3000,
+    });
   };
 
   const getThresholdStatus = (current: number, required: number) => {
@@ -313,8 +326,17 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                     variant="ghost"
                     size="sm"
                     onClick={() => copyToClipboard(accountData.publicKey)}
+                    title="Copy public key"
                   >
                     <Copy className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleShareUrl}
+                    title="Copy shareable link to this account"
+                  >
+                    <Share2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
