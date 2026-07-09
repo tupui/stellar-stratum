@@ -15,11 +15,12 @@ import { TransactionBuilder } from './TransactionBuilder';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
+import { useDefindexPositions } from '@/hooks/useDefindexPositions';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
@@ -171,8 +172,31 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   const canSubmitToNetworkValue = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
   const canSubmitToRefractorValue = Boolean(multisigConfigXdr) && currentNetwork === 'mainnet';
 
-  // Get portfolio value for TransactionHistoryPanel
-  const { totalValueUSD } = useAssetPrices(accountData.balances);
+  // DeFindex vault deposits — shown alongside wallet assets and counted in the portfolio total
+  const { positions: defindexPositions, refetch: refetchDefindex } = useDefindexPositions(
+    accountData.publicKey,
+    currentNetwork
+  );
+
+  const mergedBalances = useMemo(() => [
+    ...accountData.balances,
+    ...defindexPositions.map((p) => ({
+      asset_type: 'credit_alphanum4',
+      asset_code: p.assetCode,
+      asset_issuer: p.assetIssuer,
+      balance: p.balance,
+      source: 'defindex' as const,
+      sourceName: p.vaultName,
+      sourceAddress: p.vaultAddress,
+    })),
+  ], [accountData.balances, defindexPositions]);
+
+  const handleRefreshBalances = useCallback(async () => {
+    await Promise.all([onRefreshBalances(), refetchDefindex()]);
+  }, [onRefreshBalances, refetchDefindex]);
+
+  // Get portfolio value for TransactionHistoryPanel (includes DeFindex deposits)
+  const { totalValueUSD } = useAssetPrices(mergedBalances);
 
   const handleCopyXdr = () => {
     if (multisigConfigXdr) {
@@ -348,7 +372,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
           </div>
           
           <TabsContent value="balances" className="mt-6">
-            <AssetBalancePanel balances={accountData.balances} onRefreshBalances={onRefreshBalances} />
+            <AssetBalancePanel balances={mergedBalances} onRefreshBalances={handleRefreshBalances} />
           </TabsContent>
           
           <TabsContent value="activity" className="mt-6" forceMount>

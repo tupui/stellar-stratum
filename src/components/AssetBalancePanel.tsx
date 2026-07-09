@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { LoadingPill } from '@/components/ui/loading-pill';
-import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, ExternalLink } from 'lucide-react';
+import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, ExternalLink, Landmark, Wallet } from 'lucide-react';
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { getLastFetchTimestamp } from '@/lib/reflector';
@@ -18,6 +18,10 @@ interface AssetBalance {
   asset_code?: string;
   asset_issuer?: string;
   balance: string;
+  // Present when the balance is held outside the wallet (e.g. deposited in a DeFindex vault)
+  source?: 'defindex';
+  sourceName?: string;
+  sourceAddress?: string;
 }
 interface AssetBalancePanelProps {
   balances: AssetBalance[];
@@ -42,6 +46,8 @@ export const AssetBalancePanel = ({
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(() => getLastFetchTimestamp());
   const [convertedTotalValue, setConvertedTotalValue] = useState(totalValueUSD);
+  const [convertedDefindexTotal, setConvertedDefindexTotal] = useState(0);
+  const [convertedWalletTotal, setConvertedWalletTotal] = useState(0);
   const [convertedAssetValues, setConvertedAssetValues] = useState<Record<number, number>>({});
   const [convertedAssetPrices, setConvertedAssetPrices] = useState<Record<number, number>>({});
 
@@ -77,11 +83,34 @@ export const AssetBalancePanel = ({
     return date.toLocaleDateString();
   }, []);
 
-  // Filter assets based on hide small balances toggle (memoized for performance)
-  const filteredAssets = useMemo(() => 
-    hideSmallBalances ? assetsWithPrices.filter(asset => asset.valueUSD >= 1) : assetsWithPrices,
-    [hideSmallBalances, assetsWithPrices]
+  // Keep the original index into assetsWithPrices so converted value/price lookups stay correct after filtering
+  const indexedAssets = useMemo(
+    () => assetsWithPrices.map((asset, index) => ({ asset, index })),
+    [assetsWithPrices]
   );
+
+  // Filter assets based on hide small balances toggle (memoized for performance)
+  const visibleAssets = useMemo(() =>
+    hideSmallBalances ? indexedAssets.filter(({ asset }) => asset.valueUSD >= 1) : indexedAssets,
+    [hideSmallBalances, indexedAssets]
+  );
+
+  const defindexAssets = useMemo(
+    () => visibleAssets.filter(({ asset }) => asset.source === 'defindex'),
+    [visibleAssets]
+  );
+  const walletAssets = useMemo(
+    () => visibleAssets.filter(({ asset }) => asset.source !== 'defindex'),
+    [visibleAssets]
+  );
+
+  // Portfolio breakdown in USD (unfiltered — the toggle only hides rows, not value)
+  const defindexTotalUSD = useMemo(
+    () => assetsWithPrices.reduce((sum, a) => (a.source === 'defindex' && a.priceUSD > 0 ? sum + (a.valueUSD || 0) : sum), 0),
+    [assetsWithPrices]
+  );
+  const walletTotalUSD = totalValueUSD - defindexTotalUSD;
+  const hasDefindexPositions = assetsWithPrices.some(a => a.source === 'defindex');
 
   // Update converted values when currency changes
   useEffect(() => {
@@ -89,6 +118,8 @@ export const AssetBalancePanel = ({
     const convertAllValues = async () => {
       if (quoteCurrency === 'USD') {
         setConvertedTotalValue(totalValueUSD);
+        setConvertedDefindexTotal(defindexTotalUSD);
+        setConvertedWalletTotal(walletTotalUSD);
         setConvertedAssetValues({});
         setConvertedAssetPrices({});
         return;
@@ -98,6 +129,12 @@ export const AssetBalancePanel = ({
       const totalPromise = totalValueUSD
         ? convertFromUSD(totalValueUSD, quoteCurrency, network).catch(() => totalValueUSD)
         : Promise.resolve(totalValueUSD);
+      const defindexPromise = defindexTotalUSD
+        ? convertFromUSD(defindexTotalUSD, quoteCurrency, network).catch(() => defindexTotalUSD)
+        : Promise.resolve(0);
+      const walletPromise = walletTotalUSD
+        ? convertFromUSD(walletTotalUSD, quoteCurrency, network).catch(() => walletTotalUSD)
+        : Promise.resolve(0);
 
       const perAsset = assetsWithPrices.map((asset, i) =>
         Promise.all([
@@ -110,10 +147,17 @@ export const AssetBalancePanel = ({
         ]).then(([v, p]) => ({ i, v, p }))
       );
 
-      const [convertedTotal, results] = await Promise.all([totalPromise, Promise.all(perAsset)]);
+      const [convertedTotal, convertedDefindex, convertedWallet, results] = await Promise.all([
+        totalPromise,
+        defindexPromise,
+        walletPromise,
+        Promise.all(perAsset),
+      ]);
       if (cancelled) return;
 
       setConvertedTotalValue(convertedTotal);
+      setConvertedDefindexTotal(convertedDefindex);
+      setConvertedWalletTotal(convertedWallet);
       const newConvertedValues: Record<number, number> = {};
       const newConvertedPrices: Record<number, number> = {};
       for (const { i, v, p } of results) {
@@ -125,7 +169,7 @@ export const AssetBalancePanel = ({
     };
     convertAllValues();
     return () => { cancelled = true; };
-  }, [totalValueUSD, quoteCurrency, assetsWithPrices, network]);
+  }, [totalValueUSD, defindexTotalUSD, walletTotalUSD, quoteCurrency, assetsWithPrices, network]);
   const formatPriceSync = (price: number, assetIndex: number): string => {
     const currency = getCurrentCurrency();
     if (price === 0) return 'N/A';
@@ -150,6 +194,14 @@ export const AssetBalancePanel = ({
     const symbol = quoteCurrency !== 'USD' && !convertedAssetValues[assetIndex] ? '$' : currency.symbol;
     if (displayValue < 0.01) return `<${symbol}0.01`;
     return `${symbol}${displayValue.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+  };
+  const formatSubTotal = (usdValue: number, convertedValue: number): string => {
+    const currency = getCurrentCurrency();
+    const v = quoteCurrency === 'USD' ? usdValue : convertedValue;
+    return `${currency.symbol}${v.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`;
@@ -184,6 +236,64 @@ export const AssetBalancePanel = ({
     }
     return `https://stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;
   };
+
+  const getContractExplorerUrl = (contractAddress: string): string => {
+    const networkPath = network === 'testnet' ? 'testnet' : 'public';
+    return `https://stellar.expert/explorer/${networkPath}/contract/${contractAddress}`;
+  };
+
+  // index is the position in assetsWithPrices (used for converted value/price lookups)
+  const renderAssetRow = (asset: (typeof assetsWithPrices)[number], index: number) => (
+    <div key={index} className="p-4 border border-border/60 rounded-lg hover:bg-secondary/30 hover:border-border transition-smooth">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <AssetIcon assetCode={asset.asset_code} assetIssuer={asset.asset_type !== 'native' ? asset.asset_issuer : undefined} size={40} className="flex-shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <a
+                href={asset.source === 'defindex' && asset.sourceAddress
+                  ? getContractExplorerUrl(asset.sourceAddress)
+                  : getAssetExplorerUrl(asset.symbol, asset.asset_type !== 'native' ? asset.asset_issuer : undefined)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-foreground hover:text-primary transition-colors inline-flex items-center gap-1 truncate"
+              >
+                <span className="truncate">{asset.symbol}</span>
+                <ExternalLink className="w-3 h-3 flex-shrink-0" />
+              </a>
+              {asset.asset_type === 'native' && <Badge variant="outline" className="text-xs border-primary/30 text-primary flex-shrink-0">Native</Badge>}
+              {asset.source === 'defindex' && (
+                <Badge variant="secondary" className="text-xs flex-shrink-0 inline-flex items-center gap-1">
+                  <Landmark className="w-3 h-3" />
+                  DeFindex
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground/80 truncate">
+              {asset.source === 'defindex'
+                ? `Deposited in ${asset.sourceName || 'DeFindex vault'}`
+                : asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_code}
+            </p>
+            {asset.priceUSD === -1 ? <LoadingPill size="sm" className="mt-1" /> : asset.priceUSD > 0 ? <p className="text-xs text-muted-foreground/70 font-amount truncate max-w-[160px] sm:max-w-none">
+                {formatPriceSync(asset.priceUSD, index)} per {asset.symbol}
+              </p> : <p className="text-xs text-muted-foreground/70">
+                Price unavailable
+              </p>}
+          </div>
+        </div>
+
+        <div className="text-right flex-shrink-0 min-w-0">
+          <p className="font-amount font-semibold text-foreground tabular-nums truncate max-w-[100px] sm:max-w-[180px]">
+            {formatBalance(asset.balance)}
+          </p>
+          <div className="text-sm font-medium text-primary flex justify-end font-amount truncate max-w-[100px] sm:max-w-[180px]">
+            {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValueForAsset(asset.valueUSD, index)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return <Card className="shadow-card">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -223,6 +333,26 @@ export const AssetBalancePanel = ({
             </div>
             <div className="text-sm text-muted-foreground"></div>
           </div>
+
+          {/* Breakdown: DeFindex deposits vs assets available in the wallet */}
+          {!loading && hasDefindexPositions && (
+            <div className="mt-3 pt-3 border-t border-primary/10 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-muted-foreground/80 flex items-center gap-1.5">
+                  <Landmark className="w-3.5 h-3.5" />
+                  Deposited in DeFindex
+                </p>
+                <p className="font-amount font-semibold">{formatSubTotal(defindexTotalUSD, convertedDefindexTotal)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground/80 flex items-center gap-1.5">
+                  <Wallet className="w-3.5 h-3.5" />
+                  Available in Wallet
+                </p>
+                <p className="font-amount font-semibold">{formatSubTotal(walletTotalUSD, convertedWalletTotal)}</p>
+              </div>
+            </div>
+          )}
         </div>
       </CardHeader>
 
@@ -241,59 +371,52 @@ export const AssetBalancePanel = ({
           </div>}
 
         {/* Assets List */}
-        <div className="space-y-3">
-          {loading && filteredAssets.length === 0 ? <div className="flex items-center justify-center py-8">
-              <div className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-success" />
-                <span className="text-success bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent font-medium">Loading prices...</span>
-              </div>
-            </div> : filteredAssets.length === 0 ? <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Filter className="w-8 h-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                {hideSmallBalances ? 'No assets above $1' : 'No assets found'}
-              </p>
-            </div> : filteredAssets.map((asset, index) => <div key={index} className="p-4 border border-border/60 rounded-lg hover:bg-secondary/30 hover:border-border transition-smooth">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <AssetIcon assetCode={asset.asset_code} assetIssuer={asset.asset_type !== 'native' ? asset.asset_issuer : undefined} size={40} className="flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <a 
-                          href={getAssetExplorerUrl(asset.symbol, asset.asset_type !== 'native' ? asset.asset_issuer : undefined)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-semibold text-foreground hover:text-primary transition-colors inline-flex items-center gap-1 truncate"
-                        >
-                          <span className="truncate">{asset.symbol}</span>
-                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        </a>
-                        {asset.asset_type === 'native' && <Badge variant="outline" className="text-xs border-primary/30 text-primary flex-shrink-0">Native</Badge>}
-                      </div>
-                      <p className="text-sm text-muted-foreground/80 truncate">
-                        {asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_code}
-                      </p>
-                        {asset.priceUSD === -1 ? <LoadingPill size="sm" className="mt-1" /> : asset.priceUSD > 0 ? <p className="text-xs text-muted-foreground/70 font-amount truncate max-w-[160px] sm:max-w-none">
-                            {formatPriceSync(asset.priceUSD, index)} per {asset.symbol}
-                          </p> : <p className="text-xs text-muted-foreground/70">
-                            Price unavailable
-                          </p>}
-                    </div>
+        {loading && visibleAssets.length === 0 ? <div className="flex items-center justify-center py-8">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-success" />
+              <span className="text-success bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent font-medium">Loading prices...</span>
+            </div>
+          </div> : visibleAssets.length === 0 ? <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Filter className="w-8 h-8 text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">
+              {hideSmallBalances ? 'No assets above $1' : 'No assets found'}
+            </p>
+          </div> : <div className="space-y-5">
+            {/* DeFindex deposits section */}
+            {defindexAssets.length > 0 && <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Landmark className="w-4 h-4 text-primary" />
+                    <span>Deposited in DeFindex</span>
                   </div>
-
-                  <div className="text-right flex-shrink-0 min-w-0">
-                    <p className="font-amount font-semibold text-foreground tabular-nums truncate max-w-[100px] sm:max-w-[180px]">
-                      {formatBalance(asset.balance)}
-                    </p>
-                      <div className="text-sm font-medium text-primary flex justify-end font-amount truncate max-w-[100px] sm:max-w-[180px]">
-                        {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValueForAsset(asset.valueUSD, index)}
-                      </div>
-                  </div>
+                  <span className="text-sm font-amount font-medium text-primary">
+                    {formatSubTotal(defindexTotalUSD, convertedDefindexTotal)}
+                  </span>
                 </div>
-              </div>)}
-        </div>
+                {defindexAssets.map(({ asset, index }) => renderAssetRow(asset, index))}
+              </div>}
+
+            {/* Wallet assets section */}
+            <div className="space-y-3">
+              {defindexAssets.length > 0 && <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Wallet className="w-4 h-4 text-primary" />
+                    <span>Available in Wallet</span>
+                  </div>
+                  <span className="text-sm font-amount font-medium text-primary">
+                    {formatSubTotal(walletTotalUSD, convertedWalletTotal)}
+                  </span>
+                </div>}
+              {walletAssets.length > 0
+                ? walletAssets.map(({ asset, index }) => renderAssetRow(asset, index))
+                : <p className="text-sm text-muted-foreground py-2">
+                    {hideSmallBalances ? 'No wallet assets above $1' : 'No wallet assets'}
+                  </p>}
+            </div>
+          </div>}
 
         {/* Summary */}
-        {filteredAssets.length > 0 && <>
+        {visibleAssets.length > 0 && <>
             <Separator />
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">

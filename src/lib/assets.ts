@@ -219,6 +219,13 @@ const ASSET_FALLBACKS: Record<string, AssetInfo> = {
     name: 'Euro Coin',
     image: 'https://stellar.myfilebase.com/ipfs/QmeRk7LG85cozSNey9QGARgbxYi1cG1dA1G6SNJGMTMdF2' // Official EURC logo via IPFS
   },
+  // USDC from Circle (circle.com blocks CORS)
+  'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN': {
+    code: 'USDC',
+    issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+    name: 'USD Coin',
+    image: 'https://stellar.myfilebase.com/ipfs/QmXPqPAv3oRiQFehNB8Lw25DLuDz8irZwpfU7e6hPsr2qS' // Official USDC logo via IPFS
+  },
   // Native XLM
   'XLM:': {
     code: 'XLM',
