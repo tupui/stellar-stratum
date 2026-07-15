@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowDownUp, Plus, Minus, Loader2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowDownUp, Plus, Minus, Loader2, Settings2 } from 'lucide-react';
 import { AssetIcon } from '@/components/AssetIcon';
 import { formatBalance } from '@/lib/balance-utils';
 import { soroswapSDK, getSoroswapNetwork } from '@/lib/soroswap-client';
@@ -194,6 +196,14 @@ export const SoroswapTab = ({
 
 // --- Swap Sub-Form ---
 
+// Liquidity sources the aggregator can route a swap through.
+const ROUTING_PROTOCOLS: Array<{ id: SupportedProtocols; label: string }> = [
+  { id: SupportedProtocols.SOROSWAP, label: 'Soroswap' },
+  { id: SupportedProtocols.AQUA, label: 'Aqua' },
+  { id: SupportedProtocols.SDEX, label: 'SDEX' },
+  { id: SupportedProtocols.PHOENIX, label: 'Phoenix' },
+];
+
 interface SwapFormProps {
   assets: AssetInfo[];
   fromAssets: AssetInfo[];
@@ -214,9 +224,21 @@ const SwapForm = ({ assets, fromAssets, getAssetBalance, network, accountPublicK
   const [independentField, setIndependentField] = useState<'sell' | 'buy'>('sell');
   const [typedValue, setTypedValue] = useState('');
   const [slippageBps, setSlippageBps] = useState('50');
+  const [protocols, setProtocols] = useState<SupportedProtocols[]>([
+    SupportedProtocols.SOROSWAP,
+    SupportedProtocols.AQUA,
+  ]);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
   const [isBuildingTx, setIsBuildingTx] = useState(false);
+
+  const toggleProtocol = (id: SupportedProtocols) => {
+    setProtocols((prev) => {
+      const next = prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id];
+      return next.length ? next : prev; // keep at least one source selected
+    });
+    setQuote(null);
+  };
 
   const selectedIn = assets.find((a) => a.contract === assetIn);
   const selectedOut = assets.find((a) => a.contract === assetOut);
@@ -263,7 +285,7 @@ const SwapForm = ({ assets, fromAssets, getAssetBalance, network, accountPublicK
             assetOut,
             amount: stroops,
             tradeType: independentField === 'sell' ? TradeType.EXACT_IN : TradeType.EXACT_OUT,
-            protocols: [SupportedProtocols.SOROSWAP, SupportedProtocols.AQUA],
+            protocols,
             slippageBps: parseInt(slippageBps) || 50,
           },
           getSoroswapNetwork(network)
@@ -279,7 +301,7 @@ const SwapForm = ({ assets, fromAssets, getAssetBalance, network, accountPublicK
       }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [assetIn, assetOut, typedValue, independentField, slippageBps, network, inDecimals, outDecimals, onError]);
+  }, [assetIn, assetOut, typedValue, independentField, slippageBps, protocols, network, inDecimals, outDecimals, onError]);
 
   const handleBuild = async () => {
     if (!quote) return;
@@ -327,6 +349,49 @@ const SwapForm = ({ assets, fromAssets, getAssetBalance, network, accountPublicK
 
   return (
     <div className="space-y-2">
+      {/* Routing config */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          Routing via {protocols.map((p) => ROUTING_PROTOCOLS.find((rp) => rp.id === p)?.label).filter(Boolean).join(', ')}
+        </span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 gap-2">
+              <Settings2 className="w-4 h-4" />
+              Routing
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-60">
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-medium">Liquidity sources</p>
+                <p className="text-xs text-muted-foreground">Choose which protocols the swap can route through.</p>
+              </div>
+              <div className="space-y-2">
+                {ROUTING_PROTOCOLS.map((p) => {
+                  const checked = protocols.includes(p.id);
+                  const isLastSelected = checked && protocols.length === 1;
+                  return (
+                    <label
+                      key={p.id}
+                      className={`flex items-center gap-2 ${isLastSelected ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        disabled={isLastSelected}
+                        onCheckedChange={() => toggleProtocol(p.id)}
+                      />
+                      <span className="text-sm">{p.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground">At least one source must stay selected.</p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+
       {/* You sell */}
       <div className="space-y-2 rounded-xl border p-3">
         <div className="flex items-center justify-between">
