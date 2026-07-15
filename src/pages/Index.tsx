@@ -3,6 +3,8 @@ import { LandingPage } from "@/components/LandingPage";
 import { LoadingPill } from "@/components/ui/loading-pill";
 import { Footer } from "@/components/Footer";
 import { DeepLinkHandler } from "@/components/DeepLinkHandler";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 // Lazy load heavy components to improve TTI
 const AccountOverview = lazy(() => import("@/components/AccountOverview"));
@@ -24,16 +26,18 @@ type AppState = "connecting" | "dashboard" | "transaction" | "multisig-config";
 const Index = memo(() => {
   const { toast } = useToast();
   const { network, setNetwork } = useNetwork();
-  const { disconnectWallet } = useWalletKit();
+  const { disconnectWallet, connectedWallet: kitConnectedWallet, fetchActiveAddress } = useWalletKit();
   const { dedupe } = useRequestDeduplication();
 
   const [appState, setAppState] = useState<AppState>("connecting");
   const [connectedWallet, setConnectedWallet] = useState<string>("");
   const [accountData, setAccountData] = useState<AccountData | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [publicKey, setPublicKey] = useState<string>(""); // Connected wallet's public key (signer)
   const [sourceAccount, setSourceAccount] = useState<string>(""); // Source account for transactions (editable)
   const [deepLinkReady, setDeepLinkReady] = useState(false);
+  const [liveWalletAddress, setLiveWalletAddress] = useState<string | null>(null);
   const addressDeepLinkHandled = useRef(false);
 
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
@@ -104,6 +108,8 @@ const Index = memo(() => {
         setAppState("dashboard");
       }
 
+      setAccountError(null);
+
       // Defer account data fetching to not block TTI
       setTimeout(async () => {
         try {
@@ -117,19 +123,14 @@ const Index = memo(() => {
           setLoading(false);
         } catch (error) {
           if (import.meta.env.DEV) console.error("Failed to load account:", error);
-          toast({
-            title: "Failed to load account",
-            description: error instanceof Error ? error.message : "Could not load account data",
-            variant: "destructive",
-          });
-
-          // Fall back to connection screen
-          setAppState("connecting");
+          // Keep the user on the account page and surface the error inline with a retry option,
+          // instead of bouncing back to the landing page where they cannot retry.
+          setAccountError(error instanceof Error ? error.message : "Could not load account data");
           setLoading(false);
         }
       }, 100); // Small delay to allow UI transition first
     },
-    [setNetwork, dedupe, toast],
+    [setNetwork, dedupe],
   );
 
   // Watch-only deep link: ?address=G...&network=mainnet|testnet (?public_key= accepted as alias)
@@ -166,6 +167,47 @@ const Index = memo(() => {
     handleWalletConnect("watch-only", address, selectedNetwork);
   }, [network, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Detect when the user switches the active account in their wallet (e.g. Freighter)
+  // after connecting. Poll the live address for hot wallets connected via the kit
+  // (skip watch-only and hardware wallets, which shouldn't be polled).
+  useEffect(() => {
+    if (!kitConnectedWallet || !publicKey) {
+      setLiveWalletAddress(null);
+      return;
+    }
+    const id = kitConnectedWallet.id.toLowerCase();
+    if (id.includes('ledger') || id.includes('trezor')) return;
+
+    let stopped = false;
+    const check = async () => {
+      const live = await fetchActiveAddress();
+      if (!stopped && live) setLiveWalletAddress(live);
+    };
+    check();
+    const interval = setInterval(check, 3000);
+    return () => { stopped = true; clearInterval(interval); };
+  }, [kitConnectedWallet, publicKey, fetchActiveAddress]);
+
+  // The wallet's active account no longer matches the account we connected with.
+  const walletAccountChanged = Boolean(
+    kitConnectedWallet && liveWalletAddress && publicKey && liveWalletAddress !== publicKey
+  );
+
+  const handleReconnectWallet = useCallback(() => {
+    disconnectWallet();
+    sessionStorage.removeItem("deeplink-xdr");
+    sessionStorage.removeItem("deeplink-refractor-id");
+    sessionStorage.removeItem("deeplink-source-account");
+    setConnectedWallet("");
+    setPublicKey("");
+    setSourceAccount("");
+    setAccountData(null);
+    setAccountError(null);
+    setLiveWalletAddress(null);
+    setDeepLinkReady(false);
+    setAppState("connecting");
+  }, [disconnectWallet]);
+
   // Memoize frequently used callbacks
   const handleInitiateTransaction = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -191,6 +233,7 @@ const Index = memo(() => {
     setPublicKey("");
     setSourceAccount("");
     setAccountData(null);
+    setAccountError(null);
     setDeepLinkReady(false);
     setAppState("connecting");
   }, [disconnectWallet]);
@@ -202,6 +245,7 @@ const Index = memo(() => {
 
       setSourceAccount(newSourceAccount);
       setLoading(true);
+      setAccountError(null);
 
       try {
         const realAccountData = await dedupe(`account-${newSourceAccount}-${network}`, () =>
@@ -237,11 +281,51 @@ const Index = memo(() => {
     setAccountData(realAccountData);
   }, [sourceAccount, publicKey, network, dedupe]);
 
+  // Retry loading account data after a failure (e.g. Horizon rate limit / network error).
+  // Bypasses the dedupe cache so a recently-rejected promise isn't replayed.
+  const handleRetryLoadAccount = useCallback(async () => {
+    const accountToFetch = sourceAccount || publicKey;
+    if (!accountToFetch) return;
+    setLoading(true);
+    setAccountError(null);
+    try {
+      const realAccountData = await fetchAccountData(accountToFetch, network);
+      setAccountData(realAccountData);
+    } catch (error) {
+      if (import.meta.env.DEV) console.error("Failed to load account:", error);
+      setAccountError(error instanceof Error ? error.message : "Could not load account data");
+    } finally {
+      setLoading(false);
+    }
+  }, [sourceAccount, publicKey, network]);
+
   return (
     <FiatCurrencyProvider>
       <DeepLinkHandler onDeepLinkLoaded={handleDeepLinkLoaded} />
       <div className="min-h-screen bg-background flex flex-col">
         <div className="flex-1">
+          {/* Wallet active-account changed warning */}
+          {appState !== "connecting" && walletAccountChanged && (
+            <div className="sticky top-0 z-50 bg-warning/10 border-b border-warning/40">
+              <div className="max-w-4xl mx-auto px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-warning" />
+                  <p className="text-sm text-foreground">
+                    Your wallet's active account changed to{" "}
+                    <span className="font-address">{liveWalletAddress?.slice(0, 8)}...{liveWalletAddress?.slice(-8)}</span>,
+                    which differs from the connected account{" "}
+                    <span className="font-address">{publicKey.slice(0, 8)}...{publicKey.slice(-8)}</span>.
+                    Reconnect to use the active account.
+                  </p>
+                </div>
+                <Button size="sm" onClick={handleReconnectWallet} className="shrink-0 gap-2">
+                  <RefreshCw className="w-4 h-4" />
+                  Reconnect
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Landing Page */}
           {appState === "connecting" && <LandingPage onConnect={handleWalletConnect} />}
 
@@ -293,11 +377,30 @@ const Index = memo(() => {
           )}
 
           {appState === "dashboard" && publicKey && !accountData && (
-            <div className="min-h-screen flex items-center justify-center">
-              <div className="flex flex-col items-center gap-4">
-                <LoadingPill size="lg" glowColor="primary" />
-                <span className="text-muted-foreground">Loading dashboard...</span>
-              </div>
+            <div className="min-h-screen flex items-center justify-center p-4">
+              {accountError ? (
+                <div className="max-w-md w-full rounded-2xl border border-destructive/40 bg-destructive/5 p-6 text-center flex flex-col items-center gap-4">
+                  <div className="flex items-center gap-2 text-destructive">
+                    <AlertTriangle className="w-5 h-5" />
+                    <h2 className="text-lg font-semibold">Failed to load account</h2>
+                  </div>
+                  <p className="text-sm text-muted-foreground break-words">{accountError}</p>
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <Button onClick={handleRetryLoadAccount} disabled={loading} className="gap-2">
+                      <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                      {loading ? "Retrying..." : "Retry"}
+                    </Button>
+                    <Button variant="outline" onClick={handleDisconnect} disabled={loading}>
+                      Disconnect
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-4">
+                  <LoadingPill size="lg" glowColor="primary" />
+                  <span className="text-muted-foreground">Loading dashboard...</span>
+                </div>
+              )}
             </div>
           )}
         </div>

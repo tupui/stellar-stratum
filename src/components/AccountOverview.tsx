@@ -413,10 +413,11 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
           
           <TabsContent value="activity" className="mt-6" forceMount>
             <div style={{ display: activeTab === "activity" ? "block" : "none" }}>
-              <TransactionHistoryPanel 
-                accountPublicKey={accountData.publicKey} 
-                balances={accountData.balances} 
+              <TransactionHistoryPanel
+                accountPublicKey={accountData.publicKey}
+                balances={accountData.balances}
                 totalPortfolioValueUSD={totalValueUSD}
+                active={activeTab === "activity"}
               />
             </div>
           </TabsContent>

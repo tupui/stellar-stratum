@@ -6,8 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowDownUp, Plus, Minus, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowDownUp, Plus, Minus, Loader2 } from 'lucide-react';
+import { AssetIcon } from '@/components/AssetIcon';
+import { formatBalance } from '@/lib/balance-utils';
 import { soroswapSDK, getSoroswapNetwork } from '@/lib/soroswap-client';
+import type { AccountData } from '@/lib/stellar';
 import {
   SupportedAssetLists,
   SupportedProtocols,
@@ -20,6 +23,7 @@ import {
 
 interface SoroswapTabProps {
   accountPublicKey: string;
+  accountData?: AccountData | null;
   network: 'mainnet' | 'testnet';
   onBuild: (xdr: string) => void;
   isBuilding: boolean;
@@ -28,8 +32,27 @@ interface SoroswapTabProps {
 
 type Operation = 'swap' | 'addLiquidity' | 'removeLiquidity';
 
+const TokenIcon = ({ asset, size = 20 }: { asset: AssetInfo; size?: number }) => {
+  const [failed, setFailed] = useState(false);
+  if (asset.icon && !failed) {
+    return (
+      <img
+        src={asset.icon}
+        alt={asset.code || asset.name || ''}
+        width={size}
+        height={size}
+        className="rounded-full shrink-0"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={size} className="shrink-0" />;
+};
+
 export const SoroswapTab = ({
   accountPublicKey,
+  accountData,
   network,
   onBuild,
   isBuilding,
@@ -69,6 +92,19 @@ export const SoroswapTab = ({
     };
     fetchAssets();
   }, [network, xlmContract]);
+
+  const getAssetBalance = (a: AssetInfo): number => {
+    if (!accountData) return 0;
+    const entry = accountData.balances.find((b) =>
+      a.contract === xlmContract
+        ? b.asset_type === 'native'
+        : b.asset_code === a.code && b.asset_issuer === a.issuer
+    );
+    return entry ? parseFloat(entry.balance) : 0;
+  };
+
+  // Only tokens the account actually holds can be swapped from
+  const fromAssets = accountData ? assets.filter((a) => getAssetBalance(a) > 0) : assets;
 
   if (isLoadingAssets) {
     return (
@@ -121,6 +157,8 @@ export const SoroswapTab = ({
       {operation === 'swap' && (
         <SwapForm
           assets={assets}
+          fromAssets={fromAssets}
+          getAssetBalance={getAssetBalance}
           network={network}
           accountPublicKey={accountPublicKey}
           onBuild={onBuild}
@@ -158,6 +196,8 @@ export const SoroswapTab = ({
 
 interface SwapFormProps {
   assets: AssetInfo[];
+  fromAssets: AssetInfo[];
+  getAssetBalance: (asset: AssetInfo) => number;
   network: 'mainnet' | 'testnet';
   accountPublicKey: string;
   onBuild: (xdr: string) => void;
@@ -166,10 +206,13 @@ interface SwapFormProps {
   onError: (error: string) => void;
 }
 
-const SwapForm = ({ assets, network, accountPublicKey, onBuild, isBuilding, isTransactionBuilt, onError }: SwapFormProps) => {
+const SwapForm = ({ assets, fromAssets, getAssetBalance, network, accountPublicKey, onBuild, isBuilding, isTransactionBuilt, onError }: SwapFormProps) => {
   const [assetIn, setAssetIn] = useState('');
   const [assetOut, setAssetOut] = useState('');
-  const [amount, setAmount] = useState('');
+  // Which field the user last typed into decides the trade type:
+  // 'sell' => EXACT_IN (buy side is computed), 'buy' => EXACT_OUT (sell side is computed)
+  const [independentField, setIndependentField] = useState<'sell' | 'buy'>('sell');
+  const [typedValue, setTypedValue] = useState('');
   const [slippageBps, setSlippageBps] = useState('50');
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [isQuoting, setIsQuoting] = useState(false);
@@ -177,42 +220,66 @@ const SwapForm = ({ assets, network, accountPublicKey, onBuild, isBuilding, isTr
 
   const selectedIn = assets.find((a) => a.contract === assetIn);
   const selectedOut = assets.find((a) => a.contract === assetOut);
+  const inDecimals = selectedIn?.decimals ?? 7;
+  const outDecimals = selectedOut?.decimals ?? 7;
+  const inBalance = selectedIn ? getAssetBalance(selectedIn) : 0;
+  const outBalance = selectedOut ? getAssetBalance(selectedOut) : 0;
 
-  const handleQuote = async () => {
-    onError('');
-    setQuote(null);
-
-    if (!assetIn || !assetOut || !amount) {
-      onError('Select both assets and enter an amount');
-      return;
-    }
-    if (assetIn === assetOut) {
-      onError('Select different assets');
-      return;
-    }
-
-    setIsQuoting(true);
-    try {
-      const decimals = selectedIn?.decimals ?? 7;
-      const stroops = BigInt(Math.floor(parseFloat(amount) * 10 ** decimals));
-      const result = await soroswapSDK.quote(
-        {
-          assetIn,
-          assetOut,
-          amount: stroops,
-          tradeType: TradeType.EXACT_IN,
-          protocols: [SupportedProtocols.SOROSWAP, SupportedProtocols.AQUA],
-          slippageBps: parseInt(slippageBps) || 50,
-        },
-        getSoroswapNetwork(network)
-      );
-      setQuote(result);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Failed to get quote');
-    } finally {
-      setIsQuoting(false);
-    }
+  const sanitizeAmount = (raw: string) => {
+    let s = raw.replace(/[^0-9.]/g, '');
+    const parts = s.split('.');
+    if (parts.length > 2) s = `${parts[0]}.${parts.slice(1).join('')}`;
+    return s;
   };
+
+  const handleTypeSell = (raw: string) => {
+    setIndependentField('sell');
+    setTypedValue(sanitizeAmount(raw));
+    setQuote(null);
+  };
+  const handleTypeBuy = (raw: string) => {
+    setIndependentField('buy');
+    setTypedValue(sanitizeAmount(raw));
+    setQuote(null);
+  };
+
+  // Auto-quote (debounced): sell side -> EXACT_IN, buy side -> EXACT_OUT.
+  // State is cleared in the type/select handlers, so the effect only schedules the fetch.
+  useEffect(() => {
+    const numeric = parseFloat(typedValue);
+    if (!assetIn || !assetOut || assetIn === assetOut || !numeric || numeric <= 0) {
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      onError('');
+      setIsQuoting(true);
+      try {
+        const typedDecimals = independentField === 'sell' ? inDecimals : outDecimals;
+        const stroops = BigInt(Math.floor(numeric * 10 ** typedDecimals));
+        const result = await soroswapSDK.quote(
+          {
+            assetIn,
+            assetOut,
+            amount: stroops,
+            tradeType: independentField === 'sell' ? TradeType.EXACT_IN : TradeType.EXACT_OUT,
+            protocols: [SupportedProtocols.SOROSWAP, SupportedProtocols.AQUA],
+            slippageBps: parseInt(slippageBps) || 50,
+          },
+          getSoroswapNetwork(network)
+        );
+        if (!cancelled) setQuote(result);
+      } catch (err) {
+        if (!cancelled) {
+          setQuote(null);
+          onError(err instanceof Error ? err.message : 'Failed to get quote');
+        }
+      } finally {
+        if (!cancelled) setIsQuoting(false);
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [assetIn, assetOut, typedValue, independentField, slippageBps, network, inDecimals, outDecimals, onError]);
 
   const handleBuild = async () => {
     if (!quote) return;
@@ -232,59 +299,150 @@ const SwapForm = ({ assets, network, accountPublicKey, onBuild, isBuilding, isTr
   };
 
   const loading = isBuildingTx || isBuilding;
-  const outDecimals = selectedOut?.decimals ?? 7;
+
+  const fmtUnits = (raw: bigint | undefined, decimals: number) => {
+    if (raw === undefined || raw === null) return '';
+    const v = Number(raw) / 10 ** decimals;
+    return v.toFixed(7).replace(/\.?0+$/, '');
+  };
+
+  // The side the user did NOT type is computed from the quote
+  const derivedSell = quote && independentField === 'buy' && quote.tradeType === TradeType.EXACT_OUT
+    ? fmtUnits(quote.amountIn, inDecimals)
+    : undefined;
+  const derivedBuy = quote && independentField === 'sell' && quote.tradeType === TradeType.EXACT_IN
+    ? fmtUnits(quote.amountOut, outDecimals)
+    : undefined;
+
+  const sellDisplay = independentField === 'sell' ? typedValue : (derivedSell ?? '');
+  const buyDisplay = independentField === 'buy' ? typedValue : (derivedBuy ?? '');
+
+  // Slippage bound from the quote
+  const minReceived = quote && quote.tradeType === TradeType.EXACT_IN
+    ? fmtUnits(quote.otherAmountThreshold, outDecimals)
+    : undefined;
+  const maxSold = quote && quote.tradeType === TradeType.EXACT_OUT
+    ? fmtUnits(quote.otherAmountThreshold, inDecimals)
+    : undefined;
 
   return (
-    <div className="space-y-4">
-      {/* Asset In */}
-      <div className="space-y-2">
-        <Label>From</Label>
-        <Select value={assetIn} onValueChange={(v) => { setAssetIn(v); setQuote(null); }}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select token" />
-          </SelectTrigger>
-          <SelectContent>
-            {assets.map((a) => (
-              <SelectItem key={a.contract} value={a.contract!}>
-                {a.code || a.name || a.contract}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="space-y-2">
+      {/* You sell */}
+      <div className="space-y-2 rounded-xl border p-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs text-muted-foreground">You sell</Label>
+          {selectedIn && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground"
+              disabled={inBalance <= 0}
+              onClick={() => handleTypeSell(inBalance.toString())}
+            >
+              Balance: <span className="font-mono">{formatBalance(inBalance)}</span>{inBalance > 0 ? ' · MAX' : ''}
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={assetIn} onValueChange={(v) => { setAssetIn(v); setQuote(null); }}>
+            <SelectTrigger className="w-[150px] shrink-0">
+              <SelectValue placeholder="Select token">
+                {selectedIn && (
+                  <div className="flex items-center gap-2">
+                    <TokenIcon asset={selectedIn} />
+                    <span className="truncate">{selectedIn.code || selectedIn.name || selectedIn.contract}</span>
+                  </div>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {fromAssets.length === 0 && (
+                <div className="px-3 py-2 text-sm text-muted-foreground">No tokens with an active balance</div>
+              )}
+              {fromAssets.map((a) => (
+                <SelectItem key={a.contract} value={a.contract!}>
+                  <div className="flex items-center gap-2 min-w-[220px]">
+                    <TokenIcon asset={a} />
+                    <span className="font-medium">{a.code || a.name || a.contract}</span>
+                    <span className="ml-auto font-mono text-xs text-muted-foreground">{formatBalance(getAssetBalance(a))}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1">
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
+              className="text-right"
+              value={sellDisplay}
+              onChange={(e) => handleTypeSell(e.target.value)}
+            />
+            {independentField === 'buy' && isQuoting && (
+              <Loader2 className="w-4 h-4 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Asset Out */}
-      <div className="space-y-2">
-        <Label>To</Label>
-        <Select value={assetOut} onValueChange={(v) => { setAssetOut(v); setQuote(null); }}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select token" />
-          </SelectTrigger>
-          <SelectContent>
-            {assets.map((a) => (
-              <SelectItem key={a.contract} value={a.contract!}>
-                {a.code || a.name || a.contract}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Direction indicator */}
+      <div className="flex justify-center">
+        <div className="rounded-full border bg-muted/40 p-1.5">
+          <ArrowDownUp className="w-4 h-4 text-muted-foreground" />
+        </div>
       </div>
 
-      {/* Amount */}
-      <div className="space-y-2">
-        <Label>Amount</Label>
-        <Input
-          type="number"
-          placeholder="0.00"
-          value={amount}
-          onChange={(e) => { setAmount(e.target.value); setQuote(null); }}
-          min="0"
-          step="0.0000001"
-        />
+      {/* You buy */}
+      <div className="space-y-2 rounded-xl border p-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs text-muted-foreground">You buy</Label>
+          {selectedOut && (
+            <span className="text-xs text-muted-foreground">
+              Balance: <span className="font-mono">{formatBalance(outBalance)}</span>
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={assetOut} onValueChange={(v) => { setAssetOut(v); setQuote(null); }}>
+            <SelectTrigger className="w-[150px] shrink-0">
+              <SelectValue placeholder="Select token">
+                {selectedOut && (
+                  <div className="flex items-center gap-2">
+                    <TokenIcon asset={selectedOut} />
+                    <span className="truncate">{selectedOut.code || selectedOut.name || selectedOut.contract}</span>
+                  </div>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {assets.map((a) => (
+                <SelectItem key={a.contract} value={a.contract!}>
+                  <div className="flex items-center gap-2">
+                    <TokenIcon asset={a} />
+                    <span>{a.code || a.name || a.contract}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1">
+            <Input
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
+              className="text-right"
+              value={buyDisplay}
+              onChange={(e) => handleTypeBuy(e.target.value)}
+            />
+            {independentField === 'sell' && isQuoting && (
+              <Loader2 className="w-4 h-4 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Slippage */}
-      <div className="space-y-2">
+      <div className="space-y-2 pt-2">
         <Label>Slippage (bps)</Label>
         <Input
           type="number"
@@ -297,28 +455,22 @@ const SwapForm = ({ assets, network, accountPublicKey, onBuild, isBuilding, isTr
         <p className="text-xs text-muted-foreground">{(parseInt(slippageBps) / 100 || 0).toFixed(2)}%</p>
       </div>
 
-      {/* Get Quote */}
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={handleQuote}
-        disabled={isQuoting || !assetIn || !assetOut || !amount}
-      >
-        {isQuoting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-        <RefreshCw className="w-4 h-4 mr-2" />
-        Get Quote
-      </Button>
-
       {/* Quote Results */}
       {quote && (
         <Card>
           <CardContent className="pt-4 pb-4 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Expected output</span>
-              <span className="font-mono">
-                {(Number(quote.amountOut) / 10 ** outDecimals).toFixed(7)} {selectedOut?.code || ''}
-              </span>
-            </div>
+            {minReceived !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Minimum received</span>
+                <span className="font-mono">{minReceived} {selectedOut?.code || ''}</span>
+              </div>
+            )}
+            {maxSold !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Maximum sold</span>
+                <span className="font-mono">{maxSold} {selectedIn?.code || ''}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Price impact</span>
               <span className="font-mono">{quote.priceImpactPct}%</span>

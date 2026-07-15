@@ -48,6 +48,8 @@ interface TransactionHistoryPanelProps {
     balance: string;
   }>;
   totalPortfolioValueUSD?: number;
+  /** Whether the Activity tab is currently visible. History is only fetched while active. */
+  active?: boolean;
 }
 
 interface Filters {
@@ -67,21 +69,21 @@ interface AggregatedStats {
   avgFiat: number;
 }
 
-export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortfolioValueUSD = 0 }: TransactionHistoryPanelProps) => {
+export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortfolioValueUSD = 0, active = true }: TransactionHistoryPanelProps) => {
   const { network } = useNetwork();
   const isMobile = useIsMobile();
-  
-  const { 
-    transactions, 
-    isLoading, 
-    error, 
-    hasMore, 
-    lastSync, 
-    loadMore, 
+
+  const {
+    transactions,
+    isLoading,
+    error,
+    hasMore,
+    lastSync,
+    loadMore,
     loadProgressively,
     refresh,
     getTransactionsByDateRange
-  } = useAccountHistory(accountPublicKey);
+  } = useAccountHistory(accountPublicKey, active);
   
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
   const formatFiat = (amount: number) => formatFiatAmount(amount, quoteCurrency);
@@ -374,13 +376,14 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     await loadProgressively();
   };
 
-  // Kick off progressive loading only if we need more data
+  // Kick off progressive loading only while the Activity tab is active and we need more data
   useEffect(() => {
+    if (!active) return;
     // Only start progressive loading if we have some transactions but want more
     if (transactions.length > 0 && transactions.length < 1000 && hasMore && !isLoading) {
       loadProgressively();
     }
-  }, [transactions.length, hasMore, isLoading, loadProgressively]);
+  }, [active, transactions.length, hasMore, isLoading, loadProgressively]);
 
   const truncateAddress = (address?: string | null) => {
     if (!address || typeof address !== 'string') return '—';
