@@ -1054,6 +1054,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
                   <TabsContent value="soroswap" className="space-y-4 mt-4">
                     <SoroswapTab
                       accountPublicKey={accountPublicKey}
+                      accountData={accountData}
                       network={currentNetwork}
                       onBuild={handleSdkBuild}
                       isBuilding={isBuilding}

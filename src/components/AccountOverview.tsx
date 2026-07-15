@@ -3,7 +3,7 @@ import { TransactionBuilder as StellarTransactionBuilder, Keypair } from '@stell
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp, X, Share2 } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp, X, Share2, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -338,6 +338,20 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                   >
                     <Share2 className="w-4 h-4" />
                   </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    title="View on Stellar Expert"
+                  >
+                    <a
+                      href={`https://stellar.expert/explorer/${currentNetwork === 'testnet' ? 'testnet' : 'public'}/account/${accountData.publicKey}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -399,10 +413,11 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
           
           <TabsContent value="activity" className="mt-6" forceMount>
             <div style={{ display: activeTab === "activity" ? "block" : "none" }}>
-              <TransactionHistoryPanel 
-                accountPublicKey={accountData.publicKey} 
-                balances={accountData.balances} 
+              <TransactionHistoryPanel
+                accountPublicKey={accountData.publicKey}
+                balances={accountData.balances}
                 totalPortfolioValueUSD={totalValueUSD}
+                active={activeTab === "activity"}
               />
             </div>
           </TabsContent>

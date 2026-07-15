@@ -12,6 +12,8 @@ interface WalletKitContextType {
   disconnectWallet: () => void;
   signWithWallet: (xdr: string, walletId: string) => Promise<{ signedXdr: string; address: string; walletName: string }>;
   refreshWallets: () => Promise<void>;
+  /** Reads the wallet's currently-active address live (not the cached connect-time value). Returns null if unavailable. */
+  fetchActiveAddress: () => Promise<string | null>;
 }
 
 const WalletKitContext = createContext<WalletKitContextType | undefined>(undefined);
@@ -63,12 +65,9 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
   const connectWallet = useCallback(async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
     try {
       StellarWalletsKit.setWallet(walletId);
-      let address: string;
-      try {
-        ({ address } = await StellarWalletsKit.getAddress());
-      } catch {
-        ({ address } = await StellarWalletsKit.fetchAddress());
-      }
+      // Fetch the address live from the wallet (not the kit's cached value) so we
+      // capture the account that is actually active in the wallet right now.
+      const { address } = await StellarWalletsKit.fetchAddress();
 
       const supportedWallets = await StellarWalletsKit.refreshSupportedWallets();
       const walletInfo = supportedWallets.find(w => w.id === walletId);
@@ -98,17 +97,23 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     setConnectedWallet(null);
   }, []);
 
+  const fetchActiveAddress = useCallback(async (): Promise<string | null> => {
+    try {
+      const { address } = await StellarWalletsKit.fetchAddress();
+      return address || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const signWithWallet = useCallback(async (
     xdr: string,
     walletId: string
   ): Promise<{ signedXdr: string; address: string; walletName: string }> => {
     StellarWalletsKit.setWallet(walletId);
-    let address: string;
-    try {
-      ({ address } = await StellarWalletsKit.getAddress());
-    } catch {
-      ({ address } = await StellarWalletsKit.fetchAddress());
-    }
+    // Fetch the wallet's live active account (reflects account switches in e.g.
+    // Freighter) rather than the kit's cached connect-time address.
+    const { address } = await StellarWalletsKit.fetchAddress();
 
     const networkPassphrase = getNetworkPassphrase(network);
     const result = await StellarWalletsKit.signTransaction(xdr, {
@@ -119,11 +124,15 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     const supported = await StellarWalletsKit.refreshSupportedWallets();
     const info = supported.find(w => w.id === walletId);
 
-    return { signedXdr: result.signedTxXdr, address, walletName: info?.name || walletId };
+    // Prefer the address the wallet reports as the actual signer, so a mismatched
+    // account can never be silently attributed to the requested one.
+    const signerAddress = result.signerAddress || address;
+
+    return { signedXdr: result.signedTxXdr, address: signerAddress, walletName: info?.name || walletId };
   }, [network]);
 
   return (
-    <WalletKitContext.Provider value={{ kit: StellarWalletsKit, wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets }}>
+    <WalletKitContext.Provider value={{ kit: StellarWalletsKit, wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets, fetchActiveAddress }}>
       {children}
     </WalletKitContext.Provider>
   );

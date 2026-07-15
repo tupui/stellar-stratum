@@ -3,10 +3,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { RefreshCw, AlertCircle, CheckCircle, User } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle, User, Copy, Share2, ExternalLink } from 'lucide-react';
 import { isValidPublicKey } from '@/lib/validation';
 import { resolveSorobanDomain, isLikelySorobanDomain } from '@/lib/soroban-domains';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
 
 interface SourceAccountSelectorProps {
   sourceAccount: string;
@@ -27,6 +28,7 @@ export const SourceAccountSelector = ({
   const [isResolving, setIsResolving] = useState(false);
   const [resolvedAddress, setResolvedAddress] = useState<string>('');
   const [validationError, setValidationError] = useState<string>('');
+  const { toast } = useToast();
 
   // Sync input value when sourceAccount prop changes
   useEffect(() => {
@@ -112,6 +114,27 @@ export const SourceAccountSelector = ({
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
   };
 
+  const isValidAccount = isValidPublicKey(sourceAccount);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(sourceAccount);
+    toast({ title: 'Address copied', duration: 2000 });
+  };
+
+  const handleShare = () => {
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('public_key', sourceAccount);
+    if (network === 'testnet') url.searchParams.set('network', 'testnet');
+    navigator.clipboard.writeText(url.toString());
+    toast({
+      title: 'Account link copied',
+      description: `Opening it loads ${truncateKey(sourceAccount)} directly`,
+      duration: 3000,
+    });
+  };
+
+  const explorerUrl = `https://stellar.expert/explorer/${network === 'testnet' ? 'testnet' : 'public'}/account/${sourceAccount}`;
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -119,11 +142,28 @@ export const SourceAccountSelector = ({
           <User className="w-4 h-4" />
           Source Account
         </Label>
-        {isDifferent && (
-          <Badge variant="outline" className="text-xs border-yellow-500/50 text-yellow-600 dark:text-yellow-400">
-            Different from wallet
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {isDifferent && (
+            <Badge variant="outline" className="text-xs border-yellow-500/50 text-yellow-600 dark:text-yellow-400">
+              Different from wallet
+            </Badge>
+          )}
+          {isValidAccount && (
+            <div className="flex items-center">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleCopy} title="Copy address">
+                <Copy className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleShare} title="Copy shareable link to this account">
+                <Share2 className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild title="View on Stellar Expert">
+                <a href={explorerUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
       
       <div className="flex gap-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { 
   fetchAccountPayments,
@@ -66,7 +66,7 @@ const memoryCache = new Map<string, {
 }>();
 const MEMORY_CACHE_TTL = 30 * 60 * 1000; // 30 minutes - longer for immutable historical data
 
-export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
+export const useAccountHistory = (publicKey: string, enabled: boolean = true): AccountHistoryHook => {
   const { network } = useNetwork();
   const [transactions, setTransactions] = useState<NormalizedTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,6 +74,21 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
   const [hasMore, setHasMore] = useState(true);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [cursor, setCursor] = useState<string | undefined>();
+
+  // Mirror the latest state into refs so the progressive loader reads current
+  // values instead of stale closures (which caused an infinite pagination loop).
+  const hasMoreRef = useRef(hasMore);
+  const isLoadingRef = useRef(isLoading);
+  const transactionsRef = useRef(transactions);
+  const cursorRef = useRef(cursor);
+  const enabledRef = useRef(enabled);
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+    isLoadingRef.current = isLoading;
+    transactionsRef.current = transactions;
+    cursorRef.current = cursor;
+    enabledRef.current = enabled;
+  });
 
   // Cache key for this specific account and network
   const cacheKey = `${CACHE_KEY_PREFIX}-${publicKey}-${network}`;
@@ -314,14 +329,16 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
 
   // Load more transactions (pagination) - use RPC
   const loadMore = useCallback(async () => {
-    if (!publicKey || !hasMore || isLoading) return;
+    if (!publicKey || !enabledRef.current || !hasMoreRef.current || isLoadingRef.current) return;
 
+    isLoadingRef.current = true;
     setIsLoading(true);
     setError(null);
 
     try {
-      const currentPaymentsCursor = (cursor || '').split('|').find(s => s.startsWith('p:'))?.slice(2) || undefined;
-      const currentOpsCursor = (cursor || '').split('|').find(s => s.startsWith('o:'))?.slice(2) || undefined;
+      const currentCursor = cursorRef.current;
+      const currentPaymentsCursor = (currentCursor || '').split('|').find(s => s.startsWith('p:'))?.slice(2) || undefined;
+      const currentOpsCursor = (currentCursor || '').split('|').find(s => s.startsWith('o:'))?.slice(2) || undefined;
 
       const [paymentsResp, opsResp] = await Promise.all([
         fetchAccountPayments(publicKey, network, currentPaymentsCursor, LOAD_MORE_LIMIT),
@@ -388,22 +405,34 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     } catch (err: any) {
       const errorMsg = (err instanceof Error ? err.message : 'Failed to load more transactions');
       setError(errorMsg);
+      // Stop pagination on error (e.g. Horizon 410 Gone or rate limit) so we don't
+      // hammer the API with the same cursor in a runaway loop.
+      hasMoreRef.current = false;
+      setHasMore(false);
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
     }
-  }, [publicKey, network, cursor, hasMore, isLoading]);
+  }, [publicKey, network, loadFromCache, saveToCache, cacheKey]);
 
-  // Load progressively to build up history
+  // Load progressively to build up history. Reads live state via refs so the loop
+  // actually observes updates and terminates (hasMore=false, enabled=false, or error).
   const loadProgressively = useCallback(async () => {
-    if (!publicKey || isLoading) return;
+    if (!enabledRef.current || !publicKey || isLoadingRef.current) return;
 
     try {
-      // Load batches until we hit limits or no more data
       let batchCount = 0;
-      const maxBatches = 100; // 100 network calls max
-      
-      while (hasMore && transactions.length < MAX_TRANSACTIONS_PER_SESSION && batchCount < maxBatches) {
+      const maxBatches = 25; // 25 × 200 records = 5k transaction cap
+
+      while (
+        enabledRef.current &&
+        hasMoreRef.current &&
+        transactionsRef.current.length < MAX_TRANSACTIONS_PER_SESSION &&
+        batchCount < maxBatches
+      ) {
         await loadMore();
+        // loadMore flips hasMore off on error or when the last page is reached.
+        if (!hasMoreRef.current) break;
         batchCount++;
         await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
       }
@@ -429,13 +458,14 @@ export const useAccountHistory = (publicKey: string): AccountHistoryHook => {
     }
   }, [loadInitial]);
 
-  // Auto-load initial data when component mounts or key params change
+  // Auto-load initial data only when enabled (e.g. the Activity tab is active),
+  // so we don't hit Horizon while the user is on another tab.
   useEffect(() => {
-    if (publicKey) {
+    if (publicKey && enabled) {
       // Always check cache first on mount, even if we have no state
       loadInitial();
     }
-  }, [publicKey, network]); // Remove loadInitial from deps to prevent loops
+  }, [publicKey, network, enabled]); // loadInitial intentionally omitted to prevent loops
 
   return {
     transactions,
