@@ -136,19 +136,13 @@ export const SourceAccountSelector = ({
             id="source-account"
             value={inputValue}
             onChange={handleInputChange}
-            placeholder="Enter source account address or domain"
+            placeholder="Enter source account address"
             className={cn(
               "font-address text-sm",
-              validationError && "border-destructive",
-              isResolving && "pr-8"
+              validationError && "border-destructive"
             )}
             disabled={disabled}
           />
-          {isResolving && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
         </div>
         
         {isDifferent && (
@@ -166,20 +160,6 @@ export const SourceAccountSelector = ({
         )}
       </div>
 
-      {/* Domain resolution result */}
-      {resolvedAddress && (
-        <div className="flex items-center justify-between p-2 bg-primary/10 border border-primary/20 rounded-lg">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-primary" />
-            <span className="text-sm">
-              Resolves to: <span className="font-address">{truncateKey(resolvedAddress)}</span>
-            </span>
-          </div>
-          <Button size="sm" variant="outline" onClick={handleUseDomain}>
-            Use Address
-          </Button>
-        </div>
-      )}
 
       {/* Validation error */}
       {validationError && (
