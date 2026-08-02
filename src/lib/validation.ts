@@ -40,21 +40,6 @@ export const isValidAmount = (amount: string): boolean => {
 };
 
 /**
- * Validates a Soroban domain name format
- */
-export const isValidDomain = (domain: string): boolean => {
-  // Basic domain validation - alphanumeric, hyphens, dots allowed
-  // No spaces, no special chars except hyphens and dots
-  const domainRegex = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/;
-  return typeof domain === 'string' && 
-         domain.length > 0 && 
-         domain.length <= 253 && 
-         domainRegex.test(domain) &&
-         !domain.startsWith('-') &&
-         !domain.endsWith('-');
-};
-
-/**
  * Sanitizes error messages for user display while preserving full error for logging
  */
 export const sanitizeError = (error: unknown): { userMessage: string; fullError: string } => {
