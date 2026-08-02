@@ -50,6 +50,25 @@
   --font-mono: 'Source Code Pro', ui-monospace, SFMono-Regular;
 }
 
+/* Tailwind v4 ignores the legacy config's backgroundImage entries, so the
+   gradient utilities used across the app are declared here. */
+@utility bg-gradient-primary {
+  background-image: var(--gradient-primary);
+}
+@utility bg-gradient-secondary {
+  background-image: var(--gradient-secondary);
+}
+@utility bg-gradient-success {
+  background-image: var(--gradient-success);
+}
+@utility bg-gradient-hero {
+  background-image: var(--gradient-hero);
+}
+@utility bg-gradient-glow {
+  background-image: var(--gradient-glow);
+}
+
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
