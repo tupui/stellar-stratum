@@ -33,7 +33,29 @@ icon registry:
 - Leave every other asset on the existing TOML path untouched, and leave the
   24h caching, in-flight dedup, and `resolveImageUrl` logic as-is.
 
-## 3. Memory note
+## 3. Trezor connection failure
+
+Trezor Connect works by loading an iframe/popup from `https://connect.trezor.io`.
+The CSP meta tag in `index.html` currently allows only
+`frame-src 'self' https://hot-labs.org`, so that iframe is blocked outright and
+the connect call never resolves — this is the most likely cause of "Trezor
+connection does not work".
+
+- Add `https://connect.trezor.io` to `frame-src` (and keep everything else in
+  the CSP as-is).
+- Surface the real failure instead of swallowing it: in
+  `WalletKitContext.connectWallet`, the hardware branch rewrites some errors but
+  otherwise wraps them; add a dev-only log of the underlying error and a
+  clearer message when the Trezor popup/iframe is blocked or closed.
+- Re-check the Trezor module init in `src/lib/walletKit.ts` (manifest fields are
+  already set) and confirm the `@trezor/utils/libESM/bigNumber` alias shim still
+  resolves after the change.
+- Because a physical device cannot be exercised in the sandbox, verification is
+  limited to: the connect modal listing Trezor, the Trezor Connect iframe/popup
+  actually loading (no CSP violation in the console), and no unhandled errors.
+  Final confirmation of a full device connect is on your side.
+
+## 4. Memory note
 
 Project memory currently says "only XLM metadata is hardcoded; all other assets
 must use TOML fetching". This change intentionally widens that to a small
@@ -42,8 +64,10 @@ SEP-1 image. The memory entry will be updated to reflect the new rule.
 
 ## Technical notes
 
-- Files touched: `src/components/WalletConnect.tsx`, `src/lib/assets.ts`, new
-  images under `public/`, deletion of the unused Ledger SVG.
+- Files touched: `src/components/WalletConnect.tsx`, `src/lib/assets.ts`,
+  `index.html` (CSP), `src/contexts/WalletKitContext.tsx`, new images under
+  `public/`, deletion of the unused Ledger SVG.
+
 - No changes to wallet connection logic, signing, pricing, or caching.
 - Verification: build + type check, and a Playwright pass on the connect modal
   and a balance list containing USDC/EURC/BLND to confirm the icons render.
