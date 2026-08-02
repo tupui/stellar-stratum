@@ -16,6 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
 import { appConfig } from '@/lib/appConfig';
 import { isValidPublicKey, sanitizeError } from '@/lib/validation';
+import { TrezorLogo } from '@/components/icons/TrezorLogo';
+
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
   onModalControl?: (isOpen: boolean) => void;
