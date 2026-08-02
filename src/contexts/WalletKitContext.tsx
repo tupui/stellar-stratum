@@ -152,7 +152,11 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
       if (import.meta.env.DEV) console.error(`[wallet] connect failed (${walletId})`, error);
 
       if (isHardwareWallet(walletId)) {
-        if (errorMsg.includes('cancelled') || errorMsg.includes('denied')) {
+        if (errorMsg.includes('connect popup') || errorMsg.includes('safe 7') || errorMsg.includes('not supported by connect')) {
+          throw new Error('Trezor Safe 7 and newer devices cannot be used through the Trezor Connect pop-up. Open the Trezor Suite desktop app (keep it running), then try again.');
+        } else if (errorMsg.includes('transport_missing') || errorMsg.includes('transport is missing') || errorMsg.includes('iframeblocked') || errorMsg.includes('iframetimeout')) {
+          throw new Error('No connection to your Trezor. Open the Trezor Suite desktop app (or install Trezor Bridge), connect your device, then try again.');
+        } else if (errorMsg.includes('cancelled') || errorMsg.includes('denied')) {
           throw new Error('Connection cancelled. Please try again and approve the connection.');
         } else if (errorMsg.includes('not found') || errorMsg.includes('no device')) {
           throw new Error('Hardware wallet not found. Please connect your device and try again.');

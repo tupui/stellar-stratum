@@ -106,7 +106,7 @@ export const WalletConnect = ({
       return 'Hardware wallet setup: 1) Connect via USB 2) Unlock device 3) Open Stellar app 4) Select account from device modal';
     }
     if (wallet.id.toLowerCase().includes('trezor')) {
-      return 'Hardware wallet setup: 1) Install Trezor Bridge 2) Connect device 3) Approve connection 4) Select account from device modal';
+      return 'Hardware wallet setup: 1) Run Trezor Suite (required for Safe 7) or install Trezor Bridge 2) Connect device 3) Approve connection 4) Select account from device modal';
     }
     if (!wallet.isAvailable) {
       return `Install the ${wallet.name} browser extension to connect`;
