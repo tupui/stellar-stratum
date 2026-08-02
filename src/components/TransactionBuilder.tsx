@@ -225,11 +225,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       const server = createHorizonServer(currentNetwork);
       await server.loadAccount(destination);
       return true;
-    } catch (error) {
-      ErrorHandlers.accountNotFound(destination);
+    } catch {
+      // A missing account is a normal case (it gets created by the payment),
+      // so don't surface an error toast here.
       return false;
     }
   }, [currentNetwork]);
+
 
   const checkTrustline = useCallback(async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
@@ -452,6 +454,24 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
           if (!payment.amount || !payment.asset) {
             throw new Error('Payment operation missing amount or asset');
           }
+
+          // Unfunded destinations must be created, not paid: `payment` fails with
+          // op_no_destination for accounts that don't exist yet.
+          const destinationExists = await checkAccountExists(payment.destination);
+          if (!destinationExists) {
+            if (payment.asset !== 'XLM') {
+              throw new Error(`${payment.destination.slice(0, 8)}… does not exist yet. Send XLM first to create it.`);
+            }
+            if (parseFloat(payment.amount) < 1) {
+              throw new Error(`Creating ${payment.destination.slice(0, 8)}… requires at least 1 XLM.`);
+            }
+            transaction.addOperation(Operation.createAccount({
+              destination: payment.destination,
+              startingBalance: payment.amount,
+            }));
+            continue;
+          }
+
           const asset = payment.asset === 'XLM'
             ? Asset.native()
             : new Asset(payment.asset, payment.assetIssuer);
@@ -461,6 +481,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
             amount: payment.amount,
           }));
         }
+
         
       } else if (pathPayment) {
         // Path payment operation

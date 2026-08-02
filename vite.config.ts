@@ -45,9 +45,16 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // @trezor/connect-plugin-stellar imports a subpath that is not declared in
+      // @trezor/utils' exports map; point it at the real ESM file.
+      "@trezor/utils/libESM/bigNumber": path.resolve(
+        __dirname,
+        "./node_modules/@trezor/utils/libESM/bigNumber.js",
+      ),
     },
     dedupe: ["react", "react-dom"],
   },
+
   optimizeDeps: {
     include: ["buffer", "process", "@stellar/stellar-base"],
   },

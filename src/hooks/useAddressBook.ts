@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { createHorizonServer } from '@/lib/stellar';
-import { resolveSorobanDomain } from '@/lib/soroban-domains';
 import { retryWithBackoff } from '@/lib/horizon-utils';
 import { safeStorage } from '@/lib/storage';
 
 export interface AddressBookEntry {
   address: string;
   label?: string;
-  sorobanDomain?: string;
   transactionCount: number;
   totalAmount: number;
   lastUsed: Date;
@@ -306,7 +304,6 @@ export const useAddressBook = (accountPublicKey?: string, network: 'mainnet' | '
     const lowerQuery = query.toLowerCase();
     return entries.filter(entry => 
       entry.address.toLowerCase().includes(lowerQuery) ||
-      entry.sorobanDomain?.toLowerCase().includes(lowerQuery) ||
       entry.label?.toLowerCase().includes(lowerQuery)
     ).slice(0, 10);
   };

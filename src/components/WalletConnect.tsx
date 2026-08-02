@@ -15,8 +15,7 @@ import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
 import { appConfig } from '@/lib/appConfig';
-import { resolveSorobanDomain } from '@/lib/soroban-domains';
-import { isValidPublicKey, isValidDomain, sanitizeError } from '@/lib/validation';
+import { isValidPublicKey, sanitizeError } from '@/lib/validation';
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
   onModalControl?: (isOpen: boolean) => void;
@@ -34,9 +33,7 @@ export const WalletConnect = ({
   const [supportedWallets, setSupportedWallets] = useState<ISupportedWallet[]>([]);
   const [loading, setLoading] = useState(true);
   const [manualAddress, setManualAddress] = useState('');
-  const [activeInput, setActiveInput] = useState<'manual' | 'soroban' | null>(null);
-  const [sorobanDomain, setSorobanDomain] = useState('tansu');
-  const [resolvingDomain, setResolvingDomain] = useState(false);
+  const [activeInput, setActiveInput] = useState<'manual' | null>(null);
   const [showMoreWallets, setShowMoreWallets] = useState(false);
   const {
     network: selectedNetwork,
@@ -134,57 +131,6 @@ export const WalletConnect = ({
       return;
     }
     onConnect("Manual Address", manualAddress.trim(), selectedNetwork);
-  };
-  const handleSorobanConnect = async () => {
-    if (!sorobanDomain.trim()) {
-      toast({
-        title: "Domain required",
-        description: "Please enter a Soroban domain name",
-        variant: "destructive",
-        duration: 3000
-      });
-      return;
-    }
-    if (!isValidDomain(sorobanDomain.trim())) {
-      toast({
-        title: "Invalid domain",
-        description: "Please enter a valid domain name",
-        variant: "destructive",
-        duration: 3000
-      });
-      return;
-    }
-    setResolvingDomain(true);
-    try {
-      const result = await resolveSorobanDomain(sorobanDomain.trim(), selectedNetwork);
-      if (result.success) {
-        setSorobanDomain('');
-        onConnect("Soroban Domain", result.address, selectedNetwork);
-      } else {
-        toast({
-          title: "Domain Not Found",
-          description: `The domain "${sorobanDomain}" could not be resolved.`,
-          variant: "destructive"
-        });
-      }
-    } catch (error: unknown) {
-      const {
-        userMessage,
-        fullError
-      } = sanitizeError(error);
-      let errorMessage = userMessage;
-      if ((error as any)?.name === 'Domain404Error') {
-        errorMessage = `Domain "${sorobanDomain}" not found`;
-      }
-      toast({
-        title: "Domain resolution failed",
-        description: errorMessage,
-        variant: "destructive",
-        duration: 3000
-      });
-    } finally {
-      setResolvingDomain(false);
-    }
   };
   const handleConnect = async (walletId: string, walletName: string) => {
     setConnecting(walletId);
@@ -306,55 +252,12 @@ export const WalletConnect = ({
             )}
           </div>
 
-          {/* Soroban Domains as expandable card */}
-          <div className="border border-border rounded-lg bg-card hover:bg-secondary/50 transition-smooth">
-            <Button 
-              variant="ghost" 
-              className="w-full justify-between h-14 md:h-16 p-4" 
-              onClick={() => setActiveInput(activeInput === 'soroban' ? null : 'soroban')}
-            >
-              <div className="flex items-center gap-3">
-                <img src="/images/soroban-domains-logo.png" alt="Soroban Domains logo" className="w-7 h-7 rounded object-contain" />
-                <div className="text-left">
-                  <div className="font-medium">Soroban Domains</div>
-                </div>
-              </div>
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-            
-            {activeInput === 'soroban' && (
-              <div className="px-4 pb-4 space-y-3 border-t border-border">
-                <div className="pt-3">
-                  <p className="text-xs text-muted-foreground">Enter a domain name to resolve to Stellar address</p>
-                </div>
-                <div className="flex gap-2">
-                  <Input 
-                    id="soroban-domain" 
-                    placeholder="mydomain" 
-                    value={sorobanDomain} 
-                    onChange={e => setSorobanDomain(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && sorobanDomain.trim() && !resolvingDomain) {
-                        handleSorobanConnect();
-                      }
-                    }}
-                    className="text-sm" 
-                  />
-                  <Button onClick={handleSorobanConnect} disabled={!sorobanDomain.trim() || resolvingDomain} size="sm">
-                    {resolvingDomain ? <RefreshCw className="w-4 h-4 mr-1 animate-spin spinner-glow" /> : <Plus className="w-4 h-4 mr-1" />}
-                    Resolve
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-
           {(() => {
         const isMobile = window.innerWidth < 768;
 
         // Define wallet order based on user requirements
-        const mobileOrder = ['xbull', 'hot', 'albedo'];
-        const desktopOrder = ['freighter', 'xbull', 'ledger', 'lobstr', 'hot', 'albedo'];
+        const mobileOrder = ['hot', 'albedo', 'xbull', 'lobstr'];
+        const desktopOrder = ['trezor', 'ledger', 'freighter', 'xbull', 'lobstr', 'hot', 'albedo', 'fordefi'];
 
         // Order and filter wallets to match exactly the requested list
         const orderAndFilter = (wallets: typeof supportedWallets, order: string[]) => {
@@ -405,7 +308,7 @@ export const WalletConnect = ({
             })}
                 </>;
         } else {
-          // Desktop: First 3 visible (since Manual + Soroban are the first two), rest in collapsible
+          // Desktop: first three wallets visible, the rest behind "See more wallets"
           const orderedWallets = orderAndFilter(supportedWallets, desktopOrder);
           const primaryWallets = orderedWallets.slice(0, 3);
           const secondaryWallets = orderedWallets.slice(3);

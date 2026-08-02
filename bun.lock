@@ -6,7 +6,6 @@
       "name": "stellar-stratum",
       "dependencies": {
         "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.2.0",
-        "@creit.tech/sorobandomains-sdk": "^0.1.6",
         "@defindex/sdk": "^0.3.0",
         "@radix-ui/react-checkbox": "^1.3.11",
         "@radix-ui/react-collapsible": "^1.1.20",
@@ -115,8 +114,6 @@
     "@coinbase/cdp-sdk": ["@coinbase/cdp-sdk@1.48.2", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@coinbase/cdp-sdk/-/cdp-sdk-1.48.2.tgz", { "dependencies": { "@solana-program/system": "^0.10.0", "@solana-program/token": "^0.9.0", "@solana/kit": "^5.5.1", "abitype": "1.0.6", "axios": "1.13.6", "axios-retry": "^4.5.0", "jose": "^6.2.0", "md5": "^2.3.0", "uncrypto": "^0.1.3", "viem": "^2.47.0", "zod": "^3.25.76" } }, "sha512-phsHxF9q4CvF8H1b//aepxy8J/pdORT+btdqv7wbQ1YOi44QYfenima15N8Ok9lZE/XqY81BebsaBkyjqBJgig=="],
 
     "@creit-tech/stellar-wallets-kit": ["@jsr/creit-tech__stellar-wallets-kit@2.2.0", "https://npm.jsr.io/~/11/@jsr/creit-tech__stellar-wallets-kit/2.2.0.tgz", { "dependencies": { "@albedo-link/intent": "0.12.0", "@creit.tech/xbull-wallet-connect": "0.4.0", "@hot-wallet/sdk": "1.0.11", "@jsr/std__encoding": "1.0.10", "@ledgerhq/hw-app-str": "7.2.8", "@ledgerhq/hw-transport": "6.31.12", "@ledgerhq/hw-transport-webusb": "6.29.12", "@lobstrco/signer-extension-api": "2.0.0", "@preact/signals": "2.9.0", "@reown/appkit": "1.8.19", "@stellar/freighter-api": "6.0.0", "@stellar/stellar-base": "14.0.1", "@trezor/connect-plugin-stellar": "9.2.6", "@trezor/connect-web": "9.7.2", "@twind/core": "1.1.3", "@twind/preset-autoprefix": "1.0.7", "@twind/preset-tailwind": "1.1.4", "@walletconnect/sign-client": "2.23.0", "@walletconnect/types": "2.23.9", "htm": "3.1.1", "preact": "^10.29.0" } }, "sha512-pqVwJZwt2NVmT8rNnqnoqJZdCtXqOmcOYZmckGxiiTVcbiWCo8BwEDE1htY8grxlgjsXTmoYT7s2XHXOrgbrHA=="],
-
-    "@creit.tech/sorobandomains-sdk": ["@creit.tech/sorobandomains-sdk@0.1.6", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@creit.tech/sorobandomains-sdk/-/sorobandomains-sdk-0.1.6.tgz", { "dependencies": { "buffer": "^6.0.3", "js-sha3": "^0.9.3" } }, "sha512-9dXTSefevgDq7TT3/SROK9DGsdaIEcVy0JIIDzgQXSv8frmFlxRtEpkI2rtdLskmcTbelhaDgb7Ga77UrHvVVw=="],
 
     "@creit.tech/xbull-wallet-connect": ["@creit.tech/xbull-wallet-connect@0.4.0", "", { "dependencies": { "rxjs": "^7.5.5", "tweetnacl": "^1.0.3", "tweetnacl-util": "^0.15.1" } }, "sha512-LrCUIqUz50SkZ4mv2hTqSmwews8CNRYVoZ9+VjLsK/1U8PByzXTxv1vZyenj6avRTG86ifpoeihz7D3D5YIDrQ=="],
 
@@ -1287,8 +1284,6 @@
     "jose": ["jose@6.2.3", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/jose/-/jose-6.2.3.tgz", {}, "sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw=="],
 
     "js-sha256": ["js-sha256@0.11.1", "", {}, "sha512-o6WSo/LUvY2uC4j7mO50a2ms7E/EAdbP0swigLV+nzHKTTaYnaLIWJ02VdXrsJX0vGedDESQnLsOekr94ryfjg=="],
-
-    "js-sha3": ["js-sha3@0.9.3", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/js-sha3/-/js-sha3-0.9.3.tgz", {}, "sha512-BcJPCQeLg6WjEx3FE591wVAevlli8lxsxm9/FzV4HXkV49TmBH38Yvrpce6fjbADGMKFrBMGTqrVz3qPIZ88Gg=="],
 
     "js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
 

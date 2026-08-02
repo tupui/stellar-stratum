@@ -24,11 +24,10 @@ Fix:
 Ordering (used by `src/contexts/WalletKitContext.tsx` sort and `src/components/WalletConnect.tsx` display):
 
 ```text
-xBull, Trezor, Ledger          <- primary (visible)
-Lobstr, HOT, Albedo, ForDefi, Freighter   <- "See more wallets"
+Trezor, Ledger, Feighter          <- primary (visible)
+xBull, Lobstr, HOT, Albedo, ForDefi   <- "See more wallets"
 ```
 
-- xBull above Freighter, Trezor above Ledger, ForDefi in "see more", Freighter last.
 - Trezor gets the existing hardware-wallet handling in `WalletConnect` (modal close/reopen, setup tooltip) — that code already keys off `trezor`.
 
 ## 3. Clean signing (send the transaction, not just the hash)
@@ -49,7 +48,6 @@ In `signWithWallet`, when the selected wallet is Ledger or Trezor:
 - Sign with the freshly selected path, and verify the returned signer address matches the signer the user chose — mismatch shows a clear toast instead of silently attaching the wrong signature.
 
 This runs on every hardware signature, not just the first.
-
 
 ## 4. Remove Soroban Domains completely
 

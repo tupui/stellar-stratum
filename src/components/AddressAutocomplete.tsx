@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Check, Clock, Users, QrCode, BookOpen } from 'lucide-react';
+import { Clock, Users, QrCode, BookOpen } from 'lucide-react';
 import { useAddressBook, type AddressBookEntry } from '@/hooks/useAddressBook';
-import { resolveSorobanDomain, isLikelySorobanDomain } from '@/lib/soroban-domains';
 import { isValidPublicKey } from '@/lib/validation';
 import { cn } from '@/lib/utils';
 
@@ -23,7 +21,7 @@ interface AddressAutocompleteProps {
 export const AddressAutocomplete = ({
   value,
   onChange,
-  placeholder = "Enter address or domain",
+  placeholder = "Enter address",
   className,
   accountPublicKey,
   network = 'mainnet',
@@ -32,8 +30,6 @@ export const AddressAutocomplete = ({
   onBlur,
 }: AddressAutocompleteProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isResolving, setIsResolving] = useState(false);
-  const [resolvedAddress, setResolvedAddress] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
@@ -71,42 +67,10 @@ export const AddressAutocomplete = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Resolve Soroban domains
-  const resolveDomain = useCallback(async () => {
-    if (isLikelySorobanDomain(value)) {
-      setIsResolving(true);
-      try {
-        const result = await resolveSorobanDomain(value, network);
-        if (result.success && result.address) {
-          setResolvedAddress(result.address);
-        } else {
-          setResolvedAddress('');
-        }
-      } catch {
-        setResolvedAddress('');
-      } finally {
-        setIsResolving(false);
-      }
-    } else {
-      setResolvedAddress('');
-    }
-  }, [value, network]);
-
-  useEffect(() => {
-    const debounceTimer = setTimeout(resolveDomain, 300);
-    return () => clearTimeout(debounceTimer);
-  }, [resolveDomain]);
-
   const handleSelect = useCallback((entry: AddressBookEntry) => {
     onChange(entry.address);
     setIsOpen(false);
   }, [onChange]);
-
-  const handleUseDomain = useCallback(() => {
-    if (resolvedAddress) {
-      onChange(resolvedAddress);
-    }
-  }, [resolvedAddress, onChange]);
 
   const toggleAddressBook = () => {
     const next = !isOpen;
@@ -145,13 +109,8 @@ export const AddressAutocomplete = ({
             onFocus={onFocus}
             onBlur={onBlur}
             placeholder={placeholder}
-            className={cn("font-address", isResolving ? "pr-8" : "", className)}
+            className={cn("font-address", className)}
           />
-          {isResolving && (
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
         </div>
         <Button
           type="button"
@@ -177,7 +136,7 @@ export const AddressAutocomplete = ({
 
 
       {/* Validation status for addresses */}
-      {!isLikelySorobanDomain(value) && value && !isValidPublicKey(value) && (
+      {value && !isValidPublicKey(value) && (
         <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg">
           <span className="text-sm text-destructive">
             Invalid Stellar address format
@@ -209,19 +168,9 @@ export const AddressAutocomplete = ({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-address text-sm truncate">
-                          {entry.sorobanDomain || formatAddress(entry.address)}
-                        </span>
-                        {entry.sorobanDomain && (
-                          <Badge variant="secondary" className="text-xs">
-                            Domain
-                          </Badge>
-                        )}
-                      </div>
-                      {entry.sorobanDomain && (
-                        <div className="font-address text-xs text-muted-foreground truncate">
                           {formatAddress(entry.address)}
-                        </div>
-                      )}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
                         <div className="flex items-center gap-1">
                           <Users className="w-3 h-3" />
