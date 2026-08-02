@@ -92,13 +92,18 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     } catch (error) {
       const errorMsg = String(error || '').toLowerCase();
 
+      if (import.meta.env.DEV) console.error(`[wallet] connect failed (${walletId})`, error);
+
       if (isHardwareWallet(walletId)) {
         if (errorMsg.includes('cancelled') || errorMsg.includes('denied')) {
           throw new Error('Connection cancelled. Please try again and approve the connection.');
         } else if (errorMsg.includes('not found') || errorMsg.includes('no device')) {
           throw new Error('Hardware wallet not found. Please connect your device and try again.');
+        } else if (errorMsg.includes('popup') || errorMsg.includes('blocked') || errorMsg.includes('iframe') || errorMsg.includes('closed')) {
+          throw new Error('Trezor Connect could not open. Allow pop-ups for this site and try again.');
         }
       }
+
 
       throw new Error(`Failed to connect to ${walletId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
