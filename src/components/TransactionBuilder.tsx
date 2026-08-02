@@ -225,11 +225,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       const server = createHorizonServer(currentNetwork);
       await server.loadAccount(destination);
       return true;
-    } catch (error) {
-      ErrorHandlers.accountNotFound(destination);
+    } catch {
+      // A missing account is a normal case (it gets created by the payment),
+      // so don't surface an error toast here.
       return false;
     }
   }, [currentNetwork]);
+
 
   const checkTrustline = useCallback(async (destination: string, assetCode: string, assetIssuer: string) => {
     if (assetCode === 'XLM') return true;
