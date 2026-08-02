@@ -208,21 +208,29 @@ const resolveImageUrl = (image: string, homeDomain: string): string => {
   }
 };
 
-// Well-known asset fallbacks for assets with CORS issues or reliable metadata
+// Curated icons for assets whose issuers publish no usable SEP-1 image.
+// Bundled locally so they never depend on an issuer CDN, IPFS gateway or CORS policy.
 const ASSET_FALLBACKS: Record<string, AssetInfo> = {
-  // EURC from Circle (circle.com blocks CORS)
+  // EURC from Circle
   'EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2': {
     code: 'EURC',
     issuer: 'GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2',
     name: 'Euro Coin',
-    image: 'https://stellar.myfilebase.com/ipfs/QmeRk7LG85cozSNey9QGARgbxYi1cG1dA1G6SNJGMTMdF2' // Official EURC logo via IPFS
+    image: '/images/assets/eurc.png'
   },
-  // USDC from Circle (circle.com blocks CORS)
+  // USDC from Circle
   'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN': {
     code: 'USDC',
     issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
     name: 'USD Coin',
-    image: 'https://stellar.myfilebase.com/ipfs/QmXPqPAv3oRiQFehNB8Lw25DLuDz8irZwpfU7e6hPsr2qS' // Official USDC logo via IPFS
+    image: '/images/assets/usdc.png'
+  },
+  // BLND from Blend
+  'BLND:GDJEHTBE6ZHUXSWFI642DCGLUOECLHPF3KSXHPXTSTJ7E3JF6MQ5EZYY': {
+    code: 'BLND',
+    issuer: 'GDJEHTBE6ZHUXSWFI642DCGLUOECLHPF3KSXHPXTSTJ7E3JF6MQ5EZYY',
+    name: 'Blend',
+    image: '/images/assets/blnd.png'
   },
   // Native XLM
   'XLM:': {
@@ -231,6 +239,7 @@ const ASSET_FALLBACKS: Record<string, AssetInfo> = {
     image: '/xlm-logo.png'
   }
 };
+
 
 // In-flight request deduplication to prevent multiple simultaneous requests for the same asset
 const pendingRequests = new Map<string, Promise<AssetInfo>>();
