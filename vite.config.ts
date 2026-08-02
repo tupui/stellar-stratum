@@ -3,16 +3,6 @@ import react from "@vitejs/plugin-react-swc";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import path from "path";
 
-const trezorBigNumberCompatibility = {
-  name: 'trezor-big-number-compatibility',
-  enforce: 'pre' as const,
-  resolveId(source: string) {
-    if (source === '@trezor/utils/libESM/bigNumber') {
-      return path.resolve(import.meta.dirname, './src/lib/trezor-big-number.ts');
-    }
-  },
-};
-
 // https://vitejs.dev/config/
 export default defineConfig({
   server: {
@@ -39,7 +29,6 @@ export default defineConfig({
     },
   },
   plugins: [
-    trezorBigNumberCompatibility,
     nodePolyfills({
       include: ['buffer', 'process', 'crypto'],
       globals: {
@@ -54,13 +43,18 @@ export default defineConfig({
     global: 'globalThis',
   },
   resolve: {
-    alias: {
-      "@": path.resolve(import.meta.dirname, "./src"),
-    },
+    alias: [
+      {
+        find: '@trezor/utils/libESM/bigNumber',
+        replacement: path.resolve(import.meta.dirname, './src/lib/trezor-big-number.ts'),
+      },
+      { find: '@', replacement: path.resolve(import.meta.dirname, './src') },
+    ],
     dedupe: ["react", "react-dom"],
   },
 
   optimizeDeps: {
     include: ["buffer", "process", "@stellar/stellar-base"],
+    exclude: ["@trezor/connect-plugin-stellar"],
   },
 });
