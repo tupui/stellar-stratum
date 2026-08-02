@@ -10,8 +10,7 @@ import { AlertTriangle, Check, Info, Plus, Trash2, ArrowRight, ArrowDown, Trendi
 import { Slider } from '@/components/ui/slider';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
-import { resolveSorobanDomain, isLikelySorobanDomain } from '@/lib/soroban-domains';
-import { isValidPublicKey, isValidDomain, isValidAmount } from '@/lib/validation';
+import { isValidPublicKey, isValidAmount } from '@/lib/validation';
 import { useToast } from '@/hooks/use-toast';
 import { DestinationAccountInfo } from './DestinationAccountInfo';
 import { SwapInterface } from '../SwapInterface';
@@ -111,13 +110,9 @@ export const PaymentForm = ({
   // State for compact payments (previous payments)
   const [compactPayments, setCompactPayments] = useState<CompactPayment[]>([]);
   const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
-  const [resolvingDomain, setResolvingDomain] = useState(false);
 
   // State for current payment and flow control
   const [fiatValue, setFiatValue] = useState<string>('');
-  const [domainSuggestions, setDomainSuggestions] = useState<{ domain: string; address: string }[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
   const [showQRScanner, setShowQRScanner] = useState(false);
   type RecipientAsset = {
     code: string;
@@ -329,77 +324,19 @@ export const PaymentForm = ({
     }
   }, [compactPayments, quoteCurrency, assetPrices, getCurrentCurrency, formatDynamicFiatValue]);
 
-  // Helper to handle destination input and domain resolution
+  // Helper to handle destination input
   const handleDestinationChange = (inputValue: string) => {
-    const trimmedValue = inputValue.trim();
-    
-    // Update the field immediately
     onPaymentDataChange({
       ...paymentData,
-      destination: inputValue // Keep original input with spaces
+      destination: inputValue
     });
-
-    // Clear previous timer
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
-
-    // Clear suggestions if input is empty or looks like a Stellar address
-    if (!trimmedValue || isValidPublicKey(trimmedValue)) {
-      setShowSuggestions(false);
-      setDomainSuggestions([]);
-      return;
-    }
-
-    // If input looks like a domain, set up debounced resolution
-    if (isLikelySorobanDomain(trimmedValue)) {
-      const timer = setTimeout(async () => {
-        if (isValidDomain(trimmedValue)) {
-          setResolvingDomain(true);
-          const result = await resolveSorobanDomain(trimmedValue, network);
-          
-          if (result.success) {
-            setDomainSuggestions([{ domain: trimmedValue, address: result.address }]);
-            setShowSuggestions(true);
-          } else {
-            setDomainSuggestions([]);
-            setShowSuggestions(false);
-          }
-          setResolvingDomain(false);
-        }
-      }, 150);
-      
-      setDebounceTimer(timer);
-    } else {
-      setShowSuggestions(false);
-      setDomainSuggestions([]);
-    }
-  };
-
-  // Helper to select a domain suggestion
-  const selectDomainSuggestion = (suggestion: { domain: string; address: string }) => {
-    onPaymentDataChange({
-      ...paymentData,
-      destination: suggestion.address
-    });
-    setShowSuggestions(false);
-    setDomainSuggestions([]);
   };
 
   // Helper to validate destination input
   const isValidDestination = (destination: string): boolean => {
     if (!destination) return true; // Empty is valid (will show as required field)
-    return isValidPublicKey(destination) || isValidDomain(destination);
+    return isValidPublicKey(destination);
   };
-
-  // Clean up timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer);
-      }
-    };
-  }, [debounceTimer]);
   const calculateFiatValue = useCallback(async (amount: string, asset: string) => {
     const price = assetPrices[asset] || 0;
     if (price > 0) {
@@ -1092,7 +1029,7 @@ export const PaymentForm = ({
         {/* Destination */}
         <div className="space-y-2">
           <Label htmlFor="destination" className="text-sm font-medium">
-            {willCloseAccount ? 'Send All Funds To' : 'Destination Address or Domain'}
+            {willCloseAccount ? 'Send All Funds To' : 'Destination Address'}
           </Label>
           <div className="relative">
             <AddressAutocomplete
@@ -1101,15 +1038,6 @@ export const PaymentForm = ({
               accountPublicKey={accountPublicKey}
               network={network}
               onQRScan={() => setShowQRScanner(true)}
-              onFocus={() => {
-                if (domainSuggestions.length > 0) {
-                  setShowSuggestions(true);
-                }
-              }}
-              onBlur={() => {
-                // Delay hiding suggestions to allow clicking
-                setTimeout(() => setShowSuggestions(false), 150);
-              }}
               className={`text-xs font-address bg-background focus:border-primary ${
                 paymentData.destination && !isValidDestination(paymentData.destination)
                   ? 'border-destructive' 
@@ -1117,27 +1045,10 @@ export const PaymentForm = ({
               }`}
             />
             
-            {/* Domain Suggestions Dropdown */}
-            {showSuggestions && domainSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 z-50 bg-card border border-border rounded-lg shadow-lg mt-1">
-                {domainSuggestions.map((suggestion, index) => (
-                  <div 
-                    key={index}
-                    className="p-3 hover:bg-secondary cursor-pointer border-b border-border/50 last:border-b-0"
-                    onClick={() => selectDomainSuggestion(suggestion)}
-                  >
-                    <div className="text-sm font-medium text-primary">{suggestion.domain}</div>
-                    <div className="text-xs text-muted-foreground font-address">
-                      {suggestion.address.slice(0, 8)}...{suggestion.address.slice(-8)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
           {paymentData.destination && !isValidDestination(paymentData.destination) && (
             <p className="text-xs text-destructive">
-              Please enter a valid Stellar address or domain name
+              Please enter a valid Stellar address
             </p>
           )}
         </div>
