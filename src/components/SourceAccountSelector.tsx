@@ -3,9 +3,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import { RefreshCw, AlertCircle, CheckCircle, User, Copy, Share2, ExternalLink } from 'lucide-react';
+import { RefreshCw, AlertCircle, User, Copy, Share2, ExternalLink } from 'lucide-react';
 import { isValidPublicKey } from '@/lib/validation';
-import { resolveSorobanDomain, isLikelySorobanDomain } from '@/lib/soroban-domains';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,8 +24,6 @@ export const SourceAccountSelector = ({
   disabled = false,
 }: SourceAccountSelectorProps) => {
   const [inputValue, setInputValue] = useState(sourceAccount);
-  const [isResolving, setIsResolving] = useState(false);
-  const [resolvedAddress, setResolvedAddress] = useState<string>('');
   const [validationError, setValidationError] = useState<string>('');
   const { toast } = useToast();
 
@@ -38,73 +35,39 @@ export const SourceAccountSelector = ({
   // Check if source account differs from connected wallet
   const isDifferent = sourceAccount && connectedWalletKey && sourceAccount !== connectedWalletKey;
 
-  // Validate and resolve input
-  const validateAndResolve = useCallback(async (value: string) => {
+  // Validate input
+  const validate = useCallback((value: string) => {
     const trimmed = value.trim();
-    
+
     if (!trimmed) {
       setValidationError('');
-      setResolvedAddress('');
       return;
     }
 
-    // Check if it's a Soroban domain
-    if (isLikelySorobanDomain(trimmed)) {
-      setIsResolving(true);
-      setValidationError('');
-      try {
-        const result = await resolveSorobanDomain(trimmed, network);
-        if (result.success && result.address) {
-          setResolvedAddress(result.address);
-          setValidationError('');
-        } else {
-          setResolvedAddress('');
-          setValidationError('Could not resolve domain');
-        }
-      } catch {
-        setResolvedAddress('');
-        setValidationError('Failed to resolve domain');
-      } finally {
-        setIsResolving(false);
-      }
-      return;
-    }
-
-    // Validate as public key
-    setResolvedAddress('');
     if (isValidPublicKey(trimmed)) {
       setValidationError('');
       onSourceAccountChange(trimmed);
     } else {
       setValidationError('Invalid Stellar address format');
     }
-  }, [network, onSourceAccountChange]);
+  }, [onSourceAccountChange]);
 
   // Debounce validation
   useEffect(() => {
     const timer = setTimeout(() => {
-      validateAndResolve(inputValue);
+      validate(inputValue);
     }, 300);
     return () => clearTimeout(timer);
-  }, [inputValue, validateAndResolve]);
+  }, [inputValue, validate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
-  };
-
-  const handleUseDomain = () => {
-    if (resolvedAddress) {
-      setInputValue(resolvedAddress);
-      onSourceAccountChange(resolvedAddress);
-      setResolvedAddress('');
-    }
   };
 
   const handleResetToConnected = () => {
     if (connectedWalletKey) {
       setInputValue(connectedWalletKey);
       onSourceAccountChange(connectedWalletKey);
-      setResolvedAddress('');
       setValidationError('');
     }
   };
@@ -113,6 +76,7 @@ export const SourceAccountSelector = ({
     if (key.length <= 16) return key;
     return `${key.slice(0, 8)}...${key.slice(-8)}`;
   };
+
 
   const isValidAccount = isValidPublicKey(sourceAccount);
 
