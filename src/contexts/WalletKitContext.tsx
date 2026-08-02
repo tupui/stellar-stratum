@@ -48,6 +48,12 @@ const sortWallets = (wallets: ISupportedWallet[]): ISupportedWallet[] =>
     });
 
 interface HardwareAccount { publicKey: string; index: number }
+type HardwarePickerPurpose = 'connect' | 'sign';
+
+interface HardwareModule {
+  disconnect?: () => Promise<void>;
+  getAddresses?: (page?: number) => Promise<HardwareAccount[]>;
+}
 
 interface WalletKitProviderProps {
   children: ReactNode;
@@ -59,7 +65,11 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
   const [connectedWallet, setConnectedWallet] = useState<{ id: string; name: string } | null>(null);
 
   // Derivation-path picker shown before every hardware-wallet signature
-  const [picker, setPicker] = useState<{ walletName: string; accounts: HardwareAccount[] } | null>(null);
+  const [picker, setPicker] = useState<{
+    walletName: string;
+    accounts: HardwareAccount[];
+    purpose: HardwarePickerPurpose;
+  } | null>(null);
   const pickerResolver = useRef<{ resolve: (a: HardwareAccount) => void; reject: (e: Error) => void } | null>(null);
 
   const refreshWallets = useCallback(async () => {
@@ -75,16 +85,63 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     refreshWallets();
   }, [network, refreshWallets]);
 
+  const closePicker = useCallback(() => {
+    const resolver = pickerResolver.current;
+    pickerResolver.current = null;
+    setPicker(null);
+    resolver?.reject(new Error('Account selection cancelled'));
+  }, []);
+
+  const pickHardwareAccount = useCallback((
+    walletName: string,
+    accounts: HardwareAccount[],
+    purpose: HardwarePickerPurpose,
+  ) => {
+    if (accounts.length === 0) {
+      return Promise.reject(new Error(`${walletName} did not return any Stellar accounts`));
+    }
+
+    return new Promise<HardwareAccount>((resolve, reject) => {
+      pickerResolver.current = { resolve, reject };
+      setPicker({ walletName, accounts, purpose });
+    });
+  }, []);
+
+  const loadHardwareAccounts = useCallback(async (walletName: string): Promise<HardwareAccount[]> => {
+    const hardwareModule = StellarWalletsKit.selectedModule as unknown as HardwareModule;
+    try {
+      await hardwareModule.disconnect?.();
+    } catch {
+      // A stale transport may already be closed; opening a fresh one is still safe.
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    if (!hardwareModule.getAddresses) {
+      throw new Error(`${walletName} does not expose device accounts`);
+    }
+    return hardwareModule.getAddresses(0);
+  }, []);
+
   const connectWallet = useCallback(async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
     try {
       StellarWalletsKit.setWallet(walletId);
-      // Fetch the address live from the wallet (not the kit's cached value) so we
-      // capture the account that is actually active in the wallet right now.
-      const { address } = await StellarWalletsKit.fetchAddress();
-
       const supportedWallets = await StellarWalletsKit.refreshSupportedWallets();
       const walletInfo = supportedWallets.find(w => w.id === walletId);
       const walletName = walletInfo?.name || walletId;
+
+      let address: string;
+      if (isHardwareWallet(walletId)) {
+        // Trezor and Ledger cannot return an address until a derivation path has
+        // been selected. Fetch the device accounts first instead of calling the
+        // kit's path-dependent fetchAddress().
+        const accounts = await loadHardwareAccounts(walletName);
+        const selected = await pickHardwareAccount(walletName, accounts, 'connect');
+        address = selected.publicKey;
+      } else {
+        // Fetch the live active address for extension/web wallets.
+        const result = await StellarWalletsKit.fetchAddress();
+        address = result.address;
+      }
 
       setConnectedWallet({ id: walletId, name: walletName });
 
@@ -107,7 +164,7 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
 
       throw new Error(`Failed to connect to ${walletId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, []);
+  }, [loadHardwareAccounts, pickHardwareAccount]);
 
   const disconnectWallet = useCallback(() => {
     StellarWalletsKit.disconnect().catch(() => {/* ignore */});
@@ -121,19 +178,6 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     } catch {
       return null;
     }
-  }, []);
-
-  const closePicker = useCallback(() => {
-    pickerResolver.current?.reject(new Error('Account selection cancelled'));
-    pickerResolver.current = null;
-    setPicker(null);
-  }, []);
-
-  const pickHardwareAccount = useCallback((walletName: string, accounts: HardwareAccount[]) => {
-    setPicker({ walletName, accounts });
-    return new Promise<HardwareAccount>((resolve, reject) => {
-      pickerResolver.current = { resolve, reject };
-    });
   }, []);
 
   const signWithWallet = useCallback(async (
@@ -153,24 +197,12 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     if (isHardwareWallet(walletId)) {
       // Always drop the existing device connection first so the user is prompted
       // again for the derivation path (account) they want to sign with.
-      const hwModule = StellarWalletsKit.selectedModule as unknown as {
-        disconnect?: () => Promise<void>;
-        getAddresses?: (page?: number) => Promise<HardwareAccount[]>;
-      };
-      try {
-        await hwModule.disconnect?.();
-      } catch {
-        // Ignore transport close failures — a fresh transport is opened below.
-      }
-      await new Promise(r => setTimeout(r, 300));
-
-      if (!hwModule.getAddresses) throw new Error(`${walletName} does not expose device accounts`);
-      const accounts = await hwModule.getAddresses(0);
-      const selected = await pickHardwareAccount(walletName, accounts);
+      const accounts = await loadHardwareAccounts(walletName);
+      const selected = await pickHardwareAccount(walletName, accounts, 'sign');
       address = selected.publicKey;
-      path = `44'/148'/${selected.index}'`;
-      setPicker(null);
-      pickerResolver.current = null;
+      path = walletId.toLowerCase().includes('trezor')
+        ? `m/44'/148'/${selected.index}'`
+        : `44'/148'/${selected.index}'`;
     } else {
       // Fetch the wallet's live active account (reflects account switches in e.g.
       // Freighter) rather than the kit's cached connect-time address.
@@ -203,7 +235,7 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     const signerAddress = result.signerAddress || address;
 
     return { signedXdr: result.signedTxXdr, address: signerAddress, walletName };
-  }, [network, pickHardwareAccount]);
+  }, [network, loadHardwareAccounts, pickHardwareAccount]);
 
   return (
     <WalletKitContext.Provider value={{ kit: StellarWalletsKit, wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets, fetchActiveAddress }}>
@@ -213,7 +245,9 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
           <DialogHeader>
             <DialogTitle>Select {picker?.walletName} account</DialogTitle>
             <DialogDescription>
-              Choose the derivation path to sign this transaction with.
+              {picker?.purpose === 'sign'
+                ? 'Choose the derivation path to sign this transaction with.'
+                : 'Choose the Stellar account to connect.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -223,9 +257,10 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
                 variant="outline"
                 className="w-full justify-between font-address text-xs"
                 onClick={() => {
-                  pickerResolver.current?.resolve(account);
+                  const resolver = pickerResolver.current;
                   pickerResolver.current = null;
                   setPicker(null);
+                  resolver?.resolve(account);
                 }}
               >
                 <span>{account.publicKey.slice(0, 8)}…{account.publicKey.slice(-8)}</span>
