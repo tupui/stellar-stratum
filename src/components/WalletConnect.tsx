@@ -16,6 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
 import { appConfig } from '@/lib/appConfig';
 import { isValidPublicKey, sanitizeError } from '@/lib/validation';
+import { TrezorLogo } from '@/components/icons/TrezorLogo';
+
 interface WalletConnectProps {
   onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
   onModalControl?: (isOpen: boolean) => void;
@@ -66,8 +68,9 @@ export const WalletConnect = ({
   }, [selectedNetwork, refreshWallets]);
 
   const getWalletIcon = (wallet: ISupportedWallet) => {
-    const isLedger = wallet.id.toLowerCase().includes('ledger');
-    const isHardware = isLedger || wallet.id.toLowerCase().includes('trezor');
+    const id = wallet.id.toLowerCase();
+    const isLedger = id.includes('ledger');
+    const isTrezor = id.includes('trezor');
     if (isLedger) {
       return <img src="/ledger-logo.png" alt="Ledger logo" className="w-7 h-7 object-contain" onError={e => {
         // Fallback to USB icon if SVG fails to load
@@ -77,9 +80,10 @@ export const WalletConnect = ({
         if (fallback) fallback.style.display = 'flex';
       }} />;
     }
-    if (isHardware) {
-      return <Usb className="w-7 h-7 text-primary" />;
+    if (isTrezor) {
+      return <TrezorLogo className="w-7 h-7 text-foreground" />;
     }
+
     return wallet.icon ? <img src={wallet.icon} alt={wallet.name} className="w-7 h-7 rounded object-contain" onError={e => {
       // Fallback to text icon if image fails to load
       const target = e.target as HTMLImageElement;
