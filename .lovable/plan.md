@@ -38,6 +38,19 @@ Lobstr, HOT, Albedo, ForDefi, Freighter   <- "See more wallets"
 - Ledger's module supports `nonBlindTx: true`, which signs the transaction's signature base (device shows the operations) instead of a blind hash. Pass it through for Ledger/Trezor-style hardware signing.
 - Fall back automatically to hash signing if the device rejects the full-transaction payload (Soroban or oversized transactions cannot be clear-signed on-device), so nothing that works today stops working.
 
+## 3b. Always reset the hardware connection before signing
+
+Today the kit caches the transport and the derivation path (`mnemonicPath` / `hardwareWalletPaths`), so a second signature reuses whatever account was picked the first time — with no chance to choose a different path.
+
+In `signWithWallet`, when the selected wallet is Ledger or Trezor:
+
+- Close the existing connection first (Ledger module's `disconnect()` closes the WebUSB transport; Trezor Connect is torn down the same way) and clear the cached path/address state.
+- Re-open the wallet's account-selection step so the user is prompted for the derivation path on every signature.
+- Sign with the freshly selected path, and verify the returned signer address matches the signer the user chose — mismatch shows a clear toast instead of silently attaching the wrong signature.
+
+This runs on every hardware signature, not just the first.
+
+
 ## 4. Remove Soroban Domains completely
 
 Delete `src/lib/soroban-domains.ts`, drop `@creit.tech/sorobandomains-sdk` from `package.json`, remove `SOROBAN_DOMAINS` from `src/lib/appConfig.ts`, and remove `isValidDomain` from `src/lib/validation.ts` once unused.
