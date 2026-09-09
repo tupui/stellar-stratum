@@ -31,6 +31,7 @@ import { SuccessModal } from './SuccessModal';
 
 import type { AccountData } from '@/lib/stellar';
 import { buildAccountUrl, readUrlParam, updateUrlParams } from '@/lib/urlState';
+import { submitLog } from '@/lib/submitLog';
 
 const DASHBOARD_TABS = ['balances', 'activity', 'multisig'];
 const initialTabFromUrl = () => {
@@ -231,6 +232,8 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
     if (!multisigConfigXdr) return;
     
     setIsSubmittingToNetwork(true);
+    submitLog.clear();
+    submitLog.info('send button pressed', { network: currentNetwork, signatures: signedBy.length });
     try {
       const result = await submitTransaction(multisigConfigXdr, currentNetwork);
       const hash = (result as { hash?: string })?.hash || '';
@@ -241,9 +244,6 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
         xdr: multisigConfigXdr,
       });
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Network submission failed:', error);
-      }
       toast({
         title: 'Network submission failed',
         description: error instanceof Error ? error.message : 'Failed to submit to the Stellar network',

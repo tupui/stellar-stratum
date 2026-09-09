@@ -44,7 +44,9 @@ const Index = memo(() => {
   const addressDeepLinkHandled = useRef(false);
   const hasConnected = useRef(false);
   const prevAppState = useRef<AppState>("connecting");
-  // Transaction-builder tab requested by the URL (?view=transaction&tab=...), applied on first open
+  // Section requested by the URL (?view=transaction&tab=...). Applied once account data has
+  // loaded, since the transaction builder's forms need balances/signers to render.
+  const viewFromUrl = useRef<Exclude<AppState, "connecting" | "dashboard"> | null>(null);
   const initialTransactionTab = useRef<string | null>(null);
 
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
@@ -128,6 +130,10 @@ const Index = memo(() => {
           );
           setAccountData(realAccountData);
           setLoading(false);
+          if (viewFromUrl.current) {
+            setAppState(viewFromUrl.current);
+            viewFromUrl.current = null;
+          }
         } catch (error) {
           if (import.meta.env.DEV) console.error("Failed to load account:", error);
           // Keep the user on the account page and surface the error inline with a retry option,
@@ -171,7 +177,7 @@ const Index = memo(() => {
     const tab = params.get("tab");
     if (view === "transaction" || view === "multisig-config") {
       if (view === "transaction" && tab && TRANSACTION_TABS.includes(tab)) initialTransactionTab.current = tab;
-      setAppState(view);
+      viewFromUrl.current = view;
     }
   }, [network, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 

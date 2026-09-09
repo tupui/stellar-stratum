@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { updateUrlParams } from '@/lib/urlState';
+import { submitLog } from '@/lib/submitLog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -695,6 +696,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     if (!xdrToSubmit) return;
     
     setIsSubmittingToNetwork(true);
+    submitLog.clear();
+    submitLog.info('send button pressed', { tab: activeTab, network: currentNetwork, signatures: signedBy.length });
     try {
       const result = await submitTransaction(xdrToSubmit, currentNetwork);
       
@@ -707,7 +710,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       
       // If this was a multisig configuration change, refresh account data
       if (activeTab === 'multisig' && onAccountRefresh) {
+        submitLog.wait('refreshing account data from horizon');
         await onAccountRefresh();
+        submitLog.ok('account data refreshed');
       }
     } catch (error) {
       toast({

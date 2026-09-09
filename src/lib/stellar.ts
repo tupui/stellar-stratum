@@ -1,4 +1,5 @@
 import { appConfig } from './appConfig';
+import { submitLog } from './submitLog';
 
 import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
 
@@ -44,8 +45,13 @@ type HorizonErrorShape = {
     status?: number;
     type?: string;
     data?: {
+      title?: string;
+      detail?: string;
       extras?: {
+        hash?: string;
         result_codes?: { transaction?: string; operations?: string[] };
+        result_xdr?: string;
+        envelope_xdr?: string;
       };
     };
   };
@@ -100,17 +106,97 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
   }
 };
 
+// Submission progress is reported through submitLog (shown in the SubmissionTerminal and,
+// in dev builds, mirrored to the console). Horizon holds the request open until the tx is
+// included in a ledger (or ~30s+ until it gives up with a 504 tx_timeout), so the timings
+// show where the time goes and exactly what Horizon answered.
 export const submitTransaction = async (
   signedXdr: string,
   network: 'mainnet' | 'testnet' = 'mainnet',
 ): Promise<Horizon.HorizonApi.SubmitTransactionResponse> => {
+  const startedAt = performance.now();
+  const elapsed = () => `${Math.round(performance.now() - startedAt)}ms`;
   try {
     const config = getNetworkConfig(network);
     const transaction = TransactionBuilder.fromXDR(signedXdr, config.passphrase);
+    const inner = 'innerTransaction' in transaction ? transaction.innerTransaction : transaction;
+    submitLog.info('parsed signed envelope', {
+      network,
+      horizon: config.horizonUrl,
+      hash: transaction.hash().toString('hex'),
+      source: inner.source,
+      sequence: inner.sequence,
+      fee: transaction.fee,
+      operations: inner.operations.map((op) => op.type),
+      signatures: transaction.signatures.length,
+      timeBounds: inner.timeBounds,
+      xdrLength: signedXdr.length,
+    });
     const server = createHorizonServer(network);
-    return await server.submitTransaction(transaction);
+
+    // Compare the tx fee with what the network is currently charging: a fee below the
+    // surge-pricing level is the usual reason a submission sits in the queue and times out.
+    try {
+      const fees = await server.feeStats();
+      const feePerOp = Number(transaction.fee) / Math.max(1, inner.operations.length);
+      const p50 = Number(fees.fee_charged.p50);
+      submitLog.info(`network fee stats: base ${fees.last_ledger_base_fee}, charged p50 ${fees.fee_charged.p50} / p90 ${fees.fee_charged.p90} / max ${fees.fee_charged.max} stroops per op; this tx pays ${feePerOp} per op`);
+      if (feePerOp < p50) {
+        submitLog.wait(`fee ${feePerOp} is below the median charged fee ${p50} — surge pricing may delay or drop this transaction`);
+      }
+    } catch (feeError) {
+      submitLog.info('could not fetch fee stats', feeError);
+    }
+
+    submitLog.wait(`POST ${config.horizonUrl}/transactions — Horizon blocks until the tx lands in a ledger (~5s) or gives up after ~30s`);
+    try {
+      const result = await server.submitTransaction(transaction);
+      submitLog.ok(`horizon accepted the transaction after ${elapsed()}`, { hash: result.hash, ledger: result.ledger, successful: result.successful });
+      return result;
+    } catch (submitError) {
+      const horizonError = asHorizonError(submitError);
+      const status = horizonError.response?.status;
+      const codes = horizonError.response?.data?.extras?.result_codes;
+      const isTimeout = status === 504 || codes?.transaction === 'tx_timeout';
+      const hash = horizonError.response?.data?.extras?.hash || transaction.hash().toString('hex');
+      if (!isTimeout) throw submitError;
+
+      // Horizon gave up waiting, but the tx may still land. Poll for it before failing.
+      submitLog.wait(`horizon timed out after ${elapsed()} (504): the tx was queued but not yet in a ledger. Polling GET /transactions/${hash.slice(0, 12)}… for up to 60s`);
+      const deadline = performance.now() + 60_000;
+      while (performance.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 4_000));
+        try {
+          const found = await server.transactions().transaction(hash).call();
+          submitLog.ok(`transaction found in ledger ${found.ledger_attr} after ${elapsed()}`, { hash: found.hash, successful: found.successful });
+          return found as unknown as Horizon.HorizonApi.SubmitTransactionResponse;
+        } catch (pollError) {
+          const pollStatus = asHorizonError(pollError).response?.status;
+          if (pollStatus !== 404) submitLog.info(`poll error (status ${pollStatus ?? '?'})`, pollError);
+          else submitLog.wait(`not in a ledger yet (${elapsed()})`);
+        }
+      }
+      throw new Error(
+        `Horizon timed out and the transaction has not appeared in a ledger after 60s. ` +
+          `It may still be included later; check hash ${hash} before resubmitting. ` +
+          `If it never lands, the fee is likely too low for current surge pricing.`,
+      );
+    }
   } catch (error) {
-    const codes = asHorizonError(error).response?.data?.extras?.result_codes;
+    const horizonError = asHorizonError(error);
+    submitLog.error(`submission failed after ${elapsed()}`, {
+      name: horizonError.name,
+      message: horizonError.message,
+      status: horizonError.response?.status,
+      type: horizonError.response?.type,
+      title: horizonError.response?.data?.title,
+      detail: horizonError.response?.data?.detail,
+      hash: horizonError.response?.data?.extras?.hash,
+      result_codes: horizonError.response?.data?.extras?.result_codes,
+      result_xdr: horizonError.response?.data?.extras?.result_xdr,
+      raw: error,
+    });
+    const codes = horizonError.response?.data?.extras?.result_codes;
     const codeSummary = codes
       ? ` (${[codes.transaction, ...(codes.operations || [])].filter(Boolean).join(', ')})`
       : '';
