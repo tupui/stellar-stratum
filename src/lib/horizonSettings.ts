@@ -133,9 +133,9 @@ export const probeHorizon = async (rawUrl: string, network: Network): Promise<Ho
     if (typeof body.horizon_version !== 'string') return { ok: false, latencyMs: latency(), error: 'Response is not a Horizon root document' };
     const expected = network === 'testnet' ? appConfig.TESTNET_PASSPHRASE : appConfig.MAINNET_PASSPHRASE;
     if (body.network_passphrase !== expected) {
-      return { ok: false, latencyMs: latency(), version: body.horizon_version, passphrase: body.network_passphrase, error: `Serves a different network (${body.network_passphrase ?? 'unknown'})` };
+      return { ok: false, latencyMs: latency(), version: body.horizon_version.split('-')[0], passphrase: body.network_passphrase, error: `Serves a different network (${body.network_passphrase ?? 'unknown'})` };
     }
-    return { ok: true, latencyMs: latency(), version: body.horizon_version, passphrase: body.network_passphrase, latestLedger: body.history_latest_ledger };
+    return { ok: true, latencyMs: latency(), version: body.horizon_version.split('-')[0], passphrase: body.network_passphrase, latestLedger: body.history_latest_ledger };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { ok: false, latencyMs: latency(), error: /abort|timeout/i.test(message) ? 'No response within 10s' : `Unreachable (${message}); the endpoint may also be missing CORS headers` };
