@@ -15,6 +15,7 @@ import { TransactionBuilder } from './TransactionBuilder';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
+import { HorizonSettingsDialog } from './HorizonSettingsDialog';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
@@ -304,6 +305,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
               <span className="sm:hidden">Create Transaction</span>
               <span className="hidden sm:inline">Initiate Multisig Transaction</span>
             </Button>
+            <HorizonSettingsDialog className="w-full sm:w-auto" />
             <Button 
               variant="destructive" 
               onClick={onDisconnect}

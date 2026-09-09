@@ -7,6 +7,19 @@ export const appConfig = {
   // Horizon URLs
   MAINNET_HORIZON: 'https://horizon.stellar.org',  
   TESTNET_HORIZON: 'https://horizon-testnet.stellar.org',
+  // Public Horizon mirrors tried in order when the primary times out on submission.
+  // All verified to serve CORS headers and accept POST /transactions.
+  MAINNET_HORIZON_FALLBACKS: [
+    'https://horizon.stellar.lobstr.co',
+    'https://horizon.stellarx.com',
+    'https://rpc.ankr.com/http/stellar_horizon',
+  ],
+  TESTNET_HORIZON_FALLBACKS: [] as string[],
+  // Give each Horizon this long to answer a submission before moving to the next one
+  // (Horizon itself gives up after ~30s; a tx handed to one Horizon keeps propagating).
+  HORIZON_SUBMIT_ATTEMPT_MS: 20_000,
+  // After every Horizon has been tried, keep polling for the tx hash this long
+  HORIZON_SUBMIT_POLL_MS: 60_000,
   
   // Soroban RPC URLs (for oracle pricing and domain resolution)
   MAINNET_SOROBAN_RPC: 'https://rpc.lightsail.network',
