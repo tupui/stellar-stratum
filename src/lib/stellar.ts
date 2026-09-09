@@ -2,7 +2,7 @@ import { appConfig } from './appConfig';
 import { submitLog } from './submitLog';
 import { getHorizonUrls } from './horizonSettings';
 
-import { Horizon, Transaction, TransactionBuilder } from '@stellar/stellar-sdk';
+import { Horizon, Transaction, TransactionBuilder, type FeeBumpTransaction } from '@stellar/stellar-sdk';
 
 // Network configuration using centralized config. The Horizon URL honours the user's
 // endpoint settings (custom endpoints and disabled mirrors), see horizonSettings.ts.
@@ -113,6 +113,51 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
 // in dev builds, mirrored to the console). Horizon holds the request open until the tx is
 // included in a ledger (or ~30s+ until it gives up with a 504 tx_timeout), so the timings
 // show where the time goes and exactly what Horizon answered.
+/** Resource fee declared by a Soroban transaction (0 for classic transactions). */
+const getSorobanResourceFee = (transaction: Transaction | FeeBumpTransaction): number => {
+  try {
+    const inner = 'innerTransaction' in transaction ? transaction.innerTransaction : transaction;
+    const tx = inner.toEnvelope().v1().tx();
+    if (tx.ext().switch() !== 1) return 0;
+    return Number(tx.ext().sorobanData().resourceFee().toString());
+  } catch {
+    return 0;
+  }
+};
+
+interface InclusionFeeMarket {
+  min: number;
+  p50: number;
+  p90: number;
+  max: number;
+  ledgerCount: number;
+}
+
+/**
+ * Inclusion-fee percentiles from Soroban RPC getFeeStats, which separates the Soroban
+ * lane from the classic lane (Horizon's fee_stats mixes resource fees into the numbers).
+ */
+const fetchInclusionFeeMarket = async (network: 'mainnet' | 'testnet', soroban: boolean): Promise<InclusionFeeMarket> => {
+  const rpcUrl = network === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC;
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getFeeStats' }),
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!response.ok) throw new Error(`getFeeStats HTTP ${response.status}`);
+  const body = (await response.json()) as { result?: Record<string, Record<string, string>> };
+  const stats = body.result?.[soroban ? 'sorobanInclusionFee' : 'inclusionFee'];
+  if (!stats) throw new Error('getFeeStats returned no inclusion fee stats');
+  return {
+    min: Number(stats.min),
+    p50: Number(stats.p50),
+    p90: Number(stats.p90),
+    max: Number(stats.max),
+    ledgerCount: Number(stats.ledgerCount),
+  };
+};
+
 const hostOf = (url: string) => {
   try {
     return new URL(url).host;
@@ -174,18 +219,22 @@ export const submitTransaction = async (
       xdrLength: signedXdr.length,
     });
 
-    // Compare the tx fee with what the network is currently charging: a fee below the
-    // surge-pricing level is the usual reason a submission sits in the queue and times out.
+    // Priority in a busy ledger is decided by the inclusion fee alone. For a Soroban tx
+    // most of the fee is the resource fee, which buys no priority, so compare the right part.
+    const resourceFee = getSorobanResourceFee(transaction);
+    const opCount = Math.max(1, inner.operations.length);
+    const inclusionFeePerOp = (Number(transaction.fee) - resourceFee) / opCount;
+    if (resourceFee > 0) {
+      submitLog.info(`soroban tx: fee ${transaction.fee} = resource fee ${resourceFee} (no priority) + inclusion fee ${inclusionFeePerOp}`);
+    }
     try {
-      const fees = await new Horizon.Server(urls[0]).feeStats();
-      const feePerOp = Number(transaction.fee) / Math.max(1, inner.operations.length);
-      const p50 = Number(fees.fee_charged.p50);
-      const p90 = Number(fees.fee_charged.p90);
-      submitLog.info(`network fee stats: base ${fees.last_ledger_base_fee}, charged p50 ${p50} / p90 ${p90} / max ${fees.fee_charged.max} stroops per op, ledger ${Math.round(Number(fees.ledger_capacity_usage) * 100)}% full; this tx pays up to ${feePerOp} per op`);
-      if (feePerOp < p50) {
-        submitLog.wait(`fee ${feePerOp} is below the median charged fee ${p50} — surge pricing will likely delay or drop this transaction`);
-      } else if (feePerOp < p90) {
-        submitLog.wait(`fee ${feePerOp} is below the p90 charged fee ${p90} — may wait for a less busy ledger`);
+      const market = await fetchInclusionFeeMarket(network, resourceFee > 0);
+      const lane = resourceFee > 0 ? 'soroban' : 'classic';
+      submitLog.info(`${lane} inclusion fee market (last ${market.ledgerCount} ledgers): min ${market.min}, p50 ${market.p50}, p90 ${market.p90}, max ${market.max} stroops; this tx offers ${inclusionFeePerOp}`);
+      if (inclusionFeePerOp < market.p50) {
+        submitLog.wait(`inclusion fee ${inclusionFeePerOp} is below the market p50 ${market.p50}: when the ${lane} lane is full, core drops the lowest-fee transactions from its queue, so this may never land. Rebuild with a higher fee (or fee-bump it).`);
+      } else if (inclusionFeePerOp < market.p90) {
+        submitLog.wait(`inclusion fee ${inclusionFeePerOp} is below the market p90 ${market.p90}: may wait for a less busy ledger`);
       }
     } catch (feeError) {
       submitLog.info('could not fetch fee stats', feeError);
