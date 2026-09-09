@@ -15,7 +15,7 @@ import { TransactionBuilder } from './TransactionBuilder';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
@@ -30,6 +30,13 @@ import { submitToRefractor, submitTransaction, getNetworkPassphrase } from '@/li
 import { SuccessModal } from './SuccessModal';
 
 import type { AccountData } from '@/lib/stellar';
+import { buildAccountUrl, readUrlParam, updateUrlParams } from '@/lib/urlState';
+
+const DASHBOARD_TABS = ['balances', 'activity', 'multisig'];
+const initialTabFromUrl = () => {
+  const tab = readUrlParam('tab');
+  return tab && DASHBOARD_TABS.includes(tab) ? tab : 'balances';
+};
 
 interface AccountOverviewProps {
   accountData: AccountData;
@@ -41,7 +48,11 @@ interface AccountOverviewProps {
 }
 
 const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
-  const [activeTab, setActiveTab] = useState("balances");
+  const [activeTab, setActiveTab] = useState(initialTabFromUrl);
+  // Reflect the active tab in the URL so the current section can be refreshed or shared
+  useEffect(() => {
+    updateUrlParams({ tab: activeTab === 'multisig-edit' ? 'multisig' : activeTab });
+  }, [activeTab]);
   const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
   const [showEditConfirm, setShowEditConfirm] = useState(false);
   const [multisigConfigXdr, setMultisigConfigXdr] = useState<string | null>(null);
@@ -97,10 +108,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
 
   // Shareable URL that reopens this account directly (?public_key=G...), skipping manual entry
   const handleShareUrl = () => {
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('public_key', accountData.publicKey);
-    if (currentNetwork === 'testnet') url.searchParams.set('network', 'testnet');
-    navigator.clipboard.writeText(url.toString());
+    navigator.clipboard.writeText(buildAccountUrl(accountData.publicKey, currentNetwork));
     toast({
       title: 'Account link copied',
       description: `Opening it loads ${accountData.publicKey.slice(0, 8)}...${accountData.publicKey.slice(-8)} directly`,

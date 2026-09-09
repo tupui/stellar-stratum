@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { updateUrlParams } from '@/lib/urlState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -62,6 +63,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   const { signWithWallet } = useWalletKit();
   const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
   const [activeTab, setActiveTab] = useState(initialTab);
+  // Reflect the active tab in the URL so the current section can be refreshed or shared
+  useEffect(() => {
+    updateUrlParams({ tab: activeTab });
+  }, [activeTab]);
   const [defiTab, setDefiTab] = useState<string>('soroswap');
   const [paymentData, setPaymentData] = useState({
     destination: '',

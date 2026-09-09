@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
+import { buildAccountUrl } from '@/lib/urlState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -122,10 +123,7 @@ export const SourceAccountSelector = ({
   };
 
   const handleShare = () => {
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('public_key', sourceAccount);
-    if (network === 'testnet') url.searchParams.set('network', 'testnet');
-    navigator.clipboard.writeText(url.toString());
+    navigator.clipboard.writeText(buildAccountUrl(sourceAccount, network));
     toast({
       title: 'Account link copied',
       description: `Opening it loads ${truncateKey(sourceAccount)} directly`,

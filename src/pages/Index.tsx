@@ -20,8 +20,11 @@ import { FiatCurrencyProvider } from "@/contexts/FiatCurrencyContext";
 import { useNetwork } from "@/contexts/NetworkContext";
 import { useWalletKit } from "@/contexts/WalletKitContext";
 import { useRequestDeduplication } from "@/hooks/useRequestDeduplication";
+import { updateUrlParams } from "@/lib/urlState";
 
 type AppState = "connecting" | "dashboard" | "transaction" | "multisig-config";
+
+const TRANSACTION_TABS = ["payment", "contract", "defi", "import"];
 
 const Index = memo(() => {
   const { toast } = useToast();
@@ -39,6 +42,10 @@ const Index = memo(() => {
   const [deepLinkReady, setDeepLinkReady] = useState(false);
   const [liveWalletAddress, setLiveWalletAddress] = useState<string | null>(null);
   const addressDeepLinkHandled = useRef(false);
+  const hasConnected = useRef(false);
+  const prevAppState = useRef<AppState>("connecting");
+  // Transaction-builder tab requested by the URL (?view=transaction&tab=...), applied on first open
+  const initialTransactionTab = useRef<string | null>(null);
 
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
 
@@ -157,15 +164,41 @@ const Index = memo(() => {
     const selectedNetwork: "mainnet" | "testnet" =
       netParam === "testnet" ? "testnet" : netParam === "mainnet" ? "mainnet" : network;
 
-    // Clean the query params from the URL, preserving pathname/hash.
-    const cleanUrl = new URL(window.location.href);
-    cleanUrl.searchParams.delete("address");
-    cleanUrl.searchParams.delete("public_key");
-    cleanUrl.searchParams.delete("network");
-    window.history.replaceState({}, "", cleanUrl.toString());
-
     handleWalletConnect("watch-only", address, selectedNetwork);
+
+    // Restore the section the link points at (defaults to the dashboard)
+    const view = params.get("view");
+    const tab = params.get("tab");
+    if (view === "transaction" || view === "multisig-config") {
+      if (view === "transaction" && tab && TRANSACTION_TABS.includes(tab)) initialTransactionTab.current = tab;
+      setAppState(view);
+    }
   }, [network, toast]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the address bar in sync with the current account, network and section so the
+  // URL can be refreshed or shared at any point. Cleared again on disconnect.
+  useEffect(() => {
+    if (appState === "connecting") {
+      // Skip on first mount so a pasted deep link isn't wiped before it's processed.
+      if (hasConnected.current) {
+        updateUrlParams({ public_key: null, address: null, network: null, view: null, tab: null });
+      }
+      return;
+    }
+    hasConnected.current = true;
+    // Tabs are owned by the view components; drop the old one when switching views.
+    const leavingView = prevAppState.current !== "connecting" && prevAppState.current !== appState;
+    prevAppState.current = appState;
+    const account = sourceAccount || publicKey;
+    if (!account) return;
+    updateUrlParams({
+      public_key: account,
+      address: null, // legacy alias, normalised to public_key
+      network,
+      view: appState === "dashboard" ? null : appState,
+      ...(leavingView ? { tab: null } : {}),
+    });
+  }, [appState, sourceAccount, publicKey, network]);
 
   // Detect when the user switches the active account in their wallet (e.g. Freighter)
   // after connecting. Poll the live address for hot wallets connected via the kit
@@ -221,6 +254,7 @@ const Index = memo(() => {
   const handleBackToDashboard = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     setDeepLinkReady(false);
+    initialTransactionTab.current = null;
     setAppState("dashboard");
   }, []);
 
@@ -347,7 +381,13 @@ const Index = memo(() => {
                 accountPublicKey={sourceAccount || publicKey || ""}
                 signerPublicKey={publicKey}
                 accountData={accountData}
-                initialTab={appState === "multisig-config" ? "multisig" : deepLinkReady ? "import" : "payment"}
+                initialTab={
+                  appState === "multisig-config"
+                    ? "multisig"
+                    : deepLinkReady
+                      ? "import"
+                      : initialTransactionTab.current ?? "payment"
+                }
                 onAccountRefresh={handleAccountRefresh}
                 onSourceAccountChange={handleSourceAccountChange}
               />
