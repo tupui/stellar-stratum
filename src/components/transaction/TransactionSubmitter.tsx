@@ -6,6 +6,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Copy, ExternalLink, Wifi, WifiOff, Send, Fingerprint } from 'lucide-react';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
+import { SubmissionTerminal } from './SubmissionTerminal';
+import { submitLog, useSubmitLog } from '@/lib/submitLog';
 interface TransactionSubmitterProps {
   xdrOutput: string;
   signedBy: Array<{
@@ -50,8 +52,12 @@ export const TransactionSubmitter = ({
     network: currentNetwork
   } = useNetwork();
   const [isAirgappedMode, setIsAirgappedMode] = useState(false);
+  const submitEntries = useSubmitLog();
+  const showTerminal = isSubmittingToNetwork || submitEntries.length > 0;
   if (!xdrOutput && !successData) {
-    return null;
+    // Nothing to sign or send; keep the last submission log visible so it can be read
+    if (!showTerminal) return null;
+    return <SubmissionTerminal active={isSubmittingToNetwork} network={currentNetwork} onClose={submitLog.clear} />;
   }
 
   // Generate fingerprint for transaction verification
@@ -61,10 +67,14 @@ export const TransactionSubmitter = ({
   const isReadyForSubmission = canSubmitToNetwork && currentWeight >= requiredWeight;
   return <div className="space-y-6">
       {/* If ready for submission, show direct submit button */}
-      {isReadyForSubmission ? <Button onClick={onSubmitToNetwork} disabled={isSubmittingToNetwork} className="w-full" size="lg">
-          <Send className="w-4 h-4 mr-2" />
-          {isSubmittingToNetwork ? 'Submitting...' : `Send Transaction to ${currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}`}
-        </Button> :
+      {isReadyForSubmission ? <>
+          {/* While transmitting, the button turns into a live terminal; afterwards the log stays below it */}
+          {!isSubmittingToNetwork && <Button onClick={onSubmitToNetwork} className="w-full" size="lg">
+              <Send className="w-4 h-4 mr-2" />
+              {`Send Transaction to ${currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}`}
+            </Button>}
+          {showTerminal && <SubmissionTerminal active={isSubmittingToNetwork} network={currentNetwork} onClose={submitLog.clear} />}
+        </> :
     // If not ready, show coordination options
     xdrOutput && <>
             {!offlineOnly && <>

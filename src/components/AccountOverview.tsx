@@ -15,7 +15,8 @@ import { TransactionBuilder } from './TransactionBuilder';
 import { XdrDetails } from './XdrDetails';
 import { SignerSelector } from './SignerSelector';
 import { TransactionSubmitter } from './transaction/TransactionSubmitter';
-import { useState, useMemo, useCallback } from 'react';
+import { HorizonSettingsDialog } from './HorizonSettingsDialog';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AssetIcon } from './AssetIcon';
 import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
@@ -30,6 +31,14 @@ import { submitToRefractor, submitTransaction, getNetworkPassphrase } from '@/li
 import { SuccessModal } from './SuccessModal';
 
 import type { AccountData } from '@/lib/stellar';
+import { buildAccountUrl, readUrlParam, updateUrlParams } from '@/lib/urlState';
+import { submitLog } from '@/lib/submitLog';
+
+const DASHBOARD_TABS = ['balances', 'activity', 'multisig'];
+const initialTabFromUrl = () => {
+  const tab = readUrlParam('tab');
+  return tab && DASHBOARD_TABS.includes(tab) ? tab : 'balances';
+};
 
 interface AccountOverviewProps {
   accountData: AccountData;
@@ -41,7 +50,11 @@ interface AccountOverviewProps {
 }
 
 const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
-  const [activeTab, setActiveTab] = useState("balances");
+  const [activeTab, setActiveTab] = useState(initialTabFromUrl);
+  // Reflect the active tab in the URL so the current section can be refreshed or shared
+  useEffect(() => {
+    updateUrlParams({ tab: activeTab === 'multisig-edit' ? 'multisig' : activeTab });
+  }, [activeTab]);
   const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
   const [showEditConfirm, setShowEditConfirm] = useState(false);
   const [multisigConfigXdr, setMultisigConfigXdr] = useState<string | null>(null);
@@ -97,10 +110,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
 
   // Shareable URL that reopens this account directly (?public_key=G...), skipping manual entry
   const handleShareUrl = () => {
-    const url = new URL(window.location.origin + window.location.pathname);
-    url.searchParams.set('public_key', accountData.publicKey);
-    if (currentNetwork === 'testnet') url.searchParams.set('network', 'testnet');
-    navigator.clipboard.writeText(url.toString());
+    navigator.clipboard.writeText(buildAccountUrl(accountData.publicKey, currentNetwork));
     toast({
       title: 'Account link copied',
       description: `Opening it loads ${accountData.publicKey.slice(0, 8)}...${accountData.publicKey.slice(-8)} directly`,
@@ -223,6 +233,8 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
     if (!multisigConfigXdr) return;
     
     setIsSubmittingToNetwork(true);
+    submitLog.clear();
+    submitLog.info('send button pressed', { network: currentNetwork, signatures: signedBy.length });
     try {
       const result = await submitTransaction(multisigConfigXdr, currentNetwork);
       const hash = (result as { hash?: string })?.hash || '';
@@ -233,9 +245,6 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
         xdr: multisigConfigXdr,
       });
     } catch (error) {
-      if (import.meta.env.DEV) {
-        console.error('Network submission failed:', error);
-      }
       toast({
         title: 'Network submission failed',
         description: error instanceof Error ? error.message : 'Failed to submit to the Stellar network',
@@ -296,6 +305,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
               <span className="sm:hidden">Create Transaction</span>
               <span className="hidden sm:inline">Initiate Multisig Transaction</span>
             </Button>
+            <HorizonSettingsDialog className="w-full sm:w-auto" />
             <Button 
               variant="destructive" 
               onClick={onDisconnect}

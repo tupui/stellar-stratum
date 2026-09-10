@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +39,7 @@ interface SignerSelectorProps {
 
 export const SignerSelector = ({ 
   xdr,
-  signers,
+  signers: allSigners,
   currentAccountKey, 
   signedBy, 
   requiredWeight, 
@@ -50,6 +50,9 @@ export const SignerSelector = ({
   onSigned,
   pendingId
 }: SignerSelectorProps) => {
+  // Horizon lists the account's own key with weight 0 when the master key has been disabled.
+  // Such a signer cannot contribute to the threshold, so never offer it for signing.
+  const signers = useMemo(() => allSigners.filter(s => s.weight > 0), [allSigners]);
   const { network: contextNetwork } = useNetwork(); // Renamed to avoid conflict with prop
   const { wallets: allWallets, signWithWallet: contextSignWithWallet } = useWalletKit();
   const wallets = allWallets.filter(w => w.isAvailable);
