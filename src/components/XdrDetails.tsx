@@ -5,6 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Copy, FileText, Hash, User, Coins, Clock, Signature, Check, AlertTriangle, ExternalLink, Shield, Settings, Users } from 'lucide-react';
 import { generateTransactionFingerprint } from '@/lib/xdr/fingerprint';
+import { analyzeOperations, dominantProtocol } from '@/lib/protocols/detect';
+import { ProtocolSummary } from '@/components/transaction/ProtocolSummary';
+import { ProtocolBadge, UnknownContractBadge } from '@/components/transaction/ProtocolBadge';
 import { useToast } from '@/hooks/use-toast';
 import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
 import { Operation } from '@stellar/stellar-sdk';
@@ -57,6 +60,15 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
   const timeBounds = transaction.timeBounds;
   const signatures = tx.signatures;
 
+  // Soroban invocations, matched against the DeFi protocols we know how to read.
+  const networkId = networkType ?? (network === 'public' ? 'mainnet' : 'testnet');
+  const contractCalls = analyzeOperations(operations, networkId);
+  const protocol = dominantProtocol(contractCalls);
+  const protocolMatch = protocol
+    ? contractCalls.find((call) => call.match?.protocol === protocol)?.match
+    : undefined;
+  const hasUnknownCall = contractCalls.some((call) => !call.match);
+
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -80,11 +92,20 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex items-center gap-3 flex-wrap">
               <CardTitle className="text-base sm:text-lg flex items-center gap-2">
                 <Shield className="w-4 h-4" />
                 Transaction Verification
               </CardTitle>
+              {protocolMatch && (
+                <ProtocolBadge
+                  protocol={protocolMatch.protocol}
+                  role={protocolMatch.role}
+                  confidence={protocolMatch.confidence}
+                  size="sm"
+                />
+              )}
+              {!protocolMatch && hasUnknownCall && <UnknownContractBadge size="sm" />}
             </div>
             <Button
               variant="ghost"
@@ -99,6 +120,18 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
         
         <CollapsibleContent>
           <CardContent className="space-y-4">
+
+            {/* What this contract call actually does */}
+            {contractCalls.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium">Smart Contract Activity</h4>
+                <ProtocolSummary
+                  calls={contractCalls}
+                  network={networkId}
+                  offlineMode={offlineMode}
+                />
+              </div>
+            )}
 
             {/* Raw XDR */}
             <div className="p-3 bg-secondary/50 rounded-lg">
@@ -179,16 +212,33 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   </CollapsibleTrigger>
                 </div>
                 <div className="space-y-1">
-                  {operations.map((op, index) => (
-                    <div key={index} className="flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded text-sm">
-                      <Badge variant="outline" className="text-xs">{op.type}</Badge>
-                      {op.type === 'payment' && (
-                        <span className="text-muted-foreground text-xs truncate">
-                          {(op as PaymentOp).amount} {(op as PaymentOp).asset?.code || 'XLM'}
-                        </span>
-                      )}
-                    </div>
-                  ))}
+                  {operations.map((op, index) => {
+                    const call = contractCalls.find((c) => c.opIndex === index);
+                    return (
+                      <div key={index} className="flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded text-sm flex-wrap">
+                        <Badge variant="outline" className="text-xs">{op.type}</Badge>
+                        {op.type === 'payment' && (
+                          <span className="text-muted-foreground text-xs truncate">
+                            {(op as PaymentOp).amount} {(op as PaymentOp).asset?.code || 'XLM'}
+                          </span>
+                        )}
+                        {call?.match && (
+                          <>
+                            <ProtocolBadge
+                              protocol={call.match.protocol}
+                              role={call.match.role}
+                              confidence={call.match.confidence}
+                              size="sm"
+                            />
+                            <span className="text-muted-foreground text-xs truncate">
+                              {call.match.signature?.action ?? call.functionName}
+                            </span>
+                          </>
+                        )}
+                        {call && !call.match && <UnknownContractBadge size="sm" />}
+                      </div>
+                    );
+                  })}
                 </div>
                 <CollapsibleContent>
                 <div className="space-y-2 mt-2">
@@ -352,11 +402,22 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                             </div>
                           )}
                           {!['payment', 'pathPaymentStrictSend', 'accountMerge', 'changeTrust', 'setOptions'].includes(op.type) && (
-                            <div className="text-sm">
-                              <p className="text-muted-foreground">Operation details:</p>
-                              <pre className="text-xs mt-1 p-2 bg-muted rounded overflow-x-auto">
-                                {JSON.stringify(op, null, 2)}
-                              </pre>
+                            <div className="text-sm space-y-2">
+                              {contractCalls.some((c) => c.opIndex === index) ? (
+                                <p className="text-muted-foreground">
+                                  Decoded in <span className="text-foreground font-medium">Smart Contract Activity</span> above.
+                                </p>
+                              ) : (
+                                <p className="text-muted-foreground">Operation details:</p>
+                              )}
+                              <details>
+                                <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                                  View raw operation data
+                                </summary>
+                                <pre className="text-xs mt-1 p-2 bg-muted rounded overflow-x-auto">
+                                  {JSON.stringify(op, null, 2)}
+                                </pre>
+                              </details>
                             </div>
                           )}
                         </div>
