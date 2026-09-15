@@ -6,6 +6,7 @@
  *   network     mainnet | testnet
  *   view        transaction | multisig-config (absent on the dashboard)
  *   tab         active tab inside the current view
+ *   r           Refractor transaction id from a deep link (kept so the link stays shareable)
  */
 export type UrlParamUpdates = Record<string, string | null | undefined>;
 
