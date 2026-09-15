@@ -7,6 +7,9 @@ import { ChevronDown, Copy, FileText, Hash, User, Coins, Clock, Signature, Check
 import { generateTransactionFingerprint } from '@/lib/xdr/fingerprint';
 import { analyzeOperations, dominantProtocol } from '@/lib/protocols/detect';
 import { ProtocolSummary } from '@/components/transaction/ProtocolSummary';
+import { AccountChangeSummary } from '@/components/transaction/AccountChangeSummary';
+import { interpretTransaction } from '@/lib/xdr/interpret';
+import type { AccountData } from '@/lib/stellar';
 import { ProtocolBadge, UnknownContractBadge } from '@/components/transaction/ProtocolBadge';
 import { useToast } from '@/hooks/use-toast';
 import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
@@ -22,11 +25,18 @@ type PathPaymentOp = Operation & {
   destAsset?: { code?: string } 
 };
 type ChangeTrustOp = Operation & { asset?: { code?: string }; limit?: string };
-type SetOptionsOp = Operation & { 
-  signer?: { key?: string; weight?: number }; 
-  lowThreshold?: number;
-  medThreshold?: number;
-  highThreshold?: number;
+type SetOptionsOp = Operation & {
+  signer?: {
+    weight?: number;
+    ed25519PublicKey?: string;
+    preAuthTx?: string;
+    sha256Hash?: string;
+    ed25519SignedPayload?: string;
+  };
+  masterWeight?: number | null;
+  lowThreshold?: number | null;
+  medThreshold?: number | null;
+  highThreshold?: number | null;
 };
 
 interface XdrDetailsProps {
@@ -34,12 +44,15 @@ interface XdrDetailsProps {
   defaultExpanded?: boolean;
   networkType?: 'mainnet' | 'testnet';
   offlineMode?: boolean;
+  /** Current account state, used to show setOptions changes as before → after. */
+  accountData?: AccountData | null;
 }
 
-export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMode = false }: XdrDetailsProps) => {
+export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMode = false, accountData }: XdrDetailsProps) => {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
+  const [opsExpanded, setOpsExpanded] = useState(false);
 
 
   const parsed = tryParseTransaction(xdr);
@@ -68,6 +81,23 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
     ? contractCalls.find((call) => call.match?.protocol === protocol)?.match
     : undefined;
   const hasUnknownCall = contractCalls.some((call) => !call.match);
+
+  // Plain-language reading of account configuration changes. Only compare against the live
+  // account when it is the one the transaction acts on — otherwise the "before" side would
+  // describe a different account.
+  const snapshot =
+    accountData && accountData.publicKey === sourceAccount
+      ? {
+          publicKey: accountData.publicKey,
+          signers: accountData.signers.map(({ key, weight }) => ({ key, weight })),
+          thresholds: {
+            low: accountData.thresholds.low_threshold,
+            med: accountData.thresholds.med_threshold,
+            high: accountData.thresholds.high_threshold,
+          },
+        }
+      : null;
+  const interpretation = interpretTransaction(operations, { sourceAccount, account: snapshot });
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -120,6 +150,15 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
         
         <CollapsibleContent>
           <CardContent className="space-y-4">
+
+            {/* What this transaction does to the account's signers and thresholds */}
+            {interpretation && (
+              <AccountChangeSummary
+                interpretation={interpretation}
+                network={networkId}
+                offlineMode={offlineMode}
+              />
+            )}
 
             {/* What this contract call actually does */}
             {contractCalls.length > 0 && (
@@ -200,18 +239,20 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
               </div>
 
               {/* Operations */}
-              <Collapsible>
+              <Collapsible open={opsExpanded} onOpenChange={setOpsExpanded}>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium">Operations ({operations.length})</h4>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="sm">
-                      <ChevronDown className="h-4 w-4" />
-                      <span className="ml-1 text-xs">Details</span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${opsExpanded ? 'rotate-180' : ''}`} />
+                      <span className="ml-1 text-xs">{opsExpanded ? 'Hide details' : 'Details'}</span>
                     </Button>
                   </CollapsibleTrigger>
                 </div>
-                <div className="space-y-1">
+                {/* Collapsed: one line per operation. Expanded: the detailed cards below
+                    replace this list rather than stacking on top of it. */}
+                <div className={`space-y-1 ${opsExpanded ? 'hidden' : ''}`}>
                   {operations.map((op, index) => {
                     const call = contractCalls.find((c) => c.opIndex === index);
                     return (
@@ -306,101 +347,99 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                               )}
                             </div>
                           )}
-                          {op.type === 'setOptions' && (
-                            <div className="text-sm space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Settings className="w-4 h-4 text-muted-foreground" />
-                                <span className="font-medium">Account Configuration Change</span>
-                              </div>
-                              
-                              {(() => {
-                                // Try to extract signer information from the operation
-                                const setOptionsOp = op as any;
-                                const signer = setOptionsOp.signers?.[0] || setOptionsOp.signer;
-                                
-                                if (signer) {
-                                  return (
-                                    <div className="p-3 bg-secondary/50 rounded-lg">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <Users className="w-4 h-4 text-muted-foreground" />
-                                        <span className="font-medium">Signer Modification</span>
-                                      </div>
-                                      <div className="space-y-1">
-                                        <p className="break-words">
-                                          <span className="text-muted-foreground">Public Key:</span> 
-                                          <span className="font-address text-xs ml-1 break-all">
-                                            {signer.key || signer.ed25519PublicKey || 'Not specified'}
-                                          </span>
-                                        </p>
-                                        <p>
-                                          <span className="text-muted-foreground">Weight:</span> 
-                                          <span className="ml-1 font-medium">{signer.weight || 0}</span>
-                                        </p>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                
-                                // Fallback: show raw operation data if signer info is not available
-                                return (
+                          {op.type === 'setOptions' && (() => {
+                            const setOptions = op as SetOptionsOp;
+                            const signer = setOptions.signer;
+                            const signerKey =
+                              signer?.ed25519PublicKey ?? signer?.preAuthTx ?? signer?.sha256Hash ?? signer?.ed25519SignedPayload;
+                            // A threshold of 0 is meaningful, so test for presence, not truthiness.
+                            const thresholds = ([
+                              ['lowThreshold', 'Low Threshold', 'basic operations'],
+                              ['medThreshold', 'Medium Threshold', 'payment operations'],
+                              ['highThreshold', 'High Threshold', 'account changes'],
+                            ] as const).filter(([field]) => setOptions[field] !== undefined && setOptions[field] !== null);
+
+                            return (
+                              <div className="text-sm space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Settings className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-medium">Account Configuration Change</span>
+                                </div>
+
+                                {signer && (
                                   <div className="p-3 bg-secondary/50 rounded-lg">
                                     <div className="flex items-center gap-2 mb-2">
                                       <Users className="w-4 h-4 text-muted-foreground" />
-                                      <span className="font-medium">Signer Modification</span>
+                                      <span className="font-medium">
+                                        {signer.weight === 0 ? 'Signer Removal' : 'Signer Modification'}
+                                      </span>
                                     </div>
                                     <div className="space-y-1">
-                                      <p className="text-xs text-muted-foreground">
-                                        Signer configuration details are being processed...
+                                      <p className="break-words">
+                                        <span className="text-muted-foreground">Public Key:</span>
+                                        <span className="font-address text-xs ml-1 break-all">{signerKey ?? 'Not specified'}</span>
                                       </p>
-                                      <details className="text-xs">
-                                        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                          View raw operation data
-                                        </summary>
-                                        <pre className="mt-2 p-2 bg-background/50 rounded text-xs overflow-auto">
-                                          {JSON.stringify(setOptionsOp, null, 2)}
-                                        </pre>
-                                      </details>
+                                      <p>
+                                        <span className="text-muted-foreground">Weight:</span>
+                                        <span className="ml-1 font-medium">{signer.weight ?? 0}</span>
+                                        {signer.weight === 0 && (
+                                          <span className="ml-2 text-xs text-destructive">removes this signer</span>
+                                        )}
+                                      </p>
                                     </div>
                                   </div>
-                                );
-                              })()}
-                              
-                              {((op as SetOptionsOp).lowThreshold || (op as SetOptionsOp).medThreshold || (op as SetOptionsOp).highThreshold) && (
-                                <div className="p-3 bg-secondary/50 rounded-lg">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Shield className="w-4 h-4 text-muted-foreground" />
-                                    <span className="font-medium">Threshold Changes</span>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {(op as SetOptionsOp).lowThreshold !== undefined && (
-                                      <p>
-                                        <span className="text-muted-foreground">Low Threshold:</span> 
-                                        <span className="ml-1 font-medium">{(op as SetOptionsOp).lowThreshold}</span>
-                                        <span className="ml-2 text-xs text-muted-foreground">(basic operations)</span>
-                                      </p>
-                                    )}
-                                    {(op as SetOptionsOp).medThreshold !== undefined && (
-                                      <p>
-                                        <span className="text-muted-foreground">Medium Threshold:</span> 
-                                        <span className="ml-1 font-medium">{(op as SetOptionsOp).medThreshold}</span>
-                                        <span className="ml-2 text-xs text-muted-foreground">(payment operations)</span>
-                                      </p>
-                                    )}
-                                    {(op as SetOptionsOp).highThreshold !== undefined && (
-                                      <p>
-                                        <span className="text-muted-foreground">High Threshold:</span> 
-                                        <span className="ml-1 font-medium">{(op as SetOptionsOp).highThreshold}</span>
-                                        <span className="ml-2 text-xs text-muted-foreground">(account changes)</span>
-                                      </p>
-                                    )}
-                                    <p className="text-xs text-muted-foreground">
-                                      These thresholds determine how many signatures are required for different types of operations
+                                )}
+
+                                {setOptions.masterWeight !== undefined && setOptions.masterWeight !== null && (
+                                  <div className="p-3 bg-secondary/50 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <User className="w-4 h-4 text-muted-foreground" />
+                                      <span className="font-medium">Master Key Weight</span>
+                                    </div>
+                                    <p>
+                                      <span className="text-muted-foreground">Weight:</span>
+                                      <span className="ml-1 font-medium">{setOptions.masterWeight}</span>
+                                      {setOptions.masterWeight === 0 && (
+                                        <span className="ml-2 text-xs text-muted-foreground">the account can no longer sign for itself</span>
+                                      )}
                                     </p>
                                   </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                                )}
+
+                                {thresholds.length > 0 && (
+                                  <div className="p-3 bg-secondary/50 rounded-lg">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Shield className="w-4 h-4 text-muted-foreground" />
+                                      <span className="font-medium">Threshold Changes</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {thresholds.map(([field, label, hint]) => (
+                                        <p key={field}>
+                                          <span className="text-muted-foreground">{label}:</span>
+                                          <span className="ml-1 font-medium">{setOptions[field]}</span>
+                                          <span className="ml-2 text-xs text-muted-foreground">({hint})</span>
+                                        </p>
+                                      ))}
+                                      <p className="text-xs text-muted-foreground">
+                                        These are combined signer weights, not signer counts
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {!signer && thresholds.length === 0 && setOptions.masterWeight == null && (
+                                  <details className="text-xs">
+                                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                      View raw operation data
+                                    </summary>
+                                    <pre className="mt-2 p-2 bg-background/50 rounded text-xs overflow-auto">
+                                      {JSON.stringify(op, null, 2)}
+                                    </pre>
+                                  </details>
+                                )}
+                              </div>
+                            );
+                          })()}
                           {!['payment', 'pathPaymentStrictSend', 'accountMerge', 'changeTrust', 'setOptions'].includes(op.type) && (
                             <div className="text-sm space-y-2">
                               {contractCalls.some((c) => c.opIndex === index) ? (

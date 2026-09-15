@@ -612,6 +612,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
             xdr={multisigConfigXdr} 
             defaultExpanded={true} 
             networkType={currentNetwork}
+            accountData={accountData}
           />
           
           {/* Signing */}
