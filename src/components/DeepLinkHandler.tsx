@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { pullFromRefractor } from '@/lib/stellar';
@@ -13,13 +13,17 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
   const location = useLocation();
   const { toast } = useToast();
   const { setNetwork } = useNetwork();
+  // The ?r= param stays in the address bar so the link remains shareable, so guard on the
+  // id itself instead of relying on the param disappearing to stop a second import.
+  const handledRefractorId = useRef<string | null>(null);
 
   useEffect(() => {
     const handleDeepLink = async () => {
       const urlParams = new URLSearchParams(location.search);
       const refractorId = urlParams.get('r');
 
-      if (refractorId) {
+      if (refractorId && handledRefractorId.current !== refractorId) {
+        handledRefractorId.current = refractorId;
         try {
           // Pull the transaction from Refractor
           const xdr = await pullFromRefractor(refractorId);
@@ -58,11 +62,6 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
             description: 'Transaction imported from Refractor. Loading account data...',
             duration: 5000,
           });
-
-          // Clear the URL parameter to clean up the address bar
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('r');
-          window.history.replaceState({}, '', newUrl.toString());
 
           // Notify parent component that deep link was loaded with source account
           onDeepLinkLoaded?.(sourceAccount);

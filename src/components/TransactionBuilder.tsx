@@ -1125,6 +1125,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
           <XdrDetails 
             xdr={xdrData.output || xdrData.input}
             networkType={currentNetwork}
+            accountData={accountData}
           />
         )}
 

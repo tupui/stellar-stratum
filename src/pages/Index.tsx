@@ -187,7 +187,7 @@ const Index = memo(() => {
     if (appState === "connecting") {
       // Skip on first mount so a pasted deep link isn't wiped before it's processed.
       if (hasConnected.current) {
-        updateUrlParams({ public_key: null, address: null, network: null, view: null, tab: null });
+        updateUrlParams({ public_key: null, address: null, network: null, view: null, tab: null, r: null });
       }
       return;
     }
