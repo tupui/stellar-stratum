@@ -286,7 +286,7 @@ export const MultisigConfigBuilder = ({
 
       // Build the transaction
       const builtTransaction = transaction.build();
-      const xdr = builtTransaction.toXDR();
+      const xdr = builtTransaction.toXdr();
 
       // Transaction built successfully
       onXdrGenerated(xdr);

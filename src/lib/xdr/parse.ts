@@ -1,4 +1,4 @@
-import { Transaction, FeeBumpTransaction, TransactionBuilder, Networks } from '@stellar/stellar-sdk';
+import { Transaction, FeeBumpTransaction, TransactionBuilder, Networks, xdr as StellarXdr } from '@stellar/stellar-sdk';
 
 interface ParsedTransaction {
   tx: Transaction | FeeBumpTransaction;
@@ -23,7 +23,7 @@ export const tryParseTransaction = (xdr: string): ParsedTransaction | null => {
     try {
       // Try parsing as fee-bump transaction first
       try {
-        const feeBumpTx = TransactionBuilder.fromXDR(xdr, passphrase) as FeeBumpTransaction;
+        const feeBumpTx = TransactionBuilder.fromXdr(xdr, passphrase) as FeeBumpTransaction;
         if (feeBumpTx && 'innerTransaction' in feeBumpTx) {
           return {
             tx: feeBumpTx,
@@ -59,3 +59,9 @@ export const getInnerTransaction = (tx: Transaction | FeeBumpTransaction): Trans
   }
   return tx as Transaction;
 };
+
+/**
+ * Hex-encoded transaction hash, the ID used by Horizon, Refractor and explorers
+ */
+export const getTransactionHash = (tx: Transaction | FeeBumpTransaction): string =>
+  StellarXdr.encodeBytes(tx.hash(), 'hex');

@@ -34,12 +34,12 @@ interface ParsedFunction {
 
 const parseFunction = (loaded: LoadedContract, name: string): ParsedFunction => {
   const fn = loaded.spec.getFunc(name);
-  const params = fn.inputs().map((input) => classifyParam(input.name().toString(), input.type()));
-  const outputs = fn.outputs();
+  const params = fn.inputs.map((input) => classifyParam(input.name.toString(), input.type));
+  const outputs = fn.outputs;
   const returnLabel = outputs.length === 0
     ? 'void'
     : outputs.map((t) => classifyParam('', t).typeLabel).join(', ');
-  return { params, returnLabel, doc: fn.doc().toString() };
+  return { params, returnLabel, doc: fn.doc.toString() };
 };
 
 export const ContractFunctionForm = ({
@@ -109,7 +109,7 @@ export const ContractFunctionForm = ({
     setBusy('build');
     try {
       const tx = await buildAssembled();
-      const xdr = tx.toXDR();
+      const xdr = tx.toXdr();
       onBuild(xdr);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Build failed');

@@ -125,7 +125,7 @@ const asAddressList = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 
 /**
- * `scValToNative` hands back BigInt, Buffer and Map values. Convert them to
+ * `scValToNative` hands back BigInt, Uint8Array and Map values. Convert them to
  * plain JSON-safe shapes so decoded arguments can be rendered (and diffed by
  * React) without special-casing every consumer.
  */
@@ -147,26 +147,26 @@ const decodeCall = (op: TxOperation, opIndex: number): ContractCall | null => {
   if (op.type !== 'invokeHostFunction') return null;
 
   const func = (op as Operation.InvokeHostFunction).func;
-  if (func.switch().name !== 'hostFunctionTypeInvokeContract') return null;
+  if (func.type !== 'hostFunctionTypeInvokeContract') return null;
 
-  const invocation = func.invokeContract();
+  const invocation = func.invokeContract;
 
   let contractId: string;
   try {
-    contractId = Address.fromScAddress(invocation.contractAddress()).toString();
+    contractId = Address.fromScAddress(invocation.contractAddress).toString();
   } catch {
     return null;
   }
 
-  const functionName = invocation.functionName().toString();
-  const args = invocation.args().map((arg: xdr.ScVal, i: number) => {
+  const functionName = invocation.functionName.toString();
+  const args = invocation.args.map((arg: xdr.ScVal, i: number) => {
     let value: unknown;
     try {
       value = toPlain(scValToNative(arg));
     } catch {
       value = undefined;
     }
-    return { name: `arg${i}`, type: arg.switch().name, value };
+    return { name: `arg${i}`, type: arg.type, value };
   });
 
   return {

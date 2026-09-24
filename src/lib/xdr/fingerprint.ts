@@ -1,4 +1,4 @@
-import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
+import { tryParseTransaction, getInnerTransaction, getTransactionHash } from '@/lib/xdr/parse';
 
 /**
  * Generates a transaction hash for verification
@@ -11,7 +11,7 @@ export const generateTransactionFingerprint = (
     const parsed = tryParseTransaction(transactionXdr);
     if (!parsed) return '';
     
-    return parsed.tx.hash().toString('hex');
+    return getTransactionHash(parsed.tx);
   } catch (error) {
     if (import.meta.env.DEV) {
       console.error('Error generating fingerprint:', error);

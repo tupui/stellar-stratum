@@ -28,7 +28,7 @@ export const useWalletKit = () => {
   return context;
 };
 
-const PRIORITY_ORDER = ['trezor', 'ledger', 'freighter', 'xbull', 'lobstr', 'hot', 'albedo', 'fordefi'];
+const PRIORITY_ORDER = ['ghostsig', 'trezor', 'ledger', 'freighter', 'xbull', 'lobstr', 'hot', 'albedo', 'fordefi'];
 
 const isHardwareWallet = (walletId: string) => {
   const id = walletId.toLowerCase();

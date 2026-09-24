@@ -630,7 +630,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
 
       // Build the transaction
       const builtTransaction = transaction.build();
-      const xdr = builtTransaction.toXDR();
+      const xdr = builtTransaction.toXdr();
       
       
       setXdrData(prev => ({ ...prev, output: xdr }));
@@ -829,7 +829,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     const xdrToCheck = xdrData.output || xdrData.input;
     if (!xdrToCheck || !accountData?.signers) return [];
     try {
-      const parsed = StellarTransactionBuilder.fromXDR(
+      const parsed = StellarTransactionBuilder.fromXdr(
         xdrToCheck,
         getNetworkPassphrase(currentNetwork),
       );
@@ -845,7 +845,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
         for (const signer of accountData.signers) {
           try {
             const keypair = Keypair.fromPublicKey(signer.key);
-            if (keypair.verify(txHash, sig.signature())) {
+            if (keypair.verify(txHash, sig.signature)) {
               set.add(signer.key);
               break;
             }

@@ -36,7 +36,7 @@ export const loadContractSpec = async (
 
   const server = new rpc.Server(rpcUrlFor(network));
 
-  let wasm: Buffer;
+  let wasm: Uint8Array;
   try {
     wasm = await server.getContractWasmByContractId(contractId);
   } catch (e) {
@@ -52,7 +52,7 @@ export const loadContractSpec = async (
 
   const functions = spec
     .funcs()
-    .map((fn) => fn.name().toString())
+    .map((fn) => fn.name.toString())
     .filter((name) => name !== '__constructor');
 
   const loaded: LoadedContract = { contractId, network, spec, functions };

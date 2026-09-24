@@ -260,8 +260,8 @@ export const WalletConnect = ({
         const isMobile = window.innerWidth < 768;
 
         // Define wallet order based on user requirements
-        const mobileOrder = ['hot', 'albedo', 'xbull', 'lobstr'];
-        const desktopOrder = ['trezor', 'ledger', 'freighter', 'xbull', 'lobstr', 'hot', 'albedo', 'fordefi'];
+        const mobileOrder = ['ghostsig', 'hot', 'albedo', 'xbull', 'lobstr'];
+        const desktopOrder = ['ghostsig', 'trezor', 'ledger', 'freighter', 'xbull', 'lobstr', 'hot', 'albedo', 'fordefi'];
 
         // Order and filter wallets to match exactly the requested list
         const orderAndFilter = (wallets: typeof supportedWallets, order: string[]) => {

@@ -12,8 +12,8 @@ import { interpretTransaction } from '@/lib/xdr/interpret';
 import type { AccountData } from '@/lib/stellar';
 import { ProtocolBadge, UnknownContractBadge } from '@/components/transaction/ProtocolBadge';
 import { useToast } from '@/hooks/use-toast';
-import { tryParseTransaction, getInnerTransaction } from '@/lib/xdr/parse';
-import { Operation } from '@stellar/stellar-sdk';
+import { tryParseTransaction, getInnerTransaction, getTransactionHash } from '@/lib/xdr/parse';
+import { Operation, type Memo, xdr as StellarXdr } from '@stellar/stellar-sdk';
 
 // Type helpers for operation details
 type PaymentOp = Operation & { destination?: string; amount?: string; asset?: { code?: string } };
@@ -37,6 +37,15 @@ type SetOptionsOp = Operation & {
   lowThreshold?: number | null;
   medThreshold?: number | null;
   highThreshold?: number | null;
+};
+
+/** Text memos decode as UTF-8; hash and return memos are raw 32-byte values, shown as hex. */
+const formatMemoValue = (memo: Memo): string => {
+  const { value } = memo;
+  if (value instanceof Uint8Array) {
+    return memo.type === 'text' ? new TextDecoder().decode(value) : StellarXdr.encodeBytes(value, 'hex');
+  }
+  return value ?? '';
 };
 
 interface XdrDetailsProps {
@@ -63,7 +72,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
 
   const { tx, network, isFeeBump } = parsed;
   const transaction = getInnerTransaction(tx);
-  const hash = tx.hash().toString('hex');
+  const hash = getTransactionHash(tx);
   const fingerprint = generateTransactionFingerprint(xdr);
   const sourceAccount = transaction.source;
   const fee = tx.fee;
@@ -476,7 +485,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     <Badge variant="outline" className="mb-2">
                       {memo.type}
                     </Badge>
-                    <p className="text-sm break-all">{memo.value?.toString()}</p>
+                    <p className="text-sm break-all">{formatMemoValue(memo)}</p>
                   </div>
                 </div>
               )}

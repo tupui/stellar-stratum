@@ -37,7 +37,7 @@ export interface ParamShape {
 }
 
 const kindFromType = (type: xdr.ScSpecTypeDef): InputKind => {
-  const name = type.switch().name;
+  const name = type.type;
   switch (name) {
     case 'scSpecTypeAddress':
     case 'scSpecTypeMuxedAddress':
@@ -79,37 +79,36 @@ const kindFromType = (type: xdr.ScSpecTypeDef): InputKind => {
 };
 
 export const describeType = (type: xdr.ScSpecTypeDef): string => {
-  const name = type.switch().name;
-  switch (name) {
+  switch (type.type) {
     case 'scSpecTypeVec':
-      return `Vec<${describeType(type.vec().elementType())}>`;
+      return `Vec<${describeType(type.vec.elementType)}>`;
     case 'scSpecTypeMap': {
-      const m = type.map();
-      return `Map<${describeType(m.keyType())}, ${describeType(m.valueType())}>`;
+      const m = type.map;
+      return `Map<${describeType(m.keyType)}, ${describeType(m.valueType)}>`;
     }
     case 'scSpecTypeOption':
-      return `Option<${describeType(type.option().valueType())}>`;
+      return `Option<${describeType(type.option.valueType)}>`;
     case 'scSpecTypeTuple':
-      return `Tuple<${type.tuple().valueTypes().map(describeType).join(', ')}>`;
+      return `Tuple<${type.tuple.valueTypes.map(describeType).join(', ')}>`;
     case 'scSpecTypeUdt':
-      return type.udt().name().toString();
+      return type.udt.name.toString();
     case 'scSpecTypeBytesN':
-      return `BytesN<${type.bytesN().n()}>`;
+      return `BytesN<${type.bytesN.n}>`;
     default:
       // strip the ScSpecType prefix
-      return name.replace(/^scSpecType/, '');
+      return type.type.replace(/^scSpecType/, '');
   }
 };
 
 export const classifyParam = (name: string, type: xdr.ScSpecTypeDef): ParamShape => {
   const kind = kindFromType(type);
   const shape: ParamShape = { name, type, kind, typeLabel: describeType(type) };
-  if (kind === 'option') {
-    const innerType = type.option().valueType();
+  if (type.type === 'scSpecTypeOption') {
+    const innerType = type.option.valueType;
     shape.inner = classifyParam(name, innerType);
   }
-  if (kind === 'bytesN') {
-    shape.bytesLen = type.bytesN().n();
+  if (type.type === 'scSpecTypeBytesN') {
+    shape.bytesLen = type.bytesN.n;
   }
   return shape;
 };

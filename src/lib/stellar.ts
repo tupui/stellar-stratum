@@ -1,6 +1,7 @@
 import { appConfig } from './appConfig';
 import { submitLog } from './submitLog';
 import { getHorizonUrls } from './horizonSettings';
+import { getTransactionHash } from './xdr/parse';
 
 import { Horizon, Transaction, TransactionBuilder, type FeeBumpTransaction } from '@stellar/stellar-sdk';
 
@@ -117,9 +118,11 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
 const getSorobanResourceFee = (transaction: Transaction | FeeBumpTransaction): number => {
   try {
     const inner = 'innerTransaction' in transaction ? transaction.innerTransaction : transaction;
-    const tx = inner.toEnvelope().v1().tx();
-    if (tx.ext().switch() !== 1) return 0;
-    return Number(tx.ext().sorobanData().resourceFee().toString());
+    const envelope = inner.toEnvelope();
+    if (envelope.type !== 'envelopeTypeTx') return 0;
+    const { ext } = envelope.v1.tx;
+    if (ext.type !== 'sorobanData') return 0;
+    return Number(ext.sorobanData.resourceFee);
   } catch {
     return 0;
   }
@@ -203,9 +206,9 @@ export const submitTransaction = async (
   try {
     const config = getNetworkConfig(network);
     const urls = getHorizonUrls(network);
-    const transaction = TransactionBuilder.fromXDR(signedXdr, config.passphrase);
+    const transaction = TransactionBuilder.fromXdr(signedXdr, config.passphrase);
     const inner = 'innerTransaction' in transaction ? transaction.innerTransaction : transaction;
-    const hash = transaction.hash().toString('hex');
+    const hash = getTransactionHash(transaction);
     submitLog.info('parsed signed envelope', {
       network,
       horizons: urls.map(hostOf),
@@ -348,8 +351,8 @@ export const submitToRefractor = async (xdr: string, network: 'mainnet' | 'testn
 
     // Compute hash (ID) to share based on network
     const config = getNetworkConfig(network);
-    const tx = TransactionBuilder.fromXDR(xdr, config.passphrase);
-    return tx.hash().toString('hex');
+    const tx = TransactionBuilder.fromXdr(xdr, config.passphrase);
+    return getTransactionHash(tx);
   } catch (error) {
     throw new Error(`Failed to submit to Refractor: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -370,7 +373,7 @@ export const pullFromRefractor = async (refractorId: string): Promise<string> =>
     let parses = false;
     for (const passphrase of [appConfig.MAINNET_PASSPHRASE, appConfig.TESTNET_PASSPHRASE]) {
       try {
-        TransactionBuilder.fromXDR(xdr, passphrase);
+        TransactionBuilder.fromXdr(xdr, passphrase);
         parses = true;
         break;
       } catch {

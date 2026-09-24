@@ -23,10 +23,10 @@ const computeStellarAssetContractId = (assetCode: string, assetIssuer: string): 
     const stellarAsset = new StellarAsset(assetCode, assetIssuer);
     const preimage = new xdr.HashIdPreimageContractId({
       networkId: hash(Buffer.from(Networks.PUBLIC)),
-      contractIdPreimage: xdr.ContractIdPreimage.contractIdPreimageFromAsset(stellarAsset.toXDRObject()),
+      contractIdPreimage: xdr.ContractIdPreimage.contractIdPreimageFromAsset(stellarAsset.toXdrObject()),
     });
     const envelope = xdr.HashIdPreimage.envelopeTypeContractId(preimage);
-    return StrKey.encodeContract(hash(envelope.toXDR()));
+    return StrKey.encodeContract(hash(envelope.toXdr()));
   } catch {
     return '';
   }

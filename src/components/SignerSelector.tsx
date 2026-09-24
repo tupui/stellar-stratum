@@ -64,10 +64,10 @@ export const SignerSelector = ({
   useEffect(() => {
     try {
       const networkPassphrase = getNetworkPassphrase(contextNetwork);
-      const parsed = StellarTransactionBuilder.fromXDR(xdr, networkPassphrase) as any;
+      const parsed = StellarTransactionBuilder.fromXdr(xdr, networkPassphrase) as any;
 
-      const collectHints = (tx: any) => (tx?.signatures || []).map((s) => s.hint());
-      const hints: Buffer[] = parsed?.innerTransaction
+      const collectHints = (tx: any) => (tx?.signatures || []).map((s) => s.hint.toBytes());
+      const hints: Uint8Array[] = parsed?.innerTransaction
         ? [...collectHints(parsed.innerTransaction), ...collectHints(parsed)]
         : collectHints(parsed);
 

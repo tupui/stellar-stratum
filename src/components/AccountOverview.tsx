@@ -128,7 +128,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
     if (!multisigConfigXdr) return [];
 
     try {
-      const parsed = StellarTransactionBuilder.fromXDR(
+      const parsed = StellarTransactionBuilder.fromXdr(
         multisigConfigXdr,
         getNetworkPassphrase(currentNetwork),
       );
@@ -144,7 +144,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
         for (const signer of accountData.signers) {
           try {
             const keypair = Keypair.fromPublicKey(signer.key);
-            if (keypair.verify(txHash, sig.signature())) {
+            if (keypair.verify(txHash, sig.signature)) {
               set.add(signer.key);
               break;
             }
