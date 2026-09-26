@@ -6,7 +6,7 @@ import { useCallback, useRef } from 'react';
  */
 
 interface RequestCache {
-  [key: string]: Promise<any>;
+  [key: string]: Promise<unknown>;
 }
 
 export const useRequestDeduplication = () => {
@@ -19,7 +19,7 @@ export const useRequestDeduplication = () => {
   ): Promise<T> => {
     // If request is already pending, return existing promise
     if (pendingRequests.current[key]) {
-      return pendingRequests.current[key];
+      return pendingRequests.current[key] as Promise<T>;
     }
 
     // Create new request and cache the promise

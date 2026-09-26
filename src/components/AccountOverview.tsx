@@ -1,20 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TransactionBuilder as StellarTransactionBuilder, Keypair } from '@stellar/stellar-sdk';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Copy, Shield, Users, AlertTriangle, Settings, DollarSign, TrendingUp, X, Share2, ExternalLink } from 'lucide-react';
+import { Copy, Shield, Users, AlertTriangle, DollarSign, TrendingUp, Share2, ExternalLink, Edit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
-import { MultisigConfigBundle } from './MultisigConfigBundle';
-import { TransactionBuilder } from './TransactionBuilder';
 import { XdrDetails } from './XdrDetails';
-import { SignerSelector } from './SignerSelector';
-import { TransactionSubmitter } from './transaction/TransactionSubmitter';
+import { TransactionSigningPanel } from './transaction/TransactionSigningPanel';
 import { HorizonSettingsDialog } from './HorizonSettingsDialog';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AssetIcon } from './AssetIcon';
@@ -24,15 +19,10 @@ import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { useDefindexPositions } from '@/hooks/useDefindexPositions';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
-import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
-import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { submitToRefractor, submitTransaction, getNetworkPassphrase } from '@/lib/stellar';
-import { SuccessModal } from './SuccessModal';
 
 import type { AccountData } from '@/lib/stellar';
 import { buildAccountUrl, readUrlParam, updateUrlParams } from '@/lib/urlState';
-import { submitLog } from '@/lib/submitLog';
 
 const DASHBOARD_TABS = ['balances', 'activity', 'multisig'];
 const initialTabFromUrl = () => {
@@ -43,13 +33,11 @@ const initialTabFromUrl = () => {
 interface AccountOverviewProps {
   accountData: AccountData;
   onInitiateTransaction: () => void;
-  onSignTransaction: () => void;
   onDisconnect: () => void;
   onRefreshBalances: () => Promise<void>;
-  
 }
 
-const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
+const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onRefreshBalances }: AccountOverviewProps) => {
   const [activeTab, setActiveTab] = useState(initialTabFromUrl);
   // Reflect the active tab in the URL so the current section can be refreshed or shared
   useEffect(() => {
@@ -58,45 +46,8 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
   const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
   const [showEditConfirm, setShowEditConfirm] = useState(false);
   const [multisigConfigXdr, setMultisigConfigXdr] = useState<string | null>(null);
-  const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
-  const [isSubmittingToNetwork, setIsSubmittingToNetwork] = useState(false);
-  const [isSubmittingToRefractor, setIsSubmittingToRefractor] = useState(false);
-  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' | 'offline'; xdr?: string } | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [isSigning, setIsSigning] = useState(false);
-  
-  const { toast } = useToast();
-  const { signWithWallet } = useWalletKit();
 
-  const handleSignMultisigConfig = async (signerKey: string, walletId: string) => {
-    if (!multisigConfigXdr) return;
-    setIsSigning(true);
-    try {
-      const { signedXdr, address, walletName } = await signWithWallet(multisigConfigXdr, walletId);
-      if (address !== signerKey) {
-        throw new Error(
-          `Selected wallet (${walletName}) returned a different address. ` +
-          `Expected ${signerKey.slice(0, 8)}... but got ${address.slice(0, 8)}... ` +
-          `Please switch account in the wallet to match the signer and try again.`
-        );
-      }
-      setMultisigConfigXdr(signedXdr);
-      setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
-      toast({
-        title: 'Transaction signed',
-        description: `Signed with ${walletName}`,
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: 'Signing failed',
-        description: error instanceof Error ? error.message : 'Failed to sign transaction',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSigning(false);
-    }
-  };
+  const { toast } = useToast();
   const { network: currentNetwork } = useNetwork();
   
   
@@ -123,78 +74,6 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
     return { status: 'insufficient', color: 'warning' };
   };
 
-  // Helper functions for TransactionSubmitter (copied from TransactionBuilder)
-  const getExistingSignedKeys = () => {
-    if (!multisigConfigXdr) return [];
-
-    try {
-      const parsed = StellarTransactionBuilder.fromXdr(
-        multisigConfigXdr,
-        getNetworkPassphrase(currentNetwork),
-      );
-      // Fee-bump txs sign the inner tx hash; verify against innerTransaction when present.
-      const tx = 'innerTransaction' in parsed && parsed.innerTransaction
-        ? parsed.innerTransaction
-        : parsed;
-      const signatures = tx.signatures || [];
-      const txHash = tx.hash();
-      const set = new Set<string>();
-
-      for (const sig of signatures) {
-        for (const signer of accountData.signers) {
-          try {
-            const keypair = Keypair.fromPublicKey(signer.key);
-            if (keypair.verify(txHash, sig.signature)) {
-              set.add(signer.key);
-              break;
-            }
-          } catch {
-            // Skip invalid signatures
-          }
-        }
-      }
-      return Array.from(set);
-    } catch {
-      // XDR parsing failed
-      return [];
-    }
-  };
-
-  const getCurrentWeight = () => {
-    if (!accountData?.signers) return 0;
-    
-    const existing = getExistingSignedKeys();
-    const allSignedKeys = [...new Set([
-      ...signedBy.map(s => s.signerKey),
-      ...existing
-    ])];
-    return allSignedKeys.reduce((total, signerKey) => {
-      const signer = accountData.signers.find(s => s.key === signerKey);
-      return total + (signer?.weight || 0);
-    }, 0);
-  };
-
-  const getRequiredWeight = () => {
-    if (!accountData?.thresholds) return 1;
-    
-    // For multisig config changes, we need high threshold
-    const threshold = accountData.thresholds.high_threshold;
-    // If threshold is 0, default to 1 signature required
-    return threshold || 1;
-  };
-
-  const canSubmitToNetwork = () => {
-    return getCurrentWeight() >= getRequiredWeight();
-  };
-
-  const canSubmitToRefractor = (): boolean => {
-    return Boolean(multisigConfigXdr && multisigConfigXdr.length > 0);
-  };
-
-  // Computed values for TransactionSubmitter (matching TransactionBuilder pattern)
-  const canSubmitToNetworkValue = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
-  const canSubmitToRefractorValue = Boolean(multisigConfigXdr) && currentNetwork === 'mainnet';
-
   // DeFindex vault deposits — shown alongside wallet assets and counted in the portfolio total
   const { positions: defindexPositions, refetch: refetchDefindex } = useDefindexPositions(
     accountData.publicKey,
@@ -220,60 +99,6 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
 
   // Get portfolio value for TransactionHistoryPanel (includes DeFindex deposits)
   const { totalValueUSD } = useAssetPrices(mergedBalances);
-
-  const handleCopyXdr = () => {
-    if (multisigConfigXdr) {
-      navigator.clipboard.writeText(multisigConfigXdr);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const handleSubmitToNetwork = async () => {
-    if (!multisigConfigXdr) return;
-    
-    setIsSubmittingToNetwork(true);
-    submitLog.clear();
-    submitLog.info('send button pressed', { network: currentNetwork, signatures: signedBy.length });
-    try {
-      const result = await submitTransaction(multisigConfigXdr, currentNetwork);
-      const hash = (result as { hash?: string })?.hash || '';
-      setSuccessData({
-        type: 'network',
-        hash,
-        network: currentNetwork,
-        xdr: multisigConfigXdr,
-      });
-    } catch (error) {
-      toast({
-        title: 'Network submission failed',
-        description: error instanceof Error ? error.message : 'Failed to submit to the Stellar network',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmittingToNetwork(false);
-    }
-  };
-
-  const handleSubmitToRefractor = async () => {
-    if (!multisigConfigXdr) return;
-    
-    setIsSubmittingToRefractor(true);
-    try {
-      const id = await submitToRefractor(multisigConfigXdr, currentNetwork);
-      
-      // Show success modal instead of just toast
-      setSuccessData({ hash: id, network: currentNetwork, type: 'refractor' });
-    } catch (error) {
-      toast({
-        title: "Refractor submission failed",
-        description: error instanceof Error ? error.message : "Failed to submit to Refractor",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmittingToRefractor(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background p-3 sm:p-6">
@@ -554,9 +379,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
                     accountPublicKey={accountData.publicKey}
                     currentSigners={accountData.signers}
                     currentThresholds={accountData.thresholds}
-                    onXdrGenerated={(xdr) => {
-                      setMultisigConfigXdr(xdr);
-                    }}
+                    onXdrGenerated={setMultisigConfigXdr}
                     onPendingCreated={() => {
                       setActiveTab('multisig');
                     }}
@@ -595,100 +418,46 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onSignTransaction
         {/* Thresholds & Signers are now moved to the Multisig tab */}
       </div>
 
-      {/* Multisig Config Bundle & Verification */}
-      {multisigConfigXdr && (
-        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-          {/* Multisig Config Bundle Summary */}
-          <MultisigConfigBundle 
-            xdr={multisigConfigXdr} 
-            onEdit={() => {
-              setMultisigConfigXdr(null);
-              setActiveTab('multisig-edit');
-            }}
-          />
-          
-          {/* Transaction Verification */}
-          <XdrDetails 
-            xdr={multisigConfigXdr} 
-            defaultExpanded={true} 
-            networkType={currentNetwork}
-            accountData={accountData}
-          />
-          
-          {/* Signing */}
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Sign Transaction</CardTitle>
-              <CardDescription>
-                Connect your wallet to add signatures to this transaction
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SignerSelector
-                xdr={multisigConfigXdr}
-                network={currentNetwork}
-                onSigned={(signedXdr, signerKey) => {
-                  setMultisigConfigXdr(signedXdr);
-                  setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
-                  toast({ title: 'Signature Added', description: `Signed by ${signerKey.slice(0, 8)}...` });
+      {/* Multisig configuration change: review, sign, submit or coordinate */}
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+        {multisigConfigXdr && (
+          <>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-semibold">Configuration change</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setMultisigConfigXdr(null);
+                  setActiveTab('multisig-edit');
                 }}
-                pendingId=""
-                signers={accountData.signers}
-                currentAccountKey={accountData.publicKey}
-                signedBy={signedBy}
-                requiredWeight={getRequiredWeight()}
-                onSignWithSigner={handleSignMultisigConfig}
-                isSigning={isSigning}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Transaction Submitter with Coordination Mode */}
-          <TransactionSubmitter
-            xdrOutput={multisigConfigXdr || ''}
-            signedBy={signedBy}
-            currentWeight={getCurrentWeight()}
-            requiredWeight={getRequiredWeight()}
-            canSubmitToNetwork={canSubmitToNetworkValue}
-            canSubmitToRefractor={canSubmitToRefractorValue}
-            isSubmittingToNetwork={isSubmittingToNetwork}
-            isSubmittingToRefractor={isSubmittingToRefractor}
-            successData={successData}
-            onCopyXdr={handleCopyXdr}
-            onSubmitToNetwork={handleSubmitToNetwork}
-            onSubmitToRefractor={handleSubmitToRefractor}
-            onShowOfflineModal={() => {
-              const xdrOutput = multisigConfigXdr || '';
-              const fingerprint = generateDetailedFingerprint(xdrOutput, currentNetwork);
-              setSuccessData({ 
-                type: 'offline', 
-                hash: fingerprint.hash, 
-                network: currentNetwork,
-                xdr: xdrOutput
-              });
-            }}
-            copied={copied}
-          />
-        </div>
-      )}
-
-      {/* Transaction Success Modal */}
-      {successData && (
-        <SuccessModal
-          type={successData.type}
-          hash={successData.type === 'network' || successData.type === 'offline' ? successData.hash : undefined}
-          refractorId={successData.type === 'refractor' ? successData.hash : undefined}
-          xdr={successData.xdr}
-          network={successData.network}
-          onClose={() => setSuccessData(null)}
-          onNavigateToDashboard={() => {
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                Edit
+              </Button>
+            </div>
+            <XdrDetails
+              xdr={multisigConfigXdr}
+              defaultExpanded={true}
+              networkType={currentNetwork}
+              accountData={accountData}
+            />
+          </>
+        )}
+        <TransactionSigningPanel
+          xdr={multisigConfigXdr ?? ''}
+          network={currentNetwork}
+          account={accountData}
+          onXdrChange={setMultisigConfigXdr}
+          onSubmitted={async () => {
             setMultisigConfigXdr(null);
-            setSignedBy([]);
-            setSuccessData(null);
+            setActiveTab('multisig');
+            // The next edit must start from the signers and thresholds now on chain.
+            await onRefreshBalances();
           }}
+          onDone={() => setActiveTab('multisig')}
         />
-      )}
-
+      </div>
     </div>
   );
 };

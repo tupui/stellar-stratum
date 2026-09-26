@@ -10,9 +10,10 @@ import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, External
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { getLastFetchTimestamp } from '@/lib/reflector';
-import { convertFromUSD } from '@/lib/fiat-currencies';
+import { getFxRate } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useToast } from '@/hooks/use-toast';
 interface AssetBalance {
   asset_type: string;
   asset_code?: string;
@@ -23,6 +24,8 @@ interface AssetBalance {
   sourceName?: string;
   sourceAddress?: string;
 }
+// Classic liquidity pool shares have no code, issuer or explorer asset page, and are not priced
+const isPoolShare = (asset: AssetBalance): boolean => asset.asset_type === 'liquidity_pool_shares';
 interface AssetBalancePanelProps {
   balances: AssetBalance[];
   onRefreshBalances?: () => Promise<void>;
@@ -32,6 +35,9 @@ export const AssetBalancePanel = ({
   onRefreshBalances
 }: AssetBalancePanelProps) => {
   const { network } = useNetwork();
+  // Oracle prices are mainnet prices: testnet balances are shown without fiat values
+  const isTestnet = network === 'testnet';
+  const { toast } = useToast();
   const {
     assetsWithPrices,
     totalValueUSD,
@@ -44,14 +50,10 @@ export const AssetBalancePanel = ({
     getCurrentCurrency
   } = useFiatCurrency();
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
+  const [refreshingBalances, setRefreshingBalances] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(() => getLastFetchTimestamp());
-  const [converted, setConverted] = useState<{
-    total: number;
-    defindex: number;
-    wallet: number;
-    values: Record<number, number>;
-    prices: Record<number, number>;
-  }>({ total: totalValueUSD, defindex: 0, wallet: 0, values: {}, prices: {} });
+  // USD per 1 unit of the quote currency; null when the FX oracle had no rate
+  const [fxRate, setFxRate] = useState<{ currency: string; usdPerUnit: number | null } | null>(null);
 
   // Reflect the latest cache timestamp whenever prices resolve
   useEffect(() => {
@@ -62,17 +64,22 @@ export const AssetBalancePanel = ({
   }, [loading, totalValueUSD]);
 
   const handleRefresh = useCallback(async () => {
-    try {
-      if (onRefreshBalances) {
+    if (onRefreshBalances) {
+      setRefreshingBalances(true);
+      try {
         await onRefreshBalances();
+      } catch (e) {
+        toast({
+          title: 'Balances not refreshed',
+          description: e instanceof Error ? e.message : 'Could not load the account. Try again in a moment.',
+          variant: 'destructive',
+        });
+      } finally {
+        setRefreshingBalances(false);
       }
-      await refetch();
-    } catch (e) {
-      // Ignore refresh errors - balances will be updated on next successful fetch
-    } finally {
-      setLastUpdateTime(new Date());
     }
-  }, [onRefreshBalances, refetch]);
+    await refetch();
+  }, [onRefreshBalances, refetch, toast]);
 
   const formatLastUpdate = useCallback((date: Date | null): string => {
     if (!date) return '';
@@ -85,24 +92,21 @@ export const AssetBalancePanel = ({
     return date.toLocaleDateString();
   }, []);
 
-  // Keep the original index into assetsWithPrices so converted value/price lookups stay correct after filtering
-  const indexedAssets = useMemo(
-    () => assetsWithPrices.map((asset, index) => ({ asset, index })),
-    [assetsWithPrices]
-  );
+  // Nothing has a fiat value on testnet, so the "hide < $1" filter would hide every row
+  const hidingSmallBalances = hideSmallBalances && !isTestnet;
 
   // Filter assets based on hide small balances toggle (memoized for performance)
   const visibleAssets = useMemo(() =>
-    hideSmallBalances ? indexedAssets.filter(({ asset }) => asset.valueUSD >= 1) : indexedAssets,
-    [hideSmallBalances, indexedAssets]
+    hidingSmallBalances ? assetsWithPrices.filter((asset) => asset.valueUSD >= 1) : assetsWithPrices,
+    [hidingSmallBalances, assetsWithPrices]
   );
 
   const defindexAssets = useMemo(
-    () => visibleAssets.filter(({ asset }) => asset.source === 'defindex'),
+    () => visibleAssets.filter((asset) => asset.source === 'defindex'),
     [visibleAssets]
   );
   const walletAssets = useMemo(
-    () => visibleAssets.filter(({ asset }) => asset.source !== 'defindex'),
+    () => visibleAssets.filter((asset) => asset.source !== 'defindex'),
     [visibleAssets]
   );
 
@@ -114,89 +118,41 @@ export const AssetBalancePanel = ({
   const walletTotalUSD = totalValueUSD - defindexTotalUSD;
   const hasDefindexPositions = assetsWithPrices.some(a => a.source === 'defindex');
 
-  // Recompute converted values when currency or prices change.
+  // Load the quote currency's FX rate; re-read the (5 min cached) rate whenever prices refresh.
   useEffect(() => {
-    if (quoteCurrency === 'USD') {
-      setConverted({ total: totalValueUSD, defindex: defindexTotalUSD, wallet: walletTotalUSD, values: {}, prices: {} });
-      return;
-    }
-
+    if (quoteCurrency === 'USD' || isTestnet) return;
     let cancelled = false;
-    (async () => {
-      const totalPromise = totalValueUSD
-        ? convertFromUSD(totalValueUSD, quoteCurrency).catch(() => totalValueUSD)
-        : Promise.resolve(totalValueUSD);
-      const defindexPromise = defindexTotalUSD
-        ? convertFromUSD(defindexTotalUSD, quoteCurrency).catch(() => defindexTotalUSD)
-        : Promise.resolve(0);
-      const walletPromise = walletTotalUSD
-        ? convertFromUSD(walletTotalUSD, quoteCurrency).catch(() => walletTotalUSD)
-        : Promise.resolve(0);
-
-      const perAsset = assetsWithPrices.map((asset, i) =>
-        Promise.all([
-          asset.valueUSD > 0 ? convertFromUSD(asset.valueUSD, quoteCurrency).catch(() => null) : Promise.resolve(null),
-          asset.priceUSD > 0 ? convertFromUSD(asset.priceUSD, quoteCurrency).catch(() => null) : Promise.resolve(null),
-        ]).then(([v, p]) => ({ i, v, p })),
-      );
-
-      const [total, defindex, wallet, results] = await Promise.all([
-        totalPromise,
-        defindexPromise,
-        walletPromise,
-        Promise.all(perAsset),
-      ]);
-      if (cancelled) return;
-
-      const values: Record<number, number> = {};
-      const prices: Record<number, number> = {};
-      for (const { i, v, p } of results) {
-        if (v !== null) values[i] = v;
-        if (p !== null) prices[i] = p;
-      }
-      setConverted({ total, defindex, wallet, values, prices });
-    })();
-
+    getFxRate(quoteCurrency).then(
+      (usdPerUnit) => { if (!cancelled) setFxRate({ currency: quoteCurrency, usdPerUnit }); },
+      () => { if (!cancelled) setFxRate({ currency: quoteCurrency, usdPerUnit: null }); },
+    );
     return () => { cancelled = true; };
-  }, [totalValueUSD, defindexTotalUSD, walletTotalUSD, quoteCurrency, assetsWithPrices]);
-  const formatPriceSync = (price: number, assetIndex: number): string => {
-    if (price === 0) return 'N/A';
-    const currency = getCurrentCurrency();
-    const convertedPrice = converted.prices[assetIndex];
-    // If we're in a non-USD quote but conversion failed, fall back to USD display
-    const displayPrice = convertedPrice ?? price;
-    const symbol = quoteCurrency !== 'USD' && convertedPrice === undefined ? '$' : currency.symbol;
-    if (displayPrice < 0.01) return `${symbol}${displayPrice.toFixed(6)}`;
-    if (displayPrice < 1) return `${symbol}${displayPrice.toFixed(4)}`;
-    return `${symbol}${displayPrice.toFixed(2)}`;
+  }, [quoteCurrency, isTestnet, assetsWithPrices]);
+
+  // Values are in USD and shown in the quote currency once its rate is known.
+  // Until then, or when the FX oracle fails, they stay in USD with a '$'.
+  const usdPerQuoteUnit = quoteCurrency === 'USD' ? 1 : fxRate?.currency === quoteCurrency ? fxRate.usdPerUnit : null;
+  const fxRateUnavailable = quoteCurrency !== 'USD' && fxRate?.currency === quoteCurrency && fxRate.usdPerUnit === null;
+  const symbol = usdPerQuoteUnit ? getCurrentCurrency().symbol : '$';
+  const toQuote = (usd: number): number => (usdPerQuoteUnit ? usd / usdPerQuoteUnit : usd);
+
+  const formatPrice = (priceUSD: number): string => {
+    if (priceUSD === 0) return 'N/A';
+    const price = toQuote(priceUSD);
+    if (price < 0.01) return `${symbol}${price.toFixed(6)}`;
+    if (price < 1) return `${symbol}${price.toFixed(4)}`;
+    return `${symbol}${price.toFixed(2)}`;
   };
-  const formatValueForAsset = (value: number, assetIndex: number): string => {
-    if (value === 0) return 'N/A';
-    const currency = getCurrentCurrency();
-    const convertedValue = converted.values[assetIndex];
-    const displayValue = convertedValue ?? value;
-    const symbol = quoteCurrency !== 'USD' && convertedValue === undefined ? '$' : currency.symbol;
-    if (displayValue < 0.01) return `<${symbol}0.01`;
-    return `${symbol}${displayValue.toLocaleString(undefined, {
+  const formatSubTotal = (usdValue: number): string =>
+    `${symbol}${toQuote(usdValue).toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`;
-  };
-  const formatSubTotal = (usdValue: number, convertedValue: number): string => {
-    const currency = getCurrentCurrency();
-    const v = quoteCurrency === 'USD' ? usdValue : convertedValue;
-    return `${currency.symbol}${v.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
-  };
-  const formatValueSync = (value: number): string => {
-    const currency = getCurrentCurrency();
-    // The cached converted total is only valid for the top-line value.
-    const displayValue = value === totalValueUSD ? converted.total : value;
-    if (displayValue === 0) return 'N/A';
-    if (displayValue < 0.01) return `<${currency.symbol}0.01`;
-    return `${currency.symbol}${displayValue.toLocaleString(undefined, {
+  const formatValue = (usdValue: number): string => {
+    if (usdValue === 0) return 'N/A';
+    const value = toQuote(usdValue);
+    if (value < 0.01) return `<${symbol}0.01`;
+    return `${symbol}${value.toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })}`;
@@ -226,15 +182,14 @@ export const AssetBalancePanel = ({
     return `https://stellar.expert/explorer/${networkPath}/contract/${contractAddress}`;
   };
 
-  // index is the position in assetsWithPrices (used for converted value/price lookups)
   const renderAssetRow = (asset: (typeof assetsWithPrices)[number], index: number) => (
     <div key={index} className="p-4 border border-border/60 rounded-lg hover:bg-secondary/30 hover:border-border transition-smooth">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <AssetIcon assetCode={asset.asset_code} assetIssuer={asset.asset_type !== 'native' ? asset.asset_issuer : undefined} size={40} className="flex-shrink-0" />
+          <AssetIcon assetCode={isPoolShare(asset) ? 'LP' : asset.asset_code} assetIssuer={asset.asset_type !== 'native' ? asset.asset_issuer : undefined} size={40} className="flex-shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <a
+              {isPoolShare(asset) ? <span className="font-semibold text-foreground truncate">{asset.symbol}</span> : <a
                 href={asset.source === 'defindex' && asset.sourceAddress
                   ? getContractExplorerUrl(asset.sourceAddress)
                   : getAssetExplorerUrl(asset.symbol, asset.asset_type !== 'native' ? asset.asset_issuer : undefined)}
@@ -244,7 +199,7 @@ export const AssetBalancePanel = ({
               >
                 <span className="truncate">{asset.symbol}</span>
                 <ExternalLink className="w-3 h-3 flex-shrink-0" />
-              </a>
+              </a>}
               {asset.asset_type === 'native' && <Badge variant="outline" className="text-xs border-primary/30 text-primary flex-shrink-0">Native</Badge>}
               {asset.source === 'defindex' && (
                 <Badge variant="secondary" className="text-xs flex-shrink-0 inline-flex items-center gap-1">
@@ -256,12 +211,12 @@ export const AssetBalancePanel = ({
             <p className="text-sm text-muted-foreground/80 truncate">
               {asset.source === 'defindex'
                 ? `Deposited in ${asset.sourceName || 'DeFindex vault'}`
-                : asset.asset_type === 'native' ? 'Stellar Lumens' : asset.asset_code}
+                : asset.asset_type === 'native' ? 'Stellar Lumens' : isPoolShare(asset) ? 'Liquidity pool' : asset.asset_code}
             </p>
             {asset.priceUSD === -1 ? <LoadingPill size="sm" className="mt-1" /> : asset.priceUSD > 0 ? <p className="text-xs text-muted-foreground/70 font-amount truncate max-w-[160px] sm:max-w-none">
-                {formatPriceSync(asset.priceUSD, index)} per {asset.symbol}
+                {formatPrice(asset.priceUSD)} per {asset.symbol}
               </p> : <p className="text-xs text-muted-foreground/70">
-                Price unavailable
+                {isTestnet ? 'Testnet: no market value' : isPoolShare(asset) ? 'Not priced' : 'Price unavailable'}
               </p>}
           </div>
         </div>
@@ -270,9 +225,9 @@ export const AssetBalancePanel = ({
           <p className="font-amount font-semibold text-foreground tabular-nums truncate max-w-[100px] sm:max-w-[180px]">
             {formatBalance(asset.balance)}
           </p>
-          <div className="text-sm font-medium text-primary flex justify-end font-amount truncate max-w-[100px] sm:max-w-[180px]">
-            {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValueForAsset(asset.valueUSD, index)}
-          </div>
+          {!isTestnet && <div className="text-sm font-medium text-primary flex justify-end font-amount truncate max-w-[100px] sm:max-w-[180px]">
+            {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValue(asset.valueUSD)}
+          </div>}
         </div>
       </div>
     </div>
@@ -289,14 +244,14 @@ export const AssetBalancePanel = ({
             
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={loading} className="h-8 px-2">
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={loading || refreshingBalances} className="h-8 px-2">
+              <RefreshCw className={`w-4 h-4 ${loading || refreshingBalances ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </div>
         
         {/* Price Update Info */}
-        {lastUpdateTime && <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
+        {lastUpdateTime && !isTestnet && <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
             <Clock className="w-3 h-3" />
             <span>Prices updated {formatLastUpdate(lastUpdateTime)}</span>
             <span className="text-muted-foreground/60">• </span>
@@ -311,9 +266,14 @@ export const AssetBalancePanel = ({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground/80">Total Portfolio Value</p>
-              <p className="text-2xl font-bold font-amount">
-                {loading ? <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span> : <span className="text-primary">{formatValueSync(totalValueUSD)}</span>}
-              </p>
+              {isTestnet ? <p className="text-sm text-muted-foreground mt-1">
+                  Testnet assets have no market value, so no fiat value is shown.
+                </p> : <p className="text-2xl font-bold font-amount">
+                {loading ? <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span> : <span className="text-primary">{formatValue(totalValueUSD)}</span>}
+              </p>}
+              {fxRateUnavailable && !isTestnet && <p className="text-xs text-muted-foreground mt-1">
+                  {quoteCurrency} rate unavailable, values shown in USD
+                </p>}
             </div>
             <div className="text-sm text-muted-foreground"></div>
           </div>
@@ -326,14 +286,14 @@ export const AssetBalancePanel = ({
                   <Landmark className="w-3.5 h-3.5" />
                   Deposited in DeFindex
                 </p>
-                <p className="font-amount font-semibold">{formatSubTotal(defindexTotalUSD, converted.defindex)}</p>
+                <p className="font-amount font-semibold">{formatSubTotal(defindexTotalUSD)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground/80 flex items-center gap-1.5">
                   <Wallet className="w-3.5 h-3.5" />
                   Available in Wallet
                 </p>
-                <p className="font-amount font-semibold">{formatSubTotal(walletTotalUSD, converted.wallet)}</p>
+                <p className="font-amount font-semibold">{formatSubTotal(walletTotalUSD)}</p>
               </div>
             </div>
           )}
@@ -342,12 +302,12 @@ export const AssetBalancePanel = ({
 
       <CardContent className="space-y-4">
         {/* Controls */}
-        <div className="flex items-center justify-start gap-4 p-3 bg-secondary/20 rounded-lg border border-border/50">
+        {!isTestnet && <div className="flex items-center justify-start gap-4 p-3 bg-secondary/20 rounded-lg border border-border/50">
           <div className="flex items-center space-x-3">
             <Switch id="hide-small" checked={hideSmallBalances} onCheckedChange={setHideSmallBalances} />
             <Label htmlFor="hide-small" className="text-sm font-medium">Hide &lt; $1</Label>
           </div>
-        </div>
+        </div>}
 
         {/* Error Display */}
         {error && <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
@@ -363,7 +323,7 @@ export const AssetBalancePanel = ({
           </div> : visibleAssets.length === 0 ? <div className="flex flex-col items-center justify-center py-8 text-center">
             <Filter className="w-8 h-8 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              {hideSmallBalances ? 'No assets above $1' : 'No assets found'}
+              {hidingSmallBalances ? 'No assets above $1' : 'No assets found'}
             </p>
           </div> : <div className="space-y-5">
             {/* DeFindex deposits section */}
@@ -374,10 +334,10 @@ export const AssetBalancePanel = ({
                     <span>Deposited in DeFindex</span>
                   </div>
                   <span className="text-sm font-amount font-medium text-primary">
-                    {formatSubTotal(defindexTotalUSD, converted.defindex)}
+                    {formatSubTotal(defindexTotalUSD)}
                   </span>
                 </div>
-                {defindexAssets.map(({ asset, index }) => renderAssetRow(asset, index))}
+                {defindexAssets.map(renderAssetRow)}
               </div>}
 
             {/* Wallet assets section */}
@@ -388,13 +348,13 @@ export const AssetBalancePanel = ({
                     <span>Available in Wallet</span>
                   </div>
                   <span className="text-sm font-amount font-medium text-primary">
-                    {formatSubTotal(walletTotalUSD, converted.wallet)}
+                    {formatSubTotal(walletTotalUSD)}
                   </span>
                 </div>}
               {walletAssets.length > 0
-                ? walletAssets.map(({ asset, index }) => renderAssetRow(asset, index))
+                ? walletAssets.map(renderAssetRow)
                 : <p className="text-sm text-muted-foreground py-2">
-                    {hideSmallBalances ? 'No wallet assets above $1' : 'No wallet assets'}
+                    {hidingSmallBalances ? 'No wallet assets above $1' : 'No wallet assets'}
                   </p>}
             </div>
           </div>}
@@ -404,7 +364,7 @@ export const AssetBalancePanel = ({
             <Separator />
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">
-                {hideSmallBalances && <span>Filtering assets (&gt;= $1)</span>}
+                {hidingSmallBalances && <span>Filtering assets (&gt;= $1)</span>}
               </span>
             </div>
           </>}

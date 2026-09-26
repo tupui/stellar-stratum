@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Decimal } from 'decimal.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +10,10 @@ import { Info, Landmark, ArrowDownToLine, ArrowUpFromLine, Loader2 } from 'lucid
 import { defindexSDK } from '@/lib/defindex-client';
 import { SupportedNetworks, VaultInfoResponse, VaultBalanceResponse } from '@defindex/sdk';
 import { appConfig } from '@/lib/appConfig';
+import { spendableBalance } from '@/lib/balance-utils';
+import { apiAmount, apiErrorMessage } from '@/lib/protocols/api';
+import { formatUnits, parseUnits, SHARE_DECIMALS } from '@/lib/protocols/tokens';
+import { verifyProtocolTransaction, withExpiry } from '@/lib/protocols/verify';
 
 interface DeFindexTabProps {
   accountPublicKey: string;
@@ -24,15 +29,57 @@ interface DeFindexTabProps {
   onBuild: (xdr: string) => void;
   isBuilding: boolean;
   isTransactionBuilt: boolean;
+  /** Called whenever an input that shapes the transaction changes: a transaction built before no longer matches the form. */
+  onClearTransaction?: () => void;
 }
 
-export const DeFindexTab = ({
+const VAULT = appConfig.DEFINDEX_VAULT_ADDRESS;
+
+/** The vault's underlying USDC is a Stellar Asset Contract: 7 decimals. */
+const USDC_DECIMALS = 7;
+
+/**
+ * A vault balance from the API (JSON numbers), in contract units; 0 when
+ * unreadable. A fractional number is truncated rather than rejected.
+ */
+const readAmount = (value: unknown): bigint => {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return BigInt(Math.trunc(value));
+  try {
+    return apiAmount(value);
+  } catch {
+    return 0n;
+  }
+};
+
+const formatShort = (raw: bigint, decimals = USDC_DECIMALS) => Number(formatUnits(raw, decimals)).toFixed(2);
+
+export const DeFindexTab = (props: DeFindexTabProps) =>
+  props.network === 'testnet' ? <MainnetOnly /> : <DeFindexVault {...props} />;
+
+const MainnetOnly = () => (
+  <Card className="border-dashed">
+    <CardContent className="pt-6">
+      <div className="flex items-start gap-3 text-muted-foreground">
+        <Info className="w-5 h-5 mt-0.5 shrink-0" />
+        <div>
+          <p className="font-medium text-foreground">Mainnet Only</p>
+          <p className="text-sm mt-1">
+            DeFindex vaults are only available on Mainnet. Switch to Mainnet to access vault operations.
+          </p>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const DeFindexVault = ({
   accountPublicKey,
   accountData,
   network,
   onBuild,
   isBuilding,
   isTransactionBuilt,
+  onClearTransaction,
 }: DeFindexTabProps) => {
   const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
   const [amount, setAmount] = useState('');
@@ -42,39 +89,20 @@ export const DeFindexTab = ({
   const [isBuildingTx, setIsBuildingTx] = useState(false);
   const [error, setError] = useState('');
 
-  // Testnet guard
-  if (network === 'testnet') {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-3 text-muted-foreground">
-            <Info className="w-5 h-5 mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium text-foreground">Mainnet Only</p>
-              <p className="text-sm mt-1">
-                DeFindex vaults are only available on Mainnet. Switch to Mainnet to access vault operations.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Fetch vault info and balance on mount (mainnet only)
+  // Fetch vault info and balance on mount
   useEffect(() => {
     const fetchVaultData = async () => {
       setIsLoadingInfo(true);
       setError('');
       try {
         const [info, balance] = await Promise.all([
-          defindexSDK.getVaultInfo(appConfig.DEFINDEX_VAULT_ADDRESS, SupportedNetworks.MAINNET),
-          defindexSDK.getVaultBalance(appConfig.DEFINDEX_VAULT_ADDRESS, accountPublicKey, SupportedNetworks.MAINNET),
+          defindexSDK.getVaultInfo(VAULT, SupportedNetworks.MAINNET),
+          defindexSDK.getVaultBalance(VAULT, accountPublicKey, SupportedNetworks.MAINNET),
         ]);
         setVaultInfo(info);
         setVaultBalance(balance);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load vault data');
+        setError(apiErrorMessage(err, 'Failed to load vault data'));
       } finally {
         setIsLoadingInfo(false);
       }
@@ -85,53 +113,88 @@ export const DeFindexTab = ({
     }
   }, [accountPublicKey]);
 
-  const walletUsdcBalance = accountData?.balances.find(
-    (b) => b.asset_code === 'USDC'
-  )?.balance ?? '0';
+  // Circle's USDC only: anyone can issue an asset called "USDC"
+  const walletUsdc = accountData
+    ? parseUnits(
+        spendableBalance(accountData, 'USDC', appConfig.USDC_ISSUER_MAINNET).toFixed(USDC_DECIMALS, Decimal.ROUND_DOWN),
+        USDC_DECIMALS
+      ) ?? 0n
+    : 0n;
 
-  // Underlying USDC currently deposited in the vault (7 decimals)
-  const depositedUsdc = vaultBalance?.underlyingBalance?.[0]
-    ? vaultBalance.underlyingBalance[0] / 10_000_000
-    : 0;
+  // Underlying USDC deposited in the vault, and the shares that represent it
+  const depositedUsdc = readAmount(vaultBalance?.underlyingBalance?.[0] ?? 0);
+  const shares = readAmount(vaultBalance?.dfTokens ?? 0);
+
+  const raw = parseUnits(amount, USDC_DECIMALS);
 
   const handleBuild = async () => {
     setError('');
+    if (!raw || raw <= 0n) {
+      setError(`Enter an amount greater than 0, with at most ${USDC_DECIMALS} decimal places`);
+      return;
+    }
     setIsBuildingTx(true);
 
     try {
-      const stroops = Math.floor(parseFloat(amount) * 10_000_000);
-      if (stroops <= 0) {
-        setError('Amount must be greater than 0');
-        return;
-      }
-
+      let xdr: string;
       if (mode === 'deposit') {
-        if (parseFloat(amount) > parseFloat(walletUsdcBalance)) {
+        if (raw > walletUsdc) {
           setError('Amount exceeds wallet USDC balance');
           return;
         }
         const response = await defindexSDK.depositToVault(
-          appConfig.DEFINDEX_VAULT_ADDRESS,
-          { amounts: [stroops], invest: false, caller: accountPublicKey },
+          VAULT,
+          { amounts: [Number(raw)], invest: false, caller: accountPublicKey },
           SupportedNetworks.MAINNET
         );
-        onBuild(response.xdr);
+        // The API returns deposits that never expire
+        xdr = withExpiry(response.xdr, network);
+        verifyProtocolTransaction(xdr, network, accountPublicKey, {
+          kind: 'vault-deposit',
+          vault: VAULT,
+          amounts: [raw],
+          invest: false,
+        });
       } else {
-        const response = await defindexSDK.withdrawFromVault(
-          appConfig.DEFINDEX_VAULT_ADDRESS,
-          { amounts: [stroops], caller: accountPublicKey },
+        if (raw > depositedUsdc) {
+          setError('Amount exceeds your vault deposit');
+          return;
+        }
+        // Redeem shares rather than an amount: the whole position leaves no dust,
+        // and a share count is something the transaction can be checked against.
+        const redeem = raw === depositedUsdc ? shares : (raw * shares) / depositedUsdc;
+        const response = await defindexSDK.withdrawShares(
+          VAULT,
+          { shares: Number(redeem), caller: accountPublicKey },
           SupportedNetworks.MAINNET
         );
-        onBuild(response.xdr);
+        xdr = withExpiry(response.xdr, network);
+        verifyProtocolTransaction(xdr, network, accountPublicKey, {
+          kind: 'vault-withdraw',
+          vault: VAULT,
+          shares: redeem,
+        });
       }
+      onBuild(xdr);
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to build ${mode} transaction`);
+      setError(apiErrorMessage(err, `Failed to build ${mode} transaction`));
     } finally {
       setIsBuildingTx(false);
     }
   };
 
-  const maxAmount = mode === 'deposit' ? walletUsdcBalance : depositedUsdc.toFixed(7);
+  const maxAmount = mode === 'deposit' ? walletUsdc : depositedUsdc;
+
+  const updateAmount = (value: string) => {
+    setAmount(value);
+    onClearTransaction?.();
+  };
+
+  const selectMode = (next: 'deposit' | 'withdraw') => {
+    setMode(next);
+    setError('');
+    updateAmount('');
+  };
 
   const loading = isBuildingTx || isBuilding;
 
@@ -162,18 +225,18 @@ export const DeFindexTab = ({
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Wallet USDC</p>
-                  <p className="font-mono">{parseFloat(walletUsdcBalance).toFixed(2)}</p>
+                  <p className="font-mono">{formatShort(walletUsdc)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Deposited (USDC)</p>
                   <p className="font-mono font-semibold text-primary">
-                    {vaultBalance ? depositedUsdc.toFixed(2) : '—'}
+                    {vaultBalance ? formatShort(depositedUsdc) : '—'}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Vault Shares</p>
                   <p className="font-mono">
-                    {vaultBalance ? (vaultBalance.dfTokens / 10_000_000).toFixed(2) : '—'}
+                    {vaultBalance ? formatShort(shares, SHARE_DECIMALS) : '—'}
                   </p>
                 </div>
               </div>
@@ -188,7 +251,7 @@ export const DeFindexTab = ({
           variant={mode === 'deposit' ? 'default' : 'outline'}
           size="sm"
           className="flex-1"
-          onClick={() => { setMode('deposit'); setAmount(''); setError(''); }}
+          onClick={() => selectMode('deposit')}
         >
           <ArrowDownToLine className="w-4 h-4 mr-1" />
           Deposit
@@ -197,7 +260,7 @@ export const DeFindexTab = ({
           variant={mode === 'withdraw' ? 'default' : 'outline'}
           size="sm"
           className="flex-1"
-          onClick={() => { setMode('withdraw'); setAmount(''); setError(''); }}
+          onClick={() => selectMode('withdraw')}
         >
           <ArrowUpFromLine className="w-4 h-4 mr-1" />
           Withdraw
@@ -212,16 +275,16 @@ export const DeFindexTab = ({
             variant="ghost"
             size="sm"
             className="h-6 text-xs px-2"
-            onClick={() => setAmount(maxAmount)}
+            onClick={() => updateAmount(formatUnits(maxAmount, USDC_DECIMALS))}
           >
-            Max: {parseFloat(maxAmount).toFixed(2)}
+            Max: {formatShort(maxAmount)}
           </Button>
         </div>
         <Input
           type="number"
           placeholder="0.00"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => updateAmount(e.target.value)}
           min="0"
           step="0.01"
         />
@@ -238,7 +301,7 @@ export const DeFindexTab = ({
       <Button
         className="w-full"
         onClick={handleBuild}
-        disabled={loading || !amount || parseFloat(amount) <= 0 || isTransactionBuilt}
+        disabled={loading || !raw || isTransactionBuilt}
       >
         {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
         {mode === 'deposit' ? 'Build Deposit' : 'Build Withdraw'}

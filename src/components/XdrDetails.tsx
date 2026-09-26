@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, Copy, FileText, Hash, User, Coins, Clock, Signature, Check, AlertTriangle, ExternalLink, Shield, Settings, Users } from 'lucide-react';
-import { generateTransactionFingerprint } from '@/lib/xdr/fingerprint';
 import { analyzeOperations, dominantProtocol } from '@/lib/protocols/detect';
 import { ProtocolSummary } from '@/components/transaction/ProtocolSummary';
 import { AccountChangeSummary } from '@/components/transaction/AccountChangeSummary';
@@ -13,24 +12,46 @@ import type { AccountData } from '@/lib/stellar';
 import { ProtocolBadge, UnknownContractBadge } from '@/components/transaction/ProtocolBadge';
 import { useToast } from '@/hooks/use-toast';
 import { tryParseTransaction, getInnerTransaction, getTransactionHash } from '@/lib/xdr/parse';
-import { Operation, type Memo, xdr as StellarXdr } from '@stellar/stellar-sdk';
+import { baseAccountId } from '@/lib/signatures';
+import { Operation, StrKey, type Memo, xdr as StellarXdr } from '@stellar/stellar-sdk';
 
 // Type helpers for operation details
-type PaymentOp = Operation & { destination?: string; amount?: string; asset?: { code?: string } };
+type AssetLike = { code?: string; issuer?: string; isNative?: () => boolean } | undefined;
+type PaymentOp = Operation & { destination?: string; amount?: string; asset?: AssetLike };
+type CreateAccountOp = Operation & { destination?: string; startingBalance?: string };
 type PathPaymentOp = Operation & { 
   destination?: string; 
   sendAmount?: string; 
-  sendAsset?: { code?: string }; 
+  sendMax?: string;
+  sendAsset?: AssetLike; 
   destMin?: string; 
-  destAsset?: { code?: string } 
+  destAmount?: string;
+  destAsset?: AssetLike;
 };
-type ChangeTrustOp = Operation & { asset?: { code?: string }; limit?: string };
+type ChangeTrustOp = Operation & { asset?: AssetLike & { poolId?: string }; limit?: string };
+
+/**
+ * Asset code plus a shortened issuer: anyone can issue a token called "USDC", so the code
+ * alone never identifies an asset.
+ */
+const formatAsset = (asset: AssetLike): string => {
+  if (!asset || asset.isNative?.() || (!asset.issuer && (!asset.code || asset.code === 'XLM'))) return 'XLM';
+  if (!asset.code) return 'Liquidity pool shares';
+  return asset.issuer ? `${asset.code} (${asset.issuer.slice(0, 4)}…${asset.issuer.slice(-4)})` : asset.code;
+};
+
+/** 0 means "no bound" for both ends of a time bound. */
+const formatTimeBound = (value: string | number | undefined, kind: 'min' | 'max'): string => {
+  const seconds = Number(value ?? 0);
+  if (!seconds) return kind === 'min' ? 'none' : 'no expiry';
+  return new Date(seconds * 1000).toLocaleString();
+};
 type SetOptionsOp = Operation & {
   signer?: {
     weight?: number;
     ed25519PublicKey?: string;
-    preAuthTx?: string;
-    sha256Hash?: string;
+    preAuthTx?: Uint8Array;
+    sha256Hash?: Uint8Array;
     ed25519SignedPayload?: string;
   };
   masterWeight?: number | null;
@@ -51,7 +72,8 @@ const formatMemoValue = (memo: Memo): string => {
 interface XdrDetailsProps {
   xdr: string;
   defaultExpanded?: boolean;
-  networkType?: 'mainnet' | 'testnet';
+  /** The network the transaction is signed for: it decides the hash. */
+  networkType: 'mainnet' | 'testnet';
   offlineMode?: boolean;
   /** Current account state, used to show setOptions changes as before → after. */
   accountData?: AccountData | null;
@@ -64,17 +86,23 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
   const [opsExpanded, setOpsExpanded] = useState(false);
 
 
-  const parsed = tryParseTransaction(xdr);
+  const parsed = tryParseTransaction(xdr, networkType);
   
   if (!parsed) {
     return null; // Don't render if XDR is invalid
   }
 
-  const { tx, network, isFeeBump } = parsed;
+  const { tx, isFeeBump } = parsed;
   const transaction = getInnerTransaction(tx);
   const hash = getTransactionHash(tx);
-  const fingerprint = generateTransactionFingerprint(xdr);
   const sourceAccount = transaction.source;
+  const feeSource = isFeeBump && 'feeSource' in tx ? tx.feeSource : undefined;
+  // Operations can act on an account other than the transaction source; that must be visible.
+  const foreignSource = (op: Operation) => {
+    const { source } = op as { source?: string };
+    return source && baseAccountId(source) !== baseAccountId(sourceAccount) ? source : undefined;
+  };
+  const foreignOps = transaction.operations.filter((op) => foreignSource(op));
   const fee = tx.fee;
   const operations = transaction.operations;
   const memo = transaction.memo;
@@ -83,7 +111,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
   const signatures = tx.signatures;
 
   // Soroban invocations, matched against the DeFi protocols we know how to read.
-  const networkId = networkType ?? (network === 'public' ? 'mainnet' : 'testnet');
+  const networkId = networkType;
   const contractCalls = analyzeOperations(operations, networkId);
   const protocol = dominantProtocol(contractCalls);
   const protocolMatch = protocol
@@ -144,7 +172,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   size="sm"
                 />
               )}
-              {!protocolMatch && hasUnknownCall && <UnknownContractBadge size="sm" />}
+              {hasUnknownCall && <UnknownContractBadge size="sm" />}
             </div>
             <Button
               variant="ghost"
@@ -159,6 +187,16 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
         
         <CollapsibleContent>
           <CardContent className="space-y-4">
+
+            {foreignOps.length > 0 && (
+              <div className="p-3 rounded-lg border border-warning/40 bg-warning/5 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+                <p className="text-sm text-foreground">
+                  {foreignOps.length} operation{foreignOps.length > 1 ? 's act' : ' acts'} on another account than the
+                  transaction source (see "Acts on" below). Signing may authorise moving that account's funds.
+                </p>
+              </div>
+            )}
 
             {/* What this transaction does to the account's signers and thresholds */}
             {interpretation && (
@@ -208,7 +246,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     Fee-Bump Transaction
                   </Badge>
                   <p className="text-sm text-muted-foreground">
-                    This transaction is sponsored with additional fees
+                    The fee is paid by <span className="font-address text-xs break-all">{feeSource}</span>
                   </p>
                 </div>
               )}
@@ -227,7 +265,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     <Hash className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium">Network:</span>
                   </div>
-                  <p className="text-sm">{network === 'public' ? 'Mainnet' : 'Testnet'}</p>
+                  <p className="text-sm">{networkType === 'mainnet' ? 'Mainnet' : 'Testnet'}</p>
                 </div>
                 
                 <div className="space-y-2">
@@ -269,8 +307,18 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                         <Badge variant="outline" className="text-xs">{op.type}</Badge>
                         {op.type === 'payment' && (
                           <span className="text-muted-foreground text-xs truncate">
-                            {(op as PaymentOp).amount} {(op as PaymentOp).asset?.code || 'XLM'}
+                            {(op as PaymentOp).amount} {formatAsset((op as PaymentOp).asset)}
                           </span>
+                        )}
+                        {op.type === 'createAccount' && (
+                          <span className="text-muted-foreground text-xs truncate">
+                            {(op as CreateAccountOp).startingBalance} XLM
+                          </span>
+                        )}
+                        {foreignSource(op) && (
+                          <Badge variant="outline" className="text-xs border-warning/60 text-warning">
+                            acts on {foreignSource(op)!.slice(0, 4)}…{foreignSource(op)!.slice(-4)}
+                          </Badge>
                         )}
                         {call?.match && (
                           <>
@@ -299,6 +347,38 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                           <Badge variant="outline" className="mb-2">
                             {op.type}
                           </Badge>
+                          {foreignSource(op) && (
+                            <p className="text-sm mb-2 break-words">
+                              <span className="text-warning font-medium">Acts on:</span>
+                              <span className="font-address text-xs ml-1 break-all">{foreignSource(op)}</span>
+                              <span className="ml-1 text-xs text-muted-foreground">(not the transaction source)</span>
+                            </p>
+                          )}
+                          {op.type === 'createAccount' && (
+                            <div className="text-sm space-y-1">
+                              <p className="break-words">
+                                <span className="text-muted-foreground">New account:</span>
+                                <span className="font-address text-xs ml-1 break-all">{(op as CreateAccountOp).destination}</span>
+                              </p>
+                              <p>
+                                <span className="text-muted-foreground">Starting balance:</span> <span className="font-amount">{(op as CreateAccountOp).startingBalance} XLM</span>
+                              </p>
+                            </div>
+                          )}
+                          {op.type === 'pathPaymentStrictReceive' && (
+                            <div className="text-sm space-y-1">
+                              <p className="break-words">
+                                <span className="text-muted-foreground">To:</span>
+                                <span className="font-address text-xs ml-1 break-all">{(op as PathPaymentOp).destination}</span>
+                              </p>
+                              <p>
+                                <span className="text-muted-foreground">Send (max):</span> <span className="font-amount">{(op as PathPaymentOp).sendMax} {formatAsset((op as PathPaymentOp).sendAsset)}</span>
+                              </p>
+                              <p>
+                                <span className="text-muted-foreground">Receive (exact):</span> <span className="font-amount">{(op as PathPaymentOp).destAmount} {formatAsset((op as PathPaymentOp).destAsset)}</span>
+                              </p>
+                            </div>
+                          )}
                           {op.type === 'payment' && (
                             <div className="text-sm space-y-1">
                               <p className="break-words">
@@ -306,7 +386,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                 <span className="font-address text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Amount:</span> <span className="font-amount">{(op as Operation & { amount?: string; asset?: { code?: string } }).amount} {(op as Operation & { amount?: string; asset?: { code?: string } }).asset?.code || 'XLM'}</span>
+                                <span className="text-muted-foreground">Amount:</span> <span className="font-amount">{(op as PaymentOp).amount} {formatAsset((op as PaymentOp).asset)}</span>
                               </p>
                             </div>
                           )}
@@ -317,10 +397,10 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                 <span className="font-address text-xs ml-1 break-all">{(op as PathPaymentOp).destination}</span>
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Send:</span> <span className="font-amount">{(op as PathPaymentOp).sendAmount} {(op as PathPaymentOp).sendAsset?.code || 'XLM'}</span>
+                                <span className="text-muted-foreground">Send:</span> <span className="font-amount">{(op as PathPaymentOp).sendAmount} {formatAsset((op as PathPaymentOp).sendAsset)}</span>
                               </p>
                               <p>
-                                <span className="text-muted-foreground">Receive (min):</span> <span className="font-amount">{(op as PathPaymentOp).destMin} {(op as PathPaymentOp).destAsset?.code || 'XLM'}</span>
+                                <span className="text-muted-foreground">Receive (min):</span> <span className="font-amount">{(op as PathPaymentOp).destMin} {formatAsset((op as PathPaymentOp).destAsset)}</span>
                               </p>
                             </div>
                           )}
@@ -341,7 +421,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                           {op.type === 'changeTrust' && (
                             <div className="text-sm space-y-1">
                               <p>
-                                <span className="text-muted-foreground">Asset:</span> {(op as ChangeTrustOp).asset?.code || 'Unknown'}
+                                <span className="text-muted-foreground">Asset:</span> {formatAsset((op as ChangeTrustOp).asset)}
                               </p>
                               <p>
                                 <span className="text-muted-foreground">Limit:</span> {(op as ChangeTrustOp).limit || 'MAX'}
@@ -359,8 +439,19 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                           {op.type === 'setOptions' && (() => {
                             const setOptions = op as SetOptionsOp;
                             const signer = setOptions.signer;
+                            // Hash-based signers decode as raw bytes; show them as the strkeys Horizon uses.
                             const signerKey =
-                              signer?.ed25519PublicKey ?? signer?.preAuthTx ?? signer?.sha256Hash ?? signer?.ed25519SignedPayload;
+                              signer?.ed25519PublicKey ??
+                              signer?.ed25519SignedPayload ??
+                              (signer?.preAuthTx ? StrKey.encodePreAuthTx(Buffer.from(signer.preAuthTx)) : undefined) ??
+                              (signer?.sha256Hash ? StrKey.encodeSha256Hash(Buffer.from(signer.sha256Hash)) : undefined);
+                            const signerLabel = signer?.preAuthTx
+                              ? 'Pre-authorised transaction'
+                              : signer?.sha256Hash
+                                ? 'Hash(x) signer'
+                                : signer?.ed25519SignedPayload
+                                  ? 'Signed payload signer'
+                                  : 'Public Key';
                             // A threshold of 0 is meaningful, so test for presence, not truthiness.
                             const thresholds = ([
                               ['lowThreshold', 'Low Threshold', 'basic operations'],
@@ -385,7 +476,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                     </div>
                                     <div className="space-y-1">
                                       <p className="break-words">
-                                        <span className="text-muted-foreground">Public Key:</span>
+                                        <span className="text-muted-foreground">{signerLabel}:</span>
                                         <span className="font-address text-xs ml-1 break-all">{signerKey ?? 'Not specified'}</span>
                                       </p>
                                       <p>
@@ -449,7 +540,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                               </div>
                             );
                           })()}
-                          {!['payment', 'pathPaymentStrictSend', 'accountMerge', 'changeTrust', 'setOptions'].includes(op.type) && (
+                          {!['payment', 'createAccount', 'pathPaymentStrictSend', 'pathPaymentStrictReceive', 'accountMerge', 'changeTrust', 'setOptions'].includes(op.type) && (
                             <div className="text-sm space-y-2">
                               {contractCalls.some((c) => c.opIndex === index) ? (
                                 <p className="text-muted-foreground">
@@ -507,8 +598,11 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                       <span className="font-medium">Time Bounds:</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {timeBounds.minTime && <p>Min: {new Date(Number(timeBounds.minTime) * 1000).toLocaleString()}</p>}
-                      {timeBounds.maxTime && <p>Max: {new Date(Number(timeBounds.maxTime) * 1000).toLocaleString()}</p>}
+                      <p>Valid from: {formatTimeBound(timeBounds.minTime, 'min')}</p>
+                      <p>Valid until: {formatTimeBound(timeBounds.maxTime, 'max')}</p>
+                      {Number(timeBounds.maxTime) > 0 && Number(timeBounds.maxTime) * 1000 < Date.now() && (
+                        <p className="text-destructive font-medium">Expired: the network will reject it. Build it again.</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -566,13 +660,9 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     // XDR encoding rule: Every / becomes //
                     const encodedXdr = xdr.replace(/\//g, '//');
                     
-                    let params = '';
-                    
-                    if (networkType === 'mainnet') {
-                      params = `$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=https:////rpc.lightsail.network//&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
-                    } else {
-                      params = `$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////rpc.lightsail.network//&passphrase=Test%20SDF%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
-                    }
+                    const params = networkType === 'mainnet'
+                      ? `$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=https:////rpc.lightsail.network//&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`
+                      : `$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org//&passphrase=Test%20SDF%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
                     
                     const url = `${baseUrl}?${params}`;
                     window.open(url, '_blank');

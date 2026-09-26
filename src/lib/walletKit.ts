@@ -48,4 +48,11 @@ StellarWalletsKit.init({
   ],
 });
 
+/**
+ * Wallets whose active account can be read without a prompt, so the app can notice when the
+ * user switches accounts in the wallet. Web wallets (Albedo, xBull, Ghostsig…) open a popup for
+ * every address lookup and hardware wallets need a device interaction, so they are not polled.
+ */
+export const WATCHABLE_WALLETS = ['freighter'];
+
 export { StellarWalletsKit };

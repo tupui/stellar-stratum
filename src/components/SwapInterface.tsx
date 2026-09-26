@@ -7,9 +7,8 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { calculateAvailableBalance, formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
+import { formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
-import { getAssetPrice } from '@/lib/reflector';
 import { useNetwork } from '@/contexts/NetworkContext';
 interface Asset {
   code: string;
@@ -24,16 +23,11 @@ interface SwapInterfaceProps {
   amount: string;
   availableAssets: Asset[];
   recipientAssets?: Asset[];
-  maxAmount: number;
-  reserveAmount?: number;
+  /** What can be sent of the selected asset, net of reserves and earlier operations. */
+  availableBalance: number;
   fiatValue?: string;
   receiveAmount?: string;
   slippageTolerance?: number;
-  previousOperations?: Array<{
-    asset: string;
-    amount: string;
-    type?: string;
-  }>;
   onAmountChange: (amount: string) => void;
   onFromAssetChange: (asset: string, issuer?: string) => void;
   onToAssetChange: (asset?: string, issuer?: string) => void;
@@ -47,6 +41,8 @@ interface SwapInterfaceProps {
   assetPrices?: Record<string, number>;
   onFetchAssetPrice?: (assetCode: string, assetIssuer?: string) => Promise<number>;
 }
+const assetKey = (code?: string, issuer?: string) => (issuer ? `${code}:${issuer}` : code || '');
+
 export const SwapInterface = ({
   fromAsset,
   fromAssetIssuer,
@@ -55,12 +51,10 @@ export const SwapInterface = ({
   amount,
   availableAssets,
   recipientAssets = [],
-  maxAmount,
-  reserveAmount = 1,
+  availableBalance,
   fiatValue,
   receiveAmount,
   slippageTolerance = 0.5,
-  previousOperations = [],
   onAmountChange,
   onFromAssetChange,
   onToAssetChange,
@@ -80,20 +74,22 @@ export const SwapInterface = ({
   const [editValue, setEditValue] = useState(amount);
   const [isEditingReceiveAmount, setIsEditingReceiveAmount] = useState(false);
   const [editReceiveValue, setEditReceiveValue] = useState(receiveAmount || '');
-  const [fetchingPrices, setFetchingPrices] = useState(false);
   const [priceError, setPriceError] = useState<string>('');
   const [manualReceiveAmount, setManualReceiveAmount] = useState<string>('');
   const [isManualInput, setIsManualInput] = useState(false);
   const {
     getCurrentCurrency
   } = useFiatCurrency();
-  const fromAssetObject = availableAssets.find(a => a.code === fromAsset);
+  // Assets are identified by code AND issuer: anyone can issue a token called "USDC".
+  const sameAsset = (a: Asset, code?: string, issuer?: string) => a.code === code && (a.issuer || '') === (issuer || '');
+  const fromAssetObject = availableAssets.find(a => sameAsset(a, fromAsset, fromAssetIssuer));
   const fromAssetBalance = fromAssetObject?.balance || '0';
   const receiveCode = toAsset || fromAsset;
-  const toAssetBalance = recipientAssets.find(a => a.code === receiveCode)?.balance || '0';
+  const receiveIssuer = toAsset ? toAssetIssuer : fromAssetIssuer;
+  const toAssetBalance = recipientAssets.find(a => sameAsset(a, receiveCode, receiveIssuer))?.balance || '0';
+  const recipientHasFromAsset = recipientAssets.some(a => sameAsset(a, fromAsset, fromAssetIssuer));
 
-  // Calculate available balance using centralized utility
-  const availableAmount = fromAssetObject ? calculateAvailableBalance(fromAssetObject, previousOperations, reserveAmount) : 0;
+  const availableAmount = fromAssetObject ? availableBalance : 0;
 
   // Calculate current percentage for slider
   const currentPercentage = calculateBalancePercentage(amount, availableAmount);
@@ -149,11 +145,9 @@ export const SwapInterface = ({
     if (fromPrice <= 0 || toPrice <= 0) {
       setPriceError(`Exchange rate not available. Please enter minimum receive amount manually.`);
       setIsManualInput(true);
-      setFetchingPrices(false);
     } else {
       setPriceError('');
       setIsManualInput(false);
-      setFetchingPrices(false);
     }
     
     // Fetch missing prices in background without blocking
@@ -272,15 +266,6 @@ export const SwapInterface = ({
     }
   };
 
-  // Helper to build a single monospaced line with spaces so the amount is flush-right
-  const getPaddedRowText = (label: string, value: string | number) => {
-    const amt = formatBalanceAligned(value);
-    const totalChars = 28; // tune to fit the dropdown width
-    const used = label.length + 1 + amt.length; // +1 for at least one space
-    const spaces = Math.max(1, totalChars - used);
-    return `${label}${' '.repeat(spaces)}${amt}`;
-  };
-
   const getAssetExplorerUrl = (assetCode: string, assetIssuer?: string): string => {
     const networkPath = network === 'testnet' ? 'testnet' : 'public';
     if (!assetIssuer || assetCode === 'XLM') {
@@ -337,9 +322,9 @@ export const SwapInterface = ({
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4">
-          <Select value={fromAsset} onValueChange={value => {
-          const selectedAsset = availableAssets.find(asset => asset.code === value);
-          onFromAssetChange(value, selectedAsset?.issuer);
+          <Select value={assetKey(fromAsset, fromAssetIssuer)} onValueChange={value => {
+          const selectedAsset = availableAssets.find(asset => assetKey(asset.code, asset.issuer) === value);
+          if (selectedAsset) onFromAssetChange(selectedAsset.code, selectedAsset.issuer);
         }}>
             <SelectTrigger className="min-w-32 max-w-48 h-12 rounded-full">
               <SelectValue>
@@ -351,7 +336,7 @@ export const SwapInterface = ({
             </SelectTrigger>
             <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
               {availableAssets.map(asset => (
-                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
+                <SelectItem key={assetKey(asset.code, asset.issuer)} value={assetKey(asset.code, asset.issuer)} className="px-3 py-3" hideIndicator>
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-3">
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
@@ -363,6 +348,7 @@ export const SwapInterface = ({
                         onClick={(e) => e.stopPropagation()}
                       >
                         {asset.code}
+                        {asset.issuer && <span className="ml-1 text-xs text-muted-foreground font-address">{asset.issuer.slice(0, 4)}…{asset.issuer.slice(-4)}</span>}
                       </a>
                     </div>
                     <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
@@ -386,9 +372,9 @@ export const SwapInterface = ({
                 if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
                 if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
                 setEditValue(sanitized);
-              }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full" placeholder="0.0" autoFocus />
+              }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full" placeholder="0.0" aria-label="Amount to send" autoFocus />
             ) : (
-              <div className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors w-full" onClick={() => setIsEditingAmount(true)}>
+              <div role="button" tabIndex={0} aria-label="Edit amount to send" className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors w-full" onClick={() => setIsEditingAmount(true)} onKeyDown={e => { if (e.key === 'Enter') setIsEditingAmount(true); }}>
                 {amount ? formatAmount(amount) : '0.0'}
               </div>
             )}
@@ -447,14 +433,14 @@ export const SwapInterface = ({
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
           <Select 
-            value={willCloseAccount ? "XLM" : (toAsset || "same")} 
+            value={willCloseAccount ? "XLM" : (toAsset && !(toAsset === fromAsset && (toAssetIssuer || '') === (fromAssetIssuer || '')) ? assetKey(toAsset, toAssetIssuer) : "same")} 
             onValueChange={value => {
               if (willCloseAccount) return; // Prevent changes during account merge
               if (value === "same") {
                 onToAssetChange();
               } else {
-                const selectedAsset = recipientAssets.find(asset => asset.code === value);
-                onToAssetChange(value, selectedAsset?.issuer);
+                const selectedAsset = recipientAssets.find(asset => assetKey(asset.code, asset.issuer) === value);
+                if (selectedAsset) onToAssetChange(selectedAsset.code, selectedAsset.issuer);
               }
             }}
             disabled={willCloseAccount}
@@ -472,7 +458,7 @@ export const SwapInterface = ({
             </SelectTrigger>
             <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
               {/* Only show "same asset" option if recipient has trustline for it */}
-              {recipientAssets.some(asset => asset.code === fromAsset) && (
+              {recipientHasFromAsset && (
                 <SelectItem value="same" className="px-3 py-3" hideIndicator>
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-3">
@@ -485,8 +471,8 @@ export const SwapInterface = ({
                   </div>
                 </SelectItem>
               )}
-              {recipientAssets.filter(asset => asset.code !== fromAsset).map(asset => (
-                <SelectItem key={`${asset.code}-${asset.issuer}`} value={asset.code} className="px-3 py-3" hideIndicator>
+              {recipientAssets.filter(asset => !sameAsset(asset, fromAsset, fromAssetIssuer)).map(asset => (
+                <SelectItem key={assetKey(asset.code, asset.issuer)} value={assetKey(asset.code, asset.issuer)} className="px-3 py-3" hideIndicator>
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-3">
                       <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
@@ -498,6 +484,7 @@ export const SwapInterface = ({
                         onClick={(e) => e.stopPropagation()}
                       >
                         {asset.code}
+                        {asset.issuer && <span className="ml-1 text-xs text-muted-foreground font-address">{asset.issuer.slice(0, 4)}…{asset.issuer.slice(-4)}</span>}
                       </a>
                     </div>
                     <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
 import { safeStorage } from '@/lib/storage';
 
 type Network = 'mainnet' | 'testnet';
@@ -30,13 +30,16 @@ export const NetworkProvider = ({ children }: NetworkProviderProps) => {
     return saved === 'testnet' || saved === 'mainnet' ? saved : 'mainnet';
   });
 
-  const setNetwork = (newNetwork: Network) => {
+  // Stable identity: effects depend on setNetwork and must not re-run on every network change.
+  const setNetwork = useCallback((newNetwork: Network) => {
     setNetworkState(newNetwork);
     safeStorage.set(NETWORK_STORAGE_KEY, newNetwork);
-  };
+  }, []);
+
+  const value = useMemo(() => ({ network, setNetwork }), [network, setNetwork]);
 
   return (
-    <NetworkContext.Provider value={{ network, setNetwork }}>
+    <NetworkContext.Provider value={value}>
       {children}
     </NetworkContext.Provider>
   );

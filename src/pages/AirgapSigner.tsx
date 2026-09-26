@@ -1,36 +1,37 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Smartphone } from 'lucide-react';
-import { AnimatedQRScanner } from '@/components/airgap/AnimatedQRScanner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { CheckCircle, Plus, Smartphone } from 'lucide-react';
+import { TransactionScanner } from '@/components/airgap/TransactionScanner';
 import { XdrDetails } from '@/components/XdrDetails';
-import { SignerSelector } from '@/components/SignerSelector';
 import { TransactionSubmitter } from '@/components/transaction/TransactionSubmitter';
 import { SuccessModal } from '@/components/SuccessModal';
-import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
 import { useNetwork } from '@/contexts/NetworkContext';
-import { useToast } from '@/hooks/use-toast';
-import { extractXdrFromData } from '@/lib/sep7';
-import { tryParseTransaction } from '@/lib/xdr/parse';
 import { useWalletKit } from '@/contexts/WalletKitContext';
+import { useToast } from '@/hooks/use-toast';
+import { parseTransactionPayload, type TransactionPayload } from '@/lib/sep7';
+import { verifiedSignerKeys } from '@/lib/signatures';
+import { getInnerTransaction, getTransactionHash, tryParseTransaction } from '@/lib/xdr/parse';
+
+const networkName = (network: 'mainnet' | 'testnet') => (network === 'mainnet' ? 'Mainnet' : 'Testnet');
 
 const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
-  const { signWithWallet } = useWalletKit();
+  const { wallets: allWallets, signWithWallet } = useWalletKit();
+  const wallets = allWallets.filter((w) => w.isAvailable);
   const { toast } = useToast();
   const [xdr, setXdr] = useState<string>('');
-  const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
-  
-  const [step, setStep] = useState<'scan' | 'loaded'>('scan');
-  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'offline'; xdr?: string } | null>(null);
+  const [pasted, setPasted] = useState('');
+  // Addresses that signed on this device, for the current transaction only.
+  const [signedBy, setSignedBy] = useState<string[]>([]);
+  const [selectedWalletId, setSelectedWalletId] = useState('');
+  const [isSigning, setIsSigning] = useState(false);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
 
   // Disable network features for true air-gapped operation
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        registrations.forEach(registration => registration.unregister());
-      });
-    }
-
     const originalFetch = window.fetch;
     const originalXHR = window.XMLHttpRequest;
 
@@ -58,73 +59,73 @@ const AirgapSigner = () => {
     };
   }, []);
 
-  // Check URL parameters for XDR
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const xdrParam = urlParams.get('xdr');
-    const networkParam = urlParams.get('network') as 'mainnet' | 'testnet' | null;
-
-    if (xdrParam) {
-      const extractedXdr = extractXdrFromData(decodeURIComponent(xdrParam));
-      if (extractedXdr) {
-        const parsed = tryParseTransaction(extractedXdr);
-        if (parsed) {
-          // Align UI network to the XDR so fingerprint/hash don't mismatch.
-          setNetwork(parsed.network === 'public' ? 'mainnet' : 'testnet');
-          setXdr(extractedXdr);
-          setStep('loaded');
-        } else {
-          toast({
-            title: 'Invalid URL Parameter',
-            description: 'The XDR in the URL is not a valid transaction.',
-            variant: 'destructive',
-          });
-        }
-      }
-    } else if (networkParam) {
-      setNetwork(networkParam);
-    }
-  }, [setNetwork, toast]);
-
-  const handleXdrReceived = (receivedXdr: string) => {
-    const parsed = tryParseTransaction(receivedXdr);
-    if (!parsed) {
+  /**
+   * A new transaction replaces the current one. The network comes from the SEP-7 URI when it
+   * names one; raw XDR does not say, so the current choice stays and is shown for review.
+   */
+  const loadTransaction = (payload: TransactionPayload) => {
+    const target = payload.network ?? network;
+    if (!tryParseTransaction(payload.xdr, target)) {
       toast({
         title: 'Invalid Transaction',
-        description: 'Invalid transaction payload. Ensure it\'s a SEP-7 tx QR or base64 XDR.',
+        description: "Invalid transaction payload. Ensure it's a SEP-7 tx QR or base64 XDR.",
         variant: 'destructive',
       });
       return;
     }
-
-    // Align UI network to the scanned XDR.
-    setNetwork(parsed.network === 'public' ? 'mainnet' : 'testnet');
-    setXdr(receivedXdr);
-    setStep('loaded');
+    setNetwork(target);
+    setXdr(payload.xdr);
+    setSignedBy([]);
+    setPasted('');
     toast({
       title: 'Transaction Received',
-      description: 'Ready for review and signing',
+      description: `Ready for review and signing on ${networkName(target)}`,
     });
   };
 
-  const handleSignWithSigner = async (
-    signerKey: string,
-    walletId: string
-  ) => {
+  // ?xdr= (raw XDR or a SEP-7 URI) and ?network= in the page URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const networkParam = params.get('network');
+    const requested = networkParam === 'testnet' || networkParam === 'mainnet' ? networkParam : undefined;
+    const xdrParam = params.get('xdr');
+    if (!xdrParam) {
+      if (requested) setNetwork(requested);
+      return;
+    }
+    const payload = parseTransactionPayload(xdrParam);
+    if (payload) {
+      loadTransaction({ xdr: payload.xdr, network: payload.network ?? requested });
+    } else {
+      toast({
+        title: 'Invalid URL Parameter',
+        description: 'The XDR in the URL is not a valid transaction.',
+        variant: 'destructive',
+      });
+    }
+    // Runs once on load; loadTransaction reads the network at that time.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSign = async () => {
+    const original = tryParseTransaction(xdr, network);
+    if (!original || !selectedWalletId) return;
+    setIsSigning(true);
     try {
-      // Actually sign the transaction with the wallet
-      const { signedXdr, address } = await signWithWallet(xdr, walletId);
-      
-      // Update the XDR with the new signature
+      const { signedXdr, address, walletName } = await signWithWallet(xdr, selectedWalletId, network);
+      const signed = tryParseTransaction(signedXdr, network);
+      if (!signed || getTransactionHash(signed.tx) !== getTransactionHash(original.tx)) {
+        throw new Error(`${walletName} returned a different transaction. It was not added.`);
+      }
+      const hash = signed.isFeeBump ? signed.tx.hash() : getInnerTransaction(signed.tx).hash();
+      const signatures = signed.isFeeBump ? signed.tx.signatures : getInnerTransaction(signed.tx).signatures;
+      if (address && !verifiedSignerKeys(hash, signatures, [{ key: address, weight: 1 }]).includes(address)) {
+        throw new Error(`${walletName} did not return a valid signature for ${networkName(network)}.`);
+      }
       setXdr(signedXdr);
-      
-      // Add signature to signedBy array using the actual wallet address
-      const newSignature = { signerKey: address, signedAt: new Date() };
-      setSignedBy(prev => [...prev, newSignature]);
-      
+      if (address) setSignedBy((prev) => (prev.includes(address) ? prev : [...prev, address]));
       toast({
         title: 'Transaction Signed',
-        description: `Signature added from ${address.slice(0, 8)}...${address.slice(-8)}`,
+        description: address ? `Signature added from ${address.slice(0, 8)}...${address.slice(-8)}` : `Signed with ${walletName}`,
       });
     } catch (error) {
       toast({
@@ -132,10 +133,15 @@ const AirgapSigner = () => {
         description: error instanceof Error ? error.message : 'Failed to sign transaction',
         variant: 'destructive',
       });
+    } finally {
+      setIsSigning(false);
     }
   };
 
-  
+  const parsed = xdr ? tryParseTransaction(xdr, network) : null;
+  const signatureCount = parsed
+    ? (parsed.isFeeBump ? parsed.tx.signatures.length : 0) + getInnerTransaction(parsed.tx).signatures.length
+    : 0;
 
   const renderScanStep = () => (
     <div className="space-y-6">
@@ -153,95 +159,126 @@ const AirgapSigner = () => {
         <div className="grid gap-1">
           <p className="text-foreground font-medium">Steps</p>
           <ol className="list-decimal pl-5 text-muted-foreground">
-            <li>Scan the transaction QR below.</li>
-            <li>Review details and add signatures on this device.</li>
+            <li>Scan the transaction QR below (or paste its XDR).</li>
+            <li>Check the network and the hash, review the details and add signatures on this device.</li>
             <li>Show the Signature QR back to Device A to merge and submit.</li>
           </ol>
         </div>
         <div className="grid gap-1">
           <p className="text-foreground font-medium">Safety tips</p>
           <ul className="list-disc pl-5 text-muted-foreground">
-            <li>Compare the transaction fingerprint on both devices before signing.</li>
+            <li>Compare the transaction hash on both devices before signing.</li>
             <li>Keep this device offline for the entire flow.</li>
           </ul>
         </div>
       </div>
 
-      <AnimatedQRScanner
-        onDataReceived={handleXdrReceived}
-        expectedType="xdr"
-        embedded
+      <TransactionScanner onTransaction={loadTransaction} />
+
+      <div className="space-y-2">
+        <Textarea
+          placeholder="Or paste a transaction XDR / SEP-7 URI"
+          className="min-h-24 font-address text-xs"
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+        />
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={!pasted.trim()}
+          onClick={() => {
+            const payload = parseTransactionPayload(pasted);
+            if (payload) loadTransaction(payload);
+            else toast({ title: 'Invalid Transaction', description: 'This is not a transaction XDR or SEP-7 URI.', variant: 'destructive' });
+          }}
+        >
+          Load transaction
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderLoadedStep = () => (
+    <div className="space-y-6">
+      {/* The XDR does not say which network it is for; the signature is only valid on this one */}
+      <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-secondary/40">
+        <span className="text-sm">
+          Signing for <span className="font-semibold">{networkName(network)}</span>
+        </span>
+        <Select value={network} onValueChange={(value) => setNetwork(value as 'mainnet' | 'testnet')}>
+          <SelectTrigger className="w-32 h-8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mainnet">Mainnet</SelectItem>
+            <SelectItem value="testnet">Testnet</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <XdrDetails xdr={xdr} defaultExpanded={true} networkType={network} offlineMode={true} />
+
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="text-base sm:text-lg">Sign with Wallet</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {signatureCount} signature{signatureCount === 1 ? '' : 's'} on this transaction.
+          </p>
+          {signedBy.map((address) => (
+            <div key={address} className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <p className="font-address text-sm">{address.slice(0, 8)}...{address.slice(-8)}</p>
+            </div>
+          ))}
+          <div className="flex flex-col gap-2">
+            <Select value={selectedWalletId} onValueChange={setSelectedWalletId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select wallet to sign with" />
+              </SelectTrigger>
+              <SelectContent>
+                {wallets.map((w) => (
+                  <SelectItem key={w.id} value={w.id}>
+                    {w.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleSign} disabled={!selectedWalletId || isSigning} className="w-full">
+              {isSigning ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Signing...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  Sign with Wallet
+                </div>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <TransactionSubmitter
+        xdr={xdr}
+        network={network}
+        ready={false}
+        isSubmittingToNetwork={false}
+        isSubmittingToRefractor={false}
+        onSubmitToNetwork={async () => {}}
+        onSubmitToRefractor={async () => {}}
+        onShowOfflineModal={() => setShowOfflineModal(true)}
+        offlineOnly={true}
       />
     </div>
   );
 
-  const renderLoadedStep = () => {
-    return (
-      <div className="space-y-6">
-        {/* Advanced Transaction Details - Expanded by default */}
-        <XdrDetails xdr={xdr} defaultExpanded={true} networkType={network} offlineMode={true} />
-
-
-        {/* Signature Management - Use free mode for air-gapped signing */}
-        <SignerSelector
-          xdr={xdr}
-          signers={[]} // No predefined signers needed in free mode
-          currentAccountKey=""
-          signedBy={signedBy}
-          requiredWeight={0} // Not relevant in free mode
-          onSignWithSigner={handleSignWithSigner}
-          isSigning={false}
-          freeMode={true}
-          network={network}
-          onSigned={(signedXdr, signerKey) => {
-            // Update the XDR with the new signature
-            setXdr(signedXdr);
-            
-            // Add signature to signedBy array
-            const newSignature = { signerKey, signedAt: new Date() };
-            setSignedBy(prev => [...prev, newSignature]);
-          }}
-        />
-
-        {/* Transaction Submitter - Offline only mode */}
-        <TransactionSubmitter
-          xdrOutput={xdr}
-          signedBy={signedBy}
-          currentWeight={0} // Not relevant for offline
-          requiredWeight={0} // Not relevant for offline
-          canSubmitToNetwork={false}
-          canSubmitToRefractor={false}
-          isSubmittingToNetwork={false}
-          isSubmittingToRefractor={false}
-          successData={null}
-          onCopyXdr={() => {}}
-          onSubmitToNetwork={async () => {}}
-          onSubmitToRefractor={async () => {}}
-          onShowOfflineModal={() => {
-            const fingerprint = generateDetailedFingerprint(xdr, network);
-            setSuccessData({ 
-              type: 'offline', 
-              hash: fingerprint.hash, 
-              network,
-              xdr
-            });
-          }}
-          copied={false}
-          offlineOnly={true}
-        />
-
-        
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background/50 to-stellar-yellow/5 relative overflow-hidden">
-      {/* Subtle background pattern */}
-      {/* Background decorations removed */}
-
       <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header */}
         <header className="p-4 md:p-6 border-b border-border/50 bg-background/80 backdrop-blur-sm">
           <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -251,9 +288,12 @@ const AirgapSigner = () => {
               <div>
                 <h1 className="text-xl font-bold">Air-Gapped Signer</h1>
               </div>
-              {step === 'loaded' && (
-                <Button 
-                  onClick={() => setStep('scan')}
+              {xdr && (
+                <Button
+                  onClick={() => {
+                    setXdr('');
+                    setSignedBy([]);
+                  }}
                   size="sm"
                   className="self-start bg-success hover:bg-success/90 text-success-foreground"
                 >
@@ -261,33 +301,25 @@ const AirgapSigner = () => {
                 </Button>
               )}
             </div>
-            
-            <div className="flex items-center gap-3 flex-wrap" />
           </div>
         </header>
 
-        {/* Main Content */}
         <main className="flex-1 p-4 md:p-6">
           <div className="max-w-2xl mx-auto">
             <div className="bg-background/80 backdrop-blur-sm border border-border/50 rounded-2xl shadow-xl">
-                <div className="p-4 md:p-6">
-                {step === 'scan' && renderScanStep()}
-                {step === 'loaded' && renderLoadedStep()}
-              </div>
+              <div className="p-4 md:p-6">{xdr ? renderLoadedStep() : renderScanStep()}</div>
             </div>
           </div>
         </main>
       </div>
 
-      {/* Success Modal */}
-      {successData && (
+      {showOfflineModal && parsed && (
         <SuccessModal
-          type={successData.type}
-          hash={successData.hash}
-          xdr={successData.xdr}
-          network={successData.network}
-          onClose={() => setSuccessData(null)}
-          onNavigateToDashboard={() => window.location.href = '/'}
+          type="offline"
+          hash={getTransactionHash(parsed.tx)}
+          xdr={xdr}
+          network={network}
+          onClose={() => setShowOfflineModal(false)}
         />
       )}
     </div>

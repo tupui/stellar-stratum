@@ -41,6 +41,8 @@ export const PROTOCOL_LABELS: Record<ProtocolId, string> = {
 export const KNOWN_CONTRACTS: ProtocolContract[] = [
   // Soroswap — mainnet
   { protocol: 'soroswap', role: 'Router', address: 'CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH', network: 'mainnet' },
+  // Where the API's `/quote/build` sends swaps today (`swap_exact_in`).
+  { protocol: 'soroswap', role: 'Aggregator', address: 'CARVQXFP4JF5ELLXUMQ6DALR346YVGBMQOHB4ENA7SSVXAYABXLBDDC4', network: 'mainnet' },
   { protocol: 'soroswap', role: 'Aggregator', address: 'CAYP3UWLJM7ZPTUKL6R6BFGTRWLZ46LRKOXTERI2K6BIJAWGYY62TXTO', network: 'mainnet' },
   { protocol: 'soroswap', role: 'Factory', address: 'CA4HEQTL2WPEUYKYKCDOHCDNIV4QHNJ7EL4J4NQ6VADP7SYHVRYZ7AW2', network: 'mainnet' },
   // Soroswap — testnet
@@ -90,6 +92,17 @@ export const KNOWN_FUNCTIONS: FunctionSignature[] = [
     role: 'Aggregator',
     name: 'swap_exact_tokens_for_tokens',
     params: ['token_in', 'token_out', 'amount_in', 'amount_out_min', 'distribution', 'to', 'deadline'],
+    intent: 'swap',
+    action: 'Swap',
+  },
+  {
+    protocol: 'soroswap',
+    role: 'Aggregator',
+    name: 'swap_exact_in',
+    // Order read off the transactions the Soroswap API builds, not a WASM spec.
+    // The trailing option is always empty in those builds and its meaning is
+    // not pinned, so only an empty one fits (see `options` in detect.ts).
+    params: ['from', 'token_in', 'amount_in', 'token_out', 'amount_out_min', 'distribution', 'options'],
     intent: 'swap',
     action: 'Swap',
   },

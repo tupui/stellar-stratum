@@ -1,119 +1,82 @@
 /**
- * SEP-7 URI Scheme parsing and building utilities
+ * SEP-7 transaction URIs and the other ways a transaction reaches the app as text.
  * https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0007.md
  */
+import { Networks } from '@stellar/stellar-sdk';
+import type { NetworkId } from '@/lib/xdr/parse';
 
-interface SEP7TxPayload {
+export interface TransactionPayload {
   xdr: string;
-  network?: 'public' | 'testnet';
-  callback?: string;
-  pubkey?: string;
-  msg?: string;
-  origin_domain?: string;
-  signature?: string;
+  /**
+   * Network the payload names. A SEP-7 URI always names one (no network_passphrase means the
+   * public network); raw XDR carries none, so the caller has to decide.
+   */
+  network?: NetworkId;
 }
 
+const networkFromPassphrase = (passphrase: string): NetworkId | undefined => {
+  if (passphrase === Networks.PUBLIC) return 'mainnet';
+  if (passphrase === Networks.TESTNET) return 'testnet';
+  return undefined;
+};
+
 /**
- * Parse a SEP-7 transaction URI
- * @param uri - The stellar: URI to parse
- * @returns Parsed payload or null if invalid
+ * Parse a SEP-7 `tx` URI (`web+stellar:tx?xdr=…`, also accepting the bare `stellar:` scheme).
+ * Returns null for anything else, including other operations such as `pay`.
  */
-export function parseSEP7TxUri(uri: string): SEP7TxPayload | null {
+export function parseSEP7TxUri(uri: string): TransactionPayload | null {
+  let url: URL;
   try {
-    const url = new URL(uri);
-    
-    if (url.protocol !== 'stellar:' && url.protocol !== 'web+stellar:') {
-      return null;
-    }
-
-    if (url.pathname !== 'tx') {
-      return null;
-    }
-
-    const xdr = url.searchParams.get('xdr');
-    if (!xdr) {
-      return null;
-    }
-
-    return {
-      xdr,
-      network: url.searchParams.get('network') as 'public' | 'testnet' || undefined,
-      callback: url.searchParams.get('callback') || undefined,
-      pubkey: url.searchParams.get('pubkey') || undefined,
-      msg: url.searchParams.get('msg') || undefined,
-      origin_domain: url.searchParams.get('origin_domain') || undefined,
-      signature: url.searchParams.get('signature') || undefined,
-    };
+    url = new URL(uri.trim());
   } catch {
     return null;
   }
+  if ((url.protocol !== 'web+stellar:' && url.protocol !== 'stellar:') || url.pathname !== 'tx') return null;
+
+  // A '+' in unencoded base64 is read back as a space by URLSearchParams; restore it.
+  const xdr = url.searchParams.get('xdr')?.replace(/ /g, '+');
+  if (!xdr) return null;
+
+  const passphrase = url.searchParams.get('network_passphrase');
+  // `network=public|testnet` is what earlier versions of this app wrote.
+  const legacy = url.searchParams.get('network');
+  let network: NetworkId | undefined;
+  if (passphrase) {
+    network = networkFromPassphrase(passphrase);
+    if (!network) return null; // A network this app cannot sign for.
+  } else if (legacy === 'testnet') {
+    network = 'testnet';
+  } else {
+    network = 'mainnet';
+  }
+  return { xdr, network };
+}
+
+/** Build a SEP-7 `tx` URI for the given network. */
+export function buildSEP7TxUri(xdr: string, network: NetworkId): string {
+  const params = new URLSearchParams({ xdr });
+  // SEP-7: network_passphrase is only set for networks other than the public one.
+  if (network === 'testnet') params.set('network_passphrase', Networks.TESTNET);
+  return `web+stellar:tx?${params.toString()}`;
 }
 
 /**
- * Build a SEP-7 transaction URI
- * @param payload - The SEP-7 payload
- * @returns The stellar: URI string
+ * Read a transaction from pasted or scanned text: a SEP-7 URI, or base64 XDR that may be
+ * wrapped over several lines or URL-encoded.
  */
-export function buildSEP7TxUri(payload: SEP7TxPayload): string {
-  const url = new URL('stellar:tx');
-  
-  url.searchParams.set('xdr', payload.xdr);
-  
-  if (payload.network) {
-    url.searchParams.set('network', payload.network);
-  }
-  
-  if (payload.callback) {
-    url.searchParams.set('callback', payload.callback);
-  }
-  
-  if (payload.pubkey) {
-    url.searchParams.set('pubkey', payload.pubkey);
-  }
-  
-  if (payload.msg) {
-    url.searchParams.set('msg', payload.msg);
-  }
-  
-  if (payload.origin_domain) {
-    url.searchParams.set('origin_domain', payload.origin_domain);
-  }
-  
-  if (payload.signature) {
-    url.searchParams.set('signature', payload.signature);
-  }
-  
-  return url.toString();
-}
+export function parseTransactionPayload(data: string): TransactionPayload | null {
+  if (!data || typeof data !== 'string') return null;
+  const sep7 = parseSEP7TxUri(data);
+  if (sep7) return sep7;
 
-/**
- * Extract XDR from either a raw XDR string or SEP-7 URI
- * @param data - Raw XDR or SEP-7 URI
- * @returns Extracted XDR string or null if invalid
- */
-export function extractXdrFromData(data: string): string | null {
-  if (!data || typeof data !== 'string') {
-    return null;
+  let text = data.replace(/\s+/g, '');
+  if (/%[0-9A-Fa-f]{2}/.test(text)) {
+    try {
+      text = decodeURIComponent(text);
+    } catch {
+      return null;
+    }
   }
-
-  // Try parsing as SEP-7 URI first
-  const sep7Data = parseSEP7TxUri(data);
-  if (sep7Data) {
-    return sep7Data.xdr;
-  }
-  
-  // If not SEP-7, validate as base64 XDR
-  // XDR should be base64-encoded and reasonably long
-  const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-  if (data.length < 100 || !base64Regex.test(data)) {
-    return null;
-  }
-  
-  // Try to decode as base64 to validate format
-  try {
-    atob(data);
-    return data;
-  } catch {
-    return null;
-  }
+  if (text.length < 100 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text)) return null;
+  return { xdr: text };
 }

@@ -14,18 +14,14 @@ import {
   AlertTriangle, 
   CheckCircle,
   Info,
-  Eye,
-  EyeOff 
 } from 'lucide-react';
 import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { useToast } from '@/hooks/use-toast';
-import { isValidPublicKey, sanitizeError } from '@/lib/validation';
-import {
-  TransactionBuilder as StellarTransactionBuilder,
-  Operation,
-} from '@stellar/stellar-sdk';
+import { isValidPublicKey } from '@/lib/validation';
+import { TransactionBuilder as StellarTransactionBuilder } from '@stellar/stellar-sdk';
 import { createHorizonServer, getNetworkPassphrase } from '@/lib/stellar';
 import { appConfig } from '@/lib/appConfig';
+import { planConfigChange, sameConfig, validateConfig } from '@/lib/multisig';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface Signer {
@@ -68,6 +64,7 @@ export const MultisigConfigBuilder = ({
   currentThresholds,
   onXdrGenerated,
   onPendingCreated,
+  onAccountRefresh,
 }: MultisigConfigBuilderProps) => {
   const { toast } = useToast();
   const { network: currentNetwork } = useNetwork();
@@ -76,7 +73,6 @@ export const MultisigConfigBuilder = ({
   const [editableSigners, setEditableSigners] = useState<EditableSigner[]>([]);
   const [newThresholds, setNewThresholds] = useState<Thresholds>(currentThresholds);
   const [isBuilding, setIsBuilding] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Form state for adding new signers
   const [newSignerKey, setNewSignerKey] = useState('');
@@ -90,79 +86,12 @@ export const MultisigConfigBuilder = ({
     setNewSignerWeight(1);
   }, [currentSigners, currentThresholds]);
 
+  const currentConfig = { signers: currentSigners, thresholds: currentThresholds };
+  const nextConfig = { signers: editableSigners, thresholds: newThresholds };
+
   const validateConfiguration = (): ValidationResult => {
-    const errors: string[] = [];
-    const warnings: string[] = [];
-
-    // Calculate final signer configuration
-    const finalSigners = editableSigners.filter(s => s.weight > 0);
-
-    // CRITICAL: Validate all signer public keys
-    finalSigners.forEach((signer, index) => {
-      if (!isValidPublicKey(signer.key)) {
-        errors.push(`Signer ${index + 1} has an invalid public key format`);
-      }
-    });
-
-    // CRITICAL: Check for duplicate signer keys
-    const signerKeys = finalSigners.map(s => s.key);
-    const duplicateKeys = signerKeys.filter((key, index) => signerKeys.indexOf(key) !== index);
-    if (duplicateKeys.length > 0) {
-      errors.push('Duplicate signer keys are not allowed');
-    }
-
-    // Check maximum signers limit (20)
-    if (finalSigners.length > 20) {
-      errors.push('Cannot have more than 20 signers');
-    }
-
-    // Check minimum signers
-    if (finalSigners.length === 0) {
-      errors.push('Account must have at least one signer');
-    }
-
-    // Calculate total weight
-    const totalWeight = finalSigners.reduce((sum, s) => sum + s.weight, 0);
-
-    // Check thresholds vs available weight
-    if (newThresholds.low_threshold > totalWeight) {
-      errors.push(`Low threshold (${newThresholds.low_threshold}) exceeds total weight (${totalWeight})`);
-    }
-    if (newThresholds.med_threshold > totalWeight) {
-      errors.push(`Medium threshold (${newThresholds.med_threshold}) exceeds total weight (${totalWeight})`);
-    }
-    if (newThresholds.high_threshold > totalWeight) {
-      errors.push(`High threshold (${newThresholds.high_threshold}) exceeds total weight (${totalWeight})`);
-    }
-
-    // Check threshold order
-    if (newThresholds.low_threshold > newThresholds.med_threshold) {
-      errors.push('Low threshold cannot be higher than medium threshold');
-    }
-    if (newThresholds.med_threshold > newThresholds.high_threshold) {
-      errors.push('Medium threshold cannot be higher than high threshold');
-    }
-
-    // Warning: removing current account
-    const currentAccountSigner = finalSigners.find(s => s.key === accountPublicKey);
-    if (!currentAccountSigner || currentAccountSigner.weight === 0) {
-      warnings.push('You are removing the current account as a signer');
-    }
-
-    // Check for potential lockout scenarios
-    // Note: In multisig, what matters is the sum of weights from signers who sign together,
-    // not individual signer weights. Multiple signers can combine their weights to meet thresholds.
-    
-    // Warn if total available weight is insufficient (this would create a lockout)
-    if (totalWeight < newThresholds.high_threshold && newThresholds.high_threshold > 0) {
-      errors.push(`Total signer weight (${totalWeight}) is less than high threshold (${newThresholds.high_threshold}). This will lock the account.`);
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings
-    };
+    const { errors, warnings } = validateConfig(accountPublicKey, nextConfig);
+    return { isValid: errors.length === 0, errors, warnings };
   };
 
   const addNewSigner = () => {
@@ -180,6 +109,15 @@ export const MultisigConfigBuilder = ({
       toast({
         title: "Invalid public key format",
         description: "Public key must start with 'G' and be 56 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newSignerKey === accountPublicKey) {
+      toast({
+        title: "This is the account's own key",
+        description: "Change the weight of the Current Account row instead.",
         variant: "destructive",
       });
       return;
@@ -224,71 +162,36 @@ export const MultisigConfigBuilder = ({
     }
 
     setIsBuilding(true);
-    
     try {
-      // Determine network and Horizon server
       const networkPassphrase = getNetworkPassphrase(currentNetwork);
-      const server = createHorizonServer(currentNetwork);
+      const sourceAccount = await createHorizonServer(currentNetwork).loadAccount(accountPublicKey);
 
-      // Load source account
-      const sourceAccount = await server.loadAccount(accountPublicKey);
-      
-      // Create transaction builder
+      // The change is computed against what the page shows. If another signer changed the
+      // account in the meantime, the lockout check above would be wrong: start over instead.
+      const live = { signers: sourceAccount.signers, thresholds: sourceAccount.thresholds };
+      if (!sameConfig(live, currentConfig)) {
+        toast({
+          title: "Configuration changed on the network",
+          description: "The signers or thresholds changed since this page loaded. The latest configuration was loaded; review your changes again.",
+          variant: "destructive",
+        });
+        await onAccountRefresh?.();
+        return;
+      }
+
+      const operations = planConfigChange(accountPublicKey, currentConfig, nextConfig);
+      if (operations.length === 0) {
+        toast({ title: "Nothing to change", description: "The new configuration is the same as the current one." });
+        return;
+      }
+
       const transaction = new StellarTransactionBuilder(sourceAccount, {
         fee: appConfig.DEFAULT_BASE_FEE_STROOPS.toString(),
         networkPassphrase,
       });
+      operations.forEach((operation) => transaction.addOperation(operation));
+      const xdr = transaction.setTimeout(appConfig.TX_VALIDITY_SECONDS).build().toXDR();
 
-      // Add operations for signer changes
-      editableSigners.forEach(signer => {
-        const currentSigner = currentSigners.find(s => s.key === signer.key);
-        
-        // If it's a new signer or weight changed
-        if (!currentSigner || currentSigner.weight !== signer.weight) {
-          transaction.addOperation(Operation.setOptions({
-            signer: {
-              ed25519PublicKey: signer.key,
-              weight: signer.weight
-            }
-          }));
-        }
-      });
-
-      // Add operations to remove signers (those not in editableSigners anymore)
-      currentSigners.forEach(currentSigner => {
-        const stillExists = editableSigners.some(s => s.key === currentSigner.key);
-        if (!stillExists) {
-          transaction.addOperation(Operation.setOptions({
-            signer: {
-              ed25519PublicKey: currentSigner.key,
-              weight: 0 // Setting weight to 0 removes the signer
-            }
-          }));
-        }
-      });
-
-      // Add threshold changes if needed
-      const hasThresholdChanges = 
-        newThresholds.low_threshold !== currentThresholds.low_threshold ||
-        newThresholds.med_threshold !== currentThresholds.med_threshold ||
-        newThresholds.high_threshold !== currentThresholds.high_threshold;
-
-      if (hasThresholdChanges) {
-        transaction.addOperation(Operation.setOptions({
-          lowThreshold: newThresholds.low_threshold,
-          medThreshold: newThresholds.med_threshold,
-          highThreshold: newThresholds.high_threshold
-        }));
-      }
-
-      // Set timeout
-      transaction.setTimeout(86400);
-
-      // Build the transaction
-      const builtTransaction = transaction.build();
-      const xdr = builtTransaction.toXdr();
-
-      // Transaction built successfully
       onXdrGenerated(xdr);
       if (onPendingCreated) onPendingCreated('', xdr);
       
@@ -298,10 +201,9 @@ export const MultisigConfigBuilder = ({
         duration: 2000,
       });
     } catch (error) {
-      const { userMessage, fullError } = sanitizeError(error);
       toast({
         title: "Build failed",
-        description: userMessage,
+        description: error instanceof Error ? error.message : "Could not build the configuration change",
         variant: "destructive",
       });
     } finally {
@@ -312,14 +214,8 @@ export const MultisigConfigBuilder = ({
   const validation = validateConfiguration();
   
   // Check for changes
-  const signersChanged = editableSigners.length !== currentSigners.length ||
-    editableSigners.some(editable => {
-      const current = currentSigners.find(c => c.key === editable.key);
-      return !current || current.weight !== editable.weight;
-    });
-  
-  const thresholdsChanged = JSON.stringify(newThresholds) !== JSON.stringify(currentThresholds);
-  const hasChanges = signersChanged || thresholdsChanged;
+  const hasChanges = !sameConfig(nextConfig, currentConfig);
+
 
   
 
@@ -328,7 +224,8 @@ export const MultisigConfigBuilder = ({
       {/* Header */}
       <div className="space-y-2">
         <p className="text-muted-foreground">
-          Modify account signers and operation thresholds. This requires high threshold approval.
+          Modify account signers and operation thresholds. This change needs signatures worth at least{' '}
+          <span className="font-semibold">{Math.max(currentThresholds.high_threshold, 1)}</span> (the current high threshold).
         </p>
       </div>
 
@@ -465,7 +362,10 @@ export const MultisigConfigBuilder = ({
                         </Button>
                         <div className="flex gap-2 flex-wrap text-xs mt-1">
                           {signer.key === accountPublicKey && (
-                            <Badge variant="outline">Current Account</Badge>
+                            <Badge variant="outline">Current Account (master key)</Badge>
+                          )}
+                          {signer.key[0] !== 'G' && (
+                            <Badge variant="outline">{{ T: 'Pre-authorised tx', X: 'Hash(x)', P: 'Signed payload' }[signer.key[0]] ?? 'Signer'}</Badge>
                           )}
                           {signer.isNew && (
                             <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">New</Badge>
@@ -489,9 +389,8 @@ export const MultisigConfigBuilder = ({
                 id="new-signer-key"
                 placeholder="GABC...XYZ"
                 value={newSignerKey}
-                onChange={(e) => setNewSignerKey(e.target.value)}
+                onChange={(e) => setNewSignerKey(e.target.value.trim())}
                 className="font-address text-xs sm:text-sm h-8"
-                maxLength={56}
               />
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">

@@ -1,21 +1,17 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  RefreshCw, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  ExternalLink, 
+import {
+  RefreshCw,
+  ArrowUpRight,
+  ArrowDownLeft,
   Calendar,
   Filter,
   TrendingUp,
-  DollarSign,
   Hash,
   Settings,
   Replace,
@@ -27,15 +23,15 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useAccountHistory } from '@/hooks/useAccountHistory';
-import { getUsdRateForDateByAsset, primeUsdRatesForAsset, getHistoricalFxRate, primeHistoricalFxRates } from '@/lib/kraken';
+import { getUsdDailyRates, primeUsdRatesForAsset, getFxDailyRates, primeHistoricalFxRates, krakenSymbolFor } from '@/lib/kraken';
 import { convertFromUSD, formatFiatAmount } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
-import { getHorizonTransactionUrl } from '@/lib/horizon-utils';
+import { assetKey, getBalanceDeltas } from '@/lib/horizon-utils';
+import type { NormalizedTransaction } from '@/lib/horizon-utils';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { TransactionChart } from './TransactionChart';
-import { LoadingPill } from '@/components/ui/loading-pill';
 import { useTransactionGrouping } from '@/hooks/useTransactionGrouping';
 import { GroupedTransactionItem } from './GroupedTransactionItem';
 
@@ -61,13 +57,14 @@ interface Filters {
   addressFilter: string;
 }
 
-interface AggregatedStats {
-  count: number;
-  totalXLM: number;
-  totalFiat: number;
-  avgXLM: number;
-  avgFiat: number;
-}
+// The asset amounts an entry can be valued by, in order of preference: a swap
+// is valued by what was paid, or by what was received when that has no price.
+const valuationLegs = (tx: NormalizedTransaction) => tx.category === 'swap'
+  ? [
+      { assetType: tx.swapFromAssetType, assetCode: tx.swapFromAssetCode, assetIssuer: tx.swapFromAssetIssuer, amount: tx.swapFromAmount },
+      { assetType: tx.swapToAssetType, assetCode: tx.swapToAssetCode, assetIssuer: tx.swapToAssetIssuer, amount: tx.swapToAmount },
+    ]
+  : [{ assetType: tx.assetType, assetCode: tx.assetCode, assetIssuer: tx.assetIssuer, amount: tx.amount }];
 
 export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortfolioValueUSD = 0, active = true }: TransactionHistoryPanelProps) => {
   const { network } = useNetwork();
@@ -76,13 +73,14 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   const {
     transactions,
     isLoading,
+    isLoadingMore,
     error,
+    loadMoreError,
     hasMore,
     lastSync,
     loadMore,
     loadProgressively,
     refresh,
-    getTransactionsByDateRange
   } = useAccountHistory(accountPublicKey, active);
   
   const { quoteCurrency, getCurrentCurrency } = useFiatCurrency();
@@ -102,6 +100,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   const [fiatAmounts, setFiatAmounts] = useState<Map<string, number>>(new Map());
   const [rateInfo, setRateInfo] = useState<Map<string, { assetRate: number; fxRate: number; asset: string }>>(new Map());
   const [fiatLoading, setFiatLoading] = useState<boolean>(true);
+  // Today's price per asset (by assetKey) in the quote currency, for the portfolio curve
+  const [currentPrices, setCurrentPrices] = useState<Map<string, number>>(new Map());
+  const pricedCurrencyRef = useRef<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<{ code: string; issuer?: string }>({ code: 'PORTFOLIO' });
   const [currentPortfolioFiat, setCurrentPortfolioFiat] = useState<number>(0);
   const [currentXLMFiat, setCurrentXLMFiat] = useState<number>(0);
@@ -131,95 +132,66 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
 
   // Single derivation: prime caches once, then synchronously compute fiat amounts
   // for every transaction. Re-runs when transactions or quote currency change.
+  // Only native XLM and known code+issuer pairs are priced (see krakenSymbolFor).
   useEffect(() => {
     let cancelled = false;
 
     const compute = async () => {
-      if (transactions.length === 0) {
-        setFiatAmounts(new Map());
-        setRateInfo(new Map());
-        setFiatLoading(false);
-        return;
+      // Blank every row only when nothing is priced in this currency yet; a newly
+      // loaded page just fills in its own rows.
+      if (pricedCurrencyRef.current !== quoteCurrency) setFiatLoading(true);
+
+      const symbols = new Set<string>(['XLM']);
+      for (const tx of transactions) {
+        for (const leg of valuationLegs(tx)) {
+          const symbol = krakenSymbolFor(network, leg.assetType, leg.assetCode, leg.assetIssuer);
+          if (symbol) symbols.add(symbol);
+        }
       }
 
-      setFiatLoading(true);
-
-      // Collect every asset that appears in the visible history
-      const assets = new Set<string>(['XLM']);
-      transactions.forEach(t => {
-        if (t.assetType !== 'native' && t.assetCode) assets.add(t.assetCode);
-        if (t.category === 'swap') {
-          if (t.swapFromAssetType !== 'native' && t.swapFromAssetCode) assets.add(t.swapFromAssetCode);
-          if (t.swapToAssetType !== 'native' && t.swapToAssetCode) assets.add(t.swapToAssetCode);
-        }
-      });
-
       // Prime once. These are deduped + 24h-cached in localStorage by kraken.ts.
-      await Promise.all([
-        ...Array.from(assets).map(code => primeUsdRatesForAsset(code).catch(() => {})),
-        quoteCurrency !== 'USD'
-          ? primeHistoricalFxRates('USD', quoteCurrency).catch(() => {})
-          : Promise.resolve(),
+      const [usdToQuote] = await Promise.all([
+        convertFromUSD(1, quoteCurrency),
+        Promise.all([
+          ...Array.from(symbols).map(symbol => primeUsdRatesForAsset(symbol).catch(() => {})),
+          quoteCurrency !== 'USD'
+            ? primeHistoricalFxRates('USD', quoteCurrency).catch(() => {})
+            : Promise.resolve(),
+        ]),
       ]);
 
       if (cancelled) return;
 
+      // Parse each daily series once; every lookup below is synchronous.
+      const usdRates = new Map(Array.from(symbols).map(symbol => [symbol, getUsdDailyRates(symbol)]));
+      const fxRates = quoteCurrency === 'USD' ? null : getFxDailyRates('USD', quoteCurrency);
+
       const newFiat = new Map<string, number>();
       const newRate = new Map<string, { assetRate: number; fxRate: number; asset: string }>();
+      const newPrices = new Map<string, number>();
 
       for (const tx of transactions) {
-        const txDate = tx.createdAt instanceof Date ? tx.createdAt : new Date(tx.createdAt);
+        // 0 means no value: N/A rows get no rateInfo, so their caption stays hidden.
+        newFiat.set(tx.id, 0);
+        for (const leg of valuationLegs(tx)) {
+          const symbol = krakenSymbolFor(network, leg.assetType, leg.assetCode, leg.assetIssuer);
+          if (!symbol) continue;
+          const rates = usdRates.get(symbol)!;
+          newPrices.set(assetKey(leg.assetType, leg.assetCode, leg.assetIssuer), rates.latest * usdToQuote);
 
-        let assetCode: string;
-        let amount: number;
-        if (tx.category === 'swap') {
-          assetCode = tx.swapFromAssetType === 'native' ? 'XLM' : (tx.swapFromAssetCode || 'XLM');
-          amount = tx.swapFromAmount || 0;
-        } else {
-          assetCode = tx.assetType === 'native' ? 'XLM' : (tx.assetCode || 'XLM');
-          amount = tx.amount || 0;
+          const assetRate = rates.on(tx.createdAt);
+          const fxRate = fxRates ? fxRates.on(tx.createdAt) : 1;
+          if (newRate.has(tx.id) || !leg.amount || assetRate <= 0 || fxRate <= 0) continue;
+          newFiat.set(tx.id, leg.amount * assetRate * fxRate);
+          newRate.set(tx.id, { assetRate, fxRate, asset: symbol });
         }
-
-        // Cache-only reads: caches were primed above.
-        let usdPrice = await getUsdRateForDateByAsset(assetCode, txDate, true);
-
-        // Swap fallback: if source asset has no historical price, try destination.
-        if (tx.category === 'swap' && usdPrice === 0) {
-          const toCode = tx.swapToAssetType === 'native' ? 'XLM' : (tx.swapToAssetCode || 'XLM');
-          if (toCode !== assetCode && tx.swapToAmount) {
-            const toUsd = await getUsdRateForDateByAsset(toCode, txDate, true);
-            if (toUsd > 0) {
-              usdPrice = toUsd;
-              amount = tx.swapToAmount;
-              assetCode = toCode;
-            }
-          }
-        }
-
-        if (usdPrice <= 0 || amount <= 0) {
-          newFiat.set(tx.id, 0);
-          // Skip rateInfo so the per-asset caption stays hidden for N/A rows.
-          continue;
-        }
-
-        const fxRate = quoteCurrency === 'USD'
-          ? 1
-          : await getHistoricalFxRate('USD', quoteCurrency, txDate, true);
-
-        if (fxRate <= 0) {
-          // No FX rate for this date → show N/A.
-          newFiat.set(tx.id, 0);
-          continue;
-        }
-
-        newFiat.set(tx.id, usdPrice * amount * fxRate);
-        newRate.set(tx.id, { assetRate: usdPrice, fxRate, asset: assetCode });
       }
 
-      if (cancelled) return;
       setFiatAmounts(newFiat);
       setRateInfo(newRate);
+      setCurrentPrices(newPrices);
       setFiatLoading(false);
+      pricedCurrencyRef.current = quoteCurrency;
     };
 
     compute();
@@ -249,7 +221,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       try {
         const xlm = balances.find(b => b.asset_type === 'native');
         const qty = xlm ? parseFloat(xlm.balance) : 0;
-        if (!qty || Number.isNaN(qty)) { setCurrentXLMFiat(0); return; }
+        // Only mainnet assets have a market price
+        if (!qty || Number.isNaN(qty) || network !== 'mainnet') { setCurrentXLMFiat(0); return; }
         const usd = await getAssetPrice('XLM');
         const valueUSD = (usd || 0) * qty;
         if (quoteCurrency === 'USD') setCurrentXLMFiat(valueUSD);
@@ -259,7 +232,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       }
     };
     computeXLM();
-  }, [balances, quoteCurrency]);
+  }, [balances, quoteCurrency, network]);
 
   // Compute current selected asset balance in fiat
   useEffect(() => {
@@ -275,8 +248,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           b.asset_issuer === selectedAsset.issuer
         );
         const qty = asset ? parseFloat(asset.balance) : 0;
-        if (!qty || Number.isNaN(qty)) { setCurrentAssetFiat(0); return; }
-        
+        if (!qty || Number.isNaN(qty) || network !== 'mainnet') { setCurrentAssetFiat(0); return; }
+
         const usd = await getAssetPrice(selectedAsset.code, selectedAsset.issuer);
         const valueUSD = (usd || 0) * qty;
         if (quoteCurrency === 'USD') setCurrentAssetFiat(valueUSD);
@@ -286,29 +259,32 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       }
     };
     computeCurrentAsset();
-  }, [balances, selectedAsset, quoteCurrency]);
+  }, [balances, selectedAsset, quoteCurrency, network]);
+
+  // Asset the list and chart are narrowed to; null for the whole portfolio
+  const selectedKey = selectedAsset.code === 'PORTFOLIO'
+    ? null
+    : selectedAsset.code === 'XLM'
+      ? 'native'
+      : assetKey('credit', selectedAsset.code, selectedAsset.issuer);
 
   // Filter transactions based on current filters and selected asset
   const filteredTransactions = useMemo(() => {
     const filtered = transactions.filter(tx => {
-      // Category and direction filter combined
+      // Incoming/Outgoing apply to transfers; every other category has its own checkbox
       if (filters.categories.length > 0) {
-        const matchesCategory = tx.category && filters.categories.includes(tx.category);
-        const matchesDirection = tx.direction && filters.categories.includes(tx.direction);
-        if (!matchesCategory && !matchesDirection) return false;
-      }
-      // Asset filter
-      if (selectedAsset.code !== 'PORTFOLIO') {
-        if (selectedAsset.code === 'XLM') {
-          if (tx.assetType && tx.assetType !== 'native') return false;
-        } else {
-          if (tx.assetCode && tx.assetCode !== selectedAsset.code) return false;
-          if (selectedAsset.issuer && tx.assetIssuer && tx.assetIssuer !== selectedAsset.issuer) return false;
-        }
+        const filterKey = tx.category === 'transfer' ? tx.direction : tx.category;
+        if (!filterKey || !filters.categories.includes(filterKey)) return false;
       }
 
-      // Direction filter is now handled in the categories section above
-      
+      // Asset filter: keep entries with a leg in the selected asset, and those that move no asset
+      if (selectedKey !== null) {
+        const keys = valuationLegs(tx)
+          .filter(leg => leg.assetType)
+          .map(leg => assetKey(leg.assetType, leg.assetCode, leg.assetIssuer));
+        if (keys.length > 0 && !keys.includes(selectedKey)) return false;
+      }
+
       // Amount filters
       if (filters.minAmount && (tx.amount || 0) < parseFloat(filters.minAmount)) {
         return false;
@@ -341,49 +317,15 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     });
     
     return filtered;
-  }, [transactions, filters, selectedAsset.code, selectedAsset.issuer]);
+  }, [transactions, filters, selectedKey]);
 
   // Group filtered transactions
   const groupedTransactions = useTransactionGrouping(filteredTransactions);
 
-  // Calculate aggregated stats for grouped transactions (sum totals only)
-  const aggregatedStats = useMemo((): AggregatedStats => {
-    const count = filteredTransactions.length; // Use original count for stats
-    const totalAsset = filteredTransactions.reduce((sum, tx) => {
-      const amt = tx.amount || 0;
-      if (!tx.direction) return sum + amt; // fallback
-      return tx.direction === 'in' ? sum + amt : sum - amt;
-    }, 0);
-    
-    let totalFiat = 0;
-    filteredTransactions.forEach(tx => {
-      const fiatAmount = fiatAmounts.get(tx.id) || 0;
-      if (!tx.direction) { totalFiat += fiatAmount; return; }
-      totalFiat += tx.direction === 'in' ? fiatAmount : -fiatAmount;
-    });
-
-    return {
-      count,
-      totalXLM: totalAsset,
-      totalFiat,
-      avgXLM: 0, // Remove avg calculation
-      avgFiat: 0, // Remove avg calculation
-    };
-  }, [filteredTransactions, fiatAmounts]);
-
-  // Auto-load more data progressively for better UX
+  // Navigating the chart back in time loads a few more older pages
   const handleRequestMoreData = async () => {
     await loadProgressively();
   };
-
-  // Kick off progressive loading only while the Activity tab is active and we need more data
-  useEffect(() => {
-    if (!active) return;
-    // Only start progressive loading if we have some transactions but want more
-    if (transactions.length > 0 && transactions.length < 1000 && hasMore && !isLoading) {
-      loadProgressively();
-    }
-  }, [active, transactions.length, hasMore, isLoading, loadProgressively]);
 
   const truncateAddress = (address?: string | null) => {
     if (!address || typeof address !== 'string') return '—';
@@ -404,20 +346,16 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     });
   };
 
-  // Build transactions for chart (asset or portfolio filtered)
-  const assetOnlyTransactions = useMemo(() => {
-    if (selectedAsset.code === 'PORTFOLIO') {
-      // For portfolio, include all transactions
-      return transactions;
-    }
-    // For specific assets, filter transactions that affect that asset
-    return transactions.filter((tx) => {
-      if (selectedAsset.code === 'XLM') return tx.assetType === 'native';
-      if (tx.assetCode !== selectedAsset.code) return false;
-      if (selectedAsset.issuer && tx.assetIssuer !== selectedAsset.issuer) return false;
-      return true;
-    });
-  }, [transactions, selectedAsset]);
+  // What a transaction did to the charted balance: the selected asset's change,
+  // or for the portfolio every change valued at today's price. One price basis
+  // keeps the curve consistent with today's value, and makes swaps roughly neutral.
+  const chartDelta = useCallback((tx: NormalizedTransaction) =>
+    getBalanceDeltas(tx).reduce((sum, delta) => {
+      const key = assetKey(delta.assetType, delta.assetCode, delta.assetIssuer);
+      if (selectedKey === null) return sum + delta.amount * (currentPrices.get(key) ?? 0);
+      return key === selectedKey ? sum + delta.amount : sum;
+    }, 0),
+  [selectedKey, currentPrices]);
 
   // Current balance for selected asset
   const currentBalance = useMemo(() => {
@@ -432,7 +370,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     return b ? parseFloat(b.balance) : 0;
   }, [balances, selectedAsset, currentPortfolioFiat]);
 
-  if (error) {
+  // With nothing to show, a failed load takes the whole panel; otherwise the
+  // loaded history stays and the error is shown inline.
+  if (error && transactions.length === 0) {
     return (
       <Card className="shadow-card">
         <CardContent className="pt-6">
@@ -461,6 +401,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
             <CardDescription>
               {lastSync && (
                 <>Last updated {formatDistanceToNow(lastSync, { addSuffix: true })} • {filteredTransactions.length} transactions</>
+              )}
+              {error && (
+                <span className="block text-destructive">Couldn't check for new transactions: {error}</span>
               )}
             </CardDescription>
           </div>
@@ -694,13 +637,13 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
         </div>
 
         {/* Enhanced Chart with Controls */}
-        <TransactionChart 
-          transactions={assetOnlyTransactions}
+        <TransactionChart
+          transactions={transactions}
+          getDelta={chartDelta}
           onRequestMoreData={handleRequestMoreData}
           currentBalance={currentBalance}
           assetSymbol={selectedAsset.code}
           fiatMode={selectedAsset.code === 'PORTFOLIO'}
-          fiatAmountMap={fiatAmounts}
           fiatSymbol={getCurrentCurrency().symbol}
         />
 
@@ -708,7 +651,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
 
         {/* Transaction List */}
         <div className="space-y-2">
-          {isLoading && transactions.length === 0 ? (
+          {transactions.length === 0 && (isLoading || !lastSync) ? (
             <div className="text-center py-8">
               <RefreshCw className="w-6 h-6 mx-auto animate-spin text-muted-foreground mb-2" />
               <p className="text-muted-foreground">Loading transaction history...</p>
@@ -717,42 +660,49 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
             <div className="text-center py-8 text-muted-foreground">
               <Hash className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>No transactions found</p>
-              <p className="text-sm mt-1">Try adjusting your filters</p>
+              <p className="text-sm mt-1">
+                {transactions.length > 0
+                  ? 'Try adjusting your filters'
+                  : hasMore ? 'None in the most recent activity' : 'This account has no activity yet'}
+              </p>
             </div>
           ) : (
-            <>
-              {groupedTransactions
-                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                .map((groupedTx) => (
-                  <GroupedTransactionItem
-                    key={groupedTx.id}
-                    groupedTx={groupedTx}
-                    fiatAmounts={fiatAmounts}
-                    rateInfo={rateInfo}
-                    fiatLoading={fiatLoading}
-                    formatFiatAmount={formatFiat}
-                    truncateAddress={truncateAddress}
-                    network={network}
-                    quoteCurrency={quoteCurrency}
-                  />
-                ))}
+            groupedTransactions.map((groupedTx) => (
+              <GroupedTransactionItem
+                key={groupedTx.id}
+                groupedTx={groupedTx}
+                fiatAmounts={fiatAmounts}
+                rateInfo={rateInfo}
+                fiatLoading={fiatLoading}
+                formatFiatAmount={formatFiat}
+                truncateAddress={truncateAddress}
+                network={network}
+                currencySymbol={getCurrentCurrency().symbol}
+              />
+            ))
+          )}
 
-              {/* Load more / loading indicator */}
-              {hasMore && (
-                <div className="flex justify-center py-4">
-                    {isLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                    ) : (
-                    <Button variant="ghost" size="sm" onClick={loadMore}>
-                      Load older transactions
-                    </Button>
-                    )}
-                </div>
+          {/* Older pages stay reachable even when nothing loaded so far matches */}
+          {loadMoreError && (
+            <p className="text-center text-sm text-muted-foreground pt-2">
+              Couldn't load older transactions: {loadMoreError}
+            </p>
+          )}
+          {hasMore && lastSync && (
+            <div className="flex justify-center py-4">
+              {isLoadingMore ? (
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              ) : (
+                <Button variant="ghost" size="sm" onClick={() => loadMore()}>
+                  {loadMoreError ? 'Retry' : 'Load older transactions'}
+                </Button>
               )}
-              <div className="text-[11px] text-muted-foreground/80 mt-4 select-none text-center">
-                Historical price data from <a href="https://docs.kraken.com/api/docs/rest-api/get-ohlc-data" target="_blank" rel="noreferrer" className="underline hover:text-foreground">Kraken</a>
-              </div>
-            </>
+            </div>
+          )}
+          {transactions.length > 0 && (
+            <div className="text-[11px] text-muted-foreground/80 mt-4 select-none text-center">
+              Historical price data from <a href="https://docs.kraken.com/api/docs/rest-api/get-ohlc-data" target="_blank" rel="noreferrer" className="underline hover:text-foreground">Kraken</a>
+            </div>
           )}
         </div>
       </CardContent>

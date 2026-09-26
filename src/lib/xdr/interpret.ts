@@ -1,3 +1,5 @@
+import { StrKey } from '@stellar/stellar-sdk';
+
 /**
  * Plain-language interpretation of what a transaction actually does to an account.
  *
@@ -33,8 +35,8 @@ export interface AccountSnapshot {
 export type ThresholdLevel = 'low' | 'med' | 'high';
 
 export const THRESHOLD_LABELS: Record<ThresholdLevel, { name: string; hint: string }> = {
-  low: { name: 'Basic operations', hint: 'trustlines, sequence bumps' },
-  med: { name: 'Payments', hint: 'payments, swaps, contract calls' },
+  low: { name: 'Basic operations', hint: 'sequence bumps, claiming balances, trustline authorization' },
+  med: { name: 'Payments', hint: 'payments, swaps, trustlines, contract calls' },
   high: { name: 'Account changes', hint: 'signers, thresholds, account merge' },
 };
 
@@ -127,16 +129,20 @@ export const shortKey = (key: string): string =>
   key.length > 16 ? `${key.slice(0, 8)}…${key.slice(-6)}` : key;
 
 /**
- * A setOptions signer is one of four kinds. Only ed25519 keys are account addresses; the
- * others are hash-based signers that we label rather than pretend are public keys.
+ * A setOptions signer is one of four kinds. The SDK decodes pre-auth and hash(x) signers as
+ * raw bytes, so encode them to the same strkeys Horizon uses (T…, X…, P…): that way a change
+ * lines up with the account's current signer list instead of looking like a new entry.
  */
 const readSignerKey = (signer: Record<string, unknown>): string | null => {
+  const asBytes = (value: unknown) => (value instanceof Uint8Array ? Buffer.from(value) : null);
   if (typeof signer.ed25519PublicKey === 'string') return signer.ed25519PublicKey;
-  if (typeof signer.preAuthTx === 'string') return `preauth:${signer.preAuthTx}`;
-  if (typeof signer.sha256Hash === 'string') return `hashx:${signer.sha256Hash}`;
-  if (typeof signer.ed25519SignedPayload === 'string') return `payload:${signer.ed25519SignedPayload}`;
-  // Some SDK paths hand back an already-normalised { key, weight } pair.
-  if (typeof signer.key === 'string') return signer.key;
+  if (typeof signer.ed25519SignedPayload === 'string') return signer.ed25519SignedPayload;
+  const preAuth = asBytes(signer.preAuthTx);
+  if (preAuth) return StrKey.encodePreAuthTx(preAuth);
+  const hashX = asBytes(signer.sha256Hash);
+  if (hashX) return StrKey.encodeSha256Hash(hashX);
+  if (typeof signer.preAuthTx === 'string') return signer.preAuthTx;
+  if (typeof signer.sha256Hash === 'string') return signer.sha256Hash;
   return null;
 };
 
@@ -149,7 +155,8 @@ const signersNeeded = (
   threshold: number,
   weights: number[],
 ): { minSigners: number | null; anyCombination: boolean } => {
-  if (threshold <= 0) return { minSigners: 0, anyCombination: true };
+  // The network always wants at least one valid signature, even when a threshold is 0.
+  threshold = Math.max(threshold, 1);
 
   const heaviestFirst = [...weights].sort((a, b) => b - a);
   let sum = 0;
@@ -173,6 +180,7 @@ const describeFlags = (mask: number, verb: 'Enables' | 'Disables'): string[] =>
 
 const interpretMultisig = (
   ops: SetOptionsOp[],
+  sourceAccount: string,
   account: AccountSnapshot | null,
 ): { multisig: MultisigInterpretation; warnings: InterpretationWarning[] } => {
   const warnings: InterpretationWarning[] = [];
@@ -193,10 +201,19 @@ const interpretMultisig = (
 
   // Operations apply in order, so replaying them yields the net effect of the whole batch.
   for (const op of ops) {
-    if (isSet(op.masterWeight) && account) after.set(account.publicKey, op.masterWeight);
+    // The master key is the source account itself, known even without its current state.
+    if (isSet(op.masterWeight)) after.set(sourceAccount, op.masterWeight);
     if (isSet(op.signer)) {
       const key = readSignerKey(op.signer);
-      if (key !== null) after.set(key, op.signer.weight ?? 0);
+      if (key !== null) {
+        after.set(key, op.signer.weight ?? 0);
+      } else {
+        warnings.push({
+          severity: 'critical',
+          title: 'Unreadable signer change',
+          detail: 'A setOptions operation changes a signer this app cannot decode. Do not sign unless you can verify it elsewhere.',
+        });
+      }
     }
     if (isSet(op.lowThreshold)) {
       thresholdsAfter.low = op.lowThreshold;
@@ -220,7 +237,7 @@ const interpretMultisig = (
   for (const [key, afterWeight] of after) {
     const beforeWeight = before.get(key);
     if (beforeWeight === afterWeight) continue;
-    const isMasterKey = account?.publicKey === key;
+    const isMasterKey = key === sourceAccount;
     let kind: SignerChangeKind;
     if (afterWeight === 0) kind = 'removed';
     else if (!knowsState) kind = 'weight-set';
@@ -269,12 +286,6 @@ const interpretMultisig = (
             `The ${THRESHOLD_LABELS[level].name.toLowerCase()} threshold is set to ${threshold}, but the ` +
             `combined weight of every remaining signer is only ${totalWeight}. No set of signatures could ever ` +
             `authorise these operations again.`,
-        });
-      } else if (threshold === 0) {
-        warnings.push({
-          severity: 'warning',
-          title: `${THRESHOLD_LABELS[level].name} would need no signatures`,
-          detail: `A threshold of 0 lets anyone submit these operations without any signature.`,
         });
       }
     }
@@ -372,7 +383,7 @@ export const interpretTransaction = (
   const foreignSetOptions = foreign.filter((op) => op.type === 'setOptions');
   if (setOptionsOps.length === 0 && foreignSetOptions.length === 0) return null;
 
-  const { multisig, warnings } = interpretMultisig(setOptionsOps, account);
+  const { multisig, warnings } = interpretMultisig(setOptionsOps, context.sourceAccount, account);
 
   const otherChanges = multisig.flagChanges.map((f) => `${f}.`);
   if (isSet(multisig.homeDomain)) {

@@ -12,26 +12,23 @@ import {
   ResponsiveContainer,
   ReferenceLine 
 } from 'recharts';
-import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
-import { 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  ChevronLeft,
+  ChevronRight,
   Calendar,
-  TrendingUp,
-  ZoomIn,
-  ZoomOut
+  TrendingUp
 } from 'lucide-react';
-import { format, subDays, subMonths, startOfDay, endOfDay } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, startOfMonth } from 'date-fns';
 import { NormalizedTransaction } from '@/lib/horizon-utils';
 
 interface TransactionChartProps {
   transactions: NormalizedTransaction[];
-  onDateRangeChange?: (startDate: Date, endDate: Date) => void;
+  /** Signed change a transaction made to the charted balance; 0 when it did not touch it. */
+  getDelta: (tx: NormalizedTransaction) => number;
   onRequestMoreData?: () => void;
   currentBalance?: number;
   assetSymbol?: string;
   fiatMode?: boolean;
-  fiatAmountMap?: Map<string, number>;
   fiatSymbol?: string;
 }
 
@@ -40,182 +37,37 @@ type TimeRange = '7d' | '30d' | '90d' | '1y' | 'all';
 interface ChartDataPoint {
   date: string;
   balance: number;
-  amount: number;
-  direction: 'in' | 'out';
   timestamp: number;
 }
 
-export const TransactionChart = ({ 
-  transactions, 
-  onDateRangeChange,
+export const TransactionChart = ({
+  transactions,
+  getDelta,
   onRequestMoreData,
   currentBalance = 0,
   assetSymbol = 'XLM',
   fiatMode = false,
-  fiatAmountMap,
   fiatSymbol = '$'
 }: TransactionChartProps) => {
   const [selectedRange, setSelectedRange] = useState<TimeRange>('all');
   const [currentOffset, setCurrentOffset] = useState(0);
-  const { quoteCurrency } = useFiatCurrency();
 
-  // Calculate date range based on selection
-  const dateRange = useMemo(() => {
-    const now = new Date();
-    const offsetDays = currentOffset * getOffsetMultiplier(selectedRange);
-    
-    switch (selectedRange) {
-      case '7d':
-        return {
-          start: startOfDay(subDays(now, 7 + offsetDays)),
-          end: endOfDay(subDays(now, offsetDays))
-        };
-      case '30d':
-        return {
-          start: startOfDay(subDays(now, 30 + offsetDays)),
-          end: endOfDay(subDays(now, offsetDays))
-        };
-      case '90d':
-        return {
-          start: startOfDay(subDays(now, 90 + offsetDays)),
-          end: endOfDay(subDays(now, offsetDays))
-        };
-      case '1y':
-        return {
-          start: startOfDay(subDays(now, 365 + offsetDays)),
-          end: endOfDay(subDays(now, offsetDays))
-        };
-      case 'all':
-      default: {
-        const oldestDate = transactions.reduce((earliest, tx) => {
-          const d = new Date(tx.createdAt).getTime();
-          return (!isNaN(d) && d > 0 && d < earliest) ? d : earliest;
-        }, Number.POSITIVE_INFINITY);
+  // Balance changes in time order, leaving out transactions that don't touch the balance
+  const moves = useMemo(() => transactions
+    .map(tx => ({ timestamp: new Date(tx.createdAt).getTime(), delta: getDelta(tx) }))
+    .filter(move => move.timestamp > 0 && move.delta !== 0) // also drops invalid dates (NaN)
+    .sort((a, b) => a.timestamp - b.timestamp),
+  [transactions, getDelta]);
 
-        return {
-          start: Number.isFinite(oldestDate) && oldestDate !== Number.POSITIVE_INFINITY ? new Date(oldestDate) : subDays(now, 30),
-          end: now,
-        };
-      }
-    }
-  }, [selectedRange, currentOffset, transactions]);
+  const dateRange = useMemo(
+    () => getDateRange(selectedRange, currentOffset, moves[0]?.timestamp),
+    [selectedRange, currentOffset, moves],
+  );
 
-  // Filter and prepare chart data
-  const chartData = useMemo((): ChartDataPoint[] => {
-    // Get all transactions in chronological order (oldest first)
-    const allTxs = transactions
-      .filter(tx => {
-        const date = new Date(tx.createdAt);
-        return !isNaN(date.getTime()) && date.getTime() > 0; // Filter out invalid dates
-      })
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-    // Filter for date range
-    const filteredTxs = allTxs.filter(tx => {
-      const txDate = new Date(tx.createdAt);
-      return txDate >= dateRange.start && txDate <= dateRange.end;
-    });
-
-    if (filteredTxs.length === 0) {
-      // No transactions in range - show current balance as flat line
-      const balance = Number(currentBalance) || 0;
-      
-      return [
-        {
-          date: format(dateRange.start, getDateFormat(selectedRange)),
-          balance: balance,
-          amount: 0,
-          direction: 'in',
-          timestamp: dateRange.start.getTime(),
-        },
-        {
-          date: format(dateRange.end, getDateFormat(selectedRange)),
-          balance: balance,
-          amount: 0,
-          direction: 'in',
-          timestamp: dateRange.end.getTime(),
-        }
-      ];
-    }
-
-    const points: ChartDataPoint[] = [];
-    
-    // Calculate starting balance by working backwards from current balance
-    let startingBalance = fiatMode ? (Number(currentBalance) || 0) : (Number(currentBalance) || 0);
-    
-    // Work backwards through filtered transactions to find starting balance
-    for (let i = filteredTxs.length - 1; i >= 0; i--) {
-      const tx = filteredTxs[i];
-      let deltaAmount = tx.amount ?? 0;
-      if (fiatMode && fiatAmountMap) {
-        deltaAmount = fiatAmountMap.get(tx.id) ?? 0;
-      }
-      
-      // Reverse the transaction effect to get earlier balance
-      if (tx.direction === 'in') {
-        startingBalance -= deltaAmount;
-      } else if (tx.direction === 'out') {
-        startingBalance += deltaAmount;
-      }
-    }
-    
-    // Ensure starting balance is not negative
-    startingBalance = Math.max(0, startingBalance);
-    
-    let runningBalance = startingBalance;
-    const firstTxDate = new Date(filteredTxs[0].createdAt);
-
-    // Add starting point
-    points.push({
-      date: format(firstTxDate, getDateFormat(selectedRange)),
-      balance: runningBalance,
-      amount: 0,
-      direction: 'in',
-      timestamp: firstTxDate.getTime(),
-    });
-
-    // Process each transaction chronologically
-    filteredTxs.forEach(tx => {
-      const amount = tx.amount ?? 0;
-      
-      // For portfolio mode, use fiat amounts; for asset-specific, use native amounts
-      let deltaAmount = amount;
-      if (fiatMode && fiatAmountMap) {
-        deltaAmount = fiatAmountMap.get(tx.id) ?? 0;
-      }
-      
-      // Apply transaction to balance
-      if (tx.direction === 'in') {
-        runningBalance += deltaAmount;
-      } else if (tx.direction === 'out') {
-        runningBalance -= deltaAmount;
-      }
-      
-      // Ensure balance never goes negative (shouldn't happen with correct data)
-      runningBalance = Math.max(0, runningBalance);
-      
-      const txDate = new Date(tx.createdAt);
-      points.push({
-        date: format(txDate, getDateFormat(selectedRange)),
-        balance: runningBalance,
-        amount: deltaAmount,
-        direction: tx.direction || 'in',
-        timestamp: txDate.getTime(),
-      });
-    });
-
-    // Add final point at end of range - use current balance to anchor the end
-    const finalBalance = fiatMode ? (Number(currentBalance) || 0) : (Number(currentBalance) || 0);
-    points.push({
-      date: format(dateRange.end, getDateFormat(selectedRange)),
-      balance: finalBalance,
-      amount: 0,
-      direction: 'in',
-      timestamp: dateRange.end.getTime(),
-    });
-
-    return points;
-  }, [transactions, dateRange, selectedRange, currentBalance, fiatAmountMap, fiatMode]);
+  const chartData = useMemo(
+    () => buildBalancePoints(moves, dateRange, selectedRange, Number(currentBalance) || 0),
+    [moves, dateRange, selectedRange, currentBalance],
+  );
 
   // Aggregate data for better visualization on longer time ranges
   const aggregatedData = useMemo((): ChartDataPoint[] => {
@@ -232,49 +84,27 @@ export const TransactionChart = ({
       return chartData;
     }
 
-    // Group by time intervals for longer ranges
-    const interval = getAggregationInterval(selectedRange);
-    const grouped = new Map<string, ChartDataPoint[]>();
+    // Group by time buckets for longer ranges. Points are in time order, so the
+    // last one written to a bucket is its end-of-period balance.
+    const buckets = new Map<number, ChartDataPoint>();
+    for (const point of chartData) {
+      buckets.set(getBucketStart(point.timestamp, selectedRange), point);
+    }
 
-    chartData.forEach(point => {
-      const key = getIntervalKey(point.timestamp, interval);
-      if (!grouped.has(key)) {
-        grouped.set(key, []);
-      }
-      grouped.get(key)!.push(point);
-    });
-
-    return Array.from(grouped.entries())
-      .map(([key, points]) => {
-        // Use the last point's balance as it represents the end-of-period balance
-        const lastPoint = points[points.length - 1];
-        return {
-          ...lastPoint,
-          date: format(new Date(parseInt(key) * getAggregationInterval(selectedRange)), getDateFormat(selectedRange)),
-        };
-      })
-      .sort((a, b) => a.timestamp - b.timestamp);
+    return Array.from(buckets.entries()).map(([bucketStart, point]) => ({
+      ...point,
+      date: format(bucketStart, getDateFormat(selectedRange)),
+    }));
   }, [chartData, selectedRange]);
 
   const handleRangeChange = (range: TimeRange) => {
     setSelectedRange(range);
     setCurrentOffset(0);
-    
-    if (onDateRangeChange) {
-      // Trigger callback to potentially load more data
-      const newRange = getDateRangeForSelection(range, 0);
-      onDateRangeChange(newRange.start, newRange.end);
-    }
   };
 
   const handleNavigation = (direction: 'prev' | 'next') => {
     const newOffset = direction === 'prev' ? currentOffset + 1 : Math.max(0, currentOffset - 1);
     setCurrentOffset(newOffset);
-
-    if (onDateRangeChange) {
-      const newRange = getDateRangeForSelection(selectedRange, newOffset);
-      onDateRangeChange(newRange.start, newRange.end);
-    }
 
     // Request more data if navigating to older periods
     if (direction === 'prev' && onRequestMoreData) {
@@ -400,7 +230,10 @@ export const TransactionChart = ({
                     fiatMode ? `${Number(value).toFixed(2)} ${fiatSymbol}` : `${Number(value).toFixed(7)} ${assetSymbol}`,
                     'Balance'
                   ]}
-                  labelFormatter={(label) => `Date: ${label}`}
+                  labelFormatter={(label, payload) => {
+                    const timestamp = payload?.[0]?.payload?.timestamp;
+                    return `Date: ${timestamp ? format(timestamp, 'MMM dd, yyyy') : label}`;
+                  }}
                 />
                 
                 {/* Zero line reference */}
@@ -436,72 +269,74 @@ export const TransactionChart = ({
 };
 
 // Helper functions
-function getOffsetMultiplier(range: TimeRange): number {
-  switch (range) {
-    case '7d': return 7;
-    case '30d': return 30;
-    case '90d': return 90;
-    case '1y': return 365;
-    default: return 30;
+const RANGE_DAYS: Record<Exclude<TimeRange, 'all'>, number> = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 };
+
+// Window shown for a range, `offset` windows back from today. 'All' spans from
+// the oldest loaded balance change to now.
+function getDateRange(range: TimeRange, offset: number, oldest?: number) {
+  const now = new Date();
+  if (range === 'all') {
+    return { start: oldest !== undefined ? new Date(oldest) : subDays(now, 30), end: now };
   }
+  const days = RANGE_DAYS[range];
+  return {
+    start: startOfDay(subDays(now, days * (offset + 1))),
+    end: endOfDay(subDays(now, days * offset)),
+  };
+}
+
+// Rebuild the balance over a window from today's balance and the time-ordered moves.
+function buildBalancePoints(
+  moves: Array<{ timestamp: number; delta: number }>,
+  window: { start: Date; end: Date },
+  range: TimeRange,
+  currentBalance: number,
+): ChartDataPoint[] {
+  const start = window.start.getTime();
+  const end = window.end.getTime();
+  const point = (timestamp: number, balance: number): ChartDataPoint => ({
+    date: format(timestamp, getDateFormat(range)),
+    // Movements we can't see (fees, DEX offers, claims) can push a rebuilt balance below zero
+    balance: Math.max(0, balance),
+    timestamp,
+  });
+
+  // Balance at the end of the window: undo everything that happened after it
+  let balance = currentBalance;
+  for (const move of moves) {
+    if (move.timestamp > end) balance -= move.delta;
+  }
+  const endBalance = balance;
+
+  // Then walk back through the window to its opening balance
+  const inWindow = moves.filter(move => move.timestamp >= start && move.timestamp <= end);
+  for (const move of inWindow) balance -= move.delta;
+
+  const points = [point(start, balance)];
+  for (const move of inWindow) {
+    balance += move.delta;
+    points.push(point(move.timestamp, balance));
+  }
+  points.push(point(end, endBalance));
+  return points;
 }
 
 function getDateFormat(range: TimeRange): string {
   switch (range) {
     case '7d': return 'MMM dd'; // Show day and month for weekly view
     case '30d': return 'MMM dd'; // Show day and month for monthly view
-    case '90d': return 'MMM yyyy'; // Show month and year for quarterly view
+    case '90d': return 'MMM dd'; // Weekly buckets for quarterly view
     case '1y': return 'MMM yyyy'; // Show month and year for yearly view
     case 'all': return 'MMM yyyy'; // Show month and year for full history
     default: return 'MMM yyyy'; // Default to month and year
   }
 }
 
-function getAggregationInterval(range: TimeRange): number {
-  switch (range) {
-    case '7d': return 12 * 60 * 60 * 1000; // 12 hours
-    case '30d': return 2 * 24 * 60 * 60 * 1000; // 2 days
-    case '90d': return 7 * 24 * 60 * 60 * 1000; // 1 week
-    case '1y': return 30 * 24 * 60 * 60 * 1000; // 1 month
-    case 'all': return 30 * 24 * 60 * 60 * 1000; // 1 month
-    default: return 2 * 24 * 60 * 60 * 1000; // 2 days
-  }
-}
-
-function getIntervalKey(timestamp: number, interval: number): string {
-  return Math.floor(timestamp / interval).toString();
-}
-
-function getDateRangeForSelection(range: TimeRange, offset: number) {
-  const now = new Date();
-  const offsetDays = offset * getOffsetMultiplier(range);
-  
-  switch (range) {
-    case '7d':
-      return {
-        start: startOfDay(subDays(now, 7 + offsetDays)),
-        end: endOfDay(subDays(now, offsetDays))
-      };
-    case '30d':
-      return {
-        start: startOfDay(subDays(now, 30 + offsetDays)),
-        end: endOfDay(subDays(now, offsetDays))
-      };
-    case '90d':
-      return {
-        start: startOfDay(subDays(now, 90 + offsetDays)),
-        end: endOfDay(subDays(now, offsetDays))
-      };
-    case '1y':
-      return {
-        start: startOfDay(subDays(now, 365 + offsetDays)),
-        end: endOfDay(subDays(now, offsetDays))
-      };
-    case 'all':
-    default:
-      return {
-        start: startOfDay(subDays(now, 365)),
-        end: now
-      };
-  }
+// Start of the bucket a point is aggregated into: calendar months for the long
+// ranges, fixed windows (12 hours, 2 days, 1 week) for the others.
+function getBucketStart(timestamp: number, range: TimeRange): number {
+  if (range === '1y' || range === 'all') return startOfMonth(timestamp).getTime();
+  const hours = range === '7d' ? 12 : range === '30d' ? 48 : 7 * 24;
+  const interval = hours * 60 * 60 * 1000;
+  return Math.floor(timestamp / interval) * interval;
 }

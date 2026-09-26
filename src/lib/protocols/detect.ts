@@ -57,6 +57,8 @@ export type ActivityDetails =
       buy: TokenAmount;
       /** Full hop list when the router exposes one; endpoints only otherwise. */
       path: string[];
+      /** False when the contract picks the route itself (aggregators): `path` is then just the endpoints. */
+      routeKnown: boolean;
       to: string;
       /** Unix seconds. */
       deadline?: number;
@@ -203,9 +205,12 @@ const SHAPES: Record<string, readonly string[]> = {
   token_b: ['scvAddress'],
   invest: ['scvBool'],
   deadline: ['scvU64', 'scvU32'],
+  // An option whose meaning is not pinned: only the empty value is a call we can read.
+  options: ['scvVoid'],
 };
 
-const fitsSignature = (call: ContractCall, sig: FunctionSignature): boolean => {
+/** Exact name, arity and argument shapes — the bar for acting on a match, not just labelling it. */
+export const fitsSignature = (call: ContractCall, sig: FunctionSignature): boolean => {
   if (call.functionName !== sig.name || call.args.length !== sig.params.length) return false;
   return sig.params.every((param, i) => {
     const allowed = SHAPES[param];
@@ -254,7 +259,7 @@ const extractDetails = (call: ContractCall, sig: FunctionSignature): ActivityDet
       const tokenOut = (at('token_out') as string | undefined) ?? path[path.length - 1];
       if (!tokenIn || !tokenOut) return null;
 
-      const exactIn = sig.name === 'swap_exact_tokens_for_tokens';
+      const exactIn = sig.params.includes('amount_out_min');
       const sellRaw = toAmount(exactIn ? at('amount_in') : at('amount_in_max'));
       const buyRaw = toAmount(exactIn ? at('amount_out_min') : at('amount_out'));
       if (sellRaw === null || buyRaw === null) return null;
@@ -264,6 +269,7 @@ const extractDetails = (call: ContractCall, sig: FunctionSignature): ActivityDet
         sell: { contract: tokenIn, raw: sellRaw, bound: exactIn ? 'exact' : 'max' },
         buy: { contract: tokenOut, raw: buyRaw, bound: exactIn ? 'min' : 'exact' },
         path: path.length ? path : [tokenIn, tokenOut],
+        routeKnown: path.length > 0,
         to: (at('to') as string) ?? '',
         deadline: toSeconds(at('deadline')),
       };

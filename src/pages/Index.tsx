@@ -14,6 +14,8 @@ const TransactionBuilder = lazy(() =>
   })),
 );
 import { fetchAccountData, type AccountData } from "@/lib/stellar";
+import { WATCHABLE_WALLETS } from "@/lib/walletKit";
+import type { NetworkId } from "@/lib/xdr/parse";
 import { StrKey } from "@stellar/stellar-sdk";
 import { useToast } from "@/hooks/use-toast";
 import { FiatCurrencyProvider } from "@/contexts/FiatCurrencyContext";
@@ -22,9 +24,15 @@ import { useWalletKit } from "@/contexts/WalletKitContext";
 import { useRequestDeduplication } from "@/hooks/useRequestDeduplication";
 import { updateUrlParams } from "@/lib/urlState";
 
-type AppState = "connecting" | "dashboard" | "transaction" | "multisig-config";
+type AppState = "connecting" | "dashboard" | "transaction";
 
 const TRANSACTION_TABS = ["payment", "contract", "defi", "import"];
+
+const clearDeepLinkStorage = () => {
+  sessionStorage.removeItem("deeplink-xdr");
+  sessionStorage.removeItem("deeplink-refractor-id");
+  sessionStorage.removeItem("deeplink-source-account");
+};
 
 const Index = memo(() => {
   const { toast } = useToast();
@@ -33,7 +41,6 @@ const Index = memo(() => {
   const { dedupe } = useRequestDeduplication();
 
   const [appState, setAppState] = useState<AppState>("connecting");
-  const [connectedWallet, setConnectedWallet] = useState<string>("");
   const [accountData, setAccountData] = useState<AccountData | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -46,23 +53,21 @@ const Index = memo(() => {
   const prevAppState = useRef<AppState>("connecting");
   // Section requested by the URL (?view=transaction&tab=...). Applied once account data has
   // loaded, since the transaction builder's forms need balances/signers to render.
-  const viewFromUrl = useRef<Exclude<AppState, "connecting" | "dashboard"> | null>(null);
+  const viewFromUrl = useRef<"transaction" | null>(null);
   const initialTransactionTab = useRef<string | null>(null);
 
   // Deep links are processed by DeepLinkHandler; we do not auto-switch app state here to ensure account loads first.
 
-  // Optimized account data fetching with deduplication
+  // A Refractor deep link was pulled: load its source account on the transaction's network.
   const handleDeepLinkLoaded = useCallback(
-    async (xdrSourceAccount: string) => {
-      // Load account data from the XDR's source account
+    async (xdrSourceAccount: string, deepLinkNetwork: NetworkId) => {
       setSourceAccount(xdrSourceAccount);
       setPublicKey(xdrSourceAccount); // Set as initial signer if no wallet connected
       setLoading(true);
 
       try {
-        // Use dedupe to prevent duplicate requests for same account
-        const realAccountData = await dedupe(`account-${xdrSourceAccount}-${network}`, () =>
-          fetchAccountData(xdrSourceAccount, network),
+        const realAccountData = await dedupe(`account-${xdrSourceAccount}-${deepLinkNetwork}`, () =>
+          fetchAccountData(xdrSourceAccount, deepLinkNetwork),
         );
         setAccountData(realAccountData);
         setDeepLinkReady(true);
@@ -80,36 +85,32 @@ const Index = memo(() => {
           description: error instanceof Error ? error.message : "Could not load account data",
           variant: "destructive",
         });
+        clearDeepLinkStorage();
         setAppState("connecting");
       } finally {
         setLoading(false);
       }
     },
-    [network, dedupe, toast],
+    [dedupe, toast],
   );
 
   const handleWalletConnect = useCallback(
-    async (walletType: string, walletPublicKey: string, selectedNetwork: "mainnet" | "testnet") => {
-      setConnectedWallet(walletType);
+    async (walletPublicKey: string, selectedNetwork: NetworkId) => {
       setPublicKey(walletPublicKey);
-      setSourceAccount(walletPublicKey); // Default source account to connected wallet
       setNetwork(selectedNetwork);
       setLoading(true);
 
       // Scroll to top when transitioning from landing page
       window.scrollTo({ top: 0, behavior: "instant" });
 
-      // Immediately switch to appropriate state for better perceived performance
+      // A pending deep link (pulled before the wallet was connected) decides which account the
+      // transaction view works on. Read it once: the builder clears these keys when it mounts.
       const deepLinkXdr = sessionStorage.getItem("deeplink-xdr");
+      const storedSource = sessionStorage.getItem("deeplink-source-account");
+      const deepLinkSource = deepLinkXdr && storedSource && StrKey.isValidEd25519PublicKey(storedSource) ? storedSource : null;
+      const accountToFetch = deepLinkSource ?? walletPublicKey;
+      setSourceAccount(accountToFetch);
       if (deepLinkXdr) {
-        // If there's a deep link, use its source account
-        const deepLinkSourceAccount = sessionStorage.getItem("deeplink-source-account");
-        if (deepLinkSourceAccount && StrKey.isValidEd25519PublicKey(deepLinkSourceAccount)) {
-          setSourceAccount(deepLinkSourceAccount);
-        } else if (deepLinkSourceAccount) {
-          // Corrupted deep-link source account; ignore it
-          sessionStorage.removeItem("deeplink-source-account");
-        }
         setDeepLinkReady(true);
         setAppState("transaction");
       } else {
@@ -122,9 +123,6 @@ const Index = memo(() => {
       // Defer account data fetching to not block TTI
       setTimeout(async () => {
         try {
-          // Fetch account data for the source account (may differ from connected wallet with deep links)
-          const stored = sessionStorage.getItem("deeplink-source-account");
-          const accountToFetch = stored && StrKey.isValidEd25519PublicKey(stored) ? stored : walletPublicKey;
           const realAccountData = await dedupe(`account-${accountToFetch}-${selectedNetwork}`, () =>
             fetchAccountData(accountToFetch, selectedNetwork),
           );
@@ -170,14 +168,17 @@ const Index = memo(() => {
     const selectedNetwork: "mainnet" | "testnet" =
       netParam === "testnet" ? "testnet" : netParam === "mainnet" ? "mainnet" : network;
 
-    handleWalletConnect("watch-only", address, selectedNetwork);
+    handleWalletConnect(address, selectedNetwork);
 
     // Restore the section the link points at (defaults to the dashboard)
     const view = params.get("view");
     const tab = params.get("tab");
-    if (view === "transaction" || view === "multisig-config") {
-      if (view === "transaction" && tab && TRANSACTION_TABS.includes(tab)) initialTransactionTab.current = tab;
+    if (view === "transaction") {
+      if (tab && TRANSACTION_TABS.includes(tab)) initialTransactionTab.current = tab;
       viewFromUrl.current = view;
+    } else if (view === "multisig-config") {
+      // Older links: multisig configuration now lives in the dashboard's Multisig tab.
+      updateUrlParams({ view: null, tab: "multisig" });
     }
   }, [network, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -207,15 +208,13 @@ const Index = memo(() => {
   }, [appState, sourceAccount, publicKey, network]);
 
   // Detect when the user switches the active account in their wallet (e.g. Freighter)
-  // after connecting. Poll the live address for hot wallets connected via the kit
-  // (skip watch-only and hardware wallets, which shouldn't be polled).
+  // after connecting. Only wallets that report their address without a prompt are polled.
   useEffect(() => {
     if (!kitConnectedWallet || !publicKey) {
       setLiveWalletAddress(null);
       return;
     }
-    const id = kitConnectedWallet.id.toLowerCase();
-    if (id.includes('ledger') || id.includes('trezor')) return;
+    if (!WATCHABLE_WALLETS.includes(kitConnectedWallet.id.toLowerCase())) return;
 
     let stopped = false;
     const check = async () => {
@@ -232,12 +231,11 @@ const Index = memo(() => {
     kitConnectedWallet && liveWalletAddress && publicKey && liveWalletAddress !== publicKey
   );
 
-  const handleReconnectWallet = useCallback(() => {
+  const handleDisconnect = useCallback(() => {
     disconnectWallet();
-    sessionStorage.removeItem("deeplink-xdr");
-    sessionStorage.removeItem("deeplink-refractor-id");
-    sessionStorage.removeItem("deeplink-source-account");
-    setConnectedWallet("");
+    clearDeepLinkStorage();
+    viewFromUrl.current = null;
+    initialTransactionTab.current = null;
     setPublicKey("");
     setSourceAccount("");
     setAccountData(null);
@@ -253,45 +251,39 @@ const Index = memo(() => {
     setAppState("transaction");
   }, []);
 
-  const handleConfigureMultisig = useCallback(() => {
-    setAppState("multisig-config");
-  }, []);
+  // Memoized account refresh function - uses sourceAccount for transactions. It always asks
+  // Horizon again: a refresh must never be answered from a recently settled request.
+  const handleAccountRefresh = useCallback(async () => {
+    const accountToRefresh = sourceAccount || publicKey;
+    if (!accountToRefresh) return;
+    const realAccountData = await fetchAccountData(accountToRefresh, network);
+    setAccountData(realAccountData);
+  }, [sourceAccount, publicKey, network]);
 
   const handleBackToDashboard = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
     setDeepLinkReady(false);
     initialTransactionTab.current = null;
+    updateUrlParams({ r: null });
     setAppState("dashboard");
-  }, []);
+    // Balances and signers may have changed while the user was in the builder.
+    handleAccountRefresh().catch(() => {
+      /* the dashboard keeps showing the last known state */
+    });
+  }, [handleAccountRefresh]);
 
-  const handleDisconnect = useCallback(() => {
-    disconnectWallet();
-    sessionStorage.removeItem("deeplink-xdr");
-    sessionStorage.removeItem("deeplink-refractor-id");
-    sessionStorage.removeItem("deeplink-source-account");
-    setConnectedWallet("");
-    setPublicKey("");
-    setSourceAccount("");
-    setAccountData(null);
-    setAccountError(null);
-    setDeepLinkReady(false);
-    setAppState("connecting");
-  }, [disconnectWallet]);
-
-  // Handler for when user changes the source account
+  // Handler for when user changes the source account. Switch only once the new account has
+  // loaded, so the builder never pairs one account with another account's signers.
   const handleSourceAccountChange = useCallback(
     async (newSourceAccount: string) => {
       if (!newSourceAccount || newSourceAccount === sourceAccount) return;
 
-      setSourceAccount(newSourceAccount);
       setLoading(true);
-      setAccountError(null);
-
       try {
-        const realAccountData = await dedupe(`account-${newSourceAccount}-${network}`, () =>
-          fetchAccountData(newSourceAccount, network),
-        );
+        const realAccountData = await fetchAccountData(newSourceAccount, network);
+        setSourceAccount(newSourceAccount);
         setAccountData(realAccountData);
+        setAccountError(null);
         toast({
           title: "Source Account Updated",
           description: "Account data loaded for new source account",
@@ -308,18 +300,8 @@ const Index = memo(() => {
         setLoading(false);
       }
     },
-    [sourceAccount, network, dedupe, toast],
+    [sourceAccount, network, toast],
   );
-
-  // Memoized account refresh function - uses sourceAccount for transactions
-  const handleAccountRefresh = useCallback(async () => {
-    const accountToRefresh = sourceAccount || publicKey;
-    if (!accountToRefresh) return;
-    const realAccountData = await dedupe(`account-${accountToRefresh}-${network}`, () =>
-      fetchAccountData(accountToRefresh, network),
-    );
-    setAccountData(realAccountData);
-  }, [sourceAccount, publicKey, network, dedupe]);
 
   // Retry loading account data after a failure (e.g. Horizon rate limit / network error).
   // Bypasses the dedupe cache so a recently-rejected promise isn't replayed.
@@ -358,7 +340,7 @@ const Index = memo(() => {
                     Reconnect to use the active account.
                   </p>
                 </div>
-                <Button size="sm" onClick={handleReconnectWallet} className="shrink-0 gap-2">
+                <Button size="sm" onClick={handleDisconnect} className="shrink-0 gap-2">
                   <RefreshCw className="w-4 h-4" />
                   Reconnect
                 </Button>
@@ -370,7 +352,7 @@ const Index = memo(() => {
           {appState === "connecting" && <LandingPage onConnect={handleWalletConnect} />}
 
           {/* Transaction Builder */}
-          {(appState === "transaction" || appState === "multisig-config") && (
+          {appState === "transaction" && (
             <Suspense
               fallback={
                 <div className="min-h-screen flex items-center justify-center">
@@ -387,13 +369,7 @@ const Index = memo(() => {
                 accountPublicKey={sourceAccount || publicKey || ""}
                 signerPublicKey={publicKey}
                 accountData={accountData}
-                initialTab={
-                  appState === "multisig-config"
-                    ? "multisig"
-                    : deepLinkReady
-                      ? "import"
-                      : initialTransactionTab.current ?? "payment"
-                }
+                initialTab={deepLinkReady ? "import" : initialTransactionTab.current ?? "payment"}
                 onAccountRefresh={handleAccountRefresh}
                 onSourceAccountChange={handleSourceAccountChange}
               />
@@ -415,7 +391,6 @@ const Index = memo(() => {
               <AccountOverview
                 accountData={accountData}
                 onInitiateTransaction={handleInitiateTransaction}
-                onSignTransaction={() => {}}
                 onRefreshBalances={handleAccountRefresh}
                 onDisconnect={handleDisconnect}
               />

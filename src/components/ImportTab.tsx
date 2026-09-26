@@ -10,9 +10,12 @@ import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useToast } from '@/hooks/use-toast';
 import { ShareModal } from './ShareModal';
 import { QRScanner } from './QRScanner';
+import { parseTransactionPayload } from '@/lib/sep7';
 
 interface ImportTabProps {
   xdrInput: string;
+  /** Why the pasted text cannot be used, if it cannot. */
+  xdrError?: string;
   onXdrInputChange: (xdr: string) => void;
   onPullTransaction: (refractorId: string) => Promise<void>;
   lastRefractorId?: string;
@@ -21,6 +24,7 @@ interface ImportTabProps {
 
 export const ImportTab = ({ 
   xdrInput, 
+  xdrError,
   onXdrInputChange,
   onPullTransaction,
   lastRefractorId,
@@ -67,48 +71,34 @@ export const ImportTab = ({
     }
   };
 
+  // Transactions arrive as SEP-7 URIs (including this app's air-gap QR) or raw XDR; share links
+  // and Refractor IDs point at a transaction stored on Refractor.
   const handleQRScan = (data: string) => {
-    // Check if it's a SEP-7 URI or Stellar Stratum deep link
+    const text = data.trim();
+    const payload = parseTransactionPayload(text);
+    if (payload) {
+      onXdrInputChange(text);
+      toast({ title: "Transaction Imported", description: "Transaction loaded from the QR code", duration: 3000 });
+      return;
+    }
     try {
-      const url = new URL(data);
-      
-      // Check for SEP-7 tx URI
-      if (url.protocol === 'web+stellar:' && url.pathname === 'tx') {
-        const xdr = url.searchParams.get('xdr');
-        if (xdr) {
-          // This is XDR data, import it directly
-          onXdrInputChange(xdr);
-          toast({
-            title: "Transaction Imported",
-            description: "XDR loaded from SEP-7 URI",
-            duration: 3000
-          });
-          return;
-        }
-      }
-      
-      // Check for Stratum deep link
-      const refractorParam = url.searchParams.get('r');
+      const refractorParam = new URL(text).searchParams.get('r');
       if (refractorParam) {
         setRefractorId(refractorParam);
         return;
       }
     } catch {
-      // Not a valid URL, check if it's XDR or refractor ID
+      // Not a URL
     }
-
-    // Check if it looks like XDR (base64 encoded, typically long)
-    if (data.length > 100 && /^[A-Za-z0-9+/=]+$/.test(data.trim())) {
-      onXdrInputChange(data.trim());
-      toast({
-        title: "XDR Imported",
-        description: "Transaction XDR loaded from QR code",
-        duration: 3000
-      });
-    } else {
-      // Assume it's a refractor ID
-      setRefractorId(data.trim());
+    if (/^[0-9a-f]{64}$/i.test(text)) {
+      setRefractorId(text);
+      return;
     }
+    toast({
+      title: "Unrecognised QR code",
+      description: "Expected a transaction (SEP-7 or XDR), a share link or a Refractor ID.",
+      variant: "destructive",
+    });
   };
 
   const openRefractor = () => {
@@ -131,6 +121,7 @@ export const ImportTab = ({
           value={xdrInput}
           onChange={(e) => onXdrInputChange(e.target.value)}
         />
+        {xdrError && <p className="text-sm text-destructive">{xdrError}</p>}
       </div>
 
       <div className="relative">

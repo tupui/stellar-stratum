@@ -95,7 +95,8 @@ export const AddressAutocomplete = ({
   };
 
   const formatAddress = (address: string): string => {
-    return `${address.slice(0, 4)}...${address.slice(-4)}`;
+    // Look-alike addresses share their first and last few characters: show more of it.
+    return `${address.slice(0, 10)}…${address.slice(-10)}`;
   };
 
   return (
@@ -155,7 +156,7 @@ export const AddressAutocomplete = ({
               <div className="p-2 border-b border-border">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Clock className="w-3 h-3" />
-                  {value.trim() ? 'Search results' : 'Recent transactions'}
+                  {value.trim() ? 'Search results' : 'Recent recipients'}
                 </div>
               </div>
               {suggestions.map((entry) => (

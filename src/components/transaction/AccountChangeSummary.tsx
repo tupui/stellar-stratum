@@ -30,11 +30,11 @@ const WARNING_STYLE: Record<
   info: { wrap: 'border-border/60 bg-secondary/30', accent: 'text-muted-foreground', icon: Info },
 };
 
-/** Hash-based signers are not addresses, so they get a label rather than a truncated key. */
+/** Hash-based signers are not addresses, so they get a label (by strkey prefix) rather than a truncated key. */
 const KEY_KINDS: Record<string, string> = {
-  preauth: 'Pre-authorised tx',
-  hashx: 'Hash(x) signer',
-  payload: 'Signed payload',
+  T: 'Pre-authorised tx',
+  X: 'Hash(x) signer',
+  P: 'Signed payload',
 };
 
 interface SignerNameProps {
@@ -47,11 +47,9 @@ interface SignerNameProps {
 
 /** The signer's key, linked to its Stellar Expert page when there is a network to reach. */
 const SignerName = ({ signerKey, isMasterKey = false, network, linkable }: SignerNameProps) => {
-  const [prefix, hashValue] = signerKey.split(':');
-  const isAddress = hashValue === undefined;
-  const text = isAddress
-    ? shortenAddress(signerKey, 8, 8)
-    : `${KEY_KINDS[prefix] ?? prefix}: ${shortenAddress(hashValue, 6, 6)}`;
+  const kind = KEY_KINDS[signerKey[0]];
+  const isAddress = kind === undefined;
+  const text = isAddress ? shortenAddress(signerKey, 8, 8) : `${kind}: ${shortenAddress(signerKey, 6, 6)}`;
 
   const body = (
     <>
@@ -241,8 +239,6 @@ export const AccountChangeSummary = ({ interpretation, network, offlineMode = fa
                     <span className="text-destructive font-medium">
                       impossible — no combination of signers reaches {req.threshold}
                     </span>
-                  ) : req.minSigners === 0 ? (
-                    <>no signature required</>
                   ) : req.anyCombination ? (
                     <>
                       any <span className="font-medium">{req.minSigners}</span> of these {resultingSigners.length}

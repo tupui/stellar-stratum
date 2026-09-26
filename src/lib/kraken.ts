@@ -6,6 +6,7 @@
 // cache is older than 24 h or when today's close is missing.
 
 import { safeStorage } from './storage';
+import { appConfig } from './appConfig';
 
 type DailyMap = Record<string, number>; // yyyy-mm-dd (UTC) -> close price
 
@@ -162,24 +163,20 @@ const ensureFresh = async (spec: OhlcSpec): Promise<void> => {
   return promise;
 };
 
-const getRateForDate = async (spec: OhlcSpec, date: Date, cacheOnly: boolean): Promise<number> => {
-  const key = toDateKey(date);
-  const cache = loadDaily(spec);
-  if (cache[key]) return cache[key];
-  if (cacheOnly) return 0;
+// Cache-only view of one daily series, parsed once so that many dates can be
+// looked up without re-reading localStorage.
+export interface DailyRates {
+  on: (date: Date) => number; // 0 when that day is not cached
+  latest: number; // most recent cached close, 0 when none
+}
 
-  await ensureFresh(spec);
-  const updated = loadDaily(spec);
-  if (updated[key]) return updated[key];
-
-  // If today is still missing, force one more round-trip.
-  if (key === todayKeyUTC()) {
-    setLastFetch(spec, 0);
-    await ensureFresh(spec);
-    const refetched = loadDaily(spec);
-    if (refetched[key]) return refetched[key];
-  }
-  return 0;
+const readDaily = (spec: OhlcSpec): DailyRates => {
+  const map = loadDaily(spec);
+  const newest = Object.keys(map).sort().pop();
+  return {
+    on: (date) => map[toDateKey(date)] ?? 0,
+    latest: newest ? map[newest] : 0,
+  };
 };
 
 // --- Asset (crypto → USD) specialisation -------------------------------------
@@ -198,8 +195,28 @@ const assetSpec = (asset: string): OhlcSpec => {
 };
 
 export const primeUsdRatesForAsset = (asset: string): Promise<void> => ensureFresh(assetSpec(asset));
-export const getUsdRateForDateByAsset = (asset: string, date: Date, cacheOnly = false): Promise<number> =>
-  getRateForDate(assetSpec(asset), date, cacheOnly);
+export const getUsdDailyRates = (asset: string): DailyRates => readDaily(assetSpec(asset));
+
+// Kraken quotes by ticker, but on Stellar anyone can issue a credit asset named
+// "USDC" (or even "XLM"). Only native XLM and the credit assets listed here,
+// matched on code and issuer, map to a Kraken ticker; anything else is unpriced.
+const KRAKEN_CREDIT_ASSETS: Record<'mainnet' | 'testnet', Record<string, string>> = {
+  mainnet: {
+    [`USDC:${appConfig.USDC_ISSUER_MAINNET}`]: 'USDC',
+    'EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2': 'EURC',
+  },
+  testnet: {
+    'USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5': 'USDC',
+  },
+};
+
+export const krakenSymbolFor = (
+  network: 'mainnet' | 'testnet',
+  assetType?: string,
+  assetCode?: string,
+  assetIssuer?: string,
+): string | null =>
+  assetType === 'native' ? 'XLM' : KRAKEN_CREDIT_ASSETS[network][`${assetCode}:${assetIssuer}`] ?? null;
 
 // --- Fiat pair specialisation ------------------------------------------------
 
@@ -230,9 +247,5 @@ const fiatSpec = (fromCurrency: string, toCurrency: string): OhlcSpec => {
 export const primeHistoricalFxRates = (fromCurrency: string, toCurrency: string): Promise<void> =>
   ensureFresh(fiatSpec(fromCurrency, toCurrency));
 
-export const getHistoricalFxRate = (
-  fromCurrency: string,
-  toCurrency: string,
-  date: Date,
-  cacheOnly = false,
-): Promise<number> => getRateForDate(fiatSpec(fromCurrency, toCurrency), date, cacheOnly);
+export const getFxDailyRates = (fromCurrency: string, toCurrency: string): DailyRates =>
+  readDaily(fiatSpec(fromCurrency, toCurrency));

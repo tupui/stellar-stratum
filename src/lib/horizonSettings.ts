@@ -73,11 +73,17 @@ export const horizonSettings = {
     const disabled = enabled ? current.disabled.filter((u) => u !== url) : [...new Set([...current.disabled, url])];
     commit({ ...settings, [network]: { ...current, disabled } });
   },
-  addCustom(network: Network, rawUrl: string) {
+  /** Add a custom endpoint. A URL that is already listed (built-in or custom) is re-enabled instead. */
+  addCustom(network: Network, rawUrl: string): 'added' | 'enabled' | 'unchanged' {
     const url = normalizeUrl(rawUrl);
     const current = settings[network] ?? EMPTY;
-    if (current.custom.includes(url) || defaultHorizonUrls(network).includes(url)) return;
+    if (current.custom.includes(url) || defaultHorizonUrls(network).includes(url)) {
+      if (!current.disabled.includes(url)) return 'unchanged';
+      horizonSettings.setEnabled(network, url, true);
+      return 'enabled';
+    }
     commit({ ...settings, [network]: { custom: [url, ...current.custom], disabled: current.disabled.filter((u) => u !== url) } });
+    return 'added';
   },
   removeCustom(network: Network, url: string) {
     const current = settings[network] ?? EMPTY;

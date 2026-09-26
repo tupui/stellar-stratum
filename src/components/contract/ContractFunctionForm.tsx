@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import { contract } from '@stellar/stellar-sdk';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -7,15 +6,14 @@ import { Play, Hammer, Loader2 } from 'lucide-react';
 import { ContractValueInput } from './ContractValueInput';
 import {
   classifyParam,
-  coerceFormValue,
   defaultFormValue,
+  describeType,
   formatResult,
   type FormValues,
   type ParamShape,
 } from '@/lib/contract/form-values';
-import { appConfig } from '@/lib/appConfig';
-import type { LoadedContract } from '@/lib/contract/spec';
-import { invocationRpcOptions } from '@/lib/contract/spec';
+import { buildInvocationXdr, simulateInvocation } from '@/lib/contract/invoke';
+import { errorMessage, type LoadedContract } from '@/lib/contract/spec';
 
 interface ContractFunctionFormProps {
   loaded: LoadedContract;
@@ -24,6 +22,8 @@ interface ContractFunctionFormProps {
   onBuild: (xdr: string) => void;
   isBuilding: boolean;
   isTransactionBuilt: boolean;
+  /** Called on any edit, so a transaction built from the previous values is not signed. */
+  onClearTransaction?: () => void;
 }
 
 interface ParsedFunction {
@@ -34,11 +34,9 @@ interface ParsedFunction {
 
 const parseFunction = (loaded: LoadedContract, name: string): ParsedFunction => {
   const fn = loaded.spec.getFunc(name);
-  const params = fn.inputs.map((input) => classifyParam(input.name.toString(), input.type));
+  const params = fn.inputs.map((input) => classifyParam(input.name.toString(), input.type, loaded.spec));
   const outputs = fn.outputs;
-  const returnLabel = outputs.length === 0
-    ? 'void'
-    : outputs.map((t) => classifyParam('', t).typeLabel).join(', ');
+  const returnLabel = outputs.length === 0 ? 'void' : outputs.map(describeType).join(', ');
   return { params, returnLabel, doc: fn.doc.toString() };
 };
 
@@ -49,56 +47,40 @@ export const ContractFunctionForm = ({
   onBuild,
   isBuilding,
   isTransactionBuilt,
+  onClearTransaction,
 }: ContractFunctionFormProps) => {
   const parsed = useMemo(() => parseFunction(loaded, functionName), [loaded, functionName]);
 
-  // Reset form state whenever the target function changes.
+  // The form is keyed by contract and function, so state starts fresh for each.
   const [values, setValues] = useState<FormValues>(() =>
     Object.fromEntries(parsed.params.map((p) => [p.name, defaultFormValue(p)])),
   );
   const [error, setError] = useState('');
   const [simResult, setSimResult] = useState<string | null>(null);
   const [busy, setBusy] = useState<'sim' | 'build' | null>(null);
-
-  // Keep values in sync if function changes underneath us.
-  useMemo(() => {
-    setValues(Object.fromEntries(parsed.params.map((p) => [p.name, defaultFormValue(p)])));
-    setError('');
-    setSimResult(null);
-  }, [parsed]);
+  // Bumped on every edit and on unmount, so a simulation or build that finishes afterwards is dropped.
+  const edits = useRef(0);
+  useEffect(() => () => { edits.current += 1; }, []);
 
   const setField = (name: string, next: unknown) => {
     setValues((prev) => ({ ...prev, [name]: next }));
+    setSimResult(null);
+    edits.current += 1;
+    onClearTransaction?.();
   };
 
-  const buildAssembled = async () => {
-    // Coerce every field. Any coercion failure surfaces as an inline error.
-    const nativeArgs: Record<string, unknown> = {};
-    for (const p of parsed.params) {
-      nativeArgs[p.name] = coerceFormValue(p, values[p.name]);
-    }
-    const scArgs = loaded.spec.funcArgsToScVals(functionName, nativeArgs);
-    return contract.AssembledTransaction.build({
-      method: functionName,
-      args: scArgs,
-      fee: String(appConfig.DEFAULT_BASE_FEE_STROOPS),
-      timeoutInSeconds: appConfig.DEFAULT_TX_TIMEOUT_SECONDS,
-      simulate: true,
-      parseResultXdr: (retval) => loaded.spec.funcResToNative(functionName, retval),
-      ...invocationRpcOptions(loaded, publicKey),
-    });
-  };
+  const invocation = { loaded, functionName, params: parsed.params, values, publicKey };
 
   const handleSimulate = async () => {
     setError('');
     setSimResult(null);
     setBusy('sim');
     try {
-      const tx = await buildAssembled();
-      const raw = tx.result;
-      setSimResult(formatResult(raw));
+      const at = edits.current;
+      const tx = await simulateInvocation(invocation);
+      if (edits.current === at) setSimResult(formatResult(tx.result));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Simulation failed');
+      setError(errorMessage(e, 'Simulation failed'));
     } finally {
       setBusy(null);
     }
@@ -108,11 +90,11 @@ export const ContractFunctionForm = ({
     setError('');
     setBusy('build');
     try {
-      const tx = await buildAssembled();
-      const xdr = tx.toXdr();
-      onBuild(xdr);
+      const at = edits.current;
+      const xdr = await buildInvocationXdr(invocation);
+      if (edits.current === at) onBuild(xdr);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Build failed');
+      setError(errorMessage(e, 'Build failed'));
     } finally {
       setBusy(null);
     }
@@ -153,7 +135,7 @@ export const ContractFunctionForm = ({
 
       {error && (
         <Alert variant="destructive">
-          <AlertDescription className="text-sm break-all">{error}</AlertDescription>
+          <AlertDescription className="text-sm break-all whitespace-pre-wrap">{error}</AlertDescription>
         </Alert>
       )}
 

@@ -1,57 +1,50 @@
 /**
- * Centralized utility functions for calculating available balances
- * considering reserve requirements and previous operations
+ * Spendable balances, following the network's reserve rules.
  */
 
 import { Decimal } from 'decimal.js';
 
-interface Asset {
-  code: string;
-  issuer?: string;
-  balance: string;
+export const BASE_RESERVE_XLM = new Decimal('0.5');
+/** Kept aside for the transaction fee (0.01 XLM per operation) when offering "max". */
+export const FEE_MARGIN_XLM = new Decimal('0.1');
+
+interface ReserveInfo {
+  subentry_count?: number;
+  num_sponsoring?: number;
+  num_sponsored?: number;
 }
 
-interface Operation {
-  asset: string;
-  amount: string;
-  type?: 'payment' | 'swap' | 'merge' | string;
+interface BalanceInfo {
+  asset_type: string;
+  asset_code?: string;
+  asset_issuer?: string;
+  balance: string;
+  selling_liabilities?: string;
+}
+
+/** XLM the account must always hold: (2 + subentries + sponsoring − sponsored) × base reserve. */
+export function minimumBalance(account: ReserveInfo): Decimal {
+  const entries = 2 + (account.subentry_count ?? 0) + (account.num_sponsoring ?? 0) - (account.num_sponsored ?? 0);
+  return BASE_RESERVE_XLM.times(Math.max(entries, 0));
 }
 
 /**
- * Calculate the available balance for an asset, considering:
- * - Reserve requirements (minimum balance for XLM)
- * - Network fee margin (additional 1 XLM for transaction fees)
- * - Previous operations in the same transaction
- * - Asset-specific constraints
+ * What can be sent of one asset right now: the balance minus what open offers lock and, for
+ * XLM, minus the minimum balance and a fee margin.
  */
-export function calculateAvailableBalance(
-  asset: Asset,
-  previousOperations: Operation[] = [],
-  reserveAmount: number = 1 // Default reserve for XLM
-): number {
-  const rawBalance = new Decimal(asset.balance || '0');
-  
-  // Calculate total amount already allocated in previous operations for this asset
-  const allocatedAmount = previousOperations
-    .filter(op => op.asset === asset.code)
-    .reduce((total, op) => total.plus(new Decimal(op.amount || '0')), new Decimal(0));
-  
-  // Apply reserve requirements based on asset type
-  let availableAfterReserve: Decimal;
-  
-  if (asset.code === 'XLM') {
-    // XLM requires minimum balance for account existence + network fee margin
-    const totalReserve = new Decimal(reserveAmount).plus(1); // Add 1 XLM margin for network fees
-    availableAfterReserve = Decimal.max(0, rawBalance.minus(totalReserve));
-  } else {
-    // Non-native assets don't have reserve requirements
-    availableAfterReserve = rawBalance;
-  }
-  
-  // Subtract already allocated amounts
-  const finalAvailable = Decimal.max(0, availableAfterReserve.minus(allocatedAmount));
-  
-  return finalAvailable.toNumber();
+export function spendableBalance(
+  account: ReserveInfo & { balances: BalanceInfo[] },
+  assetCode: string,
+  assetIssuer?: string,
+): Decimal {
+  const native = assetCode === 'XLM' && !assetIssuer;
+  const line = account.balances.find((b) =>
+    native ? b.asset_type === 'native' : b.asset_code === assetCode && b.asset_issuer === assetIssuer,
+  );
+  if (!line) return new Decimal(0);
+  let spendable = new Decimal(line.balance || '0').minus(line.selling_liabilities || '0');
+  if (native) spendable = spendable.minus(minimumBalance(account)).minus(FEE_MARGIN_XLM);
+  return Decimal.max(0, spendable);
 }
 
 /**

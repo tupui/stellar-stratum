@@ -1,115 +1,60 @@
 import { useMemo } from 'react';
+import { format } from 'date-fns';
 import { NormalizedTransaction } from '@/lib/horizon-utils';
 
-export interface GroupedTransaction {
-  id: string;
-  createdAt: Date;
-  type: string;
-  category: string;
-  direction?: 'in' | 'out';
-  amount?: number;
-  assetType?: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
-  assetCode?: string;
-  assetIssuer?: string;
-  swapFromAmount?: number;
-  swapFromAssetType?: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
-  swapFromAssetCode?: string;
-  swapFromAssetIssuer?: string;
-  swapToAmount?: number;
-  swapToAssetType?: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
-  swapToAssetCode?: string;
-  swapToAssetIssuer?: string;
-  counterparty?: string;
-  transactionHash: string;
-  // Grouping specific fields
+export interface GroupedTransaction extends NormalizedTransaction {
+  // Grouping specific fields. A group's amount is the sum of its members'.
   isGrouped: boolean;
   count: number;
-  totalAmount?: number;
   groupedTransactions?: NormalizedTransaction[];
-  latestTransaction?: NormalizedTransaction;
-  oldestTransaction?: NormalizedTransaction;
 }
 
+// Entries fold together only when they are the same movement (type, direction,
+// counterparty and assets) on the same day. Contract calls and config changes
+// always keep their own row: each one matters on its own, e.g. a signer change.
+const groupKey = (tx: NormalizedTransaction): string | null => {
+  if (tx.category === 'contract' || tx.category === 'config') return null;
+  return [
+    format(tx.createdAt, 'yyyy-MM-dd'),
+    tx.type,
+    tx.category,
+    tx.direction,
+    tx.counterparty,
+    tx.assetCode,
+    tx.assetIssuer,
+    tx.swapFromAssetCode,
+    tx.swapFromAssetIssuer,
+    tx.swapToAssetCode,
+    tx.swapToAssetIssuer,
+  ].join('|');
+};
+
 /**
- * Groups transactions that are identical except for timestamp
- * Groups transactions that occur within the same time window and have identical properties
+ * Folds runs of adjacent matching transactions (newest first) into one row, in
+ * a single pass.
  */
 const groupTransactions = (transactions: NormalizedTransaction[]): GroupedTransaction[] => {
-  const groups: GroupedTransaction[] = [];
-  const processedIds = new Set<string>();
+  const sorted = [...transactions].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-  // Sort transactions by date descending (newest first)
-  const sortedTransactions = [...transactions].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
-
-  for (const tx of sortedTransactions) {
-    if (processedIds.has(tx.id)) continue;
-
-    // Find transactions that should be grouped with this one
-    const similarTransactions = sortedTransactions.filter(otherTx => {
-      if (processedIds.has(otherTx.id) || otherTx.id === tx.id) return false;
-      
-      // Group by identical properties (no time restriction)
-      return (
-        tx.type === otherTx.type &&
-        tx.category === otherTx.category &&
-        tx.direction === otherTx.direction &&
-        tx.counterparty === otherTx.counterparty &&
-        tx.assetCode === otherTx.assetCode &&
-        tx.assetIssuer === otherTx.assetIssuer &&
-        // For swaps, also match swap details
-        (tx.category !== 'swap' || (
-          tx.swapFromAssetCode === otherTx.swapFromAssetCode &&
-          tx.swapFromAssetIssuer === otherTx.swapFromAssetIssuer &&
-          tx.swapToAssetCode === otherTx.swapToAssetCode &&
-          tx.swapToAssetIssuer === otherTx.swapToAssetIssuer
-        ))
-      );
-    });
-
-    // Mark all similar transactions as processed
-    const allGroupTransactions = [tx, ...similarTransactions];
-    allGroupTransactions.forEach(t => processedIds.add(t.id));
-
-    // Create grouped transaction
-    const isGrouped = similarTransactions.length > 0;
-    const totalAmount = allGroupTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-    const latestTransaction = allGroupTransactions[0]; // Already sorted by date desc
-    const oldestTransaction = allGroupTransactions[allGroupTransactions.length - 1];
-
-    const groupedTx: GroupedTransaction = {
-      id: tx.id,
-      createdAt: latestTransaction.createdAt,
-      type: tx.type,
-      category: tx.category,
-      direction: tx.direction,
-      amount: isGrouped ? totalAmount : tx.amount,
-      assetType: tx.assetType,
-      assetCode: tx.assetCode,
-      assetIssuer: tx.assetIssuer,
-      swapFromAmount: tx.swapFromAmount,
-      swapFromAssetType: tx.swapFromAssetType,
-      swapFromAssetCode: tx.swapFromAssetCode,
-      swapFromAssetIssuer: tx.swapFromAssetIssuer,
-      swapToAmount: tx.swapToAmount,
-      swapToAssetType: tx.swapToAssetType,
-      swapToAssetCode: tx.swapToAssetCode,
-      swapToAssetIssuer: tx.swapToAssetIssuer,
-      counterparty: tx.counterparty,
-      transactionHash: latestTransaction.transactionHash,
-      isGrouped,
-      count: allGroupTransactions.length,
-      totalAmount: isGrouped ? totalAmount : undefined,
-      groupedTransactions: isGrouped ? allGroupTransactions : undefined,
-      latestTransaction,
-      oldestTransaction,
-    };
-
-    groups.push(groupedTx);
+  const runs: NormalizedTransaction[][] = [];
+  let lastKey: string | null = null;
+  for (const tx of sorted) {
+    const key = groupKey(tx);
+    if (key !== null && key === lastKey) runs[runs.length - 1].push(tx);
+    else runs.push([tx]);
+    lastKey = key;
   }
 
-  return groups;
+  return runs.map((run) => run.length === 1
+    ? { ...run[0], isGrouped: false, count: 1 }
+    : {
+        ...run[0],
+        // Summed in stroops so float error doesn't show up as a stray 7th decimal
+        amount: run.reduce((sum, t) => sum + Math.round((t.amount || 0) * 1e7), 0) / 1e7,
+        isGrouped: true,
+        count: run.length,
+        groupedTransactions: run,
+      });
 };
 
 /**

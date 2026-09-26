@@ -1,482 +1,278 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNetwork } from '@/contexts/NetworkContext';
-import { 
-  fetchAccountPayments,
-  fetchAccountOperations,
-  normalizePaymentRecord,
-  normalizeOperationRecord,
-  TRANSACTION_CACHE_DURATION 
-} from '@/lib/horizon-utils';
+import { fetchAccountOperations, normalizeRecord, type HorizonRecord } from '@/lib/horizon-utils';
 import type { NormalizedTransaction } from '@/lib/horizon-utils';
-
-// Historical transactions are immutable, cache them for much longer
-const HISTORICAL_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
-const RECENT_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes for very recent data
-
-interface CachedHistoryData {
-  transactions: NormalizedTransaction[];
-  lastSync: Date;
-  cursor?: string;
-}
+import { safeStorage } from '@/lib/storage';
 
 interface AccountHistoryHook {
   transactions: NormalizedTransaction[];
+  /** Checking Horizon for new transactions. */
   isLoading: boolean;
+  /** Fetching an older page. */
+  isLoadingMore: boolean;
+  /** Why the last check for new transactions failed. */
   error: string | null;
+  /** Why the last older page failed; what is already loaded stays usable. */
+  loadMoreError: string | null;
   hasMore: boolean;
   lastSync: Date | null;
-  loadInitial: () => Promise<void>;
-  loadMore: () => Promise<void>;
+  /** Fetch one older page. Resolves false when it could not be loaded. */
+  loadMore: () => Promise<boolean>;
+  /** Fetch a few more older pages in the background. */
   loadProgressively: () => Promise<void>;
+  /** Check Horizon for new transactions. */
   refresh: () => Promise<void>;
-  getTransactionsByDateRange: (startDate: Date, endDate: Date) => NormalizedTransaction[];
+}
+
+// Everything known about one account's history on one network, kept in memory
+// for the session and in localStorage across reloads. Entry ids are Horizon
+// paging tokens, so any entry can serve as a cursor.
+interface HistorySnapshot {
+  transactions: NormalizedTransaction[]; // unique by id, newest first
+  headToken: string; // paging token of the newest Horizon record seen
+  tailToken: string; // paging token of the oldest one: where older pages start
+  hasMore: boolean;
+  lastSync: number; // when Horizon was last asked for new records
 }
 
 const CACHE_KEY_PREFIX = 'account-history';
-const CACHE_VERSION = 'v3'; // Increment when cache structure changes
-const INITIAL_LIMIT = 200; // Horizon API maximum limit
-const LOAD_MORE_LIMIT = 200; // Horizon API maximum limit (cannot be increased)
-const MAX_TRANSACTIONS_PER_SESSION = 5000; // 25 calls × 200 records = 5k transactions max
-const RATE_LIMIT_DELAY = 100; // ms between requests
-const MAX_CONCURRENT_REQUESTS = 3;
+const CACHE_VERSION = 'v4'; // Increment when cache structure changes
+const PAGE_LIMIT = 200; // Horizon API maximum limit
+const MAX_TRANSACTIONS = 5000; // Background loading stops here
+const STORED_TRANSACTIONS = 1000; // Only the newest ones are persisted, to bound localStorage use
+const AUTO_LOAD_TARGET = 1000; // Each activation tops history up towards this many entries,
+const PAGES_PER_RUN = 5; // fetching at most this many Horizon pages per run
+const PAGE_DELAY = 250; // ms between background pages
 
-// Enhanced caching with pagination support
-interface CachedPage {
-  transactions: NormalizedTransaction[];
-  cursor: string;
-  timestamp: number;
-}
+const NO_TRANSACTIONS: NormalizedTransaction[] = [];
 
-interface CachedAccountData {
-  pages: CachedPage[];
-  lastSync: Date;
-  totalTransactions: number;
-  version: string;
-}
+const memoryCache = new Map<string, HistorySnapshot>();
+// One head sync per account+network at a time, shared by every mounted panel.
+const headSyncs = new Map<string, Promise<HistorySnapshot>>();
 
-// In-flight promises to prevent concurrent requests for same account
-const requestPromises = new Map<string, Promise<any>>();
-const requestCounts = new Map<string, { count: number; resetTime: number }>();
+const byNewest = (a: NormalizedTransaction, b: NormalizedTransaction) =>
+  b.createdAt.getTime() - a.createdAt.getTime();
 
-// In-memory cache for faster access to recent data
-const memoryCache = new Map<string, {
-  pages: CachedPage[];
-  timestamp: number;
-  totalTransactions: number;
-}>();
-const MEMORY_CACHE_TTL = 30 * 60 * 1000; // 30 minutes - longer for immutable historical data
+const normalizeAll = (records: HorizonRecord[], publicKey: string): NormalizedTransaction[] =>
+  records
+    .map(record => normalizeRecord(record, publicKey))
+    .filter((tx): tx is NormalizedTransaction => tx !== null);
+
+// Union by id, newest first.
+const mergeTransactions = (a: NormalizedTransaction[], b: NormalizedTransaction[]) => {
+  const byId = new Map<string, NormalizedTransaction>();
+  for (const tx of [...a, ...b]) {
+    if (!byId.has(tx.id)) byId.set(tx.id, tx);
+  }
+  return [...byId.values()].sort(byNewest);
+};
+
+const readStored = (key: string): HistorySnapshot | null => {
+  const stored = safeStorage.getJSON<(HistorySnapshot & { version?: string }) | null>(key, null);
+  if (!stored) return null;
+  if (stored.version !== CACHE_VERSION || !Array.isArray(stored.transactions)) {
+    safeStorage.remove(key);
+    return null;
+  }
+  return {
+    transactions: stored.transactions.map(tx => ({ ...tx, createdAt: new Date(tx.createdAt) })),
+    headToken: stored.headToken,
+    tailToken: stored.tailToken,
+    hasMore: stored.hasMore,
+    lastSync: stored.lastSync,
+  };
+};
+
+const writeStored = (key: string, snapshot: HistorySnapshot) => {
+  const trimmed = snapshot.transactions.length > STORED_TRANSACTIONS
+    ? {
+        ...snapshot,
+        transactions: snapshot.transactions.slice(0, STORED_TRANSACTIONS),
+        tailToken: snapshot.transactions[STORED_TRANSACTIONS - 1].id,
+        hasMore: true,
+      }
+    : snapshot;
+  safeStorage.setJSON(key, { ...trimmed, version: CACHE_VERSION });
+};
+
+const getSnapshot = (key: string): HistorySnapshot | null => {
+  const cached = memoryCache.get(key);
+  if (cached) return cached;
+  const stored = readStored(key);
+  if (stored) memoryCache.set(key, stored);
+  return stored;
+};
+
+const putSnapshot = (key: string, snapshot: HistorySnapshot) => {
+  memoryCache.set(key, snapshot);
+  writeStored(key, snapshot);
+};
+
+// Bring the newest end of the history up to date. With a known head we only ask
+// for records after it; a full page back means there may be more than a page of
+// new activity, so we restart from the newest page rather than leave a gap.
+const syncHead = (key: string, publicKey: string, network: 'mainnet' | 'testnet'): Promise<HistorySnapshot> => {
+  const running = headSyncs.get(key);
+  if (running) return running;
+
+  const promise = (async () => {
+    const known = getSnapshot(key);
+    if (known?.headToken) {
+      const { records } = await fetchAccountOperations(publicKey, network, known.headToken, PAGE_LIMIT, 'asc');
+      if (records.length < PAGE_LIMIT) {
+        // Older pages may have landed while we waited; build on the latest state.
+        const latest = getSnapshot(key) ?? known;
+        const next: HistorySnapshot = {
+          ...latest,
+          transactions: mergeTransactions(normalizeAll(records, publicKey), latest.transactions),
+          headToken: records.length ? records[records.length - 1].paging_token : latest.headToken,
+          lastSync: Date.now(),
+        };
+        putSnapshot(key, next);
+        return next;
+      }
+    }
+
+    const { records } = await fetchAccountOperations(publicKey, network, undefined, PAGE_LIMIT, 'desc');
+    const next: HistorySnapshot = {
+      transactions: normalizeAll(records, publicKey).sort(byNewest),
+      headToken: records[0]?.paging_token ?? '',
+      tailToken: records[records.length - 1]?.paging_token ?? '',
+      hasMore: records.length === PAGE_LIMIT,
+      lastSync: Date.now(),
+    };
+    putSnapshot(key, next);
+    return next;
+  })().finally(() => headSyncs.delete(key));
+
+  headSyncs.set(key, promise);
+  return promise;
+};
+
+// Append the page just older than what we have.
+const fetchOlder = async (key: string, publicKey: string, network: 'mainnet' | 'testnet'): Promise<HistorySnapshot | null> => {
+  const known = getSnapshot(key);
+  if (!known?.hasMore) return known;
+
+  const { records } = await fetchAccountOperations(publicKey, network, known.tailToken || undefined, PAGE_LIMIT, 'desc');
+  const latest = getSnapshot(key);
+  // A head sync may have restarted the history meanwhile; this page would leave a gap.
+  if (!latest || latest.tailToken !== known.tailToken) return latest;
+
+  const next: HistorySnapshot = {
+    ...latest,
+    transactions: mergeTransactions(latest.transactions, normalizeAll(records, publicKey)),
+    tailToken: records.length ? records[records.length - 1].paging_token : latest.tailToken,
+    hasMore: records.length === PAGE_LIMIT,
+  };
+  putSnapshot(key, next);
+  return next;
+};
 
 export const useAccountHistory = (publicKey: string, enabled: boolean = true): AccountHistoryHook => {
   const { network } = useNetwork();
-  const [transactions, setTransactions] = useState<NormalizedTransaction[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [lastSync, setLastSync] = useState<Date | null>(null);
-  const [cursor, setCursor] = useState<string | undefined>();
+  const cacheKey = `${CACHE_KEY_PREFIX}-${publicKey}-${network}`;
 
-  // Mirror the latest state into refs so the progressive loader reads current
-  // values instead of stale closures (which caused an infinite pagination loop).
-  const hasMoreRef = useRef(hasMore);
-  const isLoadingRef = useRef(isLoading);
-  const transactionsRef = useRef(transactions);
-  const cursorRef = useRef(cursor);
+  const [snapshot, setSnapshot] = useState<HistorySnapshot | null>(() => getSnapshot(cacheKey));
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+
+  // Mirror the latest values into refs so async work started for one account
+  // never writes into another, and background loops see the tab being left.
+  const keyRef = useRef(cacheKey);
   const enabledRef = useRef(enabled);
+  const loadingMoreRef = useRef(false);
+  const progressiveRef = useRef(false);
   useEffect(() => {
-    hasMoreRef.current = hasMore;
-    isLoadingRef.current = isLoading;
-    transactionsRef.current = transactions;
-    cursorRef.current = cursor;
+    keyRef.current = cacheKey;
     enabledRef.current = enabled;
   });
 
-  // Cache key for this specific account and network
-  const cacheKey = `${CACHE_KEY_PREFIX}-${publicKey}-${network}`;
-
-  // Load data from enhanced localStorage cache
-  const loadFromCache = useCallback((): CachedAccountData | null => {
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (!cached) return null;
-
-      const data: CachedAccountData = JSON.parse(cached);
-      
-      // Check version compatibility
-      if (data.version !== CACHE_VERSION) {
-        localStorage.removeItem(cacheKey);
-        return null;
-      }
-      
-      // Check if cache is still valid - use longer TTL for historical data
-      const cacheAge = Date.now() - new Date(data.lastSync).getTime();
-      if (cacheAge > HISTORICAL_CACHE_DURATION) {
-        localStorage.removeItem(cacheKey);
-        return null;
-      }
-
-      // Parse dates back from strings for all pages
-      data.pages = data.pages.map(page => ({
-        ...page,
-        transactions: page.transactions.map(tx => ({
-          ...tx,
-          createdAt: new Date(tx.createdAt),
-        }))
-      }));
-      
-      return data;
-    } catch (error) {
-      return null;
-    }
-  }, [cacheKey]);
-
-  // Save data to enhanced localStorage cache
-  const saveToCache = useCallback((pages: CachedPage[], totalTransactions: number) => {
-    try {
-      const data: CachedAccountData = {
-        pages,
-        lastSync: new Date(),
-        totalTransactions,
-        version: CACHE_VERSION,
-      };
-      localStorage.setItem(cacheKey, JSON.stringify(data));
-    } catch (error) {
-      // Ignore localStorage errors - cache is optional
-    }
-  }, [cacheKey]);
-
-  // Smart rate limiting
-  const checkRateLimit = useCallback((key: string): boolean => {
-    const now = Date.now();
-    const requestInfo = requestCounts.get(key);
-    
-    if (!requestInfo || now > requestInfo.resetTime) {
-      requestCounts.set(key, { count: 1, resetTime: now + 60000 }); // Reset every minute
-      return true;
-    }
-    
-    if (requestInfo.count >= MAX_CONCURRENT_REQUESTS) {
-      return false;
-    }
-    
-    requestInfo.count++;
-    return true;
-  }, []);
-
-  // Check if we need to sync
-  const needsSync = useCallback((): boolean => {
-    if (!lastSync) return true;
-    return Date.now() - lastSync.getTime() > TRANSACTION_CACHE_DURATION;
-  }, [lastSync]);
-
-
-  // Load initial data (from cache if available, otherwise fetch)
-  const loadInitial = useCallback(async (force: boolean = false) => {
-    if (!publicKey) return;
-
-
-    // Prevent concurrent requests for same account+network
-    const requestKey = `${publicKey}-${network}`;
-    if (!force && requestPromises.has(requestKey)) {
-      try {
-        return await requestPromises.get(requestKey);
-      } catch (error) {
-        // If the in-flight request failed, remove it and continue with new request
-        requestPromises.delete(requestKey);
-      }
-    }
-
-    const promise = (async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        if (!force) {
-          // Try memory cache first
-          const memoryCached = memoryCache.get(cacheKey);
-          if (memoryCached && (Date.now() - memoryCached.timestamp) < MEMORY_CACHE_TTL) {
-            // Deduplicate transactions from all pages
-            const seenIds = new Set<string>();
-            const allTransactions = memoryCached.pages
-              .flatMap(page => page.transactions)
-              .filter(tx => {
-                if (seenIds.has(tx.id)) return false;
-                seenIds.add(tx.id);
-                return true;
-              })
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-              
-            setTransactions(allTransactions);
-            setLastSync(new Date(memoryCached.timestamp));
-            if (memoryCached.pages.length > 0) {
-              setCursor(memoryCached.pages[memoryCached.pages.length - 1].cursor);
-            }
-            setIsLoading(false);
-            return;
-          }
-
-          // Try localStorage cache
-          const cachedData = loadFromCache();
-          if (cachedData) {
-            // Deduplicate transactions from all pages
-            const seenIds = new Set<string>();
-            const allTransactions = cachedData.pages
-              .flatMap(page => page.transactions)
-              .filter(tx => {
-                if (seenIds.has(tx.id)) return false;
-                seenIds.add(tx.id);
-                return true;
-              })
-              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-              
-            setTransactions(allTransactions);
-            setLastSync(cachedData.lastSync);
-            if (cachedData.pages.length > 0) {
-              setCursor(cachedData.pages[cachedData.pages.length - 1].cursor);
-            }
-            
-            // Update memory cache
-            memoryCache.set(cacheKey, {
-              pages: cachedData.pages,
-              timestamp: Date.now(),
-              totalTransactions: allTransactions.length,
-            });
-            setIsLoading(false);
-            return;
-          }
-          
-        }
-
-        // Fetch fresh data using Horizon (payments + selected operations)
-        const [paymentsResp, opsResp] = await Promise.all([
-          fetchAccountPayments(publicKey, network, undefined, INITIAL_LIMIT),
-          fetchAccountOperations(publicKey, network, undefined, INITIAL_LIMIT),
-        ]);
-        
-        const normalizedTransactions: NormalizedTransaction[] = [];
-
-        const paymentRecords: any[] = (paymentsResp as any)?.records || (paymentsResp as any)?._embedded?.records || [];
-        const opRecords: any[] = (opsResp as any)?.records || (opsResp as any)?._embedded?.records || [];
-
-        // Process payments
-        for (const record of paymentRecords) {
-          const n = normalizePaymentRecord(record, publicKey);
-          if (n) normalizedTransactions.push(n);
-        }
-        // Process operations
-        for (const record of opRecords) {
-          const n = normalizeOperationRecord(record, publicKey);
-          if (n) normalizedTransactions.push(n);
-        }
-
-        // Sort by creation date (newest first)
-        normalizedTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        // Update cursors and hasMore from Horizon responses
-        const paymentsCursor = paymentRecords.length ? paymentRecords[paymentRecords.length - 1].paging_token : '';
-        const opsCursor = opRecords.length ? opRecords[opRecords.length - 1].paging_token : '';
-        const combinedCursor = `p:${paymentsCursor}|o:${opsCursor}`;
-        setCursor(combinedCursor);
-        
-        const horizonHasMore = (paymentRecords.length === INITIAL_LIMIT) || (opRecords.length === INITIAL_LIMIT);
-        setHasMore(horizonHasMore);
-
-        const now = new Date();
-        setTransactions(normalizedTransactions);
-        setLastSync(now);
-
-        // Save to cache immediately after each batch
-        if (normalizedTransactions.length > 0) {
-          const newPage: CachedPage = {
-            transactions: normalizedTransactions,
-            cursor: combinedCursor,
-            timestamp: now.getTime(),
-          };
-          
-          // Load existing cache and append new page
-          const existingCache = loadFromCache();
-          const allPages = existingCache ? [...existingCache.pages, newPage] : [newPage];
-          const totalTxs = allPages.reduce((sum, page) => sum + page.transactions.length, 0);
-          
-          // Save to both caches
-          saveToCache(allPages, totalTxs);
-          memoryCache.set(cacheKey, {
-            pages: allPages,
-            timestamp: Date.now(),
-            totalTransactions: totalTxs,
-          });
-        }
-
-      } catch (err: unknown) {
-        const errorMsg = (err instanceof Error ? err.message : 'Failed to load transaction history');
-        setError(errorMsg);
-      } finally {
-        setIsLoading(false);
-        requestPromises.delete(requestKey);
-      }
-    })();
-
-    requestPromises.set(requestKey, promise);
-    
-    // Auto-cleanup failed promises after timeout
-    setTimeout(() => {
-      if (requestPromises.get(requestKey) === promise) {
-        requestPromises.delete(requestKey);
-      }
-    }, 30000); // 30 second timeout
-    
-    return promise;
-  }, [publicKey, network, loadFromCache, needsSync, saveToCache]);
-
-  // Load more transactions (pagination) - use RPC
-  const loadMore = useCallback(async () => {
-    if (!publicKey || !enabledRef.current || !hasMoreRef.current || isLoadingRef.current) return;
-
-    isLoadingRef.current = true;
+  // Resolves false when Horizon could not be reached.
+  const sync = useCallback(async (): Promise<boolean> => {
+    const key = cacheKey;
+    if (!publicKey) return false;
     setIsLoading(true);
     setError(null);
-
     try {
-      const currentCursor = cursorRef.current;
-      const currentPaymentsCursor = (currentCursor || '').split('|').find(s => s.startsWith('p:'))?.slice(2) || undefined;
-      const currentOpsCursor = (currentCursor || '').split('|').find(s => s.startsWith('o:'))?.slice(2) || undefined;
-
-      const [paymentsResp, opsResp] = await Promise.all([
-        fetchAccountPayments(publicKey, network, currentPaymentsCursor, LOAD_MORE_LIMIT),
-        fetchAccountOperations(publicKey, network, currentOpsCursor, LOAD_MORE_LIMIT),
-      ]);
-      
-      const normalizedTransactions: NormalizedTransaction[] = [];
-
-      const paymentRecords: any[] = (paymentsResp as any)?.records || (paymentsResp as any)?._embedded?.records || [];
-      const opRecords: any[] = (opsResp as any)?.records || (opsResp as any)?._embedded?.records || [];
-
-      for (const record of paymentRecords) {
-        const n = normalizePaymentRecord(record, publicKey);
-        if (n) normalizedTransactions.push(n);
-      }
-      for (const record of opRecords) {
-        const n = normalizeOperationRecord(record, publicKey);
-        if (n) normalizedTransactions.push(n);
-      }
-
-      // Sort by creation date (newest first)
-      normalizedTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      // Update cursors and hasMore
-      const nextPaymentsCursor = paymentRecords.length ? paymentRecords[paymentRecords.length - 1].paging_token : currentPaymentsCursor || '';
-      const nextOpsCursor = opRecords.length ? opRecords[opRecords.length - 1].paging_token : currentOpsCursor || '';
-      const combinedCursor = `p:${nextPaymentsCursor}|o:${nextOpsCursor}`;
-      setCursor(combinedCursor);
-      
-      const horizonHasMore = (paymentRecords.length === LOAD_MORE_LIMIT) || (opRecords.length === LOAD_MORE_LIMIT);
-      setHasMore(horizonHasMore);
-      
-      setTransactions(prev => {
-        // Deduplicate based on transaction ID
-        const existingIds = new Set(prev.map(tx => tx.id));
-        const newTransactions = normalizedTransactions.filter(tx => !existingIds.has(tx.id));
-        const updatedTransactions = [...prev, ...newTransactions];
-        
-        // Save this batch to cache immediately
-        if (newTransactions.length > 0) {
-          const newPage: CachedPage = {
-            transactions: newTransactions,
-            cursor: combinedCursor,
-            timestamp: Date.now(),
-          };
-          
-          // Load existing cache and append new page
-          const existingCache = loadFromCache();
-          const allPages = existingCache ? [...existingCache.pages, newPage] : [newPage];
-          const totalTxs = allPages.reduce((sum, page) => sum + page.transactions.length, 0);
-          
-          // Save to both caches
-          saveToCache(allPages, totalTxs);
-          memoryCache.set(cacheKey, {
-            pages: allPages,
-            timestamp: Date.now(),
-            totalTransactions: totalTxs,
-          });
-        }
-        
-        return updatedTransactions;
-      });
-
-    } catch (err: any) {
-      const errorMsg = (err instanceof Error ? err.message : 'Failed to load more transactions');
-      setError(errorMsg);
-      // Stop pagination on error (e.g. Horizon 410 Gone or rate limit) so we don't
-      // hammer the API with the same cursor in a runaway loop.
-      hasMoreRef.current = false;
-      setHasMore(false);
+      const synced = await syncHead(key, publicKey, network);
+      if (keyRef.current === key) setSnapshot(getSnapshot(key) ?? synced);
+      return true;
+    } catch (err: unknown) {
+      if (keyRef.current === key) setError(err instanceof Error ? err.message : 'Failed to load transaction history');
+      return false;
     } finally {
-      isLoadingRef.current = false;
-      setIsLoading(false);
+      if (keyRef.current === key) setIsLoading(false);
     }
-  }, [publicKey, network, loadFromCache, saveToCache, cacheKey]);
+  }, [cacheKey, publicKey, network]);
 
-  // Load progressively to build up history. Reads live state via refs so the loop
-  // actually observes updates and terminates (hasMore=false, enabled=false, or error).
-  const loadProgressively = useCallback(async () => {
-    if (!enabledRef.current || !publicKey || isLoadingRef.current) return;
-
+  const loadMore = useCallback(async (): Promise<boolean> => {
+    const key = cacheKey;
+    if (!publicKey || loadingMoreRef.current) return false;
+    loadingMoreRef.current = true;
+    setIsLoadingMore(true);
+    setLoadMoreError(null);
     try {
-      let batchCount = 0;
-      const maxBatches = 25; // 25 × 200 records = 5k transaction cap
+      const next = await fetchOlder(key, publicKey, network);
+      if (keyRef.current === key) setSnapshot(next);
+      return true;
+    } catch (err: unknown) {
+      if (keyRef.current === key) setLoadMoreError(err instanceof Error ? err.message : 'Failed to load more transactions');
+      return false;
+    } finally {
+      loadingMoreRef.current = false;
+      setIsLoadingMore(false);
+    }
+  }, [cacheKey, publicKey, network]);
 
-      while (
-        enabledRef.current &&
-        hasMoreRef.current &&
-        transactionsRef.current.length < MAX_TRANSACTIONS_PER_SESSION &&
-        batchCount < maxBatches
-      ) {
-        await loadMore();
-        // loadMore flips hasMore off on error or when the last page is reached.
-        if (!hasMoreRef.current) break;
-        batchCount++;
-        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+  // Page through older history in the background, one run at a time. Stops at
+  // `target` entries, after PAGES_PER_RUN Horizon pages (dropped spam counts
+  // towards those), on error, or when the tab is left.
+  const loadPages = useCallback(async (target: number) => {
+    const key = cacheKey;
+    if (progressiveRef.current) return;
+    progressiveRef.current = true;
+    try {
+      for (let page = 0; page < PAGES_PER_RUN; page++) {
+        if (page > 0) await new Promise(resolve => setTimeout(resolve, PAGE_DELAY));
+        const known = getSnapshot(key);
+        if (keyRef.current !== key || !enabledRef.current || !known?.hasMore || known.transactions.length >= target) break;
+        if (!(await loadMore())) break;
       }
-    } catch (error) {
-      // Ignore load more errors - user can retry
+    } finally {
+      progressiveRef.current = false;
     }
-  }, [publicKey, loadMore]);
+  }, [cacheKey, loadMore]);
 
-  // Get transactions within date range
-  const getTransactionsByDateRange = useCallback((startDate: Date, endDate: Date): NormalizedTransaction[] => {
-    return transactions.filter(tx => {
-      const txDate = new Date(tx.createdAt);
-      return txDate >= startDate && txDate <= endDate;
-    });
-  }, [transactions]);
-
-  // Refresh (clear cache and reload)
+  const loadProgressively = useCallback(() => loadPages(MAX_TRANSACTIONS), [loadPages]);
   const refresh = useCallback(async () => {
-    try {
-      await loadInitial(true);
-    } catch (e) {
-      // no-op: loadInitial handles error state
-    }
-  }, [loadInitial]);
+    if (await sync()) loadPages(AUTO_LOAD_TARGET);
+  }, [sync, loadPages]);
 
-  // Auto-load initial data only when enabled (e.g. the Activity tab is active),
-  // so we don't hit Horizon while the user is on another tab.
+  // Show what we already have for this account at once. While the Activity tab
+  // is active (and only then, so we don't hit Horizon from another tab), check
+  // for new transactions and top older history up.
   useEffect(() => {
-    if (publicKey && enabled) {
-      // Always check cache first on mount, even if we have no state
-      loadInitial();
-    }
-  }, [publicKey, network, enabled]); // loadInitial intentionally omitted to prevent loops
+    setSnapshot(getSnapshot(cacheKey));
+    setError(null);
+    setLoadMoreError(null);
+    setIsLoading(false);
+    if (!publicKey || !enabled) return;
+    sync().then(ok => ok && loadPages(AUTO_LOAD_TARGET));
+  }, [cacheKey, publicKey, enabled, sync, loadPages]);
 
   return {
-    transactions,
+    transactions: snapshot?.transactions ?? NO_TRANSACTIONS,
     isLoading,
+    isLoadingMore,
     error,
-    hasMore,
-    lastSync,
-    loadInitial,
+    loadMoreError,
+    hasMore: snapshot?.hasMore ?? false,
+    lastSync: snapshot ? new Date(snapshot.lastSync) : null,
     loadMore,
     loadProgressively,
     refresh,
-    getTransactionsByDateRange,
   };
 };

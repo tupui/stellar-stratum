@@ -15,6 +15,12 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
   const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
+    // Only native XLM and issued assets have metadata to look up (e.g. not LP shares)
+    if (assetCode && assetCode !== 'XLM' && !assetIssuer) {
+      setAssetInfo(null);
+      return;
+    }
+
     let mounted = true;
     
     const loadAssetInfo = async () => {

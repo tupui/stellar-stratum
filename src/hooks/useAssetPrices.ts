@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { getAssetPrice, setLastFetchTimestamp, clearPriceCache } from '@/lib/reflector';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { getAssetPrice, clearPriceCache } from '@/lib/reflector';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 interface AssetBalance {
   asset_type: string;
@@ -18,98 +19,96 @@ interface AssetWithPrice extends AssetBalance {
   symbol: string;
 }
 
+// Classic liquidity pool shares have no code or issuer and are not priced.
+const isPoolShare = (b: AssetBalance): boolean => b.asset_type === 'liquidity_pool_shares';
+
 const assetKey = (b: AssetBalance): string =>
-  b.asset_issuer ? `${b.asset_code}:${b.asset_issuer}` : (b.asset_code || 'XLM');
+  isPoolShare(b) ? 'LP' : b.asset_issuer ? `${b.asset_code}:${b.asset_issuer}` : (b.asset_code || 'XLM');
 
 const symbolFor = (b: AssetBalance): string =>
-  b.asset_type === 'native' || (!b.asset_code && !b.asset_issuer) ? 'XLM' : (b.asset_code || 'UNKNOWN');
+  b.asset_type === 'native' ? 'XLM' : isPoolShare(b) ? 'LP shares' : (b.asset_code || 'UNKNOWN');
 
 export const useAssetPrices = (balances: AssetBalance[]) => {
+  const { network } = useNetwork();
   const [assetsWithPrices, setAssetsWithPrices] = useState<AssetWithPrice[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  // Only the latest pricing run may update state; older runs finish silently.
+  const latestRun = useRef(0);
 
   // Memoize the balances array by a stable content key so callers passing a
   // fresh array reference each render don't re-trigger the price fetch.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const memoizedBalances = useMemo(
-    () => balances,
-    [balances.map((b) => `${assetKey(b)}|${b.balance}`).join('~')],
-  );
+  const balancesKey = balances.map((b) => `${assetKey(b)}|${b.balance}`).join('~');
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by content, not by reference
+  const memoizedBalances = useMemo(() => balances, [balancesKey]);
 
-  const resolvePrices = useCallback(async (invalidateCache: boolean) => {
-    if (!memoizedBalances || memoizedBalances.length === 0) {
-      setAssetsWithPrices([]);
+  const resolvePrices = useCallback(async () => {
+    const run = ++latestRun.current;
+    const toRow = (b: AssetBalance, priceUSD: number): AssetWithPrice => {
+      const balanceNum = parseFloat(b.balance);
+      return {
+        ...b,
+        priceUSD,
+        valueUSD: priceUSD > 0 && Number.isFinite(balanceNum) ? priceUSD * balanceNum : 0,
+        symbol: symbolFor(b),
+      };
+    };
+
+    // Reflector only prices mainnet assets: testnet balances have no market value.
+    if (network !== 'mainnet' || memoizedBalances.length === 0) {
+      setAssetsWithPrices(memoizedBalances.map((b) => toRow(b, 0)));
+      setError(null);
       setLoading(false);
       return;
-    }
-
-    if (invalidateCache) {
-      await clearPriceCache();
     }
 
     setLoading(true);
     setError(null);
 
     // Seed rows with loading sentinel (-1) so per-row UI can show a loading state
-    const seeded: AssetWithPrice[] = memoizedBalances.map(b => ({
-      ...b,
-      priceUSD: -1,
-      valueUSD: 0,
-      symbol: symbolFor(b),
-    }));
-    setAssetsWithPrices(seeded);
+    setAssetsWithPrices(memoizedBalances.map((b) => toRow(b, isPoolShare(b) ? 0 : -1)));
 
     try {
       // Dedupe by unique asset key to avoid redundant oracle calls
-      const uniqueMap = new Map<string, number[]>();
-      memoizedBalances.forEach((b, i) => {
-        const k = assetKey(b);
-        const arr = uniqueMap.get(k) || [];
-        arr.push(i);
-        uniqueMap.set(k, arr);
-      });
+      const pricedAssets = new Map<string, AssetBalance>();
+      for (const b of memoizedBalances) {
+        if (!isPoolShare(b)) pricedAssets.set(assetKey(b), b);
+      }
 
       const priceEntries = await Promise.all(
-        Array.from(uniqueMap.keys()).map(async (k) => {
-          const [code, issuer] = k.includes(':') ? k.split(':') : [k, undefined];
+        Array.from(pricedAssets, async ([k, b]) => {
           try {
-            const price = await getAssetPrice(code, issuer);
+            const price = await getAssetPrice(b.asset_code, b.asset_issuer);
             return [k, price > 0 ? price : 0] as const;
           } catch {
             return [k, 0] as const;
           }
         })
       );
+      if (run !== latestRun.current) return;
       const priceMap = new Map<string, number>(priceEntries);
 
-      const resolved = memoizedBalances.map((b) => {
-        const priceUSD = priceMap.get(assetKey(b)) ?? 0;
-        const balanceNum = parseFloat(b.balance);
-        return {
-          ...b,
-          priceUSD,
-          valueUSD: priceUSD * (Number.isFinite(balanceNum) ? balanceNum : 0),
-          symbol: symbolFor(b),
-        };
-      });
-
+      const resolved = memoizedBalances.map((b) => toRow(b, priceMap.get(assetKey(b)) ?? 0));
       resolved.sort((a, b) => (b.valueUSD || 0) - (a.valueUSD || 0));
       setAssetsWithPrices(resolved);
-      setLastFetchTimestamp();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch asset prices');
+      if (run === latestRun.current) setError(err instanceof Error ? err.message : 'Failed to fetch asset prices');
     } finally {
-      setLoading(false);
+      if (run === latestRun.current) setLoading(false);
     }
-  }, [memoizedBalances]);
+  }, [memoizedBalances, network]);
 
-  // Manual refresh: bust caches so the user actually sees a fresh round-trip
-  const refetch = useCallback(() => resolvePrices(true), [resolvePrices]);
+  // Manual refresh: bust caches so the user actually sees a fresh round-trip.
+  // Pricing then reruns from the effect, on the balances of the latest render.
+  const refetch = useCallback(async () => {
+    await clearPriceCache();
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
-    resolvePrices(false);
-  }, [resolvePrices]);
+    resolvePrices();
+  }, [resolvePrices, refreshKey]);
 
   // Total only counts resolved (>0) prices; -1 (loading) and 0 (unavailable) are excluded
   const totalValueUSD = useMemo(

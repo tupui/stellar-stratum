@@ -30,7 +30,7 @@ export const ContractValueInput = ({ shape, value, onChange }: ContractValueInpu
         <Input
           value={String(value ?? '')}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="G… or C…"
+          placeholder={shape.type.type === 'scSpecTypeMuxedAddress' ? 'G…, M… or C…' : 'G… or C…'}
           className="font-mono text-xs"
         />
       );
@@ -113,12 +113,17 @@ export const ContractValueInput = ({ shape, value, onChange }: ContractValueInpu
     case 'json':
     default:
       return (
-        <Textarea
-          value={String(value ?? '')}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={`${shape.typeLabel} — JSON`}
-          className="font-mono text-xs min-h-[80px]"
-        />
+        <div className="space-y-1">
+          <Textarea
+            value={String(value ?? '')}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={shape.example ?? `${shape.typeLabel} — JSON`}
+            className="font-mono text-xs min-h-[80px]"
+          />
+          <p className="text-xs text-muted-foreground">
+            JSON. Bytes as hex strings, large integers as strings, maps as objects, enums by case name.
+          </p>
+        </div>
       );
   }
 };

@@ -1,119 +1,108 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Copy, ExternalLink, Wifi, WifiOff, Send, Fingerprint } from 'lucide-react';
-import { useNetwork } from '@/contexts/NetworkContext';
-import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
+import { Wifi, WifiOff, Send } from 'lucide-react';
 import { SubmissionTerminal } from './SubmissionTerminal';
 import { submitLog, useSubmitLog } from '@/lib/submitLog';
+
 interface TransactionSubmitterProps {
-  xdrOutput: string;
-  signedBy: Array<{
-    signerKey: string;
-    signedAt: Date;
-  }>;
-  currentWeight: number;
-  requiredWeight: number;
-  canSubmitToNetwork: boolean;
-  canSubmitToRefractor: boolean;
+  xdr: string;
+  network: 'mainnet' | 'testnet';
+  /** Every involved account has enough verified signature weight. */
+  ready: boolean;
   isSubmittingToNetwork: boolean;
   isSubmittingToRefractor: boolean;
-  successData: {
-    hash: string;
-    network: 'mainnet' | 'testnet';
-  } | null;
-  onCopyXdr: () => void;
   onSubmitToNetwork: () => Promise<void>;
   onSubmitToRefractor: () => Promise<void>;
   onShowOfflineModal: () => void;
-  copied: boolean;
+  /** Air-gapped signer: no network, only hand the signed transaction back by QR. */
   offlineOnly?: boolean;
 }
+
 export const TransactionSubmitter = ({
-  xdrOutput,
-  signedBy,
-  currentWeight,
-  requiredWeight,
-  canSubmitToNetwork,
-  canSubmitToRefractor,
+  xdr,
+  network,
+  ready,
   isSubmittingToNetwork,
   isSubmittingToRefractor,
-  successData,
-  onCopyXdr,
   onSubmitToNetwork,
   onSubmitToRefractor,
   onShowOfflineModal,
-  copied,
-  offlineOnly = false
+  offlineOnly = false,
 }: TransactionSubmitterProps) => {
-  const {
-    network: currentNetwork
-  } = useNetwork();
   const [isAirgappedMode, setIsAirgappedMode] = useState(false);
   const submitEntries = useSubmitLog();
-  const showTerminal = isSubmittingToNetwork || submitEntries.length > 0;
-  if (!xdrOutput && !successData) {
+  const showTerminal = !offlineOnly && (isSubmittingToNetwork || submitEntries.length > 0);
+  const networkName = network === 'mainnet' ? 'Mainnet' : 'Testnet';
+
+  if (!xdr) {
     // Nothing to sign or send; keep the last submission log visible so it can be read
     if (!showTerminal) return null;
-    return <SubmissionTerminal active={isSubmittingToNetwork} network={currentNetwork} onClose={submitLog.clear} />;
+    return <SubmissionTerminal active={isSubmittingToNetwork} network={network} onClose={submitLog.clear} />;
   }
 
-  // Generate fingerprint for transaction verification
-  const fingerprint = xdrOutput ? generateDetailedFingerprint(xdrOutput, currentNetwork) : null;
+  if (offlineOnly) {
+    return (
+      <Button className="w-full" size="lg" onClick={onShowOfflineModal}>
+        <Send className="w-4 h-4 mr-2" />
+        Air-gap sync
+      </Button>
+    );
+  }
 
-  // Determine if transaction is ready for network submission
-  const isReadyForSubmission = canSubmitToNetwork && currentWeight >= requiredWeight;
-  return <div className="space-y-6">
-      {/* If ready for submission, show direct submit button */}
-      {isReadyForSubmission ? <>
-          {/* While transmitting, the button turns into a live terminal; afterwards the log stays below it */}
-          {!isSubmittingToNetwork && <Button onClick={onSubmitToNetwork} className="w-full" size="lg">
-              <Send className="w-4 h-4 mr-2" />
-              {`Send Transaction to ${currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}`}
-            </Button>}
-          {showTerminal && <SubmissionTerminal active={isSubmittingToNetwork} network={currentNetwork} onClose={submitLog.clear} />}
-        </> :
-    // If not ready, show coordination options
-    xdrOutput && <>
-            {!offlineOnly && <>
-                {/* Coordination Mode Toggle */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base sm:text-lg">Coordination Mode</CardTitle>
-                    <CardDescription>
-                      Choose how to coordinate transaction signatures
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <ToggleGroup type="single" value={isAirgappedMode ? "offline" : "online"} onValueChange={value => setIsAirgappedMode(value === "offline")} className="grid w-full grid-cols-2">
-                        <ToggleGroupItem value="online" className="flex items-center gap-2">
-                          <Wifi className="w-4 h-4" />
-                          Refractor (Online)
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="offline" className="flex items-center gap-2">
-                          <WifiOff className="w-4 h-4" />
-                          Air-gapped (Offline)
-                        </ToggleGroupItem>
-                      </ToggleGroup>
-                      
-                    </div>
-                  </CardContent>
-                </Card>
+  if (ready) {
+    return (
+      <div className="space-y-6">
+        {/* While transmitting, the button turns into a live terminal; afterwards the log stays below it */}
+        {!isSubmittingToNetwork && (
+          <Button onClick={onSubmitToNetwork} className="w-full" size="lg">
+            <Send className="w-4 h-4 mr-2" />
+            {`Send Transaction to ${networkName}`}
+          </Button>
+        )}
+        {showTerminal && <SubmissionTerminal active={isSubmittingToNetwork} network={network} onClose={submitLog.clear} />}
+      </div>
+    );
+  }
 
-                {/* Send for Signature Button */}
-                <Button className="w-full" size="lg" onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor} disabled={isSubmittingToRefractor}>
-                  <Send className="w-4 h-4 mr-2" />
-                  {isSubmittingToRefractor ? 'Sending...' : (isAirgappedMode ? 'Air-gap sync' : 'Send for Signature')}
-                </Button>
-              </>}
-            
-            {offlineOnly && <Button className="w-full" size="lg" onClick={onShowOfflineModal}>
-                <Send className="w-4 h-4 mr-2" />
-                Air-gap sync
-              </Button>}
-          </>}
-    </div>;
+  // Not enough signatures yet: hand the transaction to the other signers
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base sm:text-lg">Coordination Mode</CardTitle>
+          <CardDescription>Choose how to coordinate transaction signatures</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ToggleGroup
+            type="single"
+            value={isAirgappedMode ? 'offline' : 'online'}
+            onValueChange={(value) => setIsAirgappedMode(value === 'offline')}
+            className="grid w-full grid-cols-2"
+          >
+            <ToggleGroupItem value="online" className="flex items-center gap-2">
+              <Wifi className="w-4 h-4" />
+              Refractor (Online)
+            </ToggleGroupItem>
+            <ToggleGroupItem value="offline" className="flex items-center gap-2">
+              <WifiOff className="w-4 h-4" />
+              Air-gapped (Offline)
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </CardContent>
+      </Card>
+
+      <Button
+        className="w-full"
+        size="lg"
+        onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor}
+        disabled={isSubmittingToRefractor}
+      >
+        <Send className="w-4 h-4 mr-2" />
+        {isSubmittingToRefractor ? 'Sending...' : isAirgappedMode ? 'Air-gap sync' : 'Send for Signature'}
+      </Button>
+      {showTerminal && <SubmissionTerminal active={isSubmittingToNetwork} network={network} onClose={submitLog.clear} />}
+    </div>
+  );
 };

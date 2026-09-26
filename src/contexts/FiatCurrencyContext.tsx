@@ -1,8 +1,10 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getAvailableFiatCurrencies, type FiatCurrency } from '@/lib/fiat-currencies';
 import { safeStorage } from '@/lib/storage';
+import { useNetwork } from '@/contexts/NetworkContext';
 
 const QUOTE_CURRENCY_STORAGE_KEY = 'stellar-quote-currency';
+const USD_ONLY: FiatCurrency[] = [{ code: 'USD', symbol: '$', name: 'US Dollar' }];
 
 interface FiatCurrencyContextType {
   quoteCurrency: string;
@@ -26,28 +28,43 @@ interface FiatCurrencyProviderProps {
 }
 
 export const FiatCurrencyProvider = ({ children }: FiatCurrencyProviderProps) => {
-  const [quoteCurrency, setQuoteCurrencyState] = useState<string>(
+  const [storedCurrency, setStoredCurrency] = useState<string>(
     () => safeStorage.get(QUOTE_CURRENCY_STORAGE_KEY) || 'USD',
   );
-  const [availableCurrencies, setAvailableCurrencies] = useState<FiatCurrency[]>([
-    { code: 'USD', symbol: '$', name: 'US Dollar' },
-  ]);
+  const { network } = useNetwork();
+  const [availableCurrencies, setAvailableCurrencies] = useState<FiatCurrency[]>(USD_ONLY);
 
+  // Exchange rates come from Reflector's mainnet FX oracle. Testnet balances have no market
+  // value, so testnet stays in USD and never queries mainnet.
   useEffect(() => {
+    if (network !== 'mainnet') {
+      setAvailableCurrencies(USD_ONLY);
+      return;
+    }
+    let cancelled = false;
     getAvailableFiatCurrencies()
-      .then(setAvailableCurrencies)
+      .then((currencies) => {
+        if (!cancelled) setAvailableCurrencies(currencies);
+      })
       .catch(() => {
-        // Silent failure — keep default USD-only list
+        // Keep the USD-only list
       });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [network]);
 
   const setQuoteCurrency = (currency: string) => {
-    setQuoteCurrencyState(currency);
+    setStoredCurrency(currency);
     safeStorage.set(QUOTE_CURRENCY_STORAGE_KEY, currency);
   };
 
-  const getCurrentCurrency = (): FiatCurrency =>
-    availableCurrencies.find((c) => c.code === quoteCurrency) || availableCurrencies[0];
+  // Amounts are converted to `quoteCurrency` and printed with this currency's
+  // symbol, so both come from the same value: the stored choice when the oracle
+  // lists it, USD (the first entry) until then or if the list failed to load.
+  const currentCurrency = availableCurrencies.find((c) => c.code === storedCurrency) || availableCurrencies[0];
+  const quoteCurrency = currentCurrency.code;
+  const getCurrentCurrency = (): FiatCurrency => currentCurrency;
 
   return (
     <FiatCurrencyContext.Provider

@@ -6,16 +6,16 @@ const WalletConnect = lazy(() => import('@/components/WalletConnect').then(modul
   default: module.WalletConnect
 })));
 interface LandingPageProps {
-  onConnect: (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => void;
+  onConnect: (publicKey: string, network: 'mainnet' | 'testnet') => void;
 }
 export const LandingPage = ({
   onConnect
 }: LandingPageProps) => {
   const [showWalletModal, setShowWalletModal] = useState(false);
   
-  const handleConnect = (walletType: string, publicKey: string, network: 'mainnet' | 'testnet') => {
+  const handleConnect = (publicKey: string, network: 'mainnet' | 'testnet') => {
     setShowWalletModal(false);
-    onConnect(walletType, publicKey, network);
+    onConnect(publicKey, network);
   };
 
   const handleModalControl = (isOpen: boolean) => {
@@ -123,7 +123,7 @@ export const LandingPage = ({
                 <span>Loading wallets...</span>
               </div>
             </div>}>
-            <WalletConnect onConnect={handleConnect} onModalControl={handleModalControl} isModal />
+            <WalletConnect onConnect={handleConnect} onModalControl={handleModalControl} />
           </Suspense>
         </DialogContent>
       </Dialog>

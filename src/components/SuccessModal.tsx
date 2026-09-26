@@ -27,38 +27,45 @@ export const SuccessModal = ({
 }: SuccessModalProps) => {
   const [copied, setCopied] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  const [showExpandedShare, setShowExpandedShare] = useState(false);
   const {
     toast
   } = useToast();
+  const [qrError, setQrError] = useState(false);
   const shareUrl = type === 'refractor' && refractorId ? `${window.location.origin}?r=${refractorId}` : '';
   useEffect(() => {
-    if ((type === 'refractor' || type === 'offline') && (shareUrl || hash || xdr)) {
-      let qrData = '';
-      
-      if (type === 'offline' && xdr) {
-        // For offline signing, create a proper SEP-7 URI with the XDR
-        qrData = buildSEP7TxUri({
-          xdr,
-          network: network === 'testnet' ? 'testnet' : 'public',
-          origin_domain: window.location.hostname
-        });
-      } else if (type === 'refractor') {
-        qrData = shareUrl;
-      }
-      
-      if (qrData) {
-        QRCode.toDataURL(qrData, {
-          width: 200,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#ffffff'
-          }
-        }).then(setQrCodeDataUrl);
-      }
+    let qrData = '';
+    if (type === 'offline' && xdr) {
+      // SEP-7 URI so the signing device also learns which network to sign for
+      qrData = buildSEP7TxUri(xdr, network);
+    } else if (type === 'refractor') {
+      qrData = shareUrl;
     }
-  }, [type, shareUrl, hash, xdr, network]);
+    if (!qrData) return;
+
+    let cancelled = false;
+    setQrError(false);
+    QRCode.toDataURL(qrData, {
+      width: 320,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff'
+      }
+    })
+      .then((url) => {
+        if (!cancelled) setQrCodeDataUrl(url);
+      })
+      .catch(() => {
+        // Too much data for a single QR code (large batches, Soroban calls, many signatures)
+        if (!cancelled) {
+          setQrCodeDataUrl('');
+          setQrError(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [type, shareUrl, xdr, network]);
   const copyToClipboard = async (text: string, label: string) => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
@@ -92,9 +99,9 @@ export const SuccessModal = ({
   const openExplorer = () => {
     if (type === 'network' && hash) {
       const baseUrl = network === 'testnet' ? 'https://stellar.expert/explorer/testnet' : 'https://stellar.expert/explorer/public';
-      window.open(`${baseUrl}/tx/${hash}`, '_blank');
+      window.open(`${baseUrl}/tx/${hash}`, '_blank', 'noopener,noreferrer');
     } else if (type === 'refractor' && refractorId) {
-      window.open(`https://api.refractor.space/tx/${refractorId}`, '_blank');
+      window.open(`https://refractor.space/tx/${refractorId}`, '_blank', 'noopener,noreferrer');
     }
   };
   const copyShareLink = async () => {
@@ -140,7 +147,7 @@ export const SuccessModal = ({
   const openTelegram = () => {
     if (!shareUrl) return;
     const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
-    window.open(`https://t.me/share/url?url=${shareUrl}&text=${text}`, '_blank');
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${text}`, '_blank');
   };
   const displayValue = type === 'network' || type === 'offline' ? hash : refractorId;
   const label = type === 'network' || type === 'offline' ? 'Transaction Hash' : 'Transaction ID';
@@ -170,9 +177,8 @@ export const SuccessModal = ({
               </div>
               <Button variant="ghost" size="sm" onClick={() => {
                 onClose();
-                if (onNavigateToDashboard) {
-                  onNavigateToDashboard();
-                }
+                // Only a finished submission leaves the page; a share or air-gap QR may still be needed.
+                if (type === 'network') onNavigateToDashboard?.();
               }} className="h-8 w-8 p-0 shrink-0 hover:bg-destructive/10 hover:text-destructive">
                 <X className="w-4 h-4" />
               </Button>
@@ -188,12 +194,22 @@ export const SuccessModal = ({
               </div>}
 
             {/* QR Code for Refractor and Offline */}
-            {(type === 'refractor' || type === 'offline') && qrCodeDataUrl && <div className="space-y-3">
-                <div className="flex justify-center">
+            {type === 'offline' && qrError && xdr && <div className="space-y-2 rounded-xl border border-warning/40 bg-warning/5 p-3">
+                <p className="text-sm text-foreground">
+                  This transaction is too large for a single QR code. Transfer the XDR another way (copy it to a file or paste it on the signing device).
+                </p>
+                <Button variant="outline" size="sm" className="w-full" onClick={() => copyToClipboard(xdr, 'Transaction XDR')}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy XDR
+                </Button>
+              </div>}
+
+            {(type === 'refractor' || type === 'offline') && (qrCodeDataUrl || qrError) && <div className="space-y-3">
+                {qrCodeDataUrl && <div className="flex justify-center">
                   <div className="p-3 rounded-xl border border-border/60 bg-background">
-                    <img src={qrCodeDataUrl} alt="QR code for signature request" className="w-44 h-44" loading="lazy" />
+                    <img src={qrCodeDataUrl} alt="QR code for signature request" className="w-64 h-64" />
                   </div>
-                </div>
+                </div>}
                 
                 {/* ID/Hash below QR */}
                 <div className="space-y-2">

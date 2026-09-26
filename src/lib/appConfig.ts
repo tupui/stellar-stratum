@@ -32,12 +32,12 @@ export const appConfig = {
   ORACLE_CONTRACT: 'CBKGPWGKSKZF52CFHMTRR23TBWTPMRDIYZ4O2P5VS65BMHYH4DXMCJZC',
   
   // Timing constants
-  DEFAULT_TX_TIMEOUT_SECONDS: 300,
+  // Validity window of the transactions the app builds. Collecting multisig signatures through
+  // Refractor or air-gapped QR codes takes time, so this is a day rather than minutes.
+  TX_VALIDITY_SECONDS: 86_400,
   WALLET_CHECK_INTERVAL: 1000,
   WALLET_TIMEOUT: 30000,
 
-  // Limits
-  DEFAULT_BASE_FEE: 100,
   // Base fee in stroops used as per-operation fee for built transactions (0.01 XLM)
   DEFAULT_BASE_FEE_STROOPS: 100_000,
 

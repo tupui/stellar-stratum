@@ -1,81 +1,125 @@
 import { createHorizonServer } from './stellar';
 
 // Shared constants for filtering transactions/payments
-const MIN_NATIVE_PAYMENT_XLM = 1; // Minimum XLM amount to avoid spam
+const MIN_NATIVE_PAYMENT_XLM = 1; // Incoming XLM payments below this are treated as spam
 const ALLOWED_TYPES = ['payment', 'create_account'] as const;
 export type ActivityCategory = 'transfer' | 'swap' | 'contract' | 'config';
-
-// Cache durations
-export const TRANSACTION_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
-
-// API-level caching for Horizon requests
-interface HorizonCacheEntry {
-  data: unknown;
-  timestamp: number;
-  ttl: number;
-}
-
-const horizonCache = new Map<string, HorizonCacheEntry>();
-const HORIZON_CACHE_TTL = 5 * 60 * 1000; // 5 minutes for API responses
+type AssetType = 'native' | 'credit_alphanum4' | 'credit_alphanum12';
 
 // Normalized transaction record type
 export interface NormalizedTransaction {
-  id: string;
+  id: string; // Horizon paging token of the operation
   createdAt: Date;
   type: string; // Horizon operation type (e.g., payment, create_account, invoke_host_function)
   category: ActivityCategory;
+  // Transfers: 'in' or 'out'. Swaps: 'out' when the account only paid, 'in' when it
+  // only received, unset when it did both (a swap of its own funds).
   direction?: 'in' | 'out';
   amount?: number; // In units of the transaction asset
-  assetType?: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
+  assetType?: AssetType;
   assetCode?: string;
   assetIssuer?: string;
   // For swaps, include both legs when available
   swapFromAmount?: number;
-  swapFromAssetType?: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
+  swapFromAssetType?: AssetType;
   swapFromAssetCode?: string;
   swapFromAssetIssuer?: string;
   swapToAmount?: number;
-  swapToAssetType?: 'native' | 'credit_alphanum4' | 'credit_alphanum12';
+  swapToAssetType?: AssetType;
   swapToAssetCode?: string;
   swapToAssetIssuer?: string;
   counterparty?: string;
   transactionHash: string;
 }
 
-// Retry with exponential backoff for rate limit errors
+// One asset amount; signed when it is a balance change.
+interface Leg {
+  amount: number;
+  assetType: AssetType;
+  assetCode?: string;
+  assetIssuer?: string;
+}
+
+// Horizon omits the code for native XLM.
+const legAsset = (assetType?: string, assetCode?: string, assetIssuer?: string): Omit<Leg, 'amount'> =>
+  assetCode
+    ? { assetType: (assetType || 'credit_alphanum4') as AssetType, assetCode, assetIssuer }
+    : { assetType: 'native', assetCode: 'XLM', assetIssuer: undefined };
+
+const swapFields = (from: Leg, to: Leg) => ({
+  swapFromAmount: from.amount,
+  swapFromAssetType: from.assetType,
+  swapFromAssetCode: from.assetCode,
+  swapFromAssetIssuer: from.assetIssuer,
+  swapToAmount: to.amount,
+  swapToAssetType: to.assetType,
+  swapToAssetCode: to.assetCode,
+  swapToAssetIssuer: to.assetIssuer,
+});
+
+// Identifies an asset by type, code and issuer ('native' for XLM).
+export const assetKey = (assetType?: string, assetCode?: string, assetIssuer?: string): string =>
+  assetType === 'native' ? 'native' : `${assetCode ?? ''}:${assetIssuer ?? ''}`;
+
+// Signed balance changes an entry caused for the account. A swap changes one
+// balance per side the account took part in; entries without an amount change
+// nothing we know of.
+export const getBalanceDeltas = (tx: NormalizedTransaction): Leg[] => {
+  if (tx.category === 'swap') {
+    const deltas: Leg[] = [];
+    if (tx.direction !== 'in') {
+      deltas.push({ ...legAsset(tx.swapFromAssetType, tx.swapFromAssetCode, tx.swapFromAssetIssuer), amount: -(tx.swapFromAmount ?? 0) });
+    }
+    if (tx.direction !== 'out') {
+      deltas.push({ ...legAsset(tx.swapToAssetType, tx.swapToAssetCode, tx.swapToAssetIssuer), amount: tx.swapToAmount ?? 0 });
+    }
+    return deltas;
+  }
+  if (!tx.direction || !tx.amount || !tx.assetType) return [];
+  return [{
+    assetType: tx.assetType,
+    assetCode: tx.assetCode,
+    assetIssuer: tx.assetIssuer,
+    amount: tx.direction === 'in' ? tx.amount : -tx.amount,
+  }];
+};
+
+// Retry with exponential backoff on rate limits, server errors and network
+// failures. SDK errors carry Horizon's problem document, status included, on
+// `response`; a request that never got an answer has no `response` at all.
 export const retryWithBackoff = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> => {
-  for (let i = 0; i < maxRetries; i++) {
+  for (let attempt = 1; ; attempt++) {
     try {
       return await fn();
     } catch (error: unknown) {
-      const isRateLimit = (error as { status?: number })?.status === 429 || (error as { status?: number })?.status === 503;
-      if (isRateLimit && i < maxRetries - 1) {
-        const delay = Math.min(1000 * Math.pow(2, i), 10000); // Exponential backoff, max 10s
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      throw error;
+      const err = error as { status?: number; response?: { status?: number } } | undefined;
+      const status = err?.response?.status ?? err?.status;
+      const transient = status === undefined ? !err?.response : status === 429 || status >= 500;
+      if (!transient || attempt >= maxRetries) throw error;
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  throw new Error('Max retries exceeded');
 };
 
+/**
+ * An entry of Horizon's /operations stream. Its fields depend on the operation type, so it is
+ * read field by field (with checks) rather than through one SDK record type.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type HorizonRecord = Record<string, any>;
+
 // Normalize payment record from Horizon API
-export const normalizePaymentRecord = (
-  record: any, 
+const normalizePaymentRecord = (
+  record: HorizonRecord,
   accountPublicKey: string
 ): NormalizedTransaction | null => {
   try {
-    // Only process allowed transaction types
-    if (!ALLOWED_TYPES.includes(record.type)) {
-      return null;
-    }
-
     // Determine asset fields
     const isCreateAccount = record.type === 'create_account';
-    const assetType: 'native' | 'credit_alphanum4' | 'credit_alphanum12' = isCreateAccount
+    const assetType: AssetType = isCreateAccount
       ? 'native'
-      : (record.asset_type as any);
+      : (record.asset_type as AssetType);
     const assetCode: string | undefined = isCreateAccount
       ? 'XLM'
       : (record.asset_code || (record.asset_type === 'native' ? 'XLM' : undefined));
@@ -86,35 +130,27 @@ export const normalizePaymentRecord = (
       ? Math.abs(parseFloat(record.starting_balance || record.amount || '0'))
       : Math.abs(parseFloat(record.amount || '0'));
 
-    // For native XLM only, filter out spammy micro txs
-    if (assetType === 'native' && amount < MIN_NATIVE_PAYMENT_XLM) {
-      return null;
-    }
-
     // Determine direction and counterparty
+    const [sender, recipient] = isCreateAccount ? [record.funder, record.account] : [record.from, record.to];
     let direction: 'in' | 'out';
     let counterparty: string;
-
-    if (isCreateAccount) {
-      if (record.funder === accountPublicKey) {
-        direction = 'out';
-        counterparty = record.account;
-      } else {
-        direction = 'in';
-        counterparty = record.funder;
-      }
+    if (sender === accountPublicKey) {
+      direction = 'out';
+      counterparty = recipient;
+    } else if (recipient === accountPublicKey) {
+      direction = 'in';
+      counterparty = sender;
     } else {
-      if (record.from === accountPublicKey) {
-        direction = 'out';
-        counterparty = record.to;
-      } else {
-        direction = 'in';
-        counterparty = record.from;
-      }
+      return null;
     }
 
     // Skip self-transactions
     if (counterparty === accountPublicKey) {
+      return null;
+    }
+
+    // Filter out spammy incoming XLM micro payments; what the account sends is always kept
+    if (!isCreateAccount && direction === 'in' && assetType === 'native' && amount < MIN_NATIVE_PAYMENT_XLM) {
       return null;
     }
 
@@ -146,14 +182,14 @@ export const normalizePaymentRecord = (
 };
 
 // Normalize selected non-payment operations
-export const normalizeOperationRecord = (
-  record: any,
+const normalizeOperationRecord = (
+  record: HorizonRecord,
   accountPublicKey: string
 ): NormalizedTransaction | null => {
   try {
     const type: string = record.type;
     const createdAt = new Date(record.created_at);
-    
+
     // Validate the date to prevent invalid dates from causing chart issues
     if (isNaN(createdAt.getTime()) || createdAt.getTime() <= 0) {
       if (import.meta.env.DEV) {
@@ -162,15 +198,58 @@ export const normalizeOperationRecord = (
       return null;
     }
 
-    // Contract calls
+    // Contract calls. Horizon lists the Stellar Asset Contract balance changes a
+    // call caused; when, netted per asset, they amount to one movement or a
+    // two-asset swap for this account, show that instead of a bare call.
     if (type === 'invoke_host_function') {
-      return {
+      const base = {
         id: record.paging_token || `${record.transaction_hash}-${record.type}`,
         createdAt,
         type,
-        category: 'contract',
         transactionHash: record.transaction_hash,
       };
+      const net = new Map<string, Leg & { counterparty?: string }>();
+      for (const change of record.asset_balance_changes ?? []) {
+        if (change.from === change.to) continue;
+        const sign = change.to === accountPublicKey ? 1 : change.from === accountPublicKey ? -1 : 0;
+        if (!sign) continue;
+        const asset = legAsset(change.asset_type, change.asset_code, change.asset_issuer);
+        const key = assetKey(asset.assetType, asset.assetCode, asset.assetIssuer);
+        // Netted in stroops so float error can't leave a stray 7th decimal
+        const leg = net.get(key) ?? { ...asset, amount: 0, counterparty: sign > 0 ? change.from : change.to };
+        leg.amount += sign * Math.round(Math.abs(parseFloat(change.amount || '0')) * 1e7);
+        net.set(key, leg);
+      }
+      const legs = [...net.values()]
+        .filter(leg => leg.amount !== 0)
+        .map(leg => ({ ...leg, amount: leg.amount / 1e7 }));
+      const outs = legs.filter(leg => leg.amount < 0);
+      const ins = legs.filter(leg => leg.amount > 0);
+
+      if (legs.length === 1) {
+        const [{ counterparty, ...leg }] = legs;
+        return {
+          ...base,
+          category: 'transfer',
+          direction: leg.amount > 0 ? 'in' : 'out',
+          ...leg,
+          amount: Math.abs(leg.amount),
+          counterparty: counterparty || undefined,
+        };
+      }
+      if (outs.length === 1 && ins.length === 1) {
+        const from = { ...outs[0], amount: -outs[0].amount };
+        return {
+          ...base,
+          category: 'swap',
+          amount: from.amount,
+          assetType: from.assetType,
+          assetCode: from.assetCode,
+          assetIssuer: from.assetIssuer,
+          ...swapFields(from, ins[0]),
+        };
+      }
+      return { ...base, category: 'contract' };
     }
 
     // Config operations
@@ -207,107 +286,51 @@ export const normalizeOperationRecord = (
       };
     }
 
+    // Clawback of this account's holding by the asset issuer
+    if (type === 'clawback' && record.from === accountPublicKey) {
+      return {
+        id: record.paging_token || `${record.transaction_hash}-${record.type}`,
+        createdAt,
+        type,
+        category: 'transfer',
+        direction: 'out',
+        amount: Math.abs(parseFloat(record.amount || '0')),
+        ...legAsset(record.asset_type, record.asset_code, record.asset_issuer),
+        counterparty: record.asset_issuer,
+        transactionHash: record.transaction_hash,
+      };
+    }
+
     // Path payments as swaps
     if (type === 'path_payment_strict_receive' || type === 'path_payment_strict_send') {
-      // Represent the balance impact for this account
-      let direction: 'in' | 'out' = 'out';
-      let amount = 0;
-      let assetType: any = 'native';
-      let assetCode: string | undefined = 'XLM';
-      let assetIssuer: string | undefined;
-      let counterparty: string | undefined;
+      const paid = record.from === accountPublicKey;
+      const received = record.to === accountPublicKey;
+      if (!paid && !received) return null;
 
-      // Swap legs (best-effort based on available fields)
-      let swapFromAmount: number | undefined;
-      let swapFromAssetType: any | undefined;
-      let swapFromAssetCode: string | undefined;
-      let swapFromAssetIssuer: string | undefined;
-      let swapToAmount: number | undefined;
-      let swapToAssetType: any | undefined;
-      let swapToAssetCode: string | undefined;
-      let swapToAssetIssuer: string | undefined;
-
-      if (record.from === accountPublicKey) {
-        direction = 'out';
-        // From leg
-        swapFromAmount = Math.abs(parseFloat(record.source_amount || '0'));
-        if (record.source_asset_code) {
-          swapFromAssetType = record.source_asset_type || 'credit_alphanum4';
-          swapFromAssetCode = record.source_asset_code;
-          swapFromAssetIssuer = record.source_asset_issuer;
-        } else {
-          swapFromAssetType = 'native';
-          swapFromAssetCode = 'XLM';
-          swapFromAssetIssuer = undefined;
-        }
-        // To leg - destination is always in regular asset_* fields for both strict_send and strict_receive
-        swapToAmount = Math.abs(parseFloat(record.amount || '0'));
-        if (record.asset_code) {
-          swapToAssetType = record.asset_type || 'credit_alphanum4';
-          swapToAssetCode = record.asset_code;
-          swapToAssetIssuer = record.asset_issuer;
-        } else {
-          swapToAssetType = 'native';
-          swapToAssetCode = 'XLM';
-          swapToAssetIssuer = undefined;
-        }
-        // Primary impact uses the leg affecting our balance first (outgoing leg)
-        amount = swapFromAmount || 0;
-        assetType = swapFromAssetType;
-        assetCode = swapFromAssetCode;
-        assetIssuer = swapFromAssetIssuer;
-        counterparty = record.to;
-      } else if (record.to === accountPublicKey) {
-        direction = 'in';
-        // From leg (what sender spent)
-        swapFromAmount = Math.abs(parseFloat(record.source_amount || '0'));
-        if (record.source_asset_code) {
-          swapFromAssetType = record.source_asset_type || 'credit_alphanum4';
-          swapFromAssetCode = record.source_asset_code;
-          swapFromAssetIssuer = record.source_asset_issuer;
-        } else {
-          swapFromAssetType = 'native';
-          swapFromAssetCode = 'XLM';
-          swapFromAssetIssuer = undefined;
-        }
-        // To leg (what we received)
-        swapToAmount = Math.abs(parseFloat(record.amount || '0'));
-        if (record.asset_code) {
-          swapToAssetType = record.asset_type || 'credit_alphanum4';
-          swapToAssetCode = record.asset_code;
-          swapToAssetIssuer = record.asset_issuer;
-        } else {
-          swapToAssetType = 'native';
-          swapToAssetCode = 'XLM';
-          swapToAssetIssuer = undefined;
-        }
-        // Primary impact is what we received
-        amount = swapToAmount || 0;
-        assetType = swapToAssetType;
-        assetCode = swapToAssetCode;
-        assetIssuer = swapToAssetIssuer;
-        counterparty = record.from;
-      }
+      // The source leg is in source_asset_*, the destination leg in asset_* for both kinds.
+      const from: Leg = {
+        amount: Math.abs(parseFloat(record.source_amount || '0')),
+        ...legAsset(record.source_asset_type, record.source_asset_code, record.source_asset_issuer),
+      };
+      const to: Leg = {
+        amount: Math.abs(parseFloat(record.amount || '0')),
+        ...legAsset(record.asset_type, record.asset_code, record.asset_issuer),
+      };
+      // Primary impact: what left the account, or what arrived if nothing left it
+      const primary = paid ? from : to;
 
       return {
         id: record.paging_token || `${record.transaction_hash}-${record.type}`,
         createdAt,
         type,
         category: 'swap',
-        direction,
-        amount,
-        assetType,
-        assetCode,
-        assetIssuer,
-        swapFromAmount,
-        swapFromAssetType,
-        swapFromAssetCode,
-        swapFromAssetIssuer,
-        swapToAmount,
-        swapToAssetType,
-        swapToAssetCode,
-        swapToAssetIssuer,
-        counterparty,
+        direction: paid && received ? undefined : paid ? 'out' : 'in',
+        amount: primary.amount,
+        assetType: primary.assetType,
+        assetCode: primary.assetCode,
+        assetIssuer: primary.assetIssuer,
+        ...swapFields(from, to),
+        counterparty: paid && received ? undefined : paid ? record.to : record.from,
         transactionHash: record.transaction_hash,
       };
     }
@@ -318,107 +341,32 @@ export const normalizeOperationRecord = (
   }
 };
 
-// Helper to get/set cache with TTL
-const getCachedResponse = (key: string): unknown | null => {
-  const entry = horizonCache.get(key);
-  if (!entry) return null;
-  
-  if (Date.now() - entry.timestamp > entry.ttl) {
-    horizonCache.delete(key);
-    return null;
-  }
-  
-  return entry.data;
-};
+// Normalize one record of an account's operations stream, or null when it is not listed.
+export const normalizeRecord = (record: HorizonRecord, accountPublicKey: string): NormalizedTransaction | null =>
+  (ALLOWED_TYPES as readonly string[]).includes(record.type)
+    ? normalizePaymentRecord(record, accountPublicKey)
+    : normalizeOperationRecord(record, accountPublicKey);
 
-const setCachedResponse = (key: string, data: unknown, ttl: number = HORIZON_CACHE_TTL) => {
-  horizonCache.set(key, {
-    data,
-    timestamp: Date.now(),
-    ttl,
-  });
-};
-
-// Fetch paginated payments for an account
-export const fetchAccountPayments = async (
-  publicKey: string,
-  network: 'mainnet' | 'testnet',
-  cursor?: string,
-  limit: number = 200
-) => {
-  // Create cache key based on all parameters
-  const cacheKey = `payments-${publicKey}-${network}-${cursor || 'initial'}-${limit}`;
-  
-  // Check cache first
-  const cached = getCachedResponse(cacheKey);
-  if (cached) {
-    return cached;
-  }
-  
-  const server = createHorizonServer(network);
-  
-  let query = server
-    .payments()
-    .forAccount(publicKey)
-    .order('desc')
-    .limit(limit);
-    
-  if (cursor) {
-    query = query.cursor(cursor);
-  }
-  
-  const result = await retryWithBackoff(() => query.call());
-  
-  // Cache the result
-  setCachedResponse(cacheKey, result);
-  
-  return result;
-};
-
-// Fetch selected non-payment operations for an account
+// Fetch one page of an account's operations (payments included). Not cached:
+// the newest page must always be fresh, and older pages are only asked for once.
 export const fetchAccountOperations = async (
   publicKey: string,
   network: 'mainnet' | 'testnet',
   cursor?: string,
-  limit: number = 200
+  limit: number = 200,
+  order: 'asc' | 'desc' = 'desc'
 ) => {
-  // Create cache key based on all parameters
-  const cacheKey = `operations-${publicKey}-${network}-${cursor || 'initial'}-${limit}`;
-  
-  // Check cache first
-  const cached = getCachedResponse(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
   const server = createHorizonServer(network);
 
   let query = server
     .operations()
     .forAccount(publicKey)
-    .order('desc')
-    .limit(limit)
-    .join('transactions');
+    .order(order)
+    .limit(limit);
 
   if (cursor) {
     query = query.cursor(cursor);
   }
 
-  const result = await retryWithBackoff(() => query.call());
-  
-  // Cache the result
-  setCachedResponse(cacheKey, result);
-
-  return result;
-};
-
-// Get Horizon transaction URL for external viewing
-export const getHorizonTransactionUrl = (
-  network: 'mainnet' | 'testnet',
-  transactionHash: string
-): string => {
-  const baseUrl = network === 'testnet' 
-    ? 'https://horizon-testnet.stellar.org' 
-    : 'https://horizon.stellar.org';
-  return `${baseUrl}/transactions/${transactionHash}`;
+  return retryWithBackoff(() => query.call());
 };

@@ -44,6 +44,26 @@ export const getBuiltinToken = (contract: string, network: NetworkId): TokenMeta
 export const shortenAddress = (address: string, lead = 6, tail = 6): string =>
   address.length <= lead + tail + 1 ? address : `${address.slice(0, lead)}…${address.slice(-tail)}`;
 
+/**
+ * A typed decimal ("12.5") as a contract integer, without going through floats.
+ * Null when it is not a plain decimal or has more places than the token has.
+ */
+export const parseUnits = (value: string, decimals: number): bigint | null => {
+  const match = /^(\d*)(?:\.(\d*))?$/.exec(value.trim());
+  if (!match || !(match[1] || match[2])) return null;
+  const [, whole, fraction = ''] = match;
+  if (fraction.length > decimals) return null;
+  return BigInt(`${whole || '0'}${fraction.padEnd(decimals, '0')}`);
+};
+
+/** A contract integer as a plain decimal string ("12.5"): exact, ungrouped, fit for an input field. */
+export const formatUnits = (raw: bigint, decimals: number): string => {
+  const digits = (raw < 0n ? -raw : raw).toString().padStart(decimals + 1, '0');
+  const whole = digits.slice(0, digits.length - decimals);
+  const fraction = digits.slice(digits.length - decimals).replace(/0+$/, '');
+  return `${raw < 0n ? '-' : ''}${whole}${fraction ? `.${fraction}` : ''}`;
+};
+
 const grouping = new Intl.NumberFormat('en-US');
 
 /**

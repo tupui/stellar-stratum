@@ -1,50 +1,27 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { updateUrlParams } from '@/lib/urlState';
-import { submitLog } from '@/lib/submitLog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Send, FileCode, Shield, Share2, ExternalLink, AlertTriangle, ArrowLeftRight, Landmark, Blocks, Coins } from 'lucide-react';
+import { Send, FileCode, ArrowLeftRight, Landmark, Blocks, Coins } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import {
-  Transaction,
-  TransactionBuilder as StellarTransactionBuilder,
-  Operation,
-  Asset,
-  Memo,
-  Keypair,
-} from '@stellar/stellar-sdk';
-import { generateDetailedFingerprint } from '@/lib/xdr/fingerprint';
-import { submitTransaction, submitToRefractor, pullFromRefractor, createHorizonServer, getNetworkPassphrase, type AccountData } from '@/lib/stellar';
-import { appConfig } from '@/lib/appConfig';
-import { useWalletKit } from '@/contexts/WalletKitContext';
+import { pullFromRefractor, createHorizonServer, type AccountData } from '@/lib/stellar';
+import { parseTransactionPayload } from '@/lib/sep7';
+import { tryParseTransaction } from '@/lib/xdr/parse';
 import { XdrDetails } from './XdrDetails';
-import { SignerSelector } from './SignerSelector';
-import { NetworkSelector } from './NetworkSelector';
-import { RefractorIntegration } from './RefractorIntegration';
-import { SuccessModal } from './SuccessModal';
-import { ErrorHandlers } from '@/lib/error-handling';
-import { convertFromUSD } from '@/lib/fiat-currencies';
+import { TransactionSigningPanel } from './transaction/TransactionSigningPanel';
 import { getAssetPrice } from '@/lib/reflector';
-import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
-import { PaymentForm } from './payment/PaymentForm';
+import { PaymentForm, type PaymentDraft, type PaymentOperation, type TransactionMemo } from './payment/PaymentForm';
+import { buildPaymentTransaction } from '@/lib/payments';
 import { ImportTab } from './ImportTab';
-import { TransactionSubmitter } from './transaction/TransactionSubmitter';
 import { SourceAccountSelector } from './SourceAccountSelector';
 import { SoroswapTab } from './soroswap/SoroswapTab';
 import { DeFindexTab } from './defindex/DeFindexTab';
 import { ContractCallTab } from './contract/ContractCallTab';
 
 
-interface PaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; memo?: string }
-interface BatchPayment { destination: string; amount?: string; asset?: string; assetIssuer?: string; memo?: string; isAccountClosure?: boolean; receiveAsset?: string; receiveAssetIssuer?: string; receiveAmount?: string; slippageTolerance?: number; exactOut?: boolean }
-interface PathPaymentData { destination: string; amount: string; asset: string; assetIssuer?: string; receiveAsset: string; receiveAssetIssuer?: string; receiveAmount?: string; slippageTolerance?: number; exactOut?: boolean; memo?: string }
+const EMPTY_PAYMENT: PaymentDraft = { destination: '', amount: '', asset: 'XLM', assetIssuer: '', slippageTolerance: 0.5 };
 
 interface TransactionBuilderProps {
   onBack: () => void;
@@ -52,77 +29,66 @@ interface TransactionBuilderProps {
   signerPublicKey?: string; // Connected wallet's public key (signer)
   accountData: AccountData | null;
   initialTab?: string;
-  pendingId?: string;
-  initialXdr?: string;
   onAccountRefresh?: () => Promise<void>;
   onSourceAccountChange?: (newSourceAccount: string) => void;
 }
 
-export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, accountData, initialTab = 'payment', pendingId, initialXdr, onAccountRefresh, onSourceAccountChange }: TransactionBuilderProps) => {
+export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, accountData, initialTab = 'payment', onAccountRefresh, onSourceAccountChange }: TransactionBuilderProps) => {
   const { toast } = useToast();
-  const { network: currentNetwork, setNetwork: setCurrentNetwork } = useNetwork();
-  const { signWithWallet } = useWalletKit();
-  const { quoteCurrency, availableCurrencies, getCurrentCurrency } = useFiatCurrency();
+  const { network: currentNetwork } = useNetwork();
   const [activeTab, setActiveTab] = useState(initialTab);
   // Reflect the active tab in the URL so the current section can be refreshed or shared
   useEffect(() => {
     updateUrlParams({ tab: activeTab });
   }, [activeTab]);
   const [defiTab, setDefiTab] = useState<string>('soroswap');
-  const [paymentData, setPaymentData] = useState({
-    destination: '',
-    amount: '',
-    asset: 'XLM',
-    assetIssuer: '',
-    memo: '',
-  });
-  const [trustlineError, setTrustlineError] = useState<string>('');
+  const [paymentData, setPaymentData] = useState<PaymentDraft>(EMPTY_PAYMENT);
+  // `input` is what the Import tab shows (pasted/scanned/pulled); `output` is the envelope the
+  // builder produced or a signer extended. The one being worked on is `output || input`.
   const [xdrData, setXdrData] = useState({
     input: '',
     output: '',
   });
+  const [xdrInputError, setXdrInputError] = useState('');
   const [isBuilding, setIsBuilding] = useState(false);
-  const [isSigning, setIsSigning] = useState(false);
-  const [isSubmittingToNetwork, setIsSubmittingToNetwork] = useState(false);
   const [isTransactionBuilt, setIsTransactionBuilt] = useState(false);
-  const [isSubmittingToRefractor, setIsSubmittingToRefractor] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [signedBy, setSignedBy] = useState<Array<{ signerKey: string; signedAt: Date }>>([]);
   const [refractorId, setRefractorId] = useState<string>('');
-  const [successData, setSuccessData] = useState<{ hash: string; network: 'mainnet' | 'testnet'; type: 'network' | 'refractor' | 'offline'; xdr?: string } | null>(null);
   const [assetPrices, setAssetPrices] = useState<Record<string, number>>({});
+  // Bumped after a successful submission so the forms start over empty.
+  const [formKey, setFormKey] = useState(0);
+  const currentXdr = xdrData.output || xdrData.input;
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
-    setTrustlineError('');
-    setSignedBy([]);
     setRefractorId('');
-    setSuccessData(null);
-
     setIsTransactionBuilt(false);
 
     if (activeTab === 'import') {
-      // Switching to Import view: clear payment-only state, keep XDR intact
-      setPaymentData({ destination: '', amount: '', asset: 'XLM', assetIssuer: '', memo: '' });
+      // Switching to Import view: clear payment-only state; only an imported XDR carries over
+      setPaymentData(EMPTY_PAYMENT);
+      setXdrData(prev => ({ input: prev.input, output: '' }));
     } else {
       // For payment, soroswap, defindex tabs — clear XDR state
       setXdrData({ input: '', output: '' });
+      setXdrInputError('');
     }
   }, [activeTab]);
 
-  // Check for deep link data on mount
-  const handleXdrInputChange = useCallback((xdr: string) => {
-    setXdrData(prev => ({ ...prev, input: xdr }));
-    
-    // Auto-validate XDR on input change
-    if (xdr.trim()) {
-      try {
-        const networkPassphrase = getNetworkPassphrase(currentNetwork);
-        new Transaction(xdr.trim(), networkPassphrase);
-        // Clear any previous errors silently
-      } catch (parseError) {
-        // Invalid XDR - user is still typing, don't show error yet
-      }
+  // A new transaction was pasted, scanned or linked: it replaces whatever was being signed.
+  const handleXdrInputChange = useCallback((text: string) => {
+    const payload = parseTransactionPayload(text);
+    const xdr = payload?.xdr ?? text.trim();
+    setXdrData({ input: xdr, output: '' });
+    if (!xdr) {
+      setXdrInputError('');
+    } else if (payload?.network && payload.network !== currentNetwork) {
+      setXdrInputError(
+        `This transaction is for ${payload.network === 'testnet' ? 'Testnet' : 'Mainnet'}. Switch networks (disconnect and connect on the right network) before signing it.`,
+      );
+    } else if (!tryParseTransaction(xdr, currentNetwork)) {
+      setXdrInputError('This is not a valid Stellar transaction XDR.');
+    } else {
+      setXdrInputError('');
     }
   }, [currentNetwork]);
 
@@ -140,13 +106,8 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       sessionStorage.removeItem('deeplink-refractor-id');
       sessionStorage.removeItem('deeplink-source-account');
       toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
-    } else if (initialXdr) {
-      // Pre-load XDR from multisig flow
-      handleXdrInputChange(initialXdr);
-      setActiveTab('import');
-      toast({ title: 'Multisig Transaction Loaded', description: 'Ready for signing.', duration: 3000 });
     }
-  }, [initialXdr, handleXdrInputChange, toast]);
+  }, [handleXdrInputChange, toast]);
 
   // Also handle deep link events when already on the builder
   useEffect(() => {
@@ -170,7 +131,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
 
 
   // Function to fetch additional asset prices with timeout
+  // Reflector prices mainnet assets only: testnet balances have no market value.
   const fetchAdditionalAssetPrice = useCallback(async (assetCode: string, assetIssuer?: string) => {
+    if (currentNetwork !== 'mainnet') return 0;
     const key = assetCode;
     try {
       const pricePromise = getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer);
@@ -193,14 +156,17 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       }));
       return 0;
     }
-  }, []);
+  }, [currentNetwork]);
 
   // Memoize account balances to prevent unnecessary re-renders
   const memoizedBalances = useMemo(() => accountData?.balances || [], [accountData?.balances]);
 
   useEffect(() => {
     // Load asset prices for fiat conversion in parallel for better performance
-    if (!memoizedBalances.length) return;
+    if (!memoizedBalances.length || currentNetwork !== 'mainnet') {
+      setAssetPrices({});
+      return;
+    }
     
     const loadPrices = async () => {
       const pricePromises = memoizedBalances.map(async (balance) => {
@@ -225,429 +191,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       setAssetPrices(prices);
     };
     loadPrices();
-  }, [memoizedBalances]);
-  const checkAccountExists = useCallback(async (destination: string) => {
-    try {
-      const server = createHorizonServer(currentNetwork);
-      await server.loadAccount(destination);
-      return true;
-    } catch {
-      // A missing account is a normal case (it gets created by the payment),
-      // so don't surface an error toast here.
-      return false;
-    }
-  }, [currentNetwork]);
-
-
-  const checkTrustline = useCallback(async (destination: string, assetCode: string, assetIssuer: string) => {
-    if (assetCode === 'XLM') return true;
-    
-    try {
-      const server = createHorizonServer(currentNetwork);
-      
-      const account = await server.loadAccount(destination);
-      const hasTrustline = account.balances.some(balance => 
-        'asset_code' in balance && 
-        balance.asset_code === assetCode && 
-        balance.asset_issuer === assetIssuer
-      );
-      
-      return hasTrustline;
-    } catch (error) {
-      // If we can't load the account, it doesn't exist
-      ErrorHandlers.accountNotFound(destination);
-      throw new Error('Account does not exist');
-    }
-  }, [currentNetwork]);
-
-  const createTrustlineRemovalOperations = () => {
-    // Create operations to remove all existing trustlines before account merge
-    // Note: XLM (native asset) cannot be closed and is automatically skipped
-    const trustlineRemovalOps: ReturnType<typeof Operation.changeTrust>[] = [];
-    
-    if (!accountData?.balances) return trustlineRemovalOps;
-    
-    accountData.balances.forEach(balance => {
-      // Skip native XLM balance - it cannot be closed as it's the native asset
-      if (balance.asset_type === 'native') return;
-      
-      // Only remove issued asset trustlines (those with asset_code and asset_issuer)
-      if (balance.asset_code && balance.asset_issuer) {
-        const asset = new Asset(balance.asset_code, balance.asset_issuer);
-        trustlineRemovalOps.push(Operation.changeTrust({
-          asset,
-          limit: '0', // Setting limit to 0 removes the trustline
-        }));
-      }
-    });
-    
-    return trustlineRemovalOps;
-  };
-
-  // UI-only estimate of receive amount based on oracle USD prices.
-  // NOTE: this is NOT used as the on-chain destMin — for that we query Horizon's
-  // strict-send path-finder so the value reflects actual DEX liquidity.
-  const estimatePathReceive = (amount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
-    const send = parseFloat(amount) || 0;
-    if (send <= 0) return 0;
-    const fromPrice = assetPrices[fromAssetCode] || 0;
-    const toPrice = assetPrices[toAssetCode] || 0;
-    let converted = send;
-    if (fromPrice > 0 && toPrice > 0) {
-      converted = send * (fromPrice / toPrice);
-    }
-    const slippageAdjustment = 1 - (slippageTolerance / 100);
-    return parseFloat((converted * slippageAdjustment).toFixed(7));
-  };
-
-  // Inverse: given an exact destAmount, estimate the maximum the sender should pay (with slippage buffer)
-  const estimatePathSendMax = (destAmount: string, fromAssetCode: string, toAssetCode: string, slippageTolerance = 0.5) => {
-    const dest = parseFloat(destAmount) || 0;
-    if (dest <= 0) return 0;
-    const fromPrice = assetPrices[fromAssetCode] || 0;
-    const toPrice = assetPrices[toAssetCode] || 0;
-    let converted = dest;
-    if (fromPrice > 0 && toPrice > 0) {
-      converted = dest * (toPrice / fromPrice);
-    }
-    const slippageBuffer = 1 + (slippageTolerance / 100);
-    return parseFloat((converted * slippageBuffer).toFixed(7));
-  };
-
-  // Query Horizon's strict-send path-finder and return { destMin, path } honoring slippage.
-  // Falls back to an oracle-derived estimate (with an empty path) if Horizon returns nothing.
-  const quoteStrictSendPath = async (
-    sendAsset: Asset,
-    sendAmount: string,
-    destAsset: Asset,
-    sendAssetCode: string,
-    destAssetCode: string,
-    slippageTolerance = 0.5,
-  ): Promise<{ destMin: string; path: Asset[] }> => {
-    const slippageAdjustment = 1 - (slippageTolerance / 100);
-    try {
-      const server = createHorizonServer(currentNetwork);
-      const paths = await server
-        .strictSendPaths(sendAsset, sendAmount, [destAsset])
-        .call();
-      const best = paths.records?.[0];
-      if (best && best.destination_amount) {
-        const dest = parseFloat(best.destination_amount) * slippageAdjustment;
-        const pathAssets = (best.path || []).map(p =>
-          p.asset_type === 'native'
-            ? Asset.native()
-            : new Asset(p.asset_code as string, p.asset_issuer as string),
-        );
-        return { destMin: dest.toFixed(7), path: pathAssets };
-      }
-    } catch {
-      // fall through to oracle estimate
-    }
-    return {
-      destMin: estimatePathReceive(sendAmount, sendAssetCode, destAssetCode, slippageTolerance).toString(),
-      path: [],
-    };
-  };
-
-  const handlePaymentBuild = async (paymentData?: PaymentData, isAccountMerge = false, batchPayments?: BatchPayment[], pathPayment?: PathPaymentData) => {
+  }, [memoizedBalances, currentNetwork]);
+  const handlePaymentBuild = async (operations: PaymentOperation[], memo: TransactionMemo) => {
     setIsBuilding(true);
-    setTrustlineError('');
-
     try {
-      const networkPassphrase = getNetworkPassphrase(currentNetwork);
-      const server = createHorizonServer(currentNetwork);
-      const sourceAccount = await server.loadAccount(accountPublicKey);
-
-      // The SDK multiplies base fee by op count internally. Pass per-op base fee.
-      // Path payments are charged the same as other operations on-chain — no need to bump.
-      const fee = appConfig.DEFAULT_BASE_FEE_STROOPS.toString();
-
-      const transaction = new StellarTransactionBuilder(sourceAccount, { fee, networkPassphrase });
-
-      if (isAccountMerge) {
-        // Account merge operation
-        const dest = paymentData?.destination?.trim();
-        if (!dest) {
-          toast({
-            title: 'Destination required',
-            description: 'Enter a destination address to merge into.',
-            variant: 'destructive',
-          });
-          setIsBuilding(false);
-          return;
-        }
-        if (dest === accountPublicKey) {
-          toast({
-            title: 'Invalid destination',
-            description: 'You cannot merge an account into itself.',
-            variant: 'destructive',
-          });
-          setIsBuilding(false);
-          return;
-        }
-        
-        // First remove all trustlines to prevent op_has_sub_entries error
-        const trustlineRemovalOps = createTrustlineRemovalOperations();
-        trustlineRemovalOps.forEach(op => transaction.addOperation(op));
-        
-        // Then add the account merge operation
-        transaction.addOperation(Operation.accountMerge({
-          destination: dest,
-        }));
-        
-      } else if (batchPayments) {
-        // Batch operations: support payments, path payments, and account merges
-        for (const payment of batchPayments) {
-          if (!payment.destination) {
-            throw new Error('Each operation must have a destination');
-          }
-
-          // Account merge
-          if (payment.isAccountClosure) {
-            const dest = String(payment.destination).trim();
-            if (!dest || dest === accountPublicKey) {
-              throw new Error('Invalid destination for account merge');
-            }
-            
-            // First remove all trustlines to prevent op_has_sub_entries error
-            const trustlineRemovalOps = createTrustlineRemovalOperations();
-            trustlineRemovalOps.forEach(op => transaction.addOperation(op));
-            
-            // Then add the account merge operation
-            transaction.addOperation(Operation.accountMerge({ destination: dest }));
-            continue;
-          }
-
-          // Path payment (cross-asset)
-          if (payment.receiveAsset && payment.receiveAsset !== payment.asset) {
-            const sendAsset = payment.asset === 'XLM'
-              ? Asset.native()
-              : new Asset(payment.asset, payment.assetIssuer);
-            const destAsset = payment.receiveAsset === 'XLM'
-              ? Asset.native()
-              : new Asset(payment.receiveAsset, payment.receiveAssetIssuer);
-
-            if (payment.exactOut && payment.receiveAmount) {
-              // PathPaymentStrictReceive: receiver gets exactly destAmount, sender pays ≤ sendMax
-              const sendMax = estimatePathSendMax(payment.receiveAmount, payment.asset, payment.receiveAsset, payment.slippageTolerance);
-              transaction.addOperation(Operation.pathPaymentStrictReceive({
-                sendAsset,
-                sendMax: sendMax.toString(),
-                destination: payment.destination,
-                destAsset,
-                destAmount: payment.receiveAmount,
-                path: [],
-              }));
-            } else {
-              // PathPaymentStrictSend: quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
-              const { destMin, path } = await quoteStrictSendPath(
-                sendAsset, payment.amount, destAsset,
-                payment.asset, payment.receiveAsset, payment.slippageTolerance,
-              );
-              transaction.addOperation(Operation.pathPaymentStrictSend({
-                sendAsset,
-                sendAmount: payment.amount,
-                destination: payment.destination,
-                destAsset,
-                destMin,
-                path,
-              }));
-            }
-            continue;
-          }
-
-          // Regular payment
-          if (!payment.amount || !payment.asset) {
-            throw new Error('Payment operation missing amount or asset');
-          }
-
-          // Unfunded destinations must be created, not paid: `payment` fails with
-          // op_no_destination for accounts that don't exist yet.
-          const destinationExists = await checkAccountExists(payment.destination);
-          if (!destinationExists) {
-            if (payment.asset !== 'XLM') {
-              throw new Error(`${payment.destination.slice(0, 8)}… does not exist yet. Send XLM first to create it.`);
-            }
-            if (parseFloat(payment.amount) < 1) {
-              throw new Error(`Creating ${payment.destination.slice(0, 8)}… requires at least 1 XLM.`);
-            }
-            transaction.addOperation(Operation.createAccount({
-              destination: payment.destination,
-              startingBalance: payment.amount,
-            }));
-            continue;
-          }
-
-          const asset = payment.asset === 'XLM'
-            ? Asset.native()
-            : new Asset(payment.asset, payment.assetIssuer);
-          transaction.addOperation(Operation.payment({
-            destination: payment.destination,
-            asset,
-            amount: payment.amount,
-          }));
-        }
-
-        
-      } else if (pathPayment) {
-        // Path payment operation
-        if (!pathPayment.destination || !pathPayment.asset || !pathPayment.receiveAsset) {
-          throw new Error('Missing required fields for path payment');
-        }
-
-        const sendAsset = pathPayment.asset === 'XLM'
-          ? Asset.native()
-          : new Asset(pathPayment.asset, pathPayment.assetIssuer);
-
-        const destAsset = pathPayment.receiveAsset === 'XLM'
-          ? Asset.native()
-          : new Asset(pathPayment.receiveAsset, pathPayment.receiveAssetIssuer);
-
-        if (pathPayment.exactOut && pathPayment.receiveAmount) {
-          // PathPaymentStrictReceive: receiver gets exactly destAmount, sender pays ≤ sendMax
-          const sendMax = estimatePathSendMax(pathPayment.receiveAmount, pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance);
-          transaction.addOperation(Operation.pathPaymentStrictReceive({
-            sendAsset,
-            sendMax: sendMax.toString(),
-            destination: pathPayment.destination,
-            destAsset,
-            destAmount: pathPayment.receiveAmount,
-            path: [],
-          }));
-        } else {
-          if (!pathPayment.amount) throw new Error('Missing send amount for path payment');
-          // PathPaymentStrictSend: quote destMin from Horizon's strict-send path-finder (real DEX liquidity).
-          const { destMin, path } = await quoteStrictSendPath(
-            sendAsset, pathPayment.amount, destAsset,
-            pathPayment.asset, pathPayment.receiveAsset, pathPayment.slippageTolerance,
-          );
-          transaction.addOperation(Operation.pathPaymentStrictSend({
-            sendAsset,
-            sendAmount: pathPayment.amount,
-            destination: pathPayment.destination,
-            destAsset,
-            destMin,
-            path,
-          }));
-        }
-        
-      } else {
-        // Regular payment operation
-        if (!paymentData || !paymentData.destination || !paymentData.amount || !paymentData.asset) {
-          toast({
-            title: "Missing fields",
-            description: "Please fill in all required fields",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        let accountExists = false;
-        let needsCreateAccount = false;
-
-        // First check if the destination account exists
-        try {
-          accountExists = await checkAccountExists(paymentData.destination);
-          
-          if (!accountExists) {
-            // Account doesn't exist - we'll need to create it with XLM
-            if (paymentData.asset !== 'XLM') {
-              setTrustlineError('Cannot send non-XLM assets to accounts that don\'t exist. Please send XLM first to create the account.');
-              setIsBuilding(false);
-              return;
-            }
-            
-            // Check minimum balance for account creation (1 XLM minimum)
-            const amount = parseFloat(paymentData.amount);
-            if (amount < 1) {
-              setTrustlineError('Account creation requires a minimum of 1 XLM to fund the new account.');
-              setIsBuilding(false);
-              return;
-            }
-            
-            needsCreateAccount = true;
-            setTrustlineError('');
-          } else {
-            // Account exists - check trustline for non-XLM assets
-            if (paymentData.asset !== 'XLM') {
-              if (!paymentData.assetIssuer) {
-                toast({
-                  title: "Missing asset issuer",
-                  description: "Asset issuer is required for non-XLM assets",
-                  variant: "destructive",
-                });
-                setIsBuilding(false);
-                return;
-              }
-
-              try {
-                const hasTrustline = await checkTrustline(paymentData.destination, paymentData.asset, paymentData.assetIssuer);
-                if (!hasTrustline) {
-                  setTrustlineError('The destination account does not have a trustline for this asset');
-                  setIsBuilding(false);
-                  return;
-                }
-              } catch (error) {
-                setTrustlineError(error instanceof Error ? error.message : 'Failed to verify trustline');
-                setIsBuilding(false);
-                return;
-              }
-            }
-          }
-        } catch (error) {
-          setTrustlineError('Failed to verify destination account');
-          setIsBuilding(false);
-          return;
-        }
-
-        // Add appropriate operation based on account existence
-        if (needsCreateAccount) {
-          transaction.addOperation(Operation.createAccount({
-            destination: paymentData.destination,
-            startingBalance: paymentData.amount,
-          }));
-        } else {
-          const asset = paymentData.asset === 'XLM' 
-            ? Asset.native() 
-            : new Asset(paymentData.asset, paymentData.assetIssuer);
-          
-          transaction.addOperation(Operation.payment({
-            destination: paymentData.destination,
-            asset,
-            amount: paymentData.amount,
-          }));
-        }
-      }
-
-      // Add memo if provided
-      const memoText = pathPayment?.memo || paymentData?.memo || (batchPayments && batchPayments[0]?.memo);
-      if (memoText) {
-        transaction.addMemo(Memo.text(memoText));
-      }
-
-      // Set timeout
-      transaction.setTimeout(86400);
-
-      // Build the transaction
-      const builtTransaction = transaction.build();
-      const xdr = builtTransaction.toXdr();
-      
-      
+      const xdr = await buildPaymentTransaction(createHorizonServer(currentNetwork), accountPublicKey, currentNetwork, operations, memo);
       setXdrData(prev => ({ ...prev, output: xdr }));
       setIsTransactionBuilt(true);
-      
-      let description = "XDR is ready for signing";
-      if (isAccountMerge) {
-        description = "Account merge transaction ready for signing";
-      } else if (batchPayments) {
-        description = `${batchPayments.length} operations ready for signing`;
-      } else if (pathPayment) {
-        description = "Cross-asset payment ready for signing";
-      }
-      
       toast({
         title: "Transaction built successfully",
-        description,
+        description: `${operations.length} operation${operations.length > 1 ? 's' : ''} ready for signing`,
         duration: 2000,
       });
     } catch (error) {
@@ -661,11 +214,9 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     }
   };
 
-
   const handleSdkBuild = (xdr: string) => {
     setXdrData(prev => ({ ...prev, output: xdr }));
     setIsTransactionBuilt(true);
-    setSignedBy([]);
     toast({
       title: 'Transaction built',
       description: 'Review the transaction details below and sign when ready.',
@@ -673,107 +224,17 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     });
   };
 
-  // Note: Signing is handled through handleSignWithSigner which correctly passes walletId
-
-  const handleSignWithSigner = async (signerKey: string, walletId: string) => {
-    const xdrToSign = xdrData.output || xdrData.input;
-    if (!xdrToSign) return;
-
-    setIsSigning(true);
-    try {
-      const { signedXdr, address, walletName } = await signWithWallet(xdrToSign, walletId);
-
-      if (address !== signerKey) {
-        throw new Error(
-          `Selected wallet (${walletName}) returned a different address. ` +
-          `Expected ${signerKey.slice(0, 8)}... but got ${address.slice(0, 8)}... ` +
-          `Please switch account in the wallet to match the signer and try again.`
-        );
-      }
-
-      setXdrData(prev => ({ ...prev, output: signedXdr }));
-
-      // Add to signed by list
-      setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
-
-      toast({
-        title: 'Transaction signed',
-        description: `Signed with ${walletName}`,
-        duration: 2000,
-      });
-    } catch (error) {
-      toast({
-        title: 'Signing failed',
-        description: error instanceof Error ? error.message : 'Failed to sign transaction',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSigning(false);
-    }
-  };
-
-  const handleSubmitToNetwork = async () => {
-    const xdrToSubmit = xdrData.output;
-    if (!xdrToSubmit) return;
-    
-    setIsSubmittingToNetwork(true);
-    submitLog.clear();
-    submitLog.info('send button pressed', { tab: activeTab, network: currentNetwork, signatures: signedBy.length });
-    try {
-      const result = await submitTransaction(xdrToSubmit, currentNetwork);
-      
-      // Store success data for display
-      setSuccessData({ hash: result.hash, network: currentNetwork, type: 'network' });
-      
-      // Reset form
-      setXdrData({ input: '', output: '' });
-      setSignedBy([]);
-      
-      // If this was a multisig configuration change, refresh account data
-      if (activeTab === 'multisig' && onAccountRefresh) {
-        submitLog.wait('refreshing account data from horizon');
-        await onAccountRefresh();
-        submitLog.ok('account data refreshed');
-      }
-    } catch (error) {
-      toast({
-        title: "Submission failed",
-        description: error instanceof Error ? error.message : "Failed to submit transaction",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmittingToNetwork(false);
-    }
-  };
-
-  const handleSubmitToRefractor = async () => {
-    const xdrToSubmit = xdrData.output || xdrData.input;
-    if (!xdrToSubmit) return;
-    
-    setIsSubmittingToRefractor(true);
-    try {
-      const id = await submitToRefractor(xdrToSubmit, currentNetwork);
-      setRefractorId(id);
-      
-      // Show success modal instead of just toast
-      setSuccessData({ hash: id, network: currentNetwork, type: 'refractor' });
-    } catch (error) {
-      toast({
-        title: "Refractor submission failed",
-        description: error instanceof Error ? error.message : "Failed to submit to Refractor",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmittingToRefractor(false);
-    }
-  };
-
   const handlePullFromRefractor = async (id: string) => {
     try {
-      const xdr = await pullFromRefractor(id);
-      setXdrData(prev => ({ ...prev, input: xdr, output: '' }));
-      setSignedBy([]);
-
+      const { xdr, network } = await pullFromRefractor(id);
+      if (network !== currentNetwork) {
+        throw new Error(
+          `This transaction is for ${network === 'testnet' ? 'Testnet' : 'Mainnet'}. Open its share link (${window.location.origin}?r=${id}) to sign it on the right network.`,
+        );
+      }
+      setXdrData({ input: xdr, output: '' });
+      setXdrInputError('');
+      setRefractorId(id);
       toast({
         title: "Transaction pulled from Refractor",
         description: "XDR loaded successfully",
@@ -788,158 +249,38 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     }
   };
 
-  const handleCopyXdr = async () => {
-    const xdrToCopy = xdrData.output || xdrData.input;
-    if (!xdrToCopy) return;
-    
-    try {
-      await navigator.clipboard.writeText(xdrToCopy);
-      setCopied(true);
-      toast({
-        title: 'XDR copied',
-        description: 'Transaction XDR copied to clipboard',
-        duration: 2000,
-      });
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      toast({
-        title: 'Copy failed',
-        description: 'Could not copy XDR to clipboard',
-        variant: 'destructive',
-      });
-    }
+  const clearTransaction = () => {
+    setXdrData({ input: '', output: '' });
+    setXdrInputError('');
+    setRefractorId('');
+    setIsTransactionBuilt(false);
   };
 
-  const handleSubmitForSignature = async (): Promise<string> => {
-    if (!xdrData.output) {
-      throw new Error("No transaction to submit");
-    }
-
-    const id = await submitToRefractor(xdrData.output, currentNetwork);
-    setRefractorId(id);
-    toast({
-      title: "Transaction submitted for signature",
-      description: "Share the link with other signers",
-      duration: 5000,
-    });
-    return id;
-  };
-
-  const getExistingSignedKeys = (): string[] => {
-    const xdrToCheck = xdrData.output || xdrData.input;
-    if (!xdrToCheck || !accountData?.signers) return [];
-    try {
-      const parsed = StellarTransactionBuilder.fromXdr(
-        xdrToCheck,
-        getNetworkPassphrase(currentNetwork),
-      );
-      // Fee-bump txs sign the inner tx hash; verify against innerTransaction when present.
-      const tx = 'innerTransaction' in parsed && parsed.innerTransaction
-        ? parsed.innerTransaction
-        : parsed;
-      const signatures = tx.signatures || [];
-      const txHash = tx.hash();
-      const set = new Set<string>();
-
-      for (const sig of signatures) {
-        for (const signer of accountData.signers) {
-          try {
-            const keypair = Keypair.fromPublicKey(signer.key);
-            if (keypair.verify(txHash, sig.signature)) {
-              set.add(signer.key);
-              break;
-            }
-          } catch {
-            // Invalid signer key or signature, skip
-          }
-        }
-      }
-      return Array.from(set);
-    } catch {
-      // XDR parsing failed
-      return [];
-    }
-  };
-
-  const getCurrentWeight = () => {
-    if (!accountData?.signers) return 0;
-    
-    const existing = getExistingSignedKeys();
-    const allSignedKeys = [...new Set([
-      ...signedBy.map(s => s.signerKey),
-      ...existing
-    ])];
-    return allSignedKeys.reduce((total, signerKey) => {
-      const signer = accountData.signers.find(s => s.key === signerKey);
-      return total + (signer?.weight || 0);
-    }, 0);
-  };
-
-  const getRequiredWeight = () => {
-    if (!accountData?.thresholds) return 1;
-    
-    // For multisig config changes, we need high threshold
-    const isMultisigTab = activeTab === 'multisig';
-    const threshold = isMultisigTab 
-      ? accountData.thresholds.high_threshold 
-      : accountData.thresholds.med_threshold;
-    // If threshold is 0, default to 1 signature required
-    return threshold || 1;
-  };
-
-  const canSubmitToNetwork = accountData?.signers && accountData.signers.length > 0 && getCurrentWeight() >= getRequiredWeight();
-  const canSubmitToRefractor = Boolean(xdrData.output || xdrData.input) && currentNetwork === 'mainnet';
-
-  const copyXDR = async () => {
-    const textToCopy = xdrData.output || xdrData.input;
-    if (textToCopy) {
-      await navigator.clipboard.writeText(textToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast({
-        title: "Copied to clipboard",
-        description: "XDR has been copied",
-        duration: 3000,
-      });
-    }
+  const handleSubmitted = async () => {
+    clearTransaction();
+    setFormKey(key => key + 1);
+    await onAccountRefresh?.();
   };
 
   // Get available assets from account balances with prices and balances
+  // Every asset the source holds. Assets are told apart by code AND issuer: anyone can issue a
+  // token called "USDC", so two trustlines with the same code are two different assets.
   const getAvailableAssets = () => {
     if (!accountData?.balances) return [];
-    
-    // Deduplicate by asset code (choose the trustline with the largest balance for that code)
-    const byCode = new Map<string, { code: string; issuer: string; name: string; balance: string; price: number }>();
-
-    // Add XLM first
-    const xlmBalance = accountData.balances.find((b) => b.asset_type === 'native')?.balance || '0';
-    byCode.set('XLM', {
-      code: 'XLM',
-      issuer: '',
-      name: 'Stellar Lumens',
-      balance: xlmBalance,
-      price: assetPrices['XLM'] || 0,
-    });
-
-    // Consider other assets; if multiple issuers share the same code, keep the one with the highest balance
-    accountData.balances.forEach((balance) => {
-      if (balance.asset_type !== 'native' && balance.asset_code && balance.asset_issuer) {
-        const existing = byCode.get(balance.asset_code);
-        if (!existing || parseFloat(balance.balance) > parseFloat(existing.balance)) {
-          byCode.set(balance.asset_code, {
-            code: balance.asset_code,
-            issuer: balance.asset_issuer,
-            name: balance.asset_code,
-            balance: balance.balance,
-            price: assetPrices[balance.asset_code] || 0,
-          });
-        }
+    return accountData.balances.flatMap((balance) => {
+      if (balance.asset_type === 'native') {
+        return [{ code: 'XLM', issuer: '', name: 'Stellar Lumens', balance: balance.balance, price: assetPrices['XLM'] || 0 }];
       }
+      if (!balance.asset_code || !balance.asset_issuer) return []; // liquidity pool shares
+      return [{
+        code: balance.asset_code,
+        issuer: balance.asset_issuer,
+        name: balance.asset_code,
+        balance: balance.balance,
+        price: assetPrices[balance.asset_code] || 0,
+      }];
     });
-
-    return Array.from(byCode.values());
   };
-
 
   return (
     <div className="min-h-screen bg-background p-3 sm:p-6">
@@ -1019,59 +360,45 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
               </div>
 
               <TabsContent value="payment" className="space-y-4 mt-6">
-                <PaymentForm
-                  paymentData={paymentData}
-                  onPaymentDataChange={(data) => {
-                    setPaymentData(data);
-                    if (data.asset !== paymentData.asset) {
-                      setTrustlineError(''); // Clear error when changing asset
-                    }
-                  }}
-                  availableAssets={getAvailableAssets()}
-                  assetPrices={assetPrices}
-                  onFetchAssetPrice={fetchAdditionalAssetPrice}
-                  trustlineError={trustlineError}
-                  onBuild={(paymentData, isAccountMerge, batchPayments, pathPayment) => {
-                    if (isAccountMerge) {
-                      handlePaymentBuild(paymentData, true);
-                    } else if (batchPayments) {
-                      // Always build the whole batch; mixed operations are handled inside
-                      handlePaymentBuild(undefined, false, batchPayments);
-                    } else if (pathPayment) {
-                      // Single path payment
-                      handlePaymentBuild(undefined, false, undefined, pathPayment as PathPaymentData);
-                    } else {
-                      handlePaymentBuild(paymentData);
-                    }
-                  }}
-                  isBuilding={isBuilding}
-                  accountData={accountData}
-                  accountPublicKey={accountPublicKey}
-                  isTransactionBuilt={isTransactionBuilt}
-                onClearTransaction={() => {
-                  setXdrData({ input: '', output: '' });
-                  setSignedBy([]);
-                  setRefractorId('');
-                  setSuccessData(null);
-                  setIsTransactionBuilt(false);
-                }}
-                onTransactionBuilt={() => {}}
-                onResetTransactionBuilt={() => setIsTransactionBuilt(false)}
-                />
+                {accountData && (
+                  <PaymentForm
+                    key={formKey}
+                    paymentData={paymentData}
+                    onPaymentDataChange={setPaymentData}
+                    availableAssets={getAvailableAssets()}
+                    assetPrices={assetPrices}
+                    onFetchAssetPrice={fetchAdditionalAssetPrice}
+                    onBuild={handlePaymentBuild}
+                    isBuilding={isBuilding}
+                    accountData={accountData}
+                    accountPublicKey={accountPublicKey}
+                    isTransactionBuilt={isTransactionBuilt}
+                    onClearTransaction={clearTransaction}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="contract" className="space-y-4 mt-6">
                 <ContractCallTab
+                  key={formKey}
                   accountPublicKey={accountPublicKey}
                   network={currentNetwork}
                   onBuild={handleSdkBuild}
                   isBuilding={isBuilding}
                   isTransactionBuilt={isTransactionBuilt}
+                  onClearTransaction={clearTransaction}
                 />
               </TabsContent>
 
               <TabsContent value="defi" className="space-y-4 mt-6">
-                <Tabs value={defiTab} onValueChange={setDefiTab}>
+                <Tabs
+                  value={defiTab}
+                  onValueChange={(tab) => {
+                    // A transaction built in one protocol tab must not linger under the other.
+                    clearTransaction();
+                    setDefiTab(tab);
+                  }}
+                >
                   <TabsList className="grid grid-cols-2 w-full">
                     <TabsTrigger value="soroswap" className="flex items-center gap-2">
                       <ArrowLeftRight className="w-4 h-4" />
@@ -1084,22 +411,26 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
                   </TabsList>
                   <TabsContent value="soroswap" className="space-y-4 mt-4">
                     <SoroswapTab
+                      key={formKey}
                       accountPublicKey={accountPublicKey}
                       accountData={accountData}
                       network={currentNetwork}
                       onBuild={handleSdkBuild}
                       isBuilding={isBuilding}
                       isTransactionBuilt={isTransactionBuilt}
+                      onClearTransaction={clearTransaction}
                     />
                   </TabsContent>
                   <TabsContent value="defindex" className="space-y-4 mt-4">
                     <DeFindexTab
+                      key={formKey}
                       accountPublicKey={accountPublicKey}
                       accountData={accountData}
                       network={currentNetwork}
                       onBuild={handleSdkBuild}
                       isBuilding={isBuilding}
                       isTransactionBuilt={isTransactionBuilt}
+                      onClearTransaction={clearTransaction}
                     />
                   </TabsContent>
                 </Tabs>
@@ -1108,6 +439,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
               <TabsContent value="import" className="space-y-4 mt-6">
                 <ImportTab
                   xdrInput={xdrData.input}
+                  xdrError={xdrInputError}
                   onXdrInputChange={handleXdrInputChange}
                   onPullTransaction={handlePullFromRefractor}
                   lastRefractorId={refractorId}
@@ -1121,84 +453,24 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
 
 
         {/* Transaction Verification */}
-        {(xdrData.output || xdrData.input) && (
+        {currentXdr && (
           <XdrDetails 
-            xdr={xdrData.output || xdrData.input}
+            xdr={currentXdr}
             networkType={currentNetwork}
             accountData={accountData}
           />
         )}
 
-        {/* Signing */}
-        {(xdrData.output || xdrData.input) && accountData && (
-          <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle className="text-base sm:text-lg">Sign Transaction</CardTitle>
-              <CardDescription>
-                Connect your wallet to add signatures to this transaction
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SignerSelector
-                xdr={xdrData.output || xdrData.input}
-                network={currentNetwork}
-                onSigned={(signedXdr, signerKey) => {
-                  setXdrData(prev => ({ ...prev, output: signedXdr }));
-                  setSignedBy(prev => [...prev, { signerKey, signedAt: new Date() }]);
-                  toast({ title: 'Signature Added', description: `Signed by ${signerKey.slice(0, 8)}...` });
-                }}
-                pendingId={pendingId}
-                signers={accountData.signers}
-                currentAccountKey={accountPublicKey}
-                signedBy={signedBy}
-                requiredWeight={getRequiredWeight()}
-                onSignWithSigner={handleSignWithSigner}
-                isSigning={isSigning}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Transaction Submitter with Coordination Mode */}
-        <TransactionSubmitter
-          xdrOutput={xdrData.output || xdrData.input || ''}
-          signedBy={signedBy}
-          currentWeight={getCurrentWeight()}
-          requiredWeight={getRequiredWeight()}
-          canSubmitToNetwork={canSubmitToNetwork}
-          canSubmitToRefractor={canSubmitToRefractor}
-          isSubmittingToNetwork={isSubmittingToNetwork}
-          isSubmittingToRefractor={isSubmittingToRefractor}
-          successData={successData}
-          onCopyXdr={handleCopyXdr}
-          onSubmitToNetwork={handleSubmitToNetwork}
-          onSubmitToRefractor={handleSubmitToRefractor}
-          onShowOfflineModal={() => {
-            const xdrOutput = xdrData.output || xdrData.input || '';
-            const fingerprint = generateDetailedFingerprint(xdrOutput, currentNetwork);
-            setSuccessData({ 
-              type: 'offline', 
-              hash: fingerprint.hash, 
-              network: currentNetwork,
-              xdr: xdrOutput
-            });
-          }}
-          copied={copied}
+        {/* Signing, then submission or coordination */}
+        <TransactionSigningPanel
+          xdr={currentXdr && !xdrInputError ? currentXdr : ''}
+          network={currentNetwork}
+          account={accountData}
+          onXdrChange={(signedXdr) => setXdrData(prev => ({ ...prev, output: signedXdr }))}
+          onSubmitted={handleSubmitted}
+          onRefractorSubmitted={setRefractorId}
+          onDone={onBack}
         />
-
-
-        {/* Transaction Success Modal */}
-        {successData && (
-          <SuccessModal
-            type={successData.type}
-            hash={successData.type === 'network' || successData.type === 'offline' ? successData.hash : undefined}
-            refractorId={successData.type === 'refractor' ? successData.hash : undefined}
-            xdr={successData.xdr}
-            network={successData.network}
-            onClose={() => setSuccessData(null)}
-            onNavigateToDashboard={onBack}
-          />
-        )}
 
       </div>
     </div>

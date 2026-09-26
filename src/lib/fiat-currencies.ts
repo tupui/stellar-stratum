@@ -2,7 +2,7 @@
 // The FX oracle is a mainnet-only contract; there is no testnet variant, so
 // none of the public API here takes a network argument.
 
-import { OracleClient, AssetType } from './reflector-client';
+import { OracleClient } from './reflector-client';
 import { appConfig } from './appConfig';
 
 export interface FiatCurrency {
@@ -125,8 +125,9 @@ export const getAvailableFiatCurrencies = async (): Promise<FiatCurrency[]> => {
   }
 };
 
-// Exchange rate expressed as USD per 1 unit of `targetCurrency`.
-const getFxRate = async (targetCurrency: string): Promise<number> => {
+// Exchange rate expressed as USD per 1 unit of `targetCurrency`. Rejects when
+// the oracle has no usable rate.
+export const getFxRate = async (targetCurrency: string): Promise<number> => {
   if (targetCurrency === 'USD') return 1;
 
   const upperCurrency = targetCurrency.toUpperCase();
@@ -148,10 +149,10 @@ const getFxRate = async (targetCurrency: string): Promise<number> => {
         throw new Error(`Currency ${upperCurrency} not supported by oracle`);
       }
 
-      const rawRate = await getFxClient().getLastPrice({ type: AssetType.Other, code: upperCurrency });
-      if (rawRate <= 0) throw new Error(`Oracle returned zero rate for ${upperCurrency}`);
+      const rawRate = await getFxClient().getLastPrice(upperCurrency);
+      if (!rawRate || rawRate <= 0n) throw new Error(`Oracle returned no rate for ${upperCurrency}`);
 
-      const rate = rawRate / Math.pow(10, FX_ORACLE.decimals);
+      const rate = Number(rawRate) / 10 ** FX_ORACLE.decimals;
       fxRatesCache.set(upperCurrency, { rate, timestamp: Date.now() });
       return rate;
     } finally {
@@ -163,19 +164,13 @@ const getFxRate = async (targetCurrency: string): Promise<number> => {
   return promise;
 };
 
-// Convert a USD amount to `targetCurrency`. Returns the input on any failure so
-// the UI never shows blank/NaN values.
+// Convert a USD amount to `targetCurrency`. Rejects when the rate is unavailable,
+// so callers can show the USD amount with a '$' instead of the target's symbol.
 export const convertFromUSD = async (usdAmount: number, targetCurrency: string): Promise<number> => {
   if (!Number.isFinite(usdAmount) || usdAmount < 0) return 0;
   if (targetCurrency === 'USD') return usdAmount;
 
-  try {
-    const rate = await getFxRate(targetCurrency);
-    if (!rate || !Number.isFinite(rate) || rate <= 0) return usdAmount;
-    // rate = USD per 1 target unit ⇒ target = USD / rate
-    const converted = usdAmount / rate;
-    return Number.isFinite(converted) ? converted : usdAmount;
-  } catch {
-    return usdAmount;
-  }
+  // rate = USD per 1 target unit ⇒ target = USD / rate
+  const rate = await getFxRate(targetCurrency);
+  return usdAmount / rate;
 };

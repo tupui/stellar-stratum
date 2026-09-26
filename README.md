@@ -1,23 +1,35 @@
-# Stellar Multi-Signature Wallet
+# Stellar Stratum
 
-A dApp for managing Stellar accounts with multi-signature transaction capabilities.
+A dapp to manage Stellar multisig accounts: build transactions, collect signatures from several
+signers (online or air-gapped), and submit them.
 
 https://stellar-stratum.xyz
 
 ## Features
 
-- **Multi-Signature Support**: Configure and manage multi-signature accounts with custom thresholds
-- **Wallet Integration**: Connect with popular Stellar wallets (Freighter, xBull, Ledger, Soroban Domains, etc.)
-- **Transaction Builder**: Create and submit various types of Stellar transactions
-- **Asset Management**: View account balances and manage different assets
-- **Network Support**: Switch between Stellar mainnet and testnet
-- **XDR Processing**: Import and process transaction XDR data
-- **Real-time Pricing**: Display asset values with live market data using Reflector
-- **Cross-Asset Payments**: Path payments with exact-in or exact-out amounts and slippage protection
-- **DeFi Swaps**: Swap tokens through Soroswap with live quotes and selectable liquidity sources (Soroswap, Aqua, SDEX, Phoenix)
-- **DeFindex Vaults**: Deposit into and withdraw from DeFindex vaults, with positions counted in the portfolio total
-- **Shareable Links**: The URL keeps the account, network and current view, so any screen can be shared or reloaded
-- **Horizon Resilience**: Automatic failover across public Horizon mirrors, configurable endpoints, and a live submission log
+- **Multisig**: configure signers, weights and thresholds, with checks that prevent locking an account
+- **Clear review before signing**: every operation, asset issuers, configuration changes explained, and the transaction hash for the network being signed
+- **Signature collection**: signatures are verified against the transaction for every account involved; share through Refractor links or air-gapped QR codes
+- **Wallets**: Freighter, xBull, Albedo, Lobstr, Ghostsig, Ledger, Trezor and more, or any address watch-only
+- **Payments**: several operations in one transaction, cross-asset path payments, account creation and account merge
+- **Contract calls**: any Soroban contract, including Stellar Asset Contracts
+- **DeFi**: Soroswap swaps and liquidity, DeFindex vaults, with the API-built transactions checked before signing
+- **Balances and activity**: prices from [Reflector](https://reflector.network) oracles, fiat currencies, history and charts
+- **Mainnet and Testnet**, with shareable links that keep the account, network and view
+- **Horizon resilience**: failover across public Horizon mirrors, configurable endpoints, and a live submission log
 
-Built for the Stellar ecosystem to provide secure and user-friendly multi-signature account management.
-  
+See [USER_FLOWS.md](USER_FLOWS.md) for how the app is used.
+
+## Development
+
+```bash
+npm install
+npm run dev        # http://localhost:8080
+npm run typecheck
+npm run lint
+npm test           # unit tests (Vitest)
+npm run test:e2e   # end-to-end tests on Stellar testnet (Playwright)
+```
+
+The end-to-end tests only use testnet accounts funded by friendbot, and fail if the app sends any
+request to a mainnet endpoint while on testnet.

@@ -42,7 +42,6 @@
     <link rel="preconnect" href="https://horizon.stellar.org" />
     <link rel="preconnect" href="https://horizon-testnet.stellar.org" />
     <link rel="preconnect" href="https://rpc.lightsail.network" />
-    <link rel="dns-prefetch" href="https://soroban-domains.nftkey.app" />
     
     <!-- Preload critical fonts -->
     <link rel="preload" href="https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2" as="font" type="font/woff2" crossorigin />
@@ -382,7 +381,7 @@
       }
     </style>
     
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' data: blob: https://cdn.gpteng.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss: data: blob: ws://127.0.0.1:21335 ws://localhost:21335 http://127.0.0.1:21325 http://127.0.0.1:21328 http://localhost:21325 http://localhost:21328; media-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' https://hot-labs.org https://connect.trezor.io; object-src 'none'; base-uri 'self'; form-action 'self' https:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss: data: blob: ws://127.0.0.1:21335 ws://localhost:21335 http://127.0.0.1:21325 http://127.0.0.1:21328 http://localhost:21325 http://localhost:21328; media-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' https://connect.trezor.io; object-src 'none'; base-uri 'self'; form-action 'self' https:;" />
 
     <meta name="twitter:site" content="@PamphileRoy" />
   </head>
@@ -451,7 +450,6 @@
         // Preload any critical images that might be used
         const criticalImages = [
           '/ledger-logo.png',
-          '/images/soroban-domains-logo.png',
           '/xlm-logo.png'
         ];
         

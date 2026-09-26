@@ -1,53 +1,31 @@
 import { Transaction, FeeBumpTransaction, TransactionBuilder, Networks, xdr as StellarXdr } from '@stellar/stellar-sdk';
 
+export type NetworkId = 'mainnet' | 'testnet';
+
+export const passphraseFor = (network: NetworkId): string =>
+  network === 'testnet' ? Networks.TESTNET : Networks.PUBLIC;
+
 interface ParsedTransaction {
   tx: Transaction | FeeBumpTransaction;
-  network: 'public' | 'testnet';
   isFeeBump: boolean;
 }
 
-
 /**
- * Robust XDR parsing that supports both classic and fee-bump transactions
- * Tries both networks to find the correct one
+ * Parse a classic or fee-bump transaction envelope for the given network.
+ *
+ * The network passphrase is not part of the XDR: any envelope decodes under any passphrase,
+ * only the hash (and so what a signature commits to) changes. The network must therefore
+ * come from the caller (app state, SEP-7 network_passphrase, Refractor metadata), never
+ * from trying to parse.
  */
-export const tryParseTransaction = (xdr: string): ParsedTransaction | null => {
+export const tryParseTransaction = (xdr: string, network: NetworkId): ParsedTransaction | null => {
   if (!xdr?.trim()) return null;
-
-  const networkConfigs = [
-    { passphrase: Networks.PUBLIC, network: 'public' as const },
-    { passphrase: Networks.TESTNET, network: 'testnet' as const },
-  ];
-
-  for (const { passphrase, network } of networkConfigs) {
-    try {
-      // Try parsing as fee-bump transaction first
-      try {
-        const feeBumpTx = TransactionBuilder.fromXdr(xdr, passphrase) as FeeBumpTransaction;
-        if (feeBumpTx && 'innerTransaction' in feeBumpTx) {
-          return {
-            tx: feeBumpTx,
-            network,
-            isFeeBump: true,
-          };
-        }
-      } catch {
-        // Not a fee-bump, continue to classic transaction
-      }
-
-      // Try parsing as classic transaction
-      const tx = new Transaction(xdr, passphrase);
-      return {
-        tx,
-        network,
-        isFeeBump: false,
-      };
-    } catch {
-      // Continue to next network
-    }
+  try {
+    const tx = TransactionBuilder.fromXDR(xdr.trim(), passphraseFor(network));
+    return { tx, isFeeBump: tx instanceof FeeBumpTransaction };
+  } catch {
+    return null;
   }
-
-  return null;
 };
 
 /**
@@ -65,3 +43,9 @@ export const getInnerTransaction = (tx: Transaction | FeeBumpTransaction): Trans
  */
 export const getTransactionHash = (tx: Transaction | FeeBumpTransaction): string =>
   StellarXdr.encodeBytes(tx.hash(), 'hex');
+
+/** Hash of an envelope on the given network, or '' when the XDR does not parse. */
+export const getTransactionHashFromXdr = (xdr: string, network: NetworkId): string => {
+  const parsed = tryParseTransaction(xdr, network);
+  return parsed ? getTransactionHash(parsed.tx) : '';
+};

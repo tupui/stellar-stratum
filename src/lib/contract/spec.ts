@@ -1,4 +1,4 @@
-import { contract, rpc } from '@stellar/stellar-sdk';
+import { contract } from '@stellar/stellar-sdk';
 import { appConfig } from '@/lib/appConfig';
 import { getNetworkPassphrase } from '@/lib/stellar';
 
@@ -8,7 +8,7 @@ export interface LoadedContract {
   contractId: string;
   network: NetworkType;
   spec: contract.Spec;
-  /** Function names in declaration order, excluding `__constructor`. */
+  /** Function names in declaration order, excluding reserved ones such as `__constructor` and `__check_auth`. */
   functions: string[];
 }
 
@@ -19,9 +19,15 @@ const cacheKey = (network: NetworkType, contractId: string) => `${network}:${con
 const rpcUrlFor = (network: NetworkType): string =>
   network === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC;
 
+/** Message of an Error, or of the plain `{ code, message }` objects the SDK rejects RPC failures with. */
+export const errorMessage = (e: unknown, fallback: string): string => {
+  const message = (e as { message?: unknown } | null)?.message;
+  return typeof message === 'string' && message ? message : fallback;
+};
+
 /**
- * Fetch a contract's WASM from Soroban RPC and parse its spec.
- * Cached in memory per (network, contractId). Pass `force` to bypass the cache.
+ * Load a contract's spec from Soroban RPC: parsed from its WASM, or the SDK's built-in spec for a
+ * Stellar Asset Contract. Cached in memory per (network, contractId). Pass `force` to bypass the cache.
  */
 export const loadContractSpec = async (
   contractId: string,
@@ -34,42 +40,27 @@ export const loadContractSpec = async (
     if (cached) return cached;
   }
 
-  const server = new rpc.Server(rpcUrlFor(network));
-
-  let wasm: Uint8Array;
+  let spec: contract.Spec;
   try {
-    wasm = await server.getContractWasmByContractId(contractId);
+    ({ spec } = await contract.Client.from({
+      contractId,
+      rpcUrl: rpcUrlFor(network),
+      networkPassphrase: getNetworkPassphrase(network),
+    }));
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    // SACs (Stellar Asset Contracts) have no WASM — the RPC returns a native
-    // executable and the SDK can't fetch bytecode for them.
-    if (/executable|not.*wasm|stellar.*asset/i.test(msg)) {
-      throw new Error('This looks like a Stellar Asset Contract (SAC), which has no on-chain WASM. Custom contract calls only work for WASM-backed contracts.');
-    }
-    throw new Error(`Failed to load contract: ${msg}`);
+    const where = network === 'testnet' ? 'Testnet' : 'Mainnet';
+    throw new Error(`Failed to load contract from ${where}: ${errorMessage(e, String(e))}`, { cause: e });
   }
-  const spec = await contract.Spec.fromWasm(wasm);
 
   const functions = spec
     .funcs()
     .map((fn) => fn.name.toString())
-    .filter((name) => name !== '__constructor');
+    .filter((name) => !name.startsWith('__'));
 
   const loaded: LoadedContract = { contractId, network, spec, functions };
   cache.set(key, loaded);
   return loaded;
 };
-
-export const clearContractSpecCache = () => cache.clear();
-
-/**
- * Options for building/simulating a contract invocation with the SDK's
- * `AssembledTransaction`. Kept small and stable so callers don't touch the SDK.
- */
-export interface InvocationContext {
-  loaded: LoadedContract;
-  publicKey: string;
-}
 
 export const invocationRpcOptions = (loaded: LoadedContract, publicKey: string) => ({
   contractId: loaded.contractId,

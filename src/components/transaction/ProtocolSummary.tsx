@@ -211,7 +211,8 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
                   {meta.symbol(hop)}
                 </span>
               ))}
-              {details.path.length === 2 && <span className="text-muted-foreground"> (direct)</span>}
+              {!details.routeKnown && <span className="text-muted-foreground"> (route chosen by the aggregator)</span>}
+              {details.routeKnown && details.path.length === 2 && <span className="text-muted-foreground"> (direct)</span>}
             </Fact>
             {details.to && (
               <Fact icon={Wallet} label="Sent to">

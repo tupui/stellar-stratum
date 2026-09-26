@@ -42,10 +42,11 @@ export const HorizonSettingsDialog = ({ className }: { className?: string }) => 
     setProbing(false);
     setProbe(result);
     if (!result.ok) return;
-    horizonSettings.addCustom(network, url);
+    const outcome = horizonSettings.addCustom(network, url);
     setNewUrl('');
     setProbe(null);
-    toast({ title: 'Horizon endpoint added', description: `${hostOf(url)} · v${result.version} · ${result.latencyMs}ms`, duration: 3000 });
+    const title = { added: 'Horizon endpoint added', enabled: 'Horizon endpoint re-enabled', unchanged: 'Horizon endpoint already in the list' }[outcome];
+    toast({ title, description: `${hostOf(url)} · v${result.version} · ${result.latencyMs}ms`, duration: 3000 });
   };
 
   const handleCheck = async (url: string) => {

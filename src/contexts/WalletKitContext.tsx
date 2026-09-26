@@ -1,20 +1,31 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
-import { StellarWalletsKit } from '@/lib/walletKit';
-import { getNetworkPassphrase } from '@/lib/stellar';
+import { StellarWalletsKit, WATCHABLE_WALLETS } from '@/lib/walletKit';
+import { passphraseFor, type NetworkId } from '@/lib/xdr/parse';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
 interface WalletKitContextType {
-  kit: typeof StellarWalletsKit;
   wallets: ISupportedWallet[];
   connectedWallet: { id: string; name: string } | null;
   connectWallet: (walletId: string) => Promise<{ publicKey: string; walletName: string }>;
   disconnectWallet: () => void;
-  signWithWallet: (xdr: string, walletId: string) => Promise<{ signedXdr: string; address: string; walletName: string }>;
+  /**
+   * Sign `xdr` for `network`. `expectedAddress` asks the wallet (or the hardware account picker)
+   * for that signer; callers still verify the returned signature against the transaction.
+   */
+  signWithWallet: (
+    xdr: string,
+    walletId: string,
+    network: NetworkId,
+    expectedAddress?: string,
+  ) => Promise<{ signedXdr: string; address: string; walletName: string }>;
   refreshWallets: () => Promise<void>;
-  /** Reads the wallet's currently-active address live (not the cached connect-time value). Returns null if unavailable. */
+  /**
+   * Reads the connected wallet's currently-active address live, for wallets that can report it
+   * without a prompt. Returns null otherwise, or while a signature is in progress.
+   */
   fetchActiveAddress: () => Promise<string | null>;
 }
 
@@ -28,12 +39,16 @@ export const useWalletKit = () => {
   return context;
 };
 
-const PRIORITY_ORDER = ['ghostsig', 'trezor', 'ledger', 'freighter', 'xbull', 'lobstr', 'hot', 'albedo', 'fordefi'];
+const PRIORITY_ORDER = ['ghostsig', 'trezor', 'ledger', 'freighter', 'xbull', 'lobstr', 'albedo', 'fordefi'];
 
 const isHardwareWallet = (walletId: string) => {
   const id = walletId.toLowerCase();
   return id.includes('ledger') || id.includes('trezor');
 };
+
+/** The user said no on the device: never follow up with a second (blind-signing) prompt. */
+const isUserRejection = (error: unknown) =>
+  /reject|denied|declin|cancel|0x6985/i.test(error instanceof Error ? error.message : String(error));
 
 const sortWallets = (wallets: ISupportedWallet[]): ISupportedWallet[] =>
   wallets
@@ -63,6 +78,15 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
   const { network } = useNetwork();
   const [wallets, setWallets] = useState<ISupportedWallet[]>([]);
   const [connectedWallet, setConnectedWallet] = useState<{ id: string; name: string } | null>(null);
+  // Read inside callbacks without re-creating them. Signing switches the kit's selected module,
+  // so the active-account check is paused meanwhile and re-selects the connected wallet itself.
+  const connectedWalletRef = useRef(connectedWallet);
+  const walletsRef = useRef(wallets);
+  useEffect(() => {
+    connectedWalletRef.current = connectedWallet;
+    walletsRef.current = wallets;
+  }, [connectedWallet, wallets]);
+  const signingRef = useRef(false);
 
   // Derivation-path picker shown before every hardware-wallet signature
   const [picker, setPicker] = useState<{
@@ -125,9 +149,8 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
   const connectWallet = useCallback(async (walletId: string): Promise<{ publicKey: string; walletName: string }> => {
     try {
       StellarWalletsKit.setWallet(walletId);
-      const supportedWallets = await StellarWalletsKit.refreshSupportedWallets();
-      const walletInfo = supportedWallets.find(w => w.id === walletId);
-      const walletName = walletInfo?.name || walletId;
+      // No awaits before the wallet call: popup wallets need the click's user activation.
+      const walletName = walletsRef.current.find(w => w.id === walletId)?.name || walletId;
 
       let address: string;
       if (isHardwareWallet(walletId)) {
@@ -153,20 +176,20 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
 
       if (isHardwareWallet(walletId)) {
         if (errorMsg.includes('connect popup') || errorMsg.includes('safe 7') || errorMsg.includes('not supported by connect')) {
-          throw new Error('Trezor Safe 7 and newer devices cannot be used through the Trezor Connect pop-up. Open the Trezor Suite desktop app (keep it running), then try again.');
+          throw new Error('Trezor Safe 7 and newer devices cannot be used through the Trezor Connect pop-up. Open the Trezor Suite desktop app (keep it running), then try again.', { cause: error });
         } else if (errorMsg.includes('transport_missing') || errorMsg.includes('transport is missing') || errorMsg.includes('iframeblocked') || errorMsg.includes('iframetimeout')) {
-          throw new Error('No connection to your Trezor. Open the Trezor Suite desktop app (or install Trezor Bridge), connect your device, then try again.');
+          throw new Error('No connection to your Trezor. Open the Trezor Suite desktop app (or install Trezor Bridge), connect your device, then try again.', { cause: error });
         } else if (errorMsg.includes('cancelled') || errorMsg.includes('denied')) {
-          throw new Error('Connection cancelled. Please try again and approve the connection.');
+          throw new Error('Connection cancelled. Please try again and approve the connection.', { cause: error });
         } else if (errorMsg.includes('not found') || errorMsg.includes('no device')) {
-          throw new Error('Hardware wallet not found. Please connect your device and try again.');
+          throw new Error('Hardware wallet not found. Please connect your device and try again.', { cause: error });
         } else if (errorMsg.includes('popup') || errorMsg.includes('blocked') || errorMsg.includes('iframe') || errorMsg.includes('closed')) {
-          throw new Error('Trezor Connect could not open. Allow pop-ups for this site and try again.');
+          throw new Error('Trezor Connect could not open. Allow pop-ups for this site and try again.', { cause: error });
         }
       }
 
 
-      throw new Error(`Failed to connect to ${walletId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to connect to ${walletId}: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error });
     }
   }, [loadHardwareAccounts, pickHardwareAccount]);
 
@@ -176,7 +199,10 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
   }, []);
 
   const fetchActiveAddress = useCallback(async (): Promise<string | null> => {
+    const wallet = connectedWalletRef.current;
+    if (!wallet || signingRef.current || !WATCHABLE_WALLETS.includes(wallet.id.toLowerCase())) return null;
     try {
+      StellarWalletsKit.setWallet(wallet.id);
       const { address } = await StellarWalletsKit.fetchAddress();
       return address || null;
     } catch {
@@ -186,63 +212,62 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
 
   const signWithWallet = useCallback(async (
     xdr: string,
-    walletId: string
+    walletId: string,
+    network: NetworkId,
+    expectedAddress?: string,
   ): Promise<{ signedXdr: string; address: string; walletName: string }> => {
-    StellarWalletsKit.setWallet(walletId);
-
-    const supported = await StellarWalletsKit.refreshSupportedWallets();
-    const info = supported.find(w => w.id === walletId);
-    const walletName = info?.name || walletId;
-    const networkPassphrase = getNetworkPassphrase(network);
-
-    let address: string;
-    let path: string | undefined;
-
-    if (isHardwareWallet(walletId)) {
-      // Always drop the existing device connection first so the user is prompted
-      // again for the derivation path (account) they want to sign with.
-      const accounts = await loadHardwareAccounts(walletName);
-      const selected = await pickHardwareAccount(walletName, accounts, 'sign');
-      address = selected.publicKey;
-      path = walletId.toLowerCase().includes('trezor')
-        ? `m/44'/148'/${selected.index}'`
-        : `44'/148'/${selected.index}'`;
-    } else {
-      // Fetch the wallet's live active account (reflects account switches in e.g.
-      // Freighter) rather than the kit's cached connect-time address.
-      const fetched = await StellarWalletsKit.fetchAddress();
-      address = fetched.address;
-    }
-
-    // Prefer "clean signing": hand the full transaction to the device so it can
-    // display the operations, instead of a blind hash. Fall back to the default
-    // path when the device/transaction combination cannot be clear-signed.
-    let result: { signedTxXdr: string; signerAddress?: string };
+    signingRef.current = true;
     try {
-      result = await StellarWalletsKit.signTransaction(xdr, {
-        networkPassphrase,
-        address,
-        ...(path ? { path } : {}),
-        ...(isHardwareWallet(walletId) ? { nonBlindTx: true } : {}),
-      } as { networkPassphrase: string; address: string; path?: string });
-    } catch (error) {
-      if (!isHardwareWallet(walletId)) throw error;
-      result = await StellarWalletsKit.signTransaction(xdr, {
-        networkPassphrase,
-        address,
-        ...(path ? { path } : {}),
-      });
+      StellarWalletsKit.setWallet(walletId);
+      const walletName = walletsRef.current.find(w => w.id === walletId)?.name || walletId;
+      const networkPassphrase = passphraseFor(network);
+
+      let address = expectedAddress;
+      let path: string | undefined;
+
+      if (isHardwareWallet(walletId)) {
+        // Always drop the existing device connection first so the user is prompted
+        // again for the derivation path (account) they want to sign with.
+        const accounts = await loadHardwareAccounts(walletName);
+        const selected = await pickHardwareAccount(walletName, accounts, 'sign');
+        if (expectedAddress && selected.publicKey !== expectedAddress) {
+          throw new Error(
+            `The selected device account ${selected.publicKey.slice(0, 8)}… is not the signer ${expectedAddress.slice(0, 8)}…. ` +
+            'Pick the matching account and try again.',
+          );
+        }
+        address = selected.publicKey;
+        path = walletId.toLowerCase().includes('trezor')
+          ? `m/44'/148'/${selected.index}'`
+          : `44'/148'/${selected.index}'`;
+      }
+      // Other wallets are asked to sign straight away: looking the address up first opens a
+      // second popup for web wallets (Albedo, xBull, Ghostsig), which the browser then blocks.
+
+      // Prefer "clean signing": hand the full transaction to the device so it can
+      // display the operations, instead of a blind hash. Fall back to the default
+      // path only when the device/transaction combination cannot be clear-signed.
+      const options = { networkPassphrase, ...(address ? { address } : {}), ...(path ? { path } : {}) };
+      let result: { signedTxXdr: string; signerAddress?: string };
+      try {
+        result = await StellarWalletsKit.signTransaction(xdr, {
+          ...options,
+          ...(isHardwareWallet(walletId) ? { nonBlindTx: true } : {}),
+        } as typeof options);
+      } catch (error) {
+        if (!isHardwareWallet(walletId) || isUserRejection(error)) throw error;
+        result = await StellarWalletsKit.signTransaction(xdr, options);
+      }
+
+      return { signedXdr: result.signedTxXdr, address: result.signerAddress || address || '', walletName };
+    } finally {
+      signingRef.current = false;
+      if (connectedWalletRef.current) StellarWalletsKit.setWallet(connectedWalletRef.current.id);
     }
-
-    // Prefer the address the wallet reports as the actual signer, so a mismatched
-    // account can never be silently attributed to the requested one.
-    const signerAddress = result.signerAddress || address;
-
-    return { signedXdr: result.signedTxXdr, address: signerAddress, walletName };
-  }, [network, loadHardwareAccounts, pickHardwareAccount]);
+  }, [loadHardwareAccounts, pickHardwareAccount]);
 
   return (
-    <WalletKitContext.Provider value={{ kit: StellarWalletsKit, wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets, fetchActiveAddress }}>
+    <WalletKitContext.Provider value={{ wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets, fetchActiveAddress }}>
       {children}
       <Dialog open={!!picker} onOpenChange={(open) => { if (!open) closePicker(); }}>
         <DialogContent className="max-w-md">

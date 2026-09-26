@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { pullFromRefractor } from '@/lib/stellar';
-import { Transaction, Networks } from '@stellar/stellar-sdk';
+import { baseAccountId } from '@/lib/signatures';
+import { getInnerTransaction, tryParseTransaction, type NetworkId } from '@/lib/xdr/parse';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface DeepLinkHandlerProps {
-  onDeepLinkLoaded?: (sourceAccount: string) => void;
+  onDeepLinkLoaded?: (sourceAccount: string, network: NetworkId) => void;
 }
 
 export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
@@ -18,61 +19,41 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
   const handledRefractorId = useRef<string | null>(null);
 
   useEffect(() => {
+    const refractorId = new URLSearchParams(location.search).get('r');
+    if (!refractorId || handledRefractorId.current === refractorId) return;
+    handledRefractorId.current = refractorId;
+
     const handleDeepLink = async () => {
-      const urlParams = new URLSearchParams(location.search);
-      const refractorId = urlParams.get('r');
+      try {
+        // Refractor records which network the transaction was posted for; the XDR itself
+        // does not say, and signing it for the wrong network would produce useless signatures.
+        const { xdr, network } = await pullFromRefractor(refractorId);
+        const parsed = tryParseTransaction(xdr, network);
+        if (!parsed) throw new Error('Could not read the transaction from Refractor');
+        const sourceAccount = baseAccountId(getInnerTransaction(parsed.tx).source);
 
-      if (refractorId && handledRefractorId.current !== refractorId) {
-        handledRefractorId.current = refractorId;
-        try {
-          // Pull the transaction from Refractor
-          const xdr = await pullFromRefractor(refractorId);
+        setNetwork(network);
+        sessionStorage.setItem('deeplink-xdr', xdr);
+        sessionStorage.setItem('deeplink-refractor-id', refractorId);
+        sessionStorage.setItem('deeplink-source-account', sourceAccount);
 
-          // Extract source account; detect which network the XDR belongs to and align UI
-          let sourceAccount = '';
-          let detectedNetwork: 'mainnet' | 'testnet' | null = null;
-          try {
-            const tx = new Transaction(xdr, Networks.PUBLIC);
-            sourceAccount = tx.source;
-            detectedNetwork = 'mainnet';
-          } catch {
-            try {
-              const tx = new Transaction(xdr, Networks.TESTNET);
-              sourceAccount = tx.source;
-              detectedNetwork = 'testnet';
-            } catch {
-              throw new Error('Could not parse XDR to extract source account');
-            }
-          }
+        // Notify any listeners (e.g., TransactionBuilder already mounted)
+        window.dispatchEvent(new CustomEvent('deeplink:xdr-loaded', { detail: { refractorId, sourceAccount } }));
 
-          // Align UI network to the XDR's network so signing/submission don't mismatch
-          if (detectedNetwork) {
-            setNetwork(detectedNetwork);
-          }
+        toast({
+          title: 'Transaction Loaded',
+          description: `Transaction imported from Refractor (${network === 'testnet' ? 'Testnet' : 'Mainnet'}). Loading account data...`,
+          duration: 5000,
+        });
 
-          sessionStorage.setItem('deeplink-xdr', xdr);
-          sessionStorage.setItem('deeplink-refractor-id', refractorId);
-          sessionStorage.setItem('deeplink-source-account', sourceAccount);
-
-          // Notify any listeners (e.g., TransactionBuilder already mounted)
-          window.dispatchEvent(new CustomEvent('deeplink:xdr-loaded', { detail: { refractorId, sourceAccount } }));
-
-          toast({
-            title: 'Transaction Loaded',
-            description: 'Transaction imported from Refractor. Loading account data...',
-            duration: 5000,
-          });
-
-          // Notify parent component that deep link was loaded with source account
-          onDeepLinkLoaded?.(sourceAccount);
-        } catch (error) {
-          toast({
-            title: 'Failed to Load Transaction',
-            description: error instanceof Error ? error.message : 'Could not import transaction from Refractor',
-            variant: 'destructive',
-            duration: 5000,
-          });
-        }
+        onDeepLinkLoaded?.(sourceAccount, network);
+      } catch (error) {
+        toast({
+          title: 'Failed to Load Transaction',
+          description: error instanceof Error ? error.message : 'Could not import transaction from Refractor',
+          variant: 'destructive',
+          duration: 5000,
+        });
       }
     };
 
