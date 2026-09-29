@@ -2,11 +2,22 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import path from "path";
+import type { Plugin } from "vite";
+
+// index.html allows no inline script. The dev server injects one (the React Refresh preamble),
+// so only there is the policy relaxed; builds keep it strict.
+const allowInlineScriptsInDev = (): Plugin => ({
+  name: "dev-csp-inline-scripts",
+  apply: "serve",
+  transformIndexHtml: (html) => html.replace("script-src 'self';", "script-src 'self' 'unsafe-inline';"),
+});
 
 // https://vitejs.dev/config/
 export default defineConfig({
   server: {
-    host: "::",
+    // Local only: the dev server serves every file in the project. `npm run dev -- --host`
+    // exposes it on the network when testing from a phone.
+    host: "localhost",
     port: 8080,
   },
   build: {
@@ -38,6 +49,7 @@ export default defineConfig({
       },
     }),
     react(),
+    allowInlineScriptsInDev(),
   ],
   define: {
     global: 'globalThis',

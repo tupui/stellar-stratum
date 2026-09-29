@@ -12,8 +12,10 @@ import {
   type FormValues,
   type ParamShape,
 } from '@/lib/contract/form-values';
-import { buildInvocationXdr, simulateInvocation } from '@/lib/contract/invoke';
+import { buildInvocationXdr, describeInvocation, simulateInvocation } from '@/lib/contract/invoke';
 import { errorMessage, type LoadedContract } from '@/lib/contract/spec';
+import type { AnalyzedCall } from '@/lib/protocols/detect';
+import { InvocationAuthorization } from '@/components/transaction/AuthorizationTree';
 
 interface ContractFunctionFormProps {
   loaded: LoadedContract;
@@ -57,6 +59,8 @@ export const ContractFunctionForm = ({
   );
   const [error, setError] = useState('');
   const [simResult, setSimResult] = useState<string | null>(null);
+  // What the simulated call's authorization lets it do: shown before anyone signs.
+  const [authCall, setAuthCall] = useState<AnalyzedCall | null>(null);
   const [busy, setBusy] = useState<'sim' | 'build' | null>(null);
   // Bumped on every edit and on unmount, so a simulation or build that finishes afterwards is dropped.
   const edits = useRef(0);
@@ -65,6 +69,7 @@ export const ContractFunctionForm = ({
   const setField = (name: string, next: unknown) => {
     setValues((prev) => ({ ...prev, [name]: next }));
     setSimResult(null);
+    setAuthCall(null);
     edits.current += 1;
     onClearTransaction?.();
   };
@@ -74,11 +79,15 @@ export const ContractFunctionForm = ({
   const handleSimulate = async () => {
     setError('');
     setSimResult(null);
+    setAuthCall(null);
     setBusy('sim');
     try {
       const at = edits.current;
       const tx = await simulateInvocation(invocation);
-      if (edits.current === at) setSimResult(formatResult(tx.result));
+      if (edits.current === at) {
+        setSimResult(formatResult(tx.result));
+        setAuthCall(describeInvocation(tx.toXdr(), loaded.network));
+      }
     } catch (e) {
       setError(errorMessage(e, 'Simulation failed'));
     } finally {
@@ -88,11 +97,15 @@ export const ContractFunctionForm = ({
 
   const handleBuild = async () => {
     setError('');
+    setAuthCall(null);
     setBusy('build');
     try {
       const at = edits.current;
       const xdr = await buildInvocationXdr(invocation);
-      if (edits.current === at) onBuild(xdr);
+      if (edits.current === at) {
+        setAuthCall(describeInvocation(xdr, loaded.network));
+        onBuild(xdr);
+      }
     } catch (e) {
       setError(errorMessage(e, 'Build failed'));
     } finally {
@@ -145,6 +158,8 @@ export const ContractFunctionForm = ({
           <pre className="text-xs font-mono whitespace-pre-wrap break-all">{simResult}</pre>
         </div>
       )}
+
+      {authCall && <InvocationAuthorization call={authCall} network={loaded.network} />}
 
       <div className="flex gap-2">
         <Button variant="outline" className="flex-1" onClick={handleSimulate} disabled={disabled}>

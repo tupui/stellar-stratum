@@ -136,6 +136,7 @@ export const AccountChangeSummary = ({ interpretation, network, offlineMode = fa
 
   const { signerChanges, thresholdChanges, resultingSigners, resultingThresholds, resultingTotalWeight, requirements } =
     multisig;
+  const heldKeys = (resultingSigners ?? []).filter((s) => s.key.startsWith('G') || s.key.startsWith('P'));
   const hasChanges = signerChanges.length > 0 || thresholdChanges.length > 0;
   const linkable = !offlineMode;
 
@@ -219,8 +220,13 @@ export const AccountChangeSummary = ({ interpretation, network, offlineMode = fa
         <div className="rounded-lg bg-secondary/40 p-3 space-y-2.5">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Afterwards</p>
           <p className="text-sm">
-            {resultingSigners.length} signer{resultingSigners.length === 1 ? '' : 's'} with a combined weight of{' '}
+            {heldKeys.length} key{heldKeys.length === 1 ? '' : 's'} with a combined weight of{' '}
             <span className="font-semibold tabular-nums">{resultingTotalWeight}</span>.
+            {heldKeys.length < resultingSigners.length && (
+              <span className="text-muted-foreground">
+                {' '}Pre-authorised and hash(x) signers are listed but not counted: each works once, or for anyone.
+              </span>
+            )}
           </p>
           <ul className="space-y-1">
             {resultingSigners.map((signer) => (
@@ -241,7 +247,7 @@ export const AccountChangeSummary = ({ interpretation, network, offlineMode = fa
                     </span>
                   ) : req.anyCombination ? (
                     <>
-                      any <span className="font-medium">{req.minSigners}</span> of these {resultingSigners.length}
+                      any <span className="font-medium">{req.minSigners}</span> of these {heldKeys.length}
                     </>
                   ) : (
                     <>

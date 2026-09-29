@@ -3,49 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, Copy, FileText, Hash, User, Coins, Clock, Signature, Check, AlertTriangle, ExternalLink, Shield, Settings, Users } from 'lucide-react';
+import { ChevronDown, Copy, FileText, Hash, User, Coins, Clock, Signature, Check, AlertTriangle, ExternalLink, Shield, Settings, Users, Info } from 'lucide-react';
 import { analyzeOperations, dominantProtocol } from '@/lib/protocols/detect';
 import { ProtocolSummary } from '@/components/transaction/ProtocolSummary';
 import { AccountChangeSummary } from '@/components/transaction/AccountChangeSummary';
 import { interpretTransaction } from '@/lib/xdr/interpret';
+import { bySeverity, describeOperation, describeTransaction, shortAddress, type Field, type Notice } from '@/lib/xdr/describe';
 import type { AccountData } from '@/lib/stellar';
 import { ProtocolBadge, UnknownContractBadge } from '@/components/transaction/ProtocolBadge';
 import { useToast } from '@/hooks/use-toast';
 import { tryParseTransaction, getInnerTransaction, getTransactionHash } from '@/lib/xdr/parse';
 import { baseAccountId } from '@/lib/signatures';
-import { Operation, StrKey, type Memo, xdr as StellarXdr } from '@stellar/stellar-sdk';
+import { openExternal } from '@/lib/utils';
+import { Operation, StrKey } from '@stellar/stellar-sdk';
 
-// Type helpers for operation details
-type AssetLike = { code?: string; issuer?: string; isNative?: () => boolean } | undefined;
-type PaymentOp = Operation & { destination?: string; amount?: string; asset?: AssetLike };
-type CreateAccountOp = Operation & { destination?: string; startingBalance?: string };
-type PathPaymentOp = Operation & { 
-  destination?: string; 
-  sendAmount?: string; 
-  sendMax?: string;
-  sendAsset?: AssetLike; 
-  destMin?: string; 
-  destAmount?: string;
-  destAsset?: AssetLike;
-};
-type ChangeTrustOp = Operation & { asset?: AssetLike & { poolId?: string }; limit?: string };
-
-/**
- * Asset code plus a shortened issuer: anyone can issue a token called "USDC", so the code
- * alone never identifies an asset.
- */
-const formatAsset = (asset: AssetLike): string => {
-  if (!asset || asset.isNative?.() || (!asset.issuer && (!asset.code || asset.code === 'XLM'))) return 'XLM';
-  if (!asset.code) return 'Liquidity pool shares';
-  return asset.issuer ? `${asset.code} (${asset.issuer.slice(0, 4)}…${asset.issuer.slice(-4)})` : asset.code;
-};
-
-/** 0 means "no bound" for both ends of a time bound. */
-const formatTimeBound = (value: string | number | undefined, kind: 'min' | 'max'): string => {
-  const seconds = Number(value ?? 0);
-  if (!seconds) return kind === 'min' ? 'none' : 'no expiry';
-  return new Date(seconds * 1000).toLocaleString();
-};
 type SetOptionsOp = Operation & {
   signer?: {
     weight?: number;
@@ -60,14 +31,35 @@ type SetOptionsOp = Operation & {
   highThreshold?: number | null;
 };
 
-/** Text memos decode as UTF-8; hash and return memos are raw 32-byte values, shown as hex. */
-const formatMemoValue = (memo: Memo): string => {
-  const { value } = memo;
-  if (value instanceof Uint8Array) {
-    return memo.type === 'text' ? new TextDecoder().decode(value) : StellarXdr.encodeBytes(value, 'hex');
-  }
-  return value ?? '';
+const NOTICE_STYLE: Record<Notice['severity'], string> = {
+  critical: 'border-destructive/40 bg-destructive/10 text-destructive',
+  warning: 'border-warning/40 bg-warning/5 text-warning',
+  info: 'border-border bg-secondary/30 text-muted-foreground',
 };
+
+const NoticeList = ({ notices, compact = false }: { notices: Notice[]; compact?: boolean }) =>
+  notices.length === 0 ? null : (
+    <div className={compact ? 'space-y-1 w-full' : 'space-y-2'}>
+      {[...notices].sort(bySeverity).map((notice, i) => (
+        <div key={i} className={`flex items-start gap-2 rounded border ${compact ? 'px-2 py-1' : 'p-2'} text-xs ${NOTICE_STYLE[notice.severity]}`}>
+          {notice.severity === 'info' ? <Info className="h-3 w-3 mt-0.5 shrink-0" /> : <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />}
+          <span className="text-foreground">{notice.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+const FieldList = ({ fields }: { fields: Field[] }) =>
+  fields.length === 0 ? null : (
+    <div className="text-sm space-y-1">
+      {fields.map((field, i) => (
+        <p key={i} className="break-words">
+          <span className="text-muted-foreground">{field.label}:</span>
+          <span className={field.mono ? 'font-address text-xs ml-1 break-all' : 'ml-1'}>{field.value}</span>
+        </p>
+      ))}
+    </div>
+  );
 
 interface XdrDetailsProps {
   xdr: string;
@@ -87,7 +79,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
 
 
   const parsed = tryParseTransaction(xdr, networkType);
-  
+
   if (!parsed) {
     return null; // Don't render if XDR is invalid
   }
@@ -96,23 +88,21 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
   const transaction = getInnerTransaction(tx);
   const hash = getTransactionHash(tx);
   const sourceAccount = transaction.source;
+  // A muxed (M…) source is the same account as its G… base.
+  const sourceBase = baseAccountId(sourceAccount);
   const feeSource = isFeeBump && 'feeSource' in tx ? tx.feeSource : undefined;
   // Operations can act on an account other than the transaction source; that must be visible.
   const foreignSource = (op: Operation) => {
     const { source } = op as { source?: string };
-    return source && baseAccountId(source) !== baseAccountId(sourceAccount) ? source : undefined;
+    return source && baseAccountId(source) !== sourceBase ? source : undefined;
   };
   const foreignOps = transaction.operations.filter((op) => foreignSource(op));
-  const fee = tx.fee;
   const operations = transaction.operations;
-  const memo = transaction.memo;
-  const sequence = transaction.sequence;
-  const timeBounds = transaction.timeBounds;
   const signatures = tx.signatures;
 
   // Soroban invocations, matched against the DeFi protocols we know how to read.
   const networkId = networkType;
-  const contractCalls = analyzeOperations(operations, networkId);
+  const contractCalls = analyzeOperations(operations, networkId, sourceBase);
   const protocol = dominantProtocol(contractCalls);
   const protocolMatch = protocol
     ? contractCalls.find((call) => call.match?.protocol === protocol)?.match
@@ -122,8 +112,9 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
   // Plain-language reading of account configuration changes. Only compare against the live
   // account when it is the one the transaction acts on — otherwise the "before" side would
   // describe a different account.
+  const knowsSource = accountData?.publicKey === sourceBase;
   const snapshot =
-    accountData && accountData.publicKey === sourceAccount
+    accountData && knowsSource
       ? {
           publicKey: accountData.publicKey,
           signers: accountData.signers.map(({ key, weight }) => ({ key, weight })),
@@ -134,7 +125,13 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
           },
         }
       : null;
-  const interpretation = interpretTransaction(operations, { sourceAccount, account: snapshot });
+  const interpretation = interpretTransaction(operations, { sourceAccount: sourceBase, account: snapshot });
+
+  // Fee, validity, sequence number and memo, with anything unusual called out.
+  const details = describeTransaction(tx, {
+    account: accountData && knowsSource ? { publicKey: accountData.publicKey, sequence: accountData.sequence } : null,
+  });
+  const views = operations.map((op) => describeOperation(op, networkId));
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -184,7 +181,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
             </Button>
           </div>
         </CardHeader>
-        
+
         <CollapsibleContent>
           <CardContent className="space-y-4">
 
@@ -197,6 +194,9 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                 </p>
               </div>
             )}
+
+            {/* Fee, validity and sequence problems: these can matter more than the operations */}
+            <NoticeList notices={details.notices} />
 
             {/* What this transaction does to the account's signers and thresholds */}
             {interpretation && (
@@ -250,7 +250,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   </p>
                 </div>
               )}
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -259,7 +259,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   </div>
                   <p className="font-address text-xs bg-muted p-2 rounded break-all">{sourceAccount}</p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Hash className="w-4 h-4 text-muted-foreground" />
@@ -267,21 +267,31 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   </div>
                   <p className="text-sm">{networkType === 'mainnet' ? 'Mainnet' : 'Testnet'}</p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Coins className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-medium">Fee:</span>
+                    <span className="font-medium">Maximum fee:</span>
                   </div>
-                  <p className="text-sm">{fee} stroops</p>
+                  <p className="text-sm">
+                    {details.fee.total} XLM
+                    {details.fee.resource !== undefined && (
+                      <span className="block text-xs text-muted-foreground">
+                        {details.fee.inclusion} XLM inclusion + {details.fee.resource} XLM contract resources
+                      </span>
+                    )}
+                  </p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Signature className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-medium">Signatures:</span>
+                    <span className="font-medium">Signatures attached:</span>
                   </div>
-                  <p className="text-sm">{signatures.length} signature(s)</p>
+                  <p className="text-sm">
+                    {signatures.length}
+                    <span className="text-xs text-muted-foreground"> (only valid ones count toward the thresholds)</span>
+                  </p>
                 </div>
               </div>
 
@@ -297,43 +307,38 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     </Button>
                   </CollapsibleTrigger>
                 </div>
-                {/* Collapsed: one line per operation. Expanded: the detailed cards below
-                    replace this list rather than stacking on top of it. */}
+                {/* Collapsed: one line per operation with its counterparty and amounts, plus any
+                    warning. Expanded: the detailed cards below replace this list. */}
                 <div className={`space-y-1 ${opsExpanded ? 'hidden' : ''}`}>
                   {operations.map((op, index) => {
                     const call = contractCalls.find((c) => c.opIndex === index);
+                    const view = views[index];
                     return (
-                      <div key={index} className="flex items-center gap-2 px-3 py-1.5 bg-secondary/30 rounded text-sm flex-wrap">
-                        <Badge variant="outline" className="text-xs">{op.type}</Badge>
-                        {op.type === 'payment' && (
-                          <span className="text-muted-foreground text-xs truncate">
-                            {(op as PaymentOp).amount} {formatAsset((op as PaymentOp).asset)}
-                          </span>
-                        )}
-                        {op.type === 'createAccount' && (
-                          <span className="text-muted-foreground text-xs truncate">
-                            {(op as CreateAccountOp).startingBalance} XLM
-                          </span>
-                        )}
-                        {foreignSource(op) && (
-                          <Badge variant="outline" className="text-xs border-warning/60 text-warning">
-                            acts on {foreignSource(op)!.slice(0, 4)}…{foreignSource(op)!.slice(-4)}
-                          </Badge>
-                        )}
-                        {call?.match && (
-                          <>
-                            <ProtocolBadge
-                              protocol={call.match.protocol}
-                              role={call.match.role}
-                              confidence={call.match.confidence}
-                              size="sm"
-                            />
-                            <span className="text-muted-foreground text-xs truncate">
-                              {call.match.signature?.action ?? call.functionName}
-                            </span>
-                          </>
-                        )}
-                        {call && !call.match && <UnknownContractBadge size="sm" />}
+                      <div key={index} className="px-3 py-1.5 bg-secondary/30 rounded text-sm space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="text-xs">{op.type}</Badge>
+                          <span className="text-xs break-words min-w-0">{view.summary}</span>
+                          {foreignSource(op) && (
+                            <Badge variant="outline" className="text-xs border-warning/60 text-warning">
+                              acts on {shortAddress(foreignSource(op)!)}
+                            </Badge>
+                          )}
+                          {call?.match && (
+                            <>
+                              <ProtocolBadge
+                                protocol={call.match.protocol}
+                                role={call.match.role}
+                                confidence={call.match.confidence}
+                                size="sm"
+                              />
+                              <span className="text-muted-foreground text-xs truncate">
+                                {call.match.signature?.action ?? call.functionName}
+                              </span>
+                            </>
+                          )}
+                          {call && !call.match && <UnknownContractBadge size="sm" />}
+                        </div>
+                        <NoticeList notices={view.notices.filter((n) => n.severity !== 'info')} compact />
                       </div>
                     );
                   })}
@@ -343,99 +348,19 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   {operations.map((op, index) => (
                     <div key={index} className="p-3 bg-secondary/30 rounded-lg">
                       <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <Badge variant="outline" className="mb-2">
+                        <div className="flex-1 space-y-2 min-w-0">
+                          <Badge variant="outline">
                             {op.type}
                           </Badge>
+                          <p className="text-sm font-medium break-words">{views[index].summary}</p>
                           {foreignSource(op) && (
-                            <p className="text-sm mb-2 break-words">
+                            <p className="text-sm break-words">
                               <span className="text-warning font-medium">Acts on:</span>
                               <span className="font-address text-xs ml-1 break-all">{foreignSource(op)}</span>
                               <span className="ml-1 text-xs text-muted-foreground">(not the transaction source)</span>
                             </p>
                           )}
-                          {op.type === 'createAccount' && (
-                            <div className="text-sm space-y-1">
-                              <p className="break-words">
-                                <span className="text-muted-foreground">New account:</span>
-                                <span className="font-address text-xs ml-1 break-all">{(op as CreateAccountOp).destination}</span>
-                              </p>
-                              <p>
-                                <span className="text-muted-foreground">Starting balance:</span> <span className="font-amount">{(op as CreateAccountOp).startingBalance} XLM</span>
-                              </p>
-                            </div>
-                          )}
-                          {op.type === 'pathPaymentStrictReceive' && (
-                            <div className="text-sm space-y-1">
-                              <p className="break-words">
-                                <span className="text-muted-foreground">To:</span>
-                                <span className="font-address text-xs ml-1 break-all">{(op as PathPaymentOp).destination}</span>
-                              </p>
-                              <p>
-                                <span className="text-muted-foreground">Send (max):</span> <span className="font-amount">{(op as PathPaymentOp).sendMax} {formatAsset((op as PathPaymentOp).sendAsset)}</span>
-                              </p>
-                              <p>
-                                <span className="text-muted-foreground">Receive (exact):</span> <span className="font-amount">{(op as PathPaymentOp).destAmount} {formatAsset((op as PathPaymentOp).destAsset)}</span>
-                              </p>
-                            </div>
-                          )}
-                          {op.type === 'payment' && (
-                            <div className="text-sm space-y-1">
-                              <p className="break-words">
-                                <span className="text-muted-foreground">To:</span> 
-                                <span className="font-address text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
-                              </p>
-                              <p>
-                                <span className="text-muted-foreground">Amount:</span> <span className="font-amount">{(op as PaymentOp).amount} {formatAsset((op as PaymentOp).asset)}</span>
-                              </p>
-                            </div>
-                          )}
-                          {op.type === 'pathPaymentStrictSend' && (
-                            <div className="text-sm space-y-1">
-                              <p className="break-words">
-                                <span className="text-muted-foreground">To:</span> 
-                                <span className="font-address text-xs ml-1 break-all">{(op as PathPaymentOp).destination}</span>
-                              </p>
-                              <p>
-                                <span className="text-muted-foreground">Send:</span> <span className="font-amount">{(op as PathPaymentOp).sendAmount} {formatAsset((op as PathPaymentOp).sendAsset)}</span>
-                              </p>
-                              <p>
-                                <span className="text-muted-foreground">Receive (min):</span> <span className="font-amount">{(op as PathPaymentOp).destMin} {formatAsset((op as PathPaymentOp).destAsset)}</span>
-                              </p>
-                            </div>
-                          )}
-                          {op.type === 'accountMerge' && (
-                            <div className="text-sm space-y-1">
-                              <p className="break-words">
-                                <span className="text-muted-foreground">Into:</span> 
-                                <span className="font-address text-xs ml-1 break-all">{(op as Operation & { destination?: string }).destination}</span>
-                              </p>
-                              <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs">
-                                <div className="flex items-center gap-2">
-                                  <AlertTriangle className="h-3 w-3 text-destructive" />
-                                  <span className="text-destructive font-medium">Account will be closed and all funds transferred</span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          {op.type === 'changeTrust' && (
-                            <div className="text-sm space-y-1">
-                              <p>
-                                <span className="text-muted-foreground">Asset:</span> {formatAsset((op as ChangeTrustOp).asset)}
-                              </p>
-                              <p>
-                                <span className="text-muted-foreground">Limit:</span> {(op as ChangeTrustOp).limit || 'MAX'}
-                              </p>
-                              {(op as ChangeTrustOp).limit === '0' && (
-                                <div className="mt-2 p-2 bg-destructive/10 border border-destructive/30 rounded text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <AlertTriangle className="h-3 w-3 text-destructive" />
-                                    <span className="text-destructive font-medium">Trustline will be removed</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          <FieldList fields={views[index].fields} />
                           {op.type === 'setOptions' && (() => {
                             const setOptions = op as SetOptionsOp;
                             const signer = setOptions.signer;
@@ -526,39 +451,18 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                                     </div>
                                   </div>
                                 )}
-
-                                {!signer && thresholds.length === 0 && setOptions.masterWeight == null && (
-                                  <details className="text-xs">
-                                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                      View raw operation data
-                                    </summary>
-                                    <pre className="mt-2 p-2 bg-background/50 rounded text-xs overflow-auto">
-                                      {JSON.stringify(op, null, 2)}
-                                    </pre>
-                                  </details>
-                                )}
                               </div>
                             );
                           })()}
-                          {!['payment', 'createAccount', 'pathPaymentStrictSend', 'pathPaymentStrictReceive', 'accountMerge', 'changeTrust', 'setOptions'].includes(op.type) && (
-                            <div className="text-sm space-y-2">
-                              {contractCalls.some((c) => c.opIndex === index) ? (
-                                <p className="text-muted-foreground">
-                                  Decoded in <span className="text-foreground font-medium">Smart Contract Activity</span> above.
-                                </p>
-                              ) : (
-                                <p className="text-muted-foreground">Operation details:</p>
-                              )}
-                              <details>
-                                <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                                  View raw operation data
-                                </summary>
-                                <pre className="text-xs mt-1 p-2 bg-muted rounded overflow-x-auto">
-                                  {JSON.stringify(op, null, 2)}
-                                </pre>
-                              </details>
-                            </div>
-                          )}
+                          <NoticeList notices={views[index].notices} />
+                          <details>
+                            <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                              View raw operation data
+                            </summary>
+                            <pre className="text-xs mt-1 p-2 bg-muted rounded overflow-x-auto">
+                              {JSON.stringify(op, null, 2)}
+                            </pre>
+                          </details>
                         </div>
                       </div>
                     </div>
@@ -569,43 +473,30 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
               </Collapsible>
 
               {/* Memo */}
-              {memo && memo.type !== 'none' && (
+              {details.memo && (
                 <div className="space-y-2">
                   <h4 className="font-medium">Memo</h4>
                   <div className="p-3 bg-secondary/30 rounded-lg">
                     <Badge variant="outline" className="mb-2">
-                      {memo.type}
+                      {details.memo.type}
                     </Badge>
-                    <p className="text-sm break-all">{formatMemoValue(memo)}</p>
+                    {details.memo.text && <p className="text-sm break-all">{details.memo.text}</p>}
+                    {details.memo.hex && (
+                      <p className="text-xs text-muted-foreground break-all">
+                        Bytes: <span className="font-address">{details.memo.hex}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Additional Details */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-medium">Sequence:</span>
-                  </div>
-                  <p className="text-sm">{sequence}</p>
+              {/* When it can land */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">Validity</span>
                 </div>
-                
-                {timeBounds && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span className="font-medium">Time Bounds:</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      <p>Valid from: {formatTimeBound(timeBounds.minTime, 'min')}</p>
-                      <p>Valid until: {formatTimeBound(timeBounds.maxTime, 'max')}</p>
-                      {Number(timeBounds.maxTime) > 0 && Number(timeBounds.maxTime) * 1000 < Date.now() && (
-                        <p className="text-destructive font-medium">Expired: the network will reject it. Build it again.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                <FieldList fields={details.validity} />
               </div>
 
               {/* Transaction Verification */}
@@ -618,7 +509,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   <h4 className="font-semibold text-primary">Verify Transaction</h4>
                 </div>
               </div>
-              
+
               {/* Transaction Hash */}
               <div className="p-3 bg-secondary/50 rounded-lg mb-4">
                 <div className="flex items-center justify-between mb-2">
@@ -640,7 +531,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
               </div>
 
               <p className="text-sm text-foreground mb-4">
-                {offlineMode 
+                {offlineMode
                   ? 'Compare the transaction hash above with your signing device. They must match exactly before signing.'
                   : 'Compare the transaction hash above with your signing device and Stellar Lab.'
                 }
@@ -656,16 +547,15 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                   variant="glow"
                   onClick={() => {
                     const baseUrl = 'https://lab.stellar.org/xdr/view';
-                    
+
                     // XDR encoding rule: Every / becomes //
                     const encodedXdr = xdr.replace(/\//g, '//');
-                    
+
                     const params = networkType === 'mainnet'
                       ? `$=network$id=mainnet&label=Mainnet&horizonUrl=https:////horizon.stellar.org&rpcUrl=https:////rpc.lightsail.network//&passphrase=Public%20Global%20Stellar%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`
                       : `$=network$id=testnet&label=Testnet&horizonUrl=https:////horizon-testnet.stellar.org&rpcUrl=https:////soroban-testnet.stellar.org//&passphrase=Test%20SDF%20Network%20/;%20September%202015;&xdr$blob=${encodedXdr};;`;
-                    
-                    const url = `${baseUrl}?${params}`;
-                    window.open(url, '_blank');
+
+                    openExternal(`${baseUrl}?${params}`);
                   }}
                   className="w-full h-11"
                 >
@@ -680,4 +570,4 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
       </Collapsible>
     </Card>
   );
-}; 
+};

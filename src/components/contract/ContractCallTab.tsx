@@ -76,8 +76,19 @@ export const ContractCallTab = ({
     onClearTransaction?.();
   };
 
+  // Once the address no longer names the loaded contract, its functions (and any transaction
+  // built from them) must go: Build would otherwise call the old contract.
+  const handleAddressChange = (value: string) => {
+    setAddress(value);
+    if (loaded && value.trim() !== loaded.contractId) {
+      setLoaded(null);
+      setSelectedFn('');
+      onClearTransaction?.();
+    }
+  };
+
   const handleSelectRecent = (id: string) => {
-    setAddress(id);
+    handleAddressChange(id);
   };
 
   const handleRemoveRecent = (id: string) => {
@@ -89,7 +100,7 @@ export const ContractCallTab = ({
     <div className="space-y-4">
       <ContractAddressInput
         value={address}
-        onChange={setAddress}
+        onChange={handleAddressChange}
         onLoad={handleLoad}
         isLoading={loading}
         isLoaded={loaded !== null}

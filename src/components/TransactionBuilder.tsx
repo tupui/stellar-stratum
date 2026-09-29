@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { updateUrlParams } from '@/lib/urlState';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,8 @@ import { getAssetPrice } from '@/lib/reflector';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { PaymentForm, type PaymentDraft, type PaymentOperation, type TransactionMemo } from './payment/PaymentForm';
 import { buildPaymentTransaction } from '@/lib/payments';
+import { priceKey } from '@/lib/balance-utils';
+import { useRefreshOnNewTransaction } from '@/hooks/useRefreshOnNewTransaction';
 import { ImportTab } from './ImportTab';
 import { SourceAccountSelector } from './SourceAccountSelector';
 import { SoroswapTab } from './soroswap/SoroswapTab';
@@ -57,6 +59,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   // Bumped after a successful submission so the forms start over empty.
   const [formKey, setFormKey] = useState(0);
   const currentXdr = xdrData.output || xdrData.input;
+  useRefreshOnNewTransaction(currentXdr, currentNetwork, onAccountRefresh);
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
@@ -134,7 +137,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   // Reflector prices mainnet assets only: testnet balances have no market value.
   const fetchAdditionalAssetPrice = useCallback(async (assetCode: string, assetIssuer?: string) => {
     if (currentNetwork !== 'mainnet') return 0;
-    const key = assetCode;
+    const key = priceKey(assetCode, assetIssuer);
     try {
       const pricePromise = getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer);
       const price = await Promise.race([
@@ -170,7 +173,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     
     const loadPrices = async () => {
       const pricePromises = memoizedBalances.map(async (balance) => {
-        const key = balance.asset_code || 'XLM';
+        const key = priceKey(balance.asset_code, balance.asset_issuer);
         try {
           const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
           return { key, price };
@@ -192,10 +195,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     };
     loadPrices();
   }, [memoizedBalances, currentNetwork]);
+  // Bumped whenever the transaction is cleared (the form was edited): a build that started
+  // before that must not come back and load a transaction the form no longer shows.
+  const buildEpoch = useRef(0);
+
   const handlePaymentBuild = async (operations: PaymentOperation[], memo: TransactionMemo) => {
+    const epoch = buildEpoch.current;
     setIsBuilding(true);
     try {
       const xdr = await buildPaymentTransaction(createHorizonServer(currentNetwork), accountPublicKey, currentNetwork, operations, memo);
+      if (epoch !== buildEpoch.current) return;
       setXdrData(prev => ({ ...prev, output: xdr }));
       setIsTransactionBuilt(true);
       toast({
@@ -250,6 +259,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   };
 
   const clearTransaction = () => {
+    buildEpoch.current += 1;
     setXdrData({ input: '', output: '' });
     setXdrInputError('');
     setRefractorId('');
@@ -269,7 +279,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     if (!accountData?.balances) return [];
     return accountData.balances.flatMap((balance) => {
       if (balance.asset_type === 'native') {
-        return [{ code: 'XLM', issuer: '', name: 'Stellar Lumens', balance: balance.balance, price: assetPrices['XLM'] || 0 }];
+        return [{ code: 'XLM', issuer: '', name: 'Stellar Lumens', balance: balance.balance, price: assetPrices[priceKey('XLM')] || 0 }];
       }
       if (!balance.asset_code || !balance.asset_issuer) return []; // liquidity pool shares
       return [{
@@ -277,7 +287,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
         issuer: balance.asset_issuer,
         name: balance.asset_code,
         balance: balance.balance,
-        price: assetPrices[balance.asset_code] || 0,
+        price: assetPrices[priceKey(balance.asset_code, balance.asset_issuer)] || 0,
       }];
     });
   };

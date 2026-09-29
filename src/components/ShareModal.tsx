@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Copy, Share2, Mail, MessageCircle, QrCode, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
+import { openExternal } from '@/lib/utils';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -67,17 +68,17 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
   const openEmailClient = () => {
     const subject = encodeURIComponent('Sign Transaction on Stellar Stratum');
     const body = encodeURIComponent(`Please sign this transaction using Stellar Stratum:\n\nTransaction ID: ${refractorId}\nLink: ${shareUrl}`);
-    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+    openExternal(`mailto:?subject=${subject}&body=${body}`);
   };
 
   const openWhatsApp = () => {
     const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    openExternal(`https://wa.me/?text=${text}`);
   };
 
   const openTelegram = () => {
     const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
-    window.open(`https://t.me/share/url?url=${shareUrl}&text=${text}`, '_blank');
+    openExternal(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${text}`);
   };
 
   return (

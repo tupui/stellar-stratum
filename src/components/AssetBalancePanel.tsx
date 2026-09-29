@@ -171,7 +171,8 @@ export const AssetBalancePanel = ({
 
   const getAssetExplorerUrl = (assetCode: string, assetIssuer?: string): string => {
     const networkPath = network === 'testnet' ? 'testnet' : 'public';
-    if (!assetIssuer || assetCode === 'XLM') {
+    // Only the issuer-less asset is native XLM: a token can be called "XLM" too.
+    if (!assetIssuer) {
       return `https://stellar.expert/explorer/${networkPath}/asset/XLM`;
     }
     return `https://stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;

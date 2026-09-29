@@ -1,4 +1,15 @@
-import { Address, Operation, scValToNative, type Transaction, xdr } from '@stellar/stellar-sdk';
+import { Address, Operation, type Transaction } from '@stellar/stellar-sdk';
+import { baseAccountId } from '@/lib/signatures';
+import {
+  authScopeIssues,
+  decodeArgs,
+  decodeAuth,
+  decodeCreate,
+  decodeUpload,
+  tokenMovements,
+  type AuthEntry,
+  type DeployInfo,
+} from './auth';
 import {
   findKnownContract,
   findContractAnyNetwork,
@@ -27,6 +38,12 @@ export interface ContractCall {
   functionName: string;
   args: DecodedArg[];
   authCount: number;
+  /** Every authorization entry attached to the operation, decoded. */
+  auth: AuthEntry[];
+  /** Set when the host function deploys a contract or uploads WASM instead of calling one. */
+  deploy?: DeployInfo;
+  /** Account a source-account authorization stands for, when known: the operation's source, else the transaction's. */
+  source?: string;
 }
 
 export interface ProtocolMatch {
@@ -36,8 +53,10 @@ export interface ProtocolMatch {
    * `verified` — the contract address is one we ship.
    * `likely`  — the address is unknown but the entry point matches a protocol
    *             interface exactly (name, arity and argument shape).
+   * `unsafe`  — the address is one we ship, but the authorization attached lets
+   *             the call do more than its summary shows (see `authScopeIssues`).
    */
-  confidence: 'verified' | 'likely';
+  confidence: 'verified' | 'likely' | 'unsafe';
   signature: FunctionSignature | null;
   /** Set when the address is a known deployment on the *other* network. */
   networkMismatch?: NetworkId;
@@ -50,6 +69,15 @@ export interface TokenAmount {
   bound: 'exact' | 'min' | 'max';
 }
 
+/** One leg of an aggregator's `distribution`. */
+export interface RouteHop {
+  /** Venue as the aggregator names it, e.g. "Soroswap"; empty when unreadable. */
+  protocol: string;
+  path: string[];
+  /** Share of the amount sent this way, in the aggregator's parts. */
+  parts: number | null;
+}
+
 export type ActivityDetails =
   | {
       kind: 'swap';
@@ -59,6 +87,10 @@ export type ActivityDetails =
       path: string[];
       /** False when the contract picks the route itself (aggregators): `path` is then just the endpoints. */
       routeKnown: boolean;
+      /** The aggregator's split across venues, when the call spells it out. */
+      hops: RouteHop[];
+      /** Payer, for entry points that name one instead of a recipient. */
+      from?: string;
       to: string;
       /** Unix seconds. */
       deadline?: number;
@@ -101,6 +133,8 @@ export interface AnalyzedCall extends ContractCall {
   match: ProtocolMatch | null;
   intent: Intent | null;
   details: ActivityDetails | null;
+  /** Why the authorization lets a protocol call do more than its summary shows; empty when it does not. */
+  authIssues: string[];
   /** Token contracts referenced by this call, for metadata enrichment. */
   tokens: string[];
 }
@@ -127,57 +161,72 @@ const asAddressList = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 
 /**
- * `scValToNative` hands back BigInt, Uint8Array and Map values. Convert them to
- * plain JSON-safe shapes so decoded arguments can be rendered (and diffed by
- * React) without special-casing every consumer.
+ * An aggregator `distribution`: one `{ protocol_id, path, parts }` struct per
+ * venue. An entry that does not read as one is kept as an empty hop, so it
+ * still shows up instead of silently vanishing from the route.
  */
-const toPlain = (value: unknown): unknown => {
-  if (typeof value === 'bigint') return value.toString();
-  if (value instanceof Uint8Array) return [...value].map((b) => b.toString(16).padStart(2, '0')).join('');
-  if (Array.isArray(value)) return value.map(toPlain);
-  if (value instanceof Map) {
-    return Object.fromEntries([...value].map(([k, v]) => [String(k), toPlain(v)]));
+const asHops = (value: unknown): RouteHop[] =>
+  Array.isArray(value)
+    ? value.map((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return { protocol: '', path: [], parts: null };
+        const { protocol_id: protocol, path, parts } = item as Record<string, unknown>;
+        // A unit enum variant decodes as a one-element vector: `["Soroswap"]`.
+        const venue = Array.isArray(protocol) ? protocol[0] : protocol;
+        const share = toAmount(parts);
+        return {
+          protocol: typeof venue === 'string' ? venue : '',
+          path: asAddressList(path),
+          parts: share === null ? null : Number(share),
+        };
+      })
+    : [];
+
+/** Base account of a (possibly muxed) source account. */
+const accountOf = (address: string | undefined): string | undefined => {
+  if (!address) return undefined;
+  try {
+    return baseAccountId(address);
+  } catch {
+    return address;
   }
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toPlain(v)]));
-  }
-  return value;
 };
 
-/** Decode one `invokeHostFunction` op, or null if it isn't a contract invocation. */
-const decodeCall = (op: TxOperation, opIndex: number): ContractCall | null => {
+/**
+ * Decode one `invokeHostFunction` op, or null if it isn't one. Deployments and
+ * uploads come back too, with `deploy` set: they run code the app cannot read,
+ * so they must be shown as such rather than as a bare operation row.
+ */
+const decodeCall = (op: TxOperation, opIndex: number, network: NetworkId, txSource?: string): ContractCall | null => {
   if (op.type !== 'invokeHostFunction') return null;
 
-  const func = (op as Operation.InvokeHostFunction).func;
-  if (func.type !== 'hostFunctionTypeInvokeContract') return null;
+  const { func, auth = [] } = op as Operation.InvokeHostFunction;
+  const source = accountOf(op.source ?? txSource);
+  const common = { opIndex, authCount: auth.length, auth: decodeAuth(auth, func, network, source), source };
 
-  const invocation = func.invokeContract;
-
-  let contractId: string;
-  try {
-    contractId = Address.fromScAddress(invocation.contractAddress).toString();
-  } catch {
-    return null;
-  }
-
-  const functionName = invocation.functionName.toString();
-  const args = invocation.args.map((arg: xdr.ScVal, i: number) => {
-    let value: unknown;
-    try {
-      value = toPlain(scValToNative(arg));
-    } catch {
-      value = undefined;
+  switch (func.type) {
+    case 'hostFunctionTypeInvokeContract': {
+      const invocation = func.invokeContract;
+      let contractId: string;
+      try {
+        contractId = Address.fromScAddress(invocation.contractAddress).toString();
+      } catch {
+        return null;
+      }
+      return { ...common, contractId, functionName: invocation.functionName.toString(), args: decodeArgs(invocation.args) };
     }
-    return { name: `arg${i}`, type: arg.type, value };
-  });
-
-  return {
-    opIndex,
-    contractId,
-    functionName,
-    args,
-    authCount: (op as Operation.InvokeHostFunction).auth?.length ?? 0,
-  };
+    case 'hostFunctionTypeCreateContract': {
+      const deploy = decodeCreate(func.createContract, network);
+      return { ...common, contractId: deploy.contractId, functionName: 'createContract', args: [], deploy };
+    }
+    case 'hostFunctionTypeCreateContractV2': {
+      const deploy = decodeCreate(func.createContractV2, network, func.createContractV2.constructorArgs);
+      return { ...common, contractId: deploy.contractId, functionName: 'createContractV2', args: deploy.constructorArgs, deploy };
+    }
+    case 'hostFunctionTypeUploadContractWasm':
+      return { ...common, contractId: '', functionName: 'uploadContractWasm', args: [], deploy: decodeUpload(func.wasm) };
+    default:
+      return null;
+  }
 };
 
 /** ScVal discriminants a signature's positional argument is allowed to take. */
@@ -263,6 +312,7 @@ const extractDetails = (call: ContractCall, sig: FunctionSignature): ActivityDet
       const sellRaw = toAmount(exactIn ? at('amount_in') : at('amount_in_max'));
       const buyRaw = toAmount(exactIn ? at('amount_out_min') : at('amount_out'));
       if (sellRaw === null || buyRaw === null) return null;
+      const from = at('from');
 
       return {
         kind: 'swap',
@@ -270,6 +320,8 @@ const extractDetails = (call: ContractCall, sig: FunctionSignature): ActivityDet
         buy: { contract: tokenOut, raw: buyRaw, bound: exactIn ? 'min' : 'exact' },
         path: path.length ? path : [tokenIn, tokenOut],
         routeKnown: path.length > 0,
+        hops: asHops(at('distribution')),
+        from: typeof from === 'string' ? from : undefined,
         to: (at('to') as string) ?? '',
         deadline: toSeconds(at('deadline')),
       };
@@ -351,7 +403,7 @@ const collectTokens = (
   if (!details) return [];
   switch (details.kind) {
     case 'swap':
-      return details.path;
+      return [...details.path, ...details.hops.flatMap((hop) => hop.path)];
     case 'add-liquidity':
       return [details.desiredA.contract, details.desiredB.contract];
     case 'remove-liquidity':
@@ -362,25 +414,49 @@ const collectTokens = (
   }
 };
 
-/** Decode and identify every contract invocation in a transaction's operations. */
-export const analyzeOperations = (operations: TxOperation[], network: NetworkId): AnalyzedCall[] =>
+/**
+ * Decode and identify every contract invocation in a transaction's operations.
+ *
+ * Pass the transaction's source account so a source-account authorization can
+ * be read as that account's: a call to a pinned address then only stays
+ * `verified` while its authorization is limited to what the summary shows.
+ */
+export const analyzeOperations = (operations: TxOperation[], network: NetworkId, source?: string): AnalyzedCall[] =>
   operations
-    .map((op, i) => decodeCall(op, i))
+    .map((op, i) => decodeCall(op, i, network, source))
     .filter((call): call is ContractCall => call !== null)
     .map((call) => {
-      const match = matchProtocol(call, network);
-      const details = match?.signature ? extractDetails(call, match.signature) : null;
-      const named = match?.signature
-        ? call.args.map((arg, i) => ({ ...arg, name: match.signature!.params[i] ?? arg.name }))
+      const moved = tokenMovements(call.auth).map(({ movement }) => movement.token);
+      if (call.deploy) {
+        return { ...call, match: null, intent: null, details: null, authIssues: [], tokens: [...new Set(moved)] };
+      }
+
+      const found = matchProtocol(call, network);
+      const signature = found?.signature;
+      const details = signature ? extractDetails(call, signature) : null;
+      const named = signature
+        ? call.args.map((arg, i) => ({ ...arg, name: signature.params[i] ?? arg.name }))
         : call.args;
+      const auth = signature
+        ? call.auth.map((entry) => (entry.rootIsCall ? { ...entry, root: { ...entry.root, args: named } } : entry))
+        : call.auth;
+
+      const authIssues = found ? authScopeIssues({ args: named, auth, source: call.source }, details, network) : [];
+      // Without the signing account, callers such as verify.ts judge the authorization themselves.
+      const match =
+        found?.confidence === 'verified' && call.source && authIssues.length
+          ? { ...found, confidence: 'unsafe' as const }
+          : found;
 
       return {
         ...call,
         args: named,
+        auth,
         match,
-        intent: match?.signature?.intent ?? null,
+        intent: signature?.intent ?? null,
         details,
-        tokens: collectTokens(details, call, network),
+        authIssues,
+        tokens: [...new Set([...collectTokens(details, call, network), ...moved])],
       };
     });
 

@@ -123,3 +123,10 @@ export function calculateBalancePercentage(
   const percentage = decimalAmount.dividedBy(decimalAvailableBalance).mul(100);
   return Math.min(100, Math.max(0, percentage.toNumber()));
 }
+
+/**
+ * Key for an asset's price: its code alone is not enough, since anyone can issue a token
+ * called "USDC" (or "XLM"), and it must never inherit the real asset's price.
+ */
+export const priceKey = (code: string | undefined, issuer?: string): string =>
+  !issuer && (!code || code === 'XLM') ? 'XLM' : `${code}:${issuer ?? ''}`;

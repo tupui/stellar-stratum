@@ -2,6 +2,7 @@ import { useState, Suspense, lazy } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Wallet, RefreshCw } from 'lucide-react';
+import { openExternal } from '@/lib/utils';
 const WalletConnect = lazy(() => import('@/components/WalletConnect').then(module => ({
   default: module.WalletConnect
 })));
@@ -90,7 +91,7 @@ export const LandingPage = ({
               size="lg" 
               variant="outline" 
               className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 md:px-12 text-sm sm:text-base md:text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105 hover-scale"
-              onClick={() => window.open('/sign', '_blank')}
+              onClick={() => openExternal('/sign')}
             >
               Air-gapped Signer
             </Button>

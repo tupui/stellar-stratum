@@ -32,7 +32,7 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
         if (!parsed) throw new Error('Could not read the transaction from Refractor');
         const sourceAccount = baseAccountId(getInnerTransaction(parsed.tx).source);
 
-        setNetwork(network);
+        setNetwork(network, { fromLink: true });
         sessionStorage.setItem('deeplink-xdr', xdr);
         sessionStorage.setItem('deeplink-refractor-id', refractorId);
         sessionStorage.setItem('deeplink-source-account', sourceAccount);

@@ -112,6 +112,9 @@ const saveTomlToStorage = (key: string, entry: CacheEntry<SEP1TomlAsset[]>) => {
 // Initialize cache from storage
 loadCacheFromStorage();
 
+/** Letters, digits and hyphens in dot-separated labels, ending with an alphabetic TLD. */
+const HOSTNAME = /^(?=.{3,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
+
 // Helper function to fetch and cache TOML data for a domain
 const fetchTomlForDomain = async (homeDomain: string, network: 'mainnet' | 'testnet'): Promise<SEP1TomlAsset[]> => {
   const tomlCacheKey = `${homeDomain}:${network}`;
@@ -122,8 +125,8 @@ const fetchTomlForDomain = async (homeDomain: string, network: 'mainnet' | 'test
     return cachedToml.data;
   }
   
-  // Validate domain sanity
-  if (!homeDomain || homeDomain.includes(' ') || homeDomain.length < 3) {
+  // Only a bare public hostname: no IP address, port, path, query or credentials.
+  if (!HOSTNAME.test(homeDomain) || /^[\d.]+$/.test(homeDomain)) {
     // Cache empty result for invalid domains
     const now = Date.now();
     const emptyEntry: CacheEntry<SEP1TomlAsset[]> = {

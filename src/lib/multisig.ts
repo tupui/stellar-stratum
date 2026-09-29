@@ -122,11 +122,13 @@ export const validateConfig = (account: string, next: MultisigConfig): { errors:
     if (!isByte(value)) errors.push(`${label} threshold must be a whole number from 0 to 255.`);
   }
 
-  // Lockout: every threshold must stay reachable by the signers left. The network always wants
-  // at least one valid signature, even when a threshold is 0.
-  const totalWeight = weighted.reduce((sum, s) => sum + s.weight, 0);
-  if (weighted.length === 0) {
-    errors.push('At least one signer must keep a weight above 0, or the account is locked forever.');
+  // Lockout: every threshold must stay reachable by keys someone holds. A pre-auth (T…) signer
+  // is used up by the one transaction it names and a hash(x) (X…) signer is public once used,
+  // so neither counts. The network always wants at least one valid signature, even for 0.
+  const held = weighted.filter((s) => s.key.startsWith('G') || s.key.startsWith('P'));
+  const totalWeight = held.reduce((sum, s) => sum + s.weight, 0);
+  if (held.length === 0) {
+    errors.push('At least one key must keep a weight above 0, or the account is locked forever.');
   } else {
     for (const [label, value] of [
       ['low', thresholds.low_threshold],
@@ -135,11 +137,17 @@ export const validateConfig = (account: string, next: MultisigConfig): { errors:
     ] as const) {
       if (Math.max(value, 1) > totalWeight) {
         errors.push(
-          `The ${label} threshold (${value}) is above the combined weight of all signers (${totalWeight}): ` +
+          `The ${label} threshold (${value}) is above the combined weight of all keys (${totalWeight}): ` +
             'the account would be locked for those operations forever.',
         );
       }
     }
+  }
+  if (weighted.some((s) => s.key.startsWith('T'))) {
+    warnings.push('A pre-authorised transaction signer lets that one transaction run without any other signature.');
+  }
+  if (weighted.some((s) => s.key.startsWith('X'))) {
+    warnings.push('A hash(x) signer lets anyone who knows its secret sign, and the secret is public once used.');
   }
 
   if (thresholds.low_threshold > thresholds.med_threshold || thresholds.med_threshold > thresholds.high_threshold) {

@@ -3,6 +3,7 @@ import { LandingPage } from "@/components/LandingPage";
 import { LoadingPill } from "@/components/ui/loading-pill";
 import { Footer } from "@/components/Footer";
 import { DeepLinkHandler } from "@/components/DeepLinkHandler";
+import { NetworkBar } from "@/components/NetworkBar";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
@@ -95,9 +96,9 @@ const Index = memo(() => {
   );
 
   const handleWalletConnect = useCallback(
-    async (walletPublicKey: string, selectedNetwork: NetworkId) => {
+    async (walletPublicKey: string, selectedNetwork: NetworkId, options?: { fromLink?: boolean }) => {
       setPublicKey(walletPublicKey);
-      setNetwork(selectedNetwork);
+      setNetwork(selectedNetwork, options);
       setLoading(true);
 
       // Scroll to top when transitioning from landing page
@@ -168,7 +169,7 @@ const Index = memo(() => {
     const selectedNetwork: "mainnet" | "testnet" =
       netParam === "testnet" ? "testnet" : netParam === "mainnet" ? "mainnet" : network;
 
-    handleWalletConnect(address, selectedNetwork);
+    handleWalletConnect(address, selectedNetwork, { fromLink: netParam === "testnet" || netParam === "mainnet" });
 
     // Restore the section the link points at (defaults to the dashboard)
     const view = params.get("view");
@@ -326,25 +327,30 @@ const Index = memo(() => {
       <DeepLinkHandler onDeepLinkLoaded={handleDeepLinkLoaded} />
       <div className="min-h-screen bg-background flex flex-col">
         <div className="flex-1">
-          {/* Wallet active-account changed warning */}
-          {appState !== "connecting" && walletAccountChanged && (
-            <div className="sticky top-0 z-50 bg-warning/10 border-b border-warning/40">
-              <div className="max-w-4xl mx-auto px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                <div className="flex items-start gap-2 flex-1 min-w-0">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-warning" />
-                  <p className="text-sm text-foreground">
-                    Your wallet's active account changed to{" "}
-                    <span className="font-address">{liveWalletAddress?.slice(0, 8)}...{liveWalletAddress?.slice(-8)}</span>,
-                    which differs from the connected account{" "}
-                    <span className="font-address">{publicKey.slice(0, 8)}...{publicKey.slice(-8)}</span>.
-                    Reconnect to use the active account.
-                  </p>
+          {/* Which network every action goes to, and wallet account changes, always in view */}
+          {appState !== "connecting" && (
+            <div className="sticky top-0 z-50 bg-background">
+              <NetworkBar />
+              {walletAccountChanged && (
+                <div className="bg-warning/10 border-b border-warning/40">
+                  <div className="max-w-4xl mx-auto px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-warning" />
+                      <p className="text-sm text-foreground">
+                        Your wallet's active account changed to{" "}
+                        <span className="font-address">{liveWalletAddress?.slice(0, 8)}...{liveWalletAddress?.slice(-8)}</span>,
+                        which differs from the connected account{" "}
+                        <span className="font-address">{publicKey.slice(0, 8)}...{publicKey.slice(-8)}</span>.
+                        Reconnect to use the active account.
+                      </p>
+                    </div>
+                    <Button size="sm" onClick={handleDisconnect} className="shrink-0 gap-2">
+                      <RefreshCw className="w-4 h-4" />
+                      Reconnect
+                    </Button>
+                  </div>
                 </div>
-                <Button size="sm" onClick={handleDisconnect} className="shrink-0 gap-2">
-                  <RefreshCw className="w-4 h-4" />
-                  Reconnect
-                </Button>
-              </div>
+              )}
             </div>
           )}
 

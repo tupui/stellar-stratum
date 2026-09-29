@@ -4,6 +4,7 @@ import {
   Address,
   Asset,
   Keypair,
+  Memo,
   Networks,
   Operation,
   SorobanDataBuilder,
@@ -27,8 +28,14 @@ const PAIR = 'CDN3LLHWKQKSKABVUGRB5TARVRSCM7H34SWUQ4AF53PS3QO66FMZACYB';
 const TESTNET_ROUTER = 'CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD';
 const TESTNET_XLM = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
 
+/** The account's current sequence number; the fixtures are built on the next one. */
+const SEQUENCE = 100n;
+/** A router deadline ten minutes out, inside the fixtures' one-hour validity. */
+const DEADLINE = Math.floor(Date.now() / 1000) + 600;
+
 const address = (a: string) => new Address(a).toScVal();
 const i128 = (n: bigint) => nativeToScVal(n, { type: 'i128' });
+const u64 = (n: number | bigint) => nativeToScVal(n, { type: 'u64' });
 
 const call = (contract: string, fn: string, args: xdr.ScVal[], subInvocations: xdr.SorobanAuthorizedInvocation[] = []) =>
   new xdr.SorobanAuthorizedInvocation({
@@ -57,6 +64,8 @@ interface Fixture {
   passphrase?: string;
   fee?: string;
   timeout?: number;
+  /** Extra conditions (memo, ledger bounds…) set on the builder. */
+  tweak?: (builder: TransactionBuilder) => TransactionBuilder;
 }
 
 /** An envelope as the API would hand it back: unsigned, one contract call, source-account auth. */
@@ -72,8 +81,9 @@ const envelope = ({
   passphrase = Networks.PUBLIC,
   fee = '166497',
   timeout = 3600,
+  tweak = (builder) => builder,
 }: Fixture) => {
-  const builder = new TransactionBuilder(new Account(source, '100'), { fee, networkPassphrase: passphrase }).addOperation(
+  const builder = new TransactionBuilder(new Account(source, SEQUENCE.toString()), { fee, networkPassphrase: passphrase }).addOperation(
     Operation.invokeContractFunction({
       contract,
       function: fn,
@@ -83,7 +93,7 @@ const envelope = ({
     }),
   );
   extraOps.forEach((op) => builder.addOperation(op));
-  return builder.setTimeout(timeout).build().toXDR();
+  return tweak(builder.setTimeout(timeout)).build().toXDR();
 };
 
 // --- Swap through the aggregator, as `/quote/build` returns it today ---
@@ -118,8 +128,12 @@ const quotedSwap: ExpectedCall = {
   minOut: 2_147_305n,
 };
 
-const check = (xdrBase64: string, expected: ExpectedCall = quotedSwap, network: 'mainnet' | 'testnet' = 'mainnet') =>
-  () => verifyProtocolTransaction(xdrBase64, network, ACCOUNT, expected);
+const check = (
+  xdrBase64: string,
+  expected: ExpectedCall = quotedSwap,
+  network: 'mainnet' | 'testnet' = 'mainnet',
+  sequence = SEQUENCE,
+) => () => verifyProtocolTransaction(xdrBase64, network, ACCOUNT, expected, { sequence });
 
 describe('verifyProtocolTransaction — Soroswap swap', () => {
   it('accepts the swap that was requested', () => {
@@ -147,7 +161,7 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
     const routed = envelope({
       contract: ROUTER,
       fn: 'swap_exact_tokens_for_tokens',
-      args: [i128(10_000_000n), i128(2_147_305n), nativeToScVal([XLM, USDC].map((c) => new Address(c))), address(OTHER), nativeToScVal(1_900_000_000, { type: 'u64' })],
+      args: [i128(10_000_000n), i128(2_147_305n), nativeToScVal([XLM, USDC].map((c) => new Address(c))), address(OTHER), u64(DEADLINE)],
       transfers: [transfer(XLM, ACCOUNT, PAIR, 10_000_000n)],
     });
     expect(check(routed)).toThrow(/sets to to/);
@@ -175,7 +189,7 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
     const testnet = envelope({
       contract: TESTNET_ROUTER,
       fn: 'swap_exact_tokens_for_tokens',
-      args: [i128(10_000_000n), i128(2_147_305n), nativeToScVal([TESTNET_XLM, USDC].map((c) => new Address(c))), address(ACCOUNT), nativeToScVal(1_900_000_000, { type: 'u64' })],
+      args: [i128(10_000_000n), i128(2_147_305n), nativeToScVal([TESTNET_XLM, USDC].map((c) => new Address(c))), address(ACCOUNT), u64(DEADLINE)],
       transfers: [transfer(TESTNET_XLM, ACCOUNT, PAIR, 10_000_000n)],
       passphrase: Networks.TESTNET,
     });
@@ -210,6 +224,49 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
   it('refuses a draining fee and a transaction that never expires', () => {
     expect(check(swap({ fee: '1000000000' }))).toThrow(/XLM fee/);
     expect(check(swap({ timeout: 0 }))).toThrow(/never expires/);
+    // No preconditions at all: the SDK builder cannot make one, so strip them from the XDR.
+    const tx = TransactionBuilder.fromXDR(swap(), Networks.PUBLIC) as Transaction;
+    const bare = tx.toEnvelope();
+    if (bare.type !== 'envelopeTypeTx') throw new Error('expected a v1 envelope');
+    Object.assign(bare.v1.tx, { cond: xdr.Preconditions.precondNone() });
+    expect(check(bare.toXDR('base64'))).toThrow(/never expires/);
+  });
+
+  it('refuses a transaction that stays valid longer than the app allows', () => {
+    // The app's own transactions are valid for a day; a few minutes of clock skew are tolerated.
+    expect(check(swap({ timeout: 86_400 + 60 }))).not.toThrow();
+    expect(check(swap({ timeout: 86_400 + 3600 }))).toThrow(/stays valid for 25 hours/);
+    expect(check(swap({ timeout: 10 * 365 * 86_400 }))).toThrow(/instead of at most 24/);
+  });
+
+  it('refuses a memo and any condition beyond a time window', () => {
+    expect(check(swap({ tweak: (b) => b.addMemo(Memo.text('Claim your refund at …')) }))).toThrow(/carries a memo/);
+    expect(check(swap({ tweak: (b) => b.addMemo(Memo.id('1')) }))).toThrow(/carries a memo/);
+    expect(check(swap({ tweak: (b) => b.setLedgerbounds(1, 0) }))).toThrow(/range of ledgers/);
+    expect(check(swap({ tweak: (b) => b.setMinAccountSequence('7') }))).toThrow(/conditions on the account sequence/);
+    expect(check(swap({ tweak: (b) => b.setMinAccountSequenceAge(5n) }))).toThrow(/conditions on the account sequence/);
+    expect(check(swap({ tweak: (b) => b.setMinAccountSequenceLedgerGap(3) }))).toThrow(/conditions on the account sequence/);
+    expect(check(swap({ tweak: (b) => b.setExtraSigners([Keypair.random().publicKey()]) }))).toThrow(/extra signers/);
+  });
+
+  it('refuses a sequence number other than the account’s next one', () => {
+    // Built on sequence 101: right for an account at 100, not for one at 99 or 150.
+    expect(check(swap(), quotedSwap, 'mainnet', 100n)).not.toThrow();
+    expect(check(swap(), quotedSwap, 'mainnet', 99n)).toThrow(/sequence number 101 instead of your next one \(100\)/);
+    expect(check(swap(), quotedSwap, 'mainnet', 150n)).toThrow(/sequence number/);
+  });
+
+  it('leaves a router deadline to the transaction expiry', () => {
+    const routed = (deadline: xdr.ScVal) =>
+      envelope({
+        contract: ROUTER,
+        fn: 'swap_exact_tokens_for_tokens',
+        args: [i128(10_000_000n), i128(2_147_305n), nativeToScVal([XLM, USDC].map((c) => new Address(c))), address(ACCOUNT), deadline],
+        transfers: [transfer(XLM, ACCOUNT, PAIR, 10_000_000n)],
+      });
+    // The transaction cannot land after its own expiry, whatever the contract deadline says.
+    expect(check(routed(u64(DEADLINE)))).not.toThrow();
+    expect(check(routed(u64(2n ** 64n - 1n)))).not.toThrow();
   });
 
   it('decodes the swap on the signing screen', () => {
@@ -226,7 +283,7 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
 
 describe('verifyProtocolTransaction — Soroswap liquidity', () => {
   const addArgs = (minB: bigint) => [
-    address(USDC), address(XLM), i128(10_000_000n), i128(46_000_000n), i128(9_900_000n), i128(minB), address(ACCOUNT), nativeToScVal(1_900_000_000, { type: 'u64' }),
+    address(USDC), address(XLM), i128(10_000_000n), i128(46_000_000n), i128(9_900_000n), i128(minB), address(ACCOUNT), u64(DEADLINE),
   ];
   const add = (minB = 45_540_000n) =>
     envelope({
@@ -237,7 +294,7 @@ describe('verifyProtocolTransaction — Soroswap liquidity', () => {
     });
   // Requested as XLM/USDC: the router may take the pair in the other order.
   const requested: ExpectedCall = {
-    kind: 'add-liquidity', tokenA: XLM, tokenB: USDC, amountA: 46_000_000n, amountB: 10_000_000n, minA: 45_535_400n, minB: 9_899_000n,
+    kind: 'add-liquidity', tokenA: XLM, tokenB: USDC, amountA: 46_000_000n, amountB: 10_000_000n, minA: 45_535_400n, minB: 9_899_000n, newPool: false,
   };
 
   it('accepts the requested deposit in either token order', () => {
@@ -248,11 +305,17 @@ describe('verifyProtocolTransaction — Soroswap liquidity', () => {
     expect(check(add(40_000_000n), requested)).toThrow(/more slippage/);
   });
 
+  it('refuses a minimum of 0 unless the pair is new or empty on chain', () => {
+    const unbounded: ExpectedCall = { ...requested, minA: 0n, minB: 0n };
+    expect(check(add(0n), unbounded)).toThrow(/no minimum on a pool that already has a price/);
+    expect(check(add(0n), { ...unbounded, newPool: true })).not.toThrow();
+  });
+
   const removal = (minA: bigint) =>
     envelope({
       contract: ROUTER,
       fn: 'remove_liquidity',
-      args: [address(XLM), address(USDC), i128(1_000_000n), i128(minA), i128(217_000n), address(ACCOUNT), nativeToScVal(1_900_000_000, { type: 'u64' })],
+      args: [address(XLM), address(USDC), i128(1_000_000n), i128(minA), i128(217_000n), address(ACCOUNT), u64(DEADLINE)],
       transfers: [transfer(PAIR, ACCOUNT, PAIR, 1_000_000n)],
     });
   const removeRequest: ExpectedCall = {
@@ -287,14 +350,24 @@ describe('verifyProtocolTransaction — DeFindex vault', () => {
     expect(check(deposit(ACCOUNT, ROUTER), requested)).toThrow(/not the DeFindex Vault/);
   });
 
-  it('checks withdrawals by shares', () => {
-    const withdraw = envelope({
+  const withdraw = (minOut: xdr.ScVal[]) =>
+    envelope({
       contract: VAULT,
       fn: 'withdraw',
-      args: [i128(5_000_000n), nativeToScVal([i128(5_100_000n)]), address(ACCOUNT)],
+      args: [i128(5_000_000n), nativeToScVal(minOut), address(ACCOUNT)],
     });
-    expect(check(withdraw, { kind: 'vault-withdraw', vault: VAULT, shares: 5_000_000n })).not.toThrow();
-    expect(check(withdraw, { kind: 'vault-withdraw', vault: VAULT, shares: 4_000_000n })).toThrow(/different number of shares/);
+  const withdrawal: ExpectedCall = { kind: 'vault-withdraw', vault: VAULT, shares: 5_000_000n, minAmountsOut: [5_048_000n] };
+
+  it('checks withdrawals by shares', () => {
+    expect(check(withdraw([i128(5_100_000n)]), withdrawal)).not.toThrow();
+    expect(check(withdraw([i128(5_100_000n)]), { ...withdrawal, shares: 4_000_000n })).toThrow(/different number of shares/);
+  });
+
+  it('refuses a withdrawal whose minimum out is below the floor', () => {
+    expect(check(withdraw([i128(5_048_000n)]), withdrawal)).not.toThrow();
+    expect(check(withdraw([i128(5_047_999n)]), withdrawal)).toThrow(/less than the amount you are withdrawing/);
+    expect(check(withdraw([i128(0n)]), withdrawal)).toThrow(/less than the amount you are withdrawing/);
+    expect(check(withdraw([]), withdrawal)).toThrow(/less than the amount you are withdrawing/);
   });
 });
 
@@ -328,5 +401,20 @@ describe('withExpiry', () => {
   it('leaves a bounded transaction untouched', () => {
     const bounded = swap();
     expect(withExpiry(bounded, 'mainnet')).toBe(bounded);
+  });
+
+  it('shortens an expiry beyond the app window, then passes verification', () => {
+    const now = Math.floor(Date.now() / 1000);
+    const longLived = new TransactionBuilder(new Account(ACCOUNT, '100'), {
+      fee: '100',
+      networkPassphrase: Networks.PUBLIC,
+      timebounds: { minTime: 0, maxTime: now + 30 * 86_400 },
+    })
+      .addOperation(Operation.bumpSequence({ bumpTo: '0' }))
+      .build();
+    const shortened = TransactionBuilder.fromXDR(withExpiry(longLived.toXDR(), 'mainnet'), Networks.PUBLIC) as Transaction;
+    expect(Number(shortened.timeBounds?.maxTime)).toBeLessThanOrEqual(now + 86_400 + 5);
+    expect(shortened.sequence).toBe(longLived.sequence);
+    expect(shortened.fee).toBe(longLived.fee);
   });
 });

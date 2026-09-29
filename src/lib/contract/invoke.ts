@@ -1,7 +1,9 @@
 import { contract, rpc } from '@stellar/stellar-sdk';
 import { appConfig } from '@/lib/appConfig';
+import { analyzeOperations, type AnalyzedCall } from '@/lib/protocols/detect';
+import { getInnerTransaction, tryParseTransaction } from '@/lib/xdr/parse';
 import { coerceFormValue, type FormValues, type ParamShape } from './form-values';
-import { invocationRpcOptions, type LoadedContract } from './spec';
+import { invocationRpcOptions, type LoadedContract, type NetworkType } from './spec';
 
 export interface Invocation {
   loaded: LoadedContract;
@@ -53,4 +55,16 @@ export const buildInvocationXdr = async (invocation: Invocation): Promise<string
     );
   }
   return tx.toXdr();
+};
+
+/**
+ * The simulated or built call as the signing screen reads it, with the authorization entries the
+ * simulation attached: `needsNonInvokerSigningBy` ignores source-account entries, yet signing the
+ * transaction authorises every call in them, including token transfers made deep inside the contract.
+ */
+export const describeInvocation = (envelope: string, network: NetworkType): AnalyzedCall | null => {
+  const parsed = tryParseTransaction(envelope, network);
+  if (!parsed) return null;
+  const tx = getInnerTransaction(parsed.tx);
+  return analyzeOperations(tx.operations, network, tx.source)[0] ?? null;
 };

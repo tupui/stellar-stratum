@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Account, Keypair, Networks, Operation, StrKey, TransactionBuilder, hash, type xdr } from '@stellar/stellar-sdk';
+import { Account, Keypair, MuxedAccount, Networks, Operation, StrKey, TransactionBuilder, hash, type xdr } from '@stellar/stellar-sdk';
 import { interpretTransaction } from './interpret';
 import { passphraseFor, tryParseTransaction } from './parse';
 
@@ -33,6 +33,40 @@ describe('interpretTransaction', () => {
   it('reports a master key change even without the account state (air-gapped)', () => {
     const result = interpretTransaction(decoded([Operation.setOptions({ masterWeight: 0 })]), { sourceAccount: A, account: null });
     expect(result!.multisig!.signerChanges).toEqual([expect.objectContaining({ key: A, kind: 'removed', isMasterKey: true })]);
+  });
+
+  it('treats a muxed form of the account as the account itself', () => {
+    const muxed = new MuxedAccount(new Account(A, '0'), '42').accountId();
+    const removeAll = [
+      Operation.setOptions({ source: muxed, masterWeight: 0 }),
+      Operation.setOptions({ source: muxed, signer: { ed25519PublicKey: B, weight: 0 } }),
+    ];
+    for (const sourceAccount of [A, muxed]) {
+      const result = interpretTransaction(decoded(removeAll), { sourceAccount, account });
+      expect(result!.warnings.map((w) => w.title)).toContain('Every signer would be removed');
+      expect(result!.warnings.map((w) => w.title)).not.toContain('Some settings changes target a different account');
+    }
+  });
+
+  it('warns when a pre-authorised transaction or hash(x) signer takes over', () => {
+    const preAuth = hash(Buffer.from('drain'));
+    const result = interpretTransaction(
+      decoded([
+        Operation.setOptions({ signer: { preAuthTx: preAuth, weight: 255 } }),
+        Operation.setOptions({ signer: { ed25519PublicKey: B, weight: 0 } }),
+        Operation.setOptions({ masterWeight: 0 }),
+      ]),
+      { sourceAccount: A, account: { ...account, thresholds: { low: 2, med: 2, high: 2 } } },
+    );
+    const titles = result!.warnings.map((w) => w.title);
+    expect(titles).toContain('A transaction you cannot see here could act on this account');
+    expect(titles).toContain('No key could sign for this account');
+
+    const hashX = interpretTransaction(decoded([Operation.setOptions({ signer: { sha256Hash: preAuth, weight: 1 } })]), {
+      sourceAccount: A,
+      account,
+    });
+    expect(hashX!.warnings.map((w) => w.title)).toContain('Anyone who knows a secret could sign for this account');
   });
 
   it('never claims a threshold of 0 needs no signature', () => {

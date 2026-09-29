@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
 import { StellarWalletsKit, WATCHABLE_WALLETS } from '@/lib/walletKit';
-import { passphraseFor, type NetworkId } from '@/lib/xdr/parse';
+import { getTransactionHashFromXdr, passphraseFor, type NetworkId } from '@/lib/xdr/parse';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -46,9 +46,16 @@ const isHardwareWallet = (walletId: string) => {
   return id.includes('ledger') || id.includes('trezor');
 };
 
-/** The user said no on the device: never follow up with a second (blind-signing) prompt. */
-const isUserRejection = (error: unknown) =>
-  /reject|denied|declin|cancel|0x6985/i.test(error instanceof Error ? error.message : String(error));
+const errorName = (error: unknown) => (error && typeof error === 'object' && 'name' in error ? String(error.name) : '');
+
+/**
+ * The Ledger app could not display this transaction (too large, or an operation it cannot
+ * parse). Only then may it be signed as a bare hash, and only after the user agrees in the app.
+ * A refusal on the device ("User refused the request") is never followed by a second prompt.
+ */
+const cannotClearSign = (error: unknown) =>
+  ['StellarDataTooLargeError', 'StellarDataParsingFailedError'].includes(errorName(error)) ||
+  /too large for the device|unable to parse the provided data/i.test(error instanceof Error ? error.message : String(error));
 
 const sortWallets = (wallets: ISupportedWallet[]): ISupportedWallet[] =>
   wallets
@@ -95,6 +102,24 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
     purpose: HardwarePickerPurpose;
   } | null>(null);
   const pickerResolver = useRef<{ resolve: (a: HardwareAccount) => void; reject: (e: Error) => void } | null>(null);
+
+  // Consent to hash signing, with the hash to compare on the device.
+  const [hashSigning, setHashSigning] = useState<{ walletName: string; hash: string } | null>(null);
+  const hashSigningResolver = useRef<((accepted: boolean) => void) | null>(null);
+  const answerHashSigning = useCallback((accepted: boolean) => {
+    const resolve = hashSigningResolver.current;
+    hashSigningResolver.current = null;
+    setHashSigning(null);
+    resolve?.(accepted);
+  }, []);
+  const confirmHashSigning = useCallback(
+    (walletName: string, hash: string) =>
+      new Promise<boolean>((resolve) => {
+        hashSigningResolver.current = resolve;
+        setHashSigning({ walletName, hash });
+      }),
+    [],
+  );
 
   const refreshWallets = useCallback(async () => {
     try {
@@ -244,18 +269,21 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
       // Other wallets are asked to sign straight away: looking the address up first opens a
       // second popup for web wallets (Albedo, xBull, Ghostsig), which the browser then blocks.
 
-      // Prefer "clean signing": hand the full transaction to the device so it can
-      // display the operations, instead of a blind hash. Fall back to the default
-      // path only when the device/transaction combination cannot be clear-signed.
+      // Prefer "clean signing": hand the full transaction to the device so it can display the
+      // operations, instead of a blind hash. Hash signing is only offered when the Ledger app
+      // reports it cannot show this transaction, and only once the user has agreed here.
       const options = { networkPassphrase, ...(address ? { address } : {}), ...(path ? { path } : {}) };
+      const isLedger = walletId.toLowerCase().includes('ledger');
       let result: { signedTxXdr: string; signerAddress?: string };
       try {
         result = await StellarWalletsKit.signTransaction(xdr, {
           ...options,
-          ...(isHardwareWallet(walletId) ? { nonBlindTx: true } : {}),
+          ...(isLedger ? { nonBlindTx: true } : {}),
         } as typeof options);
       } catch (error) {
-        if (!isHardwareWallet(walletId) || isUserRejection(error)) throw error;
+        if (!isLedger || !cannotClearSign(error)) throw error;
+        const accepted = await confirmHashSigning(walletName, getTransactionHashFromXdr(xdr, network));
+        if (!accepted) throw new Error('Signing cancelled', { cause: error });
         result = await StellarWalletsKit.signTransaction(xdr, options);
       }
 
@@ -264,7 +292,7 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
       signingRef.current = false;
       if (connectedWalletRef.current) StellarWalletsKit.setWallet(connectedWalletRef.current.id);
     }
-  }, [loadHardwareAccounts, pickHardwareAccount]);
+  }, [loadHardwareAccounts, pickHardwareAccount, confirmHashSigning]);
 
   return (
     <WalletKitContext.Provider value={{ wallets, connectedWallet, connectWallet, disconnectWallet, signWithWallet, refreshWallets, fetchActiveAddress }}>
@@ -296,6 +324,22 @@ export const WalletKitProvider = ({ children }: WalletKitProviderProps) => {
                 <span className="text-muted-foreground">44'/148'/{account.index}'</span>
               </Button>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!hashSigning} onOpenChange={(open) => { if (!open) answerHashSigning(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{hashSigning?.walletName} cannot show this transaction</DialogTitle>
+            <DialogDescription>
+              The device can sign the transaction hash instead, but it will not show the operations. Only continue if
+              you have reviewed the transaction in this app, and check that the device shows this exact hash.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="font-address text-xs break-all rounded bg-muted p-2">{hashSigning?.hash}</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => answerHashSigning(false)}>Cancel</Button>
+            <Button onClick={() => answerHashSigning(true)}>Sign the hash</Button>
           </div>
         </DialogContent>
       </Dialog>

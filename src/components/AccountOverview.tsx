@@ -19,6 +19,7 @@ import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { useDefindexPositions } from '@/hooks/useDefindexPositions';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useRefreshOnNewTransaction } from '@/hooks/useRefreshOnNewTransaction';
 import { useToast } from '@/hooks/use-toast';
 
 import type { AccountData } from '@/lib/stellar';
@@ -49,6 +50,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
 
   const { toast } = useToast();
   const { network: currentNetwork } = useNetwork();
+  useRefreshOnNewTransaction(multisigConfigXdr ?? '', currentNetwork, onRefreshBalances);
   
   
   const truncateKey = (key: string) => {

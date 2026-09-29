@@ -3,7 +3,8 @@ import { SupportedNetworks } from '@defindex/sdk';
 import { soroswapSDK } from '@/lib/soroswap-client';
 import { defindexSDK } from '@/lib/defindex-client';
 import { safeStorage } from '@/lib/storage';
-import { getBuiltinToken, type TokenMeta } from './tokens';
+import { checkListedToken, getBuiltinToken, shortenAddress, type TokenMeta } from './tokens';
+import { readTokenDecimals, readTokenSymbol } from './onchain';
 import { findKnownVault, type NetworkId } from './registry';
 
 /**
@@ -12,58 +13,61 @@ import { findKnownVault, type NetworkId } from './registry';
  * air-gapped signer never calls any of it.
  */
 
-const TOKEN_CACHE_KEY = 'stratum_protocol_tokens_v1';
-const TOKEN_TTL = 24 * 60 * 60 * 1000;
-
-interface CachedTokens {
-  at: number;
-  tokens: Record<string, { code: string; decimals: number; icon?: string; issuer?: string }>;
-}
+// Older versions kept the whole token list, decimals included, in localStorage for a day:
+// a list read while the API was compromised would outlive the compromise. Drop it.
+safeStorage.remove('stratum_protocol_tokens_v1_mainnet');
+safeStorage.remove('stratum_protocol_tokens_v1_testnet');
 
 const tokenRequests = new Map<NetworkId, Promise<Map<string, TokenMeta>>>();
 
-const readTokenCache = (network: NetworkId): Map<string, TokenMeta> | null => {
-  const cached = safeStorage.getJSON<CachedTokens | null>(`${TOKEN_CACHE_KEY}_${network}`, null);
-  if (!cached || Date.now() - cached.at > TOKEN_TTL) return null;
-  return new Map(Object.entries(cached.tokens).map(([contract, meta]) => [contract, { ...meta, known: true }]));
-};
-
 /**
- * Contract address → token metadata, from the Soroswap token list.
- * Cached in memory and in localStorage for a day.
+ * Contract address → token metadata, from the Soroswap token list. Only entries
+ * the app can vouch for are kept: Stellar Asset Contracts whose code and issuer
+ * derive to the listed address, at 7 decimals. What the list says about any
+ * other contract is not used. Kept in memory for the session only.
  */
 export const loadTokenDirectory = (network: NetworkId): Promise<Map<string, TokenMeta>> => {
   const inflight = tokenRequests.get(network);
   if (inflight) return inflight;
 
   const request = (async () => {
-    const cached = readTokenCache(network);
-    if (cached) return cached;
-
     const list = await soroswapSDK.getAssetList(SupportedAssetLists.SOROSWAP);
     const assets = 'assets' in list ? list.assets : [];
 
     const tokens = new Map<string, TokenMeta>();
-    const serializable: CachedTokens['tokens'] = {};
-
     for (const asset of assets) {
-      if (!asset.contract || !asset.code) continue;
-      const meta = {
-        code: asset.code,
-        decimals: asset.decimals ?? 7,
+      const checked = checkListedToken(asset, network);
+      if (!checked?.sac) continue;
+      tokens.set(checked.contract, {
+        code: checked.code,
+        decimals: checked.decimals,
         icon: asset.icon,
-        issuer: asset.issuer,
-      };
-      tokens.set(asset.contract, { ...meta, known: true });
-      serializable[asset.contract] = meta;
+        issuer: checked.issuer,
+        known: true,
+      });
     }
-
-    safeStorage.setJSON(`${TOKEN_CACHE_KEY}_${network}`, { at: Date.now(), tokens: serializable });
     return tokens;
   })().catch(() => new Map<string, TokenMeta>());
 
   tokenRequests.set(network, request);
   return request;
+};
+
+/**
+ * A token's decimals and symbol as its own contract reports them; null when they
+ * cannot be read. Anyone can deploy a token whose symbol is "USDC", so the
+ * symbol is shown with the address it belongs to.
+ */
+export const loadOnchainToken = async (contract: string, network: NetworkId): Promise<TokenMeta | null> => {
+  try {
+    const [decimals, symbol] = await Promise.all([
+      readTokenDecimals(contract, network),
+      readTokenSymbol(contract, network),
+    ]);
+    return { code: `${symbol} · ${shortenAddress(contract, 4, 4)}`, decimals, known: true };
+  } catch {
+    return null;
+  }
 };
 
 export interface VaultMeta {
@@ -108,16 +112,19 @@ export const loadVaultMeta = (address: string, network: NetworkId): Promise<Vaul
  * Best available metadata for a token contract, without waiting on the network.
  *
  * Pinned values win on the numbers that change how an amount reads — a wrong
- * decimals would misstate the amount by orders of magnitude — while the fetched
- * list contributes the logo it has and covers every token we don't ship.
+ * decimals would misstate the amount by orders of magnitude. Then come Stellar
+ * Asset Contracts from the list, whose code and issuer were checked against the
+ * address (with the list's logo), then what the contract itself reported.
+ * Anything else is undefined: shown as an address, at an assumed precision.
  */
 export const resolveToken = (
   contract: string,
   network: NetworkId,
   directory: ReadonlyMap<string, TokenMeta>,
+  onchain: ReadonlyMap<string, TokenMeta> = new Map(),
 ): TokenMeta | undefined => {
   const builtin = getBuiltinToken(contract, network);
   const listed = directory.get(contract);
-  if (!builtin) return listed;
-  return { ...builtin, icon: listed?.icon };
+  if (builtin) return { ...builtin, icon: listed?.icon };
+  return listed ?? onchain.get(contract);
 };

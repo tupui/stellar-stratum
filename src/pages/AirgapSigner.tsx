@@ -30,32 +30,41 @@ const AirgapSigner = () => {
   const [isSigning, setIsSigning] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
 
-  // Disable network features for true air-gapped operation
+  // The app itself makes no requests from this page: block the ways scripts can reach the
+  // network, so nothing loaded here can send the transaction anywhere. This is a second line of
+  // defence only; the device itself must be offline.
   useEffect(() => {
-    const originalFetch = window.fetch;
-    const originalXHR = window.XMLHttpRequest;
+    const originals = {
+      fetch: window.fetch,
+      XMLHttpRequest: window.XMLHttpRequest,
+      WebSocket: window.WebSocket,
+      EventSource: window.EventSource,
+      sendBeacon: navigator.sendBeacon,
+    };
 
     // Guard against double-wrapping (StrictMode double-invoke, re-mount).
     type AirgapMarkedFetch = typeof window.fetch & { __airgap?: true };
-    type AirgapMarkedXHR = typeof window.XMLHttpRequest & { __airgap?: true };
     if ((window.fetch as AirgapMarkedFetch).__airgap) return;
 
-    const blockedFetch: AirgapMarkedFetch = (() => {
-      return Promise.reject(new Error('Network requests disabled in air-gapped mode'));
-    }) as AirgapMarkedFetch;
+    const refuse = () => {
+      throw new Error('Network requests disabled in air-gapped mode');
+    };
+    const blockedFetch: AirgapMarkedFetch = (() =>
+      Promise.reject(new Error('Network requests disabled in air-gapped mode'))) as AirgapMarkedFetch;
     blockedFetch.__airgap = true;
 
-    const BlockedXHR = function BlockedXHR() {
-      throw new Error('Network requests disabled in air-gapped mode');
-    } as unknown as AirgapMarkedXHR;
-    BlockedXHR.__airgap = true;
-
     window.fetch = blockedFetch;
-    window.XMLHttpRequest = BlockedXHR;
+    window.XMLHttpRequest = refuse as unknown as typeof window.XMLHttpRequest;
+    window.WebSocket = refuse as unknown as typeof window.WebSocket;
+    window.EventSource = refuse as unknown as typeof window.EventSource;
+    navigator.sendBeacon = () => false;
 
     return () => {
-      window.fetch = originalFetch;
-      window.XMLHttpRequest = originalXHR;
+      window.fetch = originals.fetch;
+      window.XMLHttpRequest = originals.XMLHttpRequest;
+      window.WebSocket = originals.WebSocket;
+      window.EventSource = originals.EventSource;
+      navigator.sendBeacon = originals.sendBeacon;
     };
   }, []);
 
@@ -73,7 +82,7 @@ const AirgapSigner = () => {
       });
       return;
     }
-    setNetwork(target);
+    setNetwork(target, { fromLink: true });
     setXdr(payload.xdr);
     setSignedBy([]);
     setPasted('');
@@ -90,7 +99,7 @@ const AirgapSigner = () => {
     const requested = networkParam === 'testnet' || networkParam === 'mainnet' ? networkParam : undefined;
     const xdrParam = params.get('xdr');
     if (!xdrParam) {
-      if (requested) setNetwork(requested);
+      if (requested) setNetwork(requested, { fromLink: true });
       return;
     }
     const payload = parseTransactionPayload(xdrParam);
@@ -118,14 +127,18 @@ const AirgapSigner = () => {
       }
       const hash = signed.isFeeBump ? signed.tx.hash() : getInnerTransaction(signed.tx).hash();
       const signatures = signed.isFeeBump ? signed.tx.signatures : getInnerTransaction(signed.tx).signatures;
-      if (address && !verifiedSignerKeys(hash, signatures, [{ key: address, weight: 1 }]).includes(address)) {
+      const before = original.isFeeBump ? original.tx.signatures : getInnerTransaction(original.tx).signatures;
+      if (!address || !verifiedSignerKeys(hash, signatures, [{ key: address, weight: 1 }]).includes(address)) {
         throw new Error(`${walletName} did not return a valid signature for ${networkName(network)}.`);
       }
+      if (signatures.length <= before.length && signedBy.includes(address)) {
+        throw new Error(`${address.slice(0, 8)}… has already signed this transaction.`);
+      }
       setXdr(signedXdr);
-      if (address) setSignedBy((prev) => (prev.includes(address) ? prev : [...prev, address]));
+      setSignedBy((prev) => (prev.includes(address) ? prev : [...prev, address]));
       toast({
         title: 'Transaction Signed',
-        description: address ? `Signature added from ${address.slice(0, 8)}...${address.slice(-8)}` : `Signed with ${walletName}`,
+        description: `Signature added from ${address.slice(0, 8)}...${address.slice(-8)}`,
       });
     } catch (error) {
       toast({
@@ -147,7 +160,7 @@ const AirgapSigner = () => {
     <div className="space-y-6">
       <div className="space-y-3 text-sm">
         <p className="text-muted-foreground">
-          <span className="text-foreground font-medium">Air‑gapped signing</span> lets you approve transactions on an offline device. This page blocks network requests for safety.
+          <span className="text-foreground font-medium">Air‑gapped signing</span> lets you approve transactions on an offline device. Open this page, then disconnect the device from every network before loading a transaction. The page itself sends nothing.
         </p>
         <div className="grid gap-1">
           <p className="text-foreground font-medium">What you need</p>
@@ -224,7 +237,8 @@ const AirgapSigner = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            {signatureCount} signature{signatureCount === 1 ? '' : 's'} on this transaction.
+            {signatureCount} signature{signatureCount === 1 ? '' : 's'} attached. The online device checks which ones are
+            valid; those added here are listed below.
           </p>
           {signedBy.map((address) => (
             <div key={address} className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">

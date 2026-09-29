@@ -1,17 +1,21 @@
 import { Address, Operation, scValToNative, type Transaction, TransactionBuilder, xdr } from '@stellar/stellar-sdk';
 import { appConfig } from '@/lib/appConfig';
 import { tryParseTransaction } from '@/lib/xdr/parse';
-import { analyzeOperations, fitsSignature, type ActivityDetails } from './detect';
+import { analyzeOperations, fitsSignature, type ActivityDetails, type AnalyzedCall } from './detect';
 import { findKnownVault, PROTOCOL_LABELS, type NetworkId, type ProtocolId } from './registry';
 
 /**
  * Checks on a transaction the Soroswap or DeFindex API built for us, before it
  * reaches signing. The API is a third party: its XDR must make exactly the call
  * the user asked for — from this account, to a contract we pin, with the
- * amounts they typed or were quoted — or it is refused.
+ * amounts they typed and bounds the app computed, on the account's next
+ * sequence number and expiring within the app's validity window — or it is refused.
  */
 
-/** What the user asked for, in contract units. */
+/**
+ * What the user asked for, in contract units. Bounds (minOut, maxIn, minA…) are
+ * computed by the app from the user's slippage, never taken from the API.
+ */
 export type ExpectedCall =
   | { kind: 'swap'; exact: 'in'; tokenIn: string; tokenOut: string; amountIn: bigint; minOut: bigint }
   | { kind: 'swap'; exact: 'out'; tokenIn: string; tokenOut: string; amountOut: bigint; maxIn: bigint }
@@ -23,6 +27,8 @@ export type ExpectedCall =
       amountB: bigint;
       minA: bigint;
       minB: bigint;
+      /** The pair is absent or empty on chain: the deposit sets its price, so a minimum of 0 is fine. */
+      newPool: boolean;
     }
   | {
       kind: 'remove-liquidity';
@@ -35,7 +41,15 @@ export type ExpectedCall =
       minB: bigint;
     }
   | { kind: 'vault-deposit'; vault: string; amounts: bigint[]; invest: boolean }
-  | { kind: 'vault-withdraw'; vault: string; shares: bigint };
+  | { kind: 'vault-withdraw'; vault: string; shares: bigint; minAmountsOut: bigint[] };
+
+/** The account as the network sees it right now, read by the app (not the API). */
+export interface AccountState {
+  /** The account's current sequence number: the transaction must use the next one. */
+  sequence: bigint;
+  /** Unix seconds; defaults to the clock. */
+  now?: number;
+}
 
 type Kind = ExpectedCall['kind'];
 
@@ -61,6 +75,9 @@ const ACCOUNT_PARAMS = ['from', 'to', 'caller'];
 
 /** Soroban fees are a fraction of an XLM; a fee this large is a drain, not a fee. */
 const MAX_FEE_STROOPS = 100_000_000n;
+
+/** Room for the API's clock running ahead of ours when checking the expiry. */
+const CLOCK_SKEW_SECONDS = 300;
 
 const amountOf = (raw: string) => BigInt(raw);
 
@@ -102,6 +119,7 @@ const mismatch = (details: ActivityDetails, expected: ExpectedCall): string | nu
         if (!leg) return 'adds liquidity to a different pool';
         if (amountOf(leg.desired.raw) !== amount) return 'deposits different amounts';
         if (amountOf(leg.min.raw) < min) return 'allows more slippage than requested';
+        if (amountOf(leg.min.raw) <= 0n && !expected.newPool) return 'has no minimum on a pool that already has a price';
       }
       return null;
     }
@@ -134,9 +152,51 @@ const mismatch = (details: ActivityDetails, expected: ExpectedCall): string | nu
     case 'vault-withdraw': {
       if (details.kind !== 'vault-withdraw') return 'is not a vault withdrawal';
       if (amountOf(details.shares) !== expected.shares) return 'redeems a different number of shares';
+      const floors = expected.minAmountsOut;
+      const mins = details.minAmountsOut;
+      if (mins.length !== floors.length || mins.some((raw, i) => amountOf(raw) < floors[i])) {
+        return 'guarantees less than the amount you are withdrawing';
+      }
       return null;
     }
   }
+};
+
+/**
+ * The envelope's expiry, once its conditions are those of a plain, short-lived
+ * transaction on the account's next sequence number; a string saying what is
+ * wrong otherwise. Read from the raw XDR, so nothing the SDK's getters leave
+ * out can slip through.
+ */
+const checkConditions = (tx: Transaction, state: AccountState): { maxTime: bigint } | string => {
+  const envelope = tx.toEnvelope();
+  if (envelope.type !== 'envelopeTypeTx') return 'cannot be read';
+  const { cond, memo, seqNum } = envelope.v1.tx;
+
+  if (memo.type !== 'memoNone') return 'carries a memo';
+
+  let timeBounds: xdr.TimeBounds | null = null;
+  if (cond.type === 'precondTime') timeBounds = cond.timeBounds;
+  if (cond.type === 'precondV2') {
+    const v2 = cond.v2;
+    if (v2.ledgerBounds) return 'is limited to a range of ledgers';
+    if (v2.minSeqNum !== null || v2.minSeqAge !== 0n || v2.minSeqLedgerGap !== 0) {
+      return 'has conditions on the account sequence';
+    }
+    if (v2.extraSigners.length) return 'requires extra signers';
+    timeBounds = v2.timeBounds;
+  }
+  if (!timeBounds || timeBounds.maxTime === 0n) return 'never expires';
+  const now = state.now ?? Math.floor(Date.now() / 1000);
+  if (timeBounds.maxTime > BigInt(now + appConfig.TX_VALIDITY_SECONDS + CLOCK_SKEW_SECONDS)) {
+    const hours = Math.round(Number(timeBounds.maxTime - BigInt(now)) / 3600);
+    return `stays valid for ${hours} hours instead of at most ${appConfig.TX_VALIDITY_SECONDS / 3600}`;
+  }
+
+  if (seqNum !== state.sequence + 1n) {
+    return `uses sequence number ${seqNum} instead of your next one (${state.sequence + 1n})`;
+  }
+  return { maxTime: timeBounds.maxTime };
 };
 
 /** Token contract → the most the account may be asked to transfer of it. */
@@ -172,6 +232,7 @@ export const verifyProtocolTransaction = (
   network: NetworkId,
   account: string,
   expected: ExpectedCall,
+  state: AccountState,
 ): void => {
   const protocol = PROTOCOL[expected.kind];
   const refusal = (reason: string) =>
@@ -184,7 +245,8 @@ export const verifyProtocolTransaction = (
 
   if (tx.source !== account) throw refusal(`uses ${tx.source} as its source account instead of yours`);
   if (BigInt(tx.fee) > MAX_FEE_STROOPS) throw refusal(`asks for a ${Number(tx.fee) / 1e7} XLM fee`);
-  if (!tx.timeBounds || tx.timeBounds.maxTime === '0') throw refusal('never expires');
+  const conditions = checkConditions(tx, state);
+  if (typeof conditions === 'string') throw refusal(conditions);
   if (tx.operations.length !== 1) throw refusal(`has ${tx.operations.length} operations instead of one contract call`);
 
   const [op] = tx.operations;
@@ -213,6 +275,7 @@ export const verifyProtocolTransaction = (
   const foreign = call.args.find((arg) => ACCOUNT_PARAMS.includes(arg.name) && arg.value !== account);
   if (foreign) throw refusal(`sets ${foreign.name} to ${String(foreign.value)} instead of your account`);
 
+  // A router `deadline` needs no check of its own: the transaction's expiry bounds it.
   const reason = mismatch(call.details, expected);
   if (reason) throw refusal(reason);
 
@@ -252,15 +315,16 @@ export const verifyProtocolTransaction = (
 };
 
 /**
- * Give a transaction that never expires the validity window of the ones the
- * app builds itself, so a half-signed deposit cannot be submitted weeks later.
- * Only the time bounds change; anything else is returned untouched.
+ * Give an API-built transaction that never expires, or expires later than the ones the app
+ * builds itself, the app's validity window, so a half-signed swap or deposit cannot be
+ * submitted weeks later. Only the time bounds change; anything else is returned untouched.
  */
 export const withExpiry = (envelope: string, network: NetworkId): string => {
   const parsed = tryParseTransaction(envelope, network);
   if (!parsed || parsed.isFeeBump) return envelope;
   const tx = parsed.tx as Transaction;
-  if (tx.timeBounds && tx.timeBounds.maxTime !== '0') return envelope;
+  const maxTime = Number(tx.timeBounds?.maxTime ?? 0);
+  if (maxTime > 0 && maxTime <= Math.floor(Date.now() / 1000) + appConfig.TX_VALIDITY_SECONDS) return envelope;
 
   const body = tx.toEnvelope().value.tx;
   const sorobanData = 'ext' in body && body.ext.type === 'sorobanData' ? body.ext.value : undefined;

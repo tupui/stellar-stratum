@@ -49,6 +49,16 @@ describe('validateConfig', () => {
     expect(validateConfig(A, { signers: [{ key: A, weight: 0 }], thresholds: thresholds(0, 0, 0) }).errors.length).toBeGreaterThan(0);
   });
 
+  it('does not count pre-auth or hash(x) weight as a key that can sign', () => {
+    const preAuth = StrKey.encodePreAuthTx(hash(Buffer.from('recovery')));
+    const { errors, warnings } = validateConfig(A, {
+      signers: [{ key: A, weight: 0 }, { key: preAuth, weight: 10 }],
+      thresholds: thresholds(1, 1, 1),
+    });
+    expect(errors.some((e) => e.includes('At least one key'))).toBe(true);
+    expect(warnings.some((w) => w.includes('pre-authorised transaction'))).toBe(true);
+  });
+
   it('accepts a 2-of-3 without the master key, with a warning', () => {
     const { errors, warnings } = validateConfig(A, {
       signers: [{ key: A, weight: 0 }, { key: B, weight: 1 }, { key: C, weight: 1 }],

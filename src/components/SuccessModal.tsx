@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import QRCode from 'qrcode';
 import { createPortal } from 'react-dom';
 import { buildSEP7TxUri } from '@/lib/sep7';
+import { openExternal } from '@/lib/utils';
 interface SuccessModalProps {
   type: 'network' | 'refractor' | 'offline';
   hash?: string;
@@ -99,9 +100,9 @@ export const SuccessModal = ({
   const openExplorer = () => {
     if (type === 'network' && hash) {
       const baseUrl = network === 'testnet' ? 'https://stellar.expert/explorer/testnet' : 'https://stellar.expert/explorer/public';
-      window.open(`${baseUrl}/tx/${hash}`, '_blank', 'noopener,noreferrer');
+      openExternal(`${baseUrl}/tx/${hash}`);
     } else if (type === 'refractor' && refractorId) {
-      window.open(`https://refractor.space/tx/${refractorId}`, '_blank', 'noopener,noreferrer');
+      openExternal(`https://refractor.space/tx/${refractorId}`);
     }
   };
   const copyShareLink = async () => {
@@ -137,17 +138,17 @@ export const SuccessModal = ({
     if (!shareUrl) return;
     const subject = encodeURIComponent('Sign Transaction on Stellar Stratum');
     const body = encodeURIComponent(`Please sign this transaction using Stellar Stratum:\n\nTransaction ID: ${refractorId}\nLink: ${shareUrl}`);
-    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+    openExternal(`mailto:?subject=${subject}&body=${body}`);
   };
   const openWhatsApp = () => {
     if (!shareUrl) return;
     const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    openExternal(`https://wa.me/?text=${text}`);
   };
   const openTelegram = () => {
     if (!shareUrl) return;
     const text = encodeURIComponent(`Please sign this transaction on Stellar Stratum: ${shareUrl}`);
-    window.open(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${text}`, '_blank');
+    openExternal(`https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${text}`);
   };
   const displayValue = type === 'network' || type === 'offline' ? hash : refractorId;
   const label = type === 'network' || type === 'offline' ? 'Transaction Hash' : 'Transaction ID';

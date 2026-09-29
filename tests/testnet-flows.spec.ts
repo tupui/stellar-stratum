@@ -92,6 +92,39 @@ test('payment: build, sign outside the app, submit from the Import tab', async (
   expect(blocked).toEqual([]);
 });
 
+test('the review checks the sequence number against the account as it is now', async ({ page }) => {
+  const A = Keypair.random();
+  const B = Keypair.random();
+  await Promise.all([fund(A), fund(B)]);
+  const blocked = await guardMainnet(page);
+  await openAccount(page, A.publicKey());
+
+  // Another device uses a sequence number after the app loaded the account
+  const elsewhere = new TransactionBuilder(await horizon.loadAccount(A.publicKey()), { fee: '1000', networkPassphrase: Networks.TESTNET })
+    .addOperation(Operation.bumpSequence({ bumpTo: '0' }))
+    .setTimeout(300)
+    .build();
+  elsewhere.sign(A);
+  await horizon.submitTransaction(elsewhere);
+
+  // The app's own transaction must not be flagged as out of sequence
+  await buildPayment(page, B.publicKey(), '1');
+  await expect(page.getByText('Pay 1 XLM to')).toBeVisible();
+  await expect(page.getByText(/cannot land yet|has already used sequence/)).toHaveCount(0);
+
+  // A transaction that skips ahead is
+  const account = await horizon.loadAccount(A.publicKey());
+  account.incrementSequenceNumber();
+  account.incrementSequenceNumber();
+  const ahead = new TransactionBuilder(account, { fee: '1000', networkPassphrase: Networks.TESTNET })
+    .addOperation(Operation.payment({ destination: B.publicKey(), asset: Asset.native(), amount: '1' }))
+    .setTimeout(3600)
+    .build();
+  await importXdr(page, ahead.toXDR());
+  await expect(page.getByText(/must first send 2 other transaction/)).toBeVisible({ timeout: 30_000 });
+  expect(blocked).toEqual([]);
+});
+
 test('2-of-2 multisig: one signature is not enough, two are', async ({ page }) => {
   const A = Keypair.random();
   const B = Keypair.random();
@@ -142,6 +175,9 @@ test('Refractor share link opens the transaction on testnet', async ({ page }) =
   await page.goto(`/?r=${posted.hash}`);
   await expect(page.getByText(posted.hash).first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText('Testnet', { exact: true }).first()).toBeVisible();
+  // The switch is announced until acknowledged, and not remembered for the next visit
+  await expect(page.getByText('The link you opened switched the app to')).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('stellar-network'))).toBe('mainnet');
   // The app starts on mainnet here, so its mainnet price lookups before the switch are expected
   // (and blocked). The transaction's account must never be read from mainnet Horizon.
   expect(blocked.filter((url) => url.includes('horizon'))).toEqual([]);

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AnalyzedCall } from '@/lib/protocols/detect';
 import type { NetworkId } from '@/lib/protocols/registry';
-import { loadTokenDirectory, loadVaultMeta, resolveToken, type VaultMeta } from '@/lib/protocols/enrich';
+import { loadOnchainToken, loadTokenDirectory, loadVaultMeta, resolveToken, type VaultMeta } from '@/lib/protocols/enrich';
 import { findKnownVault } from '@/lib/protocols/registry';
 import { ASSUMED_DECIMALS, formatTokenAmount, getBuiltinToken, shortenAddress, type TokenMeta } from '@/lib/protocols/tokens';
 
@@ -24,8 +24,9 @@ export interface ProtocolMetadata {
 /**
  * Puts human names on the contract addresses inside decoded calls.
  *
- * Renders immediately from the built-in table, then fills in from the Soroswap
- * token list and the DeFindex vault API. Disabled entirely when `enabled` is
+ * Renders immediately from the built-in table, then fills in from the Stellar
+ * Asset Contracts on the Soroswap token list, the other tokens' own contracts
+ * (read on the app's RPC) and the DeFindex vault API. Disabled entirely when `enabled` is
  * false, which is how the air-gapped signer stays offline.
  */
 export const useProtocolMetadata = (
@@ -34,6 +35,8 @@ export const useProtocolMetadata = (
   enabled = true,
 ): ProtocolMetadata => {
   const [directory, setDirectory] = useState<Map<string, TokenMeta> | null>(null);
+  // Tokens the list cannot vouch for, as their own contracts describe them.
+  const [onchain, setOnchain] = useState<Map<string, TokenMeta>>(new Map());
   const [vaults, setVaults] = useState<Map<string, VaultMeta>>(new Map());
 
   // Stable keys so the effects don't re-run on every re-render.
@@ -59,8 +62,14 @@ export const useProtocolMetadata = (
     if (!needed.length) return;
 
     let active = true;
-    loadTokenDirectory(network).then((result) => {
-      if (active) setDirectory(result);
+    loadTokenDirectory(network).then(async (result) => {
+      if (!active) return;
+      setDirectory(result);
+      // The rest are read from the contracts themselves: the list's decimals are not trusted.
+      const unlisted = needed.filter((c) => !result.has(c));
+      const read = await Promise.all(unlisted.map(async (c) => [c, await loadOnchainToken(c, network)] as const));
+      const found = read.filter((entry): entry is readonly [string, TokenMeta] => entry[1] !== null);
+      if (active && found.length) setOnchain(new Map(found));
     });
     return () => {
       active = false;
@@ -94,19 +103,24 @@ export const useProtocolMetadata = (
   }, [enabled, vaultKey, network]);
 
   return useMemo(() => {
-    const token = (contract: string) => resolveToken(contract, network, directory ?? EMPTY);
+    const token = (contract: string) => resolveToken(contract, network, directory ?? EMPTY, onchain);
     const referenced = tokenKey ? tokenKey.split(',') : [];
     const awaitingDirectory =
       enabled && directory === null && referenced.some((c) => !getBuiltinToken(c, network));
+    // Decimals only count once pinned, derived from a Stellar Asset Contract, or read on chain.
+    const confirmed = (contract: string) => {
+      const meta = token(contract);
+      return meta?.known ? meta : undefined;
+    };
 
     return {
-      token,
+      token: confirmed,
       vault: (address: string) => vaults.get(address),
-      symbol: (contract: string) => token(contract)?.code ?? shortenAddress(contract, 4, 4),
-      isAssumed: (contract: string) => !token(contract),
+      symbol: (contract: string) => confirmed(contract)?.code ?? shortenAddress(contract, 4, 4),
+      isAssumed: (contract: string) => !confirmed(contract),
       amount: (raw: string, contract: string) =>
-        formatTokenAmount(raw, token(contract)?.decimals ?? ASSUMED_DECIMALS),
+        formatTokenAmount(raw, confirmed(contract)?.decimals ?? ASSUMED_DECIMALS),
       resolving: awaitingDirectory,
     };
-  }, [directory, vaults, network, tokenKey, enabled]);
+  }, [directory, onchain, vaults, network, tokenKey, enabled]);
 };

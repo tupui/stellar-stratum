@@ -9,7 +9,7 @@ import { AlertTriangle, Plus, ArrowRight, ArrowDown, Merge, Edit2, X, ExternalLi
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { isValidPublicKey } from '@/lib/validation';
-import { spendableBalance } from '@/lib/balance-utils';
+import { priceKey, spendableBalance } from '@/lib/balance-utils';
 import type { AccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
 import { useDestinationAccount } from '@/hooks/useDestinationAccount';
@@ -85,10 +85,17 @@ const toDecimal = (value: string | undefined) => {
   }
 };
 
+/**
+ * A plain decimal with at most 7 places. Decimal.js also reads "0x3E8", "1_000" or "1e3",
+ * which the display would not show as the amount actually sent, so those are refused.
+ */
+const PLAIN_AMOUNT = /^(\d+(\.\d{1,7})?|\.\d{1,7})$/;
+
 /** Stellar amounts are 64-bit integers of stroops: at most 7 decimals, strictly positive. */
 const isPositiveAmount = (value: string | undefined) => {
-  const amount = toDecimal(value);
-  return amount.isFinite() && amount.gt(0) && amount.decimalPlaces() <= 7;
+  if (!value || !PLAIN_AMOUNT.test(value.trim())) return false;
+  const amount = toDecimal(value.trim());
+  return amount.isFinite() && amount.gt(0);
 };
 
 const MAX_UINT64 = (1n << 64n) - 1n;
@@ -168,8 +175,8 @@ export const PaymentForm = ({
   };
 
   const formatFiat = useCallback(
-    async (amount: string, asset: string) => {
-      const price = assetPrices[asset] || 0;
+    async (amount: string, asset: string, issuer?: string) => {
+      const price = assetPrices[priceKey(asset, issuer)] || 0;
       if (price <= 0 || !amount) return '';
       const usdValue = parseFloat(amount) * price;
       const currency = getCurrentCurrency();
@@ -191,7 +198,7 @@ export const PaymentForm = ({
       const values: Record<string, string> = {};
       for (const payment of compactPayments) {
         if (payment.exactOut) continue;
-        const value = await formatFiat(payment.amount, payment.asset);
+        const value = await formatFiat(payment.amount, payment.asset, payment.assetIssuer);
         if (value) values[payment.id] = value;
       }
       if (!cancelled) setCompactPaymentFiatValues(values);
@@ -203,17 +210,18 @@ export const PaymentForm = ({
 
   useEffect(() => {
     let cancelled = false;
-    formatFiat(paymentData.amount, paymentData.asset).then((value) => {
+    formatFiat(paymentData.amount, paymentData.asset, paymentData.assetIssuer).then((value) => {
       if (!cancelled) setFiatValue(value);
     });
     return () => {
       cancelled = true;
     };
-  }, [paymentData.amount, paymentData.asset, quoteCurrency, formatFiat]);
+  }, [paymentData.amount, paymentData.asset, paymentData.assetIssuer, quoteCurrency, formatFiat]);
 
   const getAssetExplorerUrl = (assetCode: string, assetIssuer?: string): string => {
     const networkPath = network === 'testnet' ? 'testnet' : 'public';
-    if (!assetIssuer || assetCode === 'XLM') {
+    // Only the issuer-less asset is native XLM: a token can be called "XLM" too.
+    if (!assetIssuer) {
       return `https://stellar.expert/explorer/${networkPath}/asset/XLM`;
     }
     return `https://stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;
@@ -365,11 +373,14 @@ export const PaymentForm = ({
   };
 
   const needsMemo = compactPayments.some((p) => p.memoRequired) && !memo.value;
+  // A transaction has one memo: two destinations that each need their own (two exchange
+  // deposits) cannot share it.
+  const memoConflict = new Set(compactPayments.filter((p) => p.memoRequired).map((p) => p.destination)).size > 1;
   const currentMemoError = memoError(memo);
   const hasMerge = compactPayments.some((p) => p.isAccountClosure);
 
   const handleBuild = () => {
-    if (currentMemoError || needsMemo) return;
+    if (currentMemoError || needsMemo || memoConflict) return;
     // A merge deletes the account, so it has to be the last operation.
     const ordered = [...compactPayments.filter((p) => !p.isAccountClosure), ...compactPayments.filter((p) => p.isAccountClosure)];
     onBuild(ordered, memo);
@@ -389,21 +400,36 @@ export const PaymentForm = ({
         const code = url.searchParams.get('asset_code');
         const issuer = url.searchParams.get('asset_issuer') ?? '';
         const held = code ? availableAssets.find((a) => sameAsset(a.code, a.issuer, code, issuer)) : undefined;
+        const requestedAmount = url.searchParams.get('amount');
+        const amountOk = requestedAmount !== null && isPositiveAmount(requestedAmount);
         if (code && !held) {
+          // Never carry the requested amount over to another asset (such as XLM).
           toast({ title: 'Asset not held', description: `This request asks for ${code}, which this account does not hold.`, variant: 'destructive' });
+          onPaymentDataChange({ ...paymentData, destination: target, amount: '' });
+        } else {
+          if (requestedAmount !== null && !amountOk) {
+            toast({ title: 'Amount not applied', description: 'The amount in this request is not a plain number.', variant: 'destructive' });
+          }
+          onPaymentDataChange({
+            ...paymentData,
+            destination: target,
+            amount: amountOk ? requestedAmount.trim() : '',
+            asset: held ? held.code : 'XLM',
+            assetIssuer: held ? held.issuer : '',
+          });
         }
-        onPaymentDataChange({
-          ...paymentData,
-          destination: target,
-          amount: url.searchParams.get('amount') ?? paymentData.amount,
-          asset: held ? held.code : 'XLM',
-          assetIssuer: held ? held.issuer : '',
-        });
         const requestedMemo = url.searchParams.get('memo');
         if (requestedMemo) {
           const memoType = url.searchParams.get('memo_type');
           if (memoType && memoType !== 'MEMO_TEXT' && memoType !== 'MEMO_ID') {
             toast({ title: 'Memo not applied', description: `${memoType} memos are not supported; enter it manually.`, variant: 'destructive' });
+          } else if (memo.value && memo.value !== requestedMemo) {
+            // The memo usually says whose deposit this is: never replace one silently.
+            toast({
+              title: 'Memo not applied',
+              description: `This request asks for memo "${requestedMemo}", but this transaction already uses "${memo.value}". Send it as a separate transaction.`,
+              variant: 'destructive',
+            });
           } else {
             setMemo({ type: memoType === 'MEMO_ID' ? 'id' : 'text', value: requestedMemo });
           }
@@ -676,6 +702,12 @@ export const PaymentForm = ({
               <p className="text-xs text-muted-foreground">A transaction has a single memo, shared by all its operations.</p>
               {currentMemoError && <p className="text-xs text-destructive">{currentMemoError}</p>}
               {needsMemo && <p className="text-xs text-destructive">A destination in this transaction requires a memo.</p>}
+              {memoConflict && (
+                <p className="text-xs text-destructive">
+                  Several destinations here require their own memo, but a transaction has only one. Send them as separate
+                  transactions.
+                </p>
+              )}
             </div>
           )}
 
@@ -695,7 +727,7 @@ export const PaymentForm = ({
                 )}
                 <Button
                   onClick={handleBuild}
-                  disabled={isBuilding || compactPayments.length === 0 || Boolean(currentMemoError) || needsMemo}
+                  disabled={isBuilding || compactPayments.length === 0 || Boolean(currentMemoError) || needsMemo || memoConflict}
                   className="flex-1 min-w-0 bg-gradient-success text-success-foreground hover:text-success-foreground hover:opacity-90 disabled:opacity-50 hover:animate-[glow-pulse-purple_1s_ease-in-out] active:animate-[glow-expand-purple_0.3s_ease-out]"
                   size="lg"
                 >

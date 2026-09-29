@@ -13,7 +13,7 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, openExternal } from '@/lib/utils';
 import { format } from 'date-fns';
 import { GroupedTransaction } from '@/hooks/useTransactionGrouping';
 import { NormalizedTransaction } from '@/lib/horizon-utils';
@@ -29,6 +29,8 @@ interface GroupedTransactionItemProps {
   fiatLoading: boolean;
   formatFiatAmount: (amount: number) => string;
   truncateAddress: (address?: string | null) => string;
+  /** Addresses this account has paid; other senders may be look-alike spam. */
+  paidCounterparties: Set<string>;
   network: 'mainnet' | 'testnet';
   currencySymbol: string;
 }
@@ -61,6 +63,7 @@ export const GroupedTransactionItem = ({
   fiatLoading,
   formatFiatAmount,
   truncateAddress,
+  paidCounterparties,
   network,
   currencySymbol
 }: GroupedTransactionItemProps) => {
@@ -143,31 +146,42 @@ export const GroupedTransactionItem = ({
           </div>
         </div>
 
-        {tx.counterparty && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span className="font-mono break-all">
-              {truncateAddress(tx.counterparty)}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                copyAddress(tx.counterparty!);
-              }}
-              className="h-4 w-4 p-0 hover:bg-secondary shrink-0"
-            >
-              {copiedAddress === tx.counterparty ? (
-                <Check className="w-2.5 h-2.5 text-success" />
-              ) : (
-                <Copy className="w-2.5 h-2.5" />
-              )}
-            </Button>
-          </div>
-        )}
+        {tx.counterparty && renderCounterparty(tx, 'gap-1', 'h-4 w-4')}
       </div>
     </>
   );
+
+  // A sender this account never paid is shown but not offered for copying: it may be a
+  // look-alike address planted with a spam payment, waiting to be pasted as a recipient.
+  const renderCounterparty = (tx: NormalizedTransaction, gap: string, buttonSize: string) => {
+    const unfamiliar = tx.direction === 'in' && !paidCounterparties.has(tx.counterparty!);
+    return (
+      <div className={cn('flex items-center text-xs text-muted-foreground', gap)}>
+        <span className={cn('font-mono break-all', unfamiliar && 'opacity-70')}>{truncateAddress(tx.counterparty)}</span>
+        {unfamiliar ? (
+          <span className="shrink-0" title="Senders can use look-alike addresses. Check the full address before paying it.">
+            (never paid)
+          </span>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              copyAddress(tx.counterparty!);
+            }}
+            className={cn(buttonSize, 'p-0 hover:bg-secondary shrink-0')}
+          >
+            {copiedAddress === tx.counterparty ? (
+              <Check className="w-2.5 h-2.5 text-success" />
+            ) : (
+              <Copy className="w-2.5 h-2.5" />
+            )}
+          </Button>
+        )}
+      </div>
+    );
+  };
 
   const copyAddress = async (address: string) => {
     if (!address) return;
@@ -191,7 +205,7 @@ export const GroupedTransactionItem = ({
     const expertUrl = network === 'testnet'
       ? `https://stellar.expert/explorer/testnet/tx/${hash}`
       : `https://stellar.expert/explorer/public/tx/${hash}`;
-    window.open(expertUrl, '_blank');
+    openExternal(expertUrl);
   };
 
 
@@ -268,28 +282,7 @@ export const GroupedTransactionItem = ({
                           </span>
                         )}
                       </div>
-                      {tx.counterparty && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="font-mono break-all">
-                            {truncateAddress(tx.counterparty)}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              copyAddress(tx.counterparty!);
-                            }}
-                            className="h-5 w-5 p-0 hover:bg-secondary shrink-0"
-                          >
-                            {copiedAddress === tx.counterparty ? (
-                              <Check className="w-2.5 h-2.5 text-success" />
-                            ) : (
-                              <Copy className="w-2.5 h-2.5" />
-                            )}
-                          </Button>
-                        </div>
-                      )}
+                      {tx.counterparty && renderCounterparty(tx, 'gap-2', 'h-5 w-5')}
                       <div className="text-xs text-muted-foreground">
                         {format(tx.createdAt, 'MMM dd, yyyy HH:mm:ss')}
                       </div>

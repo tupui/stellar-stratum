@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Decimal } from 'decimal.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,8 +14,18 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { formatBalance, spendableBalance } from '@/lib/balance-utils';
 import { soroswapSDK, getSoroswapNetwork } from '@/lib/soroswap-client';
 import { apiAmount, apiErrorMessage } from '@/lib/protocols/api';
-import { formatUnits, parseUnits, SHARE_DECIMALS, shortenAddress } from '@/lib/protocols/tokens';
-import { verifyProtocolTransaction } from '@/lib/protocols/verify';
+import {
+  checkQuote,
+  checkRate,
+  RATE_TOLERANCE_BPS,
+  slippageFloor,
+  type CheckedQuote,
+  type RateCheck,
+  type SwapRequest,
+} from '@/lib/protocols/guards';
+import { loadAccountSequence, oraclePrice, readSoroswapPool, readTokenDecimals, type PoolState } from '@/lib/protocols/onchain';
+import { ASSUMED_DECIMALS, checkListedToken, formatUnits, parseUnits, SHARE_DECIMALS, shortenAddress } from '@/lib/protocols/tokens';
+import { verifyProtocolTransaction, withExpiry } from '@/lib/protocols/verify';
 import type { AccountData } from '@/lib/stellar';
 import {
   SupportedAssetLists,
@@ -24,7 +34,6 @@ import {
   type AssetInfo,
   type QuoteResponse,
   type UserPositionResponse,
-  type Pool,
 } from '@soroswap/sdk';
 
 interface SoroswapTabProps {
@@ -43,11 +52,44 @@ type Operation = 'swap' | 'addLiquidity' | 'removeLiquidity';
 // The Soroswap token list is mainnet-only, so the tab is too.
 const XLM_CONTRACT = 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA';
 
-const XLM_ASSET: AssetInfo = {
+/**
+ * A token list entry once its identity was checked against its address. For a
+ * Stellar Asset Contract (`sac`) the code, issuer and 7 decimals follow from
+ * the address; for any other contract the list's name is only a label, and its
+ * decimals are read from the contract before an amount is built.
+ */
+type Token = AssetInfo & { contract: string; sac: boolean };
+
+const XLM_TOKEN: Token = {
   code: 'XLM',
   name: 'Stellar Lumens',
   contract: XLM_CONTRACT,
   decimals: 7,
+  sac: true,
+};
+
+/** Keep the list entries whose identity checks out, named from what was checked. */
+const checkTokenList = (list: AssetInfo[], network: 'mainnet' | 'testnet'): Token[] => {
+  const seen = new Set<string>();
+  return list.flatMap((asset): Token[] => {
+    const checked = checkListedToken(asset, network);
+    if (!checked || seen.has(checked.contract)) return [];
+    seen.add(checked.contract);
+    return [
+      checked.sac
+        ? { ...asset, contract: checked.contract, sac: true, code: checked.code, issuer: checked.issuer, decimals: checked.decimals }
+        // No logo, issuer or decimals from the list for a contract nothing vouches for.
+        : { code: asset.code, name: asset.name, contract: checked.contract, sac: false },
+    ];
+  });
+};
+
+/** How a token is named on the form: a contract the app cannot vouch for also shows its address. */
+const tokenLabel = (t: Token) => {
+  if (t.sac) return t.code || t.contract;
+  const address = shortenAddress(t.contract, 4, 4);
+  const name = t.code || t.name;
+  return name ? `${name} · ${address}` : address;
 };
 
 /** Highest swap slippage the form accepts, in basis points (10%). */
@@ -60,10 +102,74 @@ const QUOTE_TTL_MS = 30_000;
 const LIQUIDITY_SLIPPAGE_BPS = 100n;
 
 /**
- * The least the router may settle for on a liquidity leg. One basis point more
- * than the slippage sent to the API leaves room for its rounding of the minimums.
+ * Decimals for amounts that get signed: 7 for a checked Stellar Asset Contract,
+ * otherwise what the token contract reports on the app's RPC, never the list.
+ * Undefined while reading (or with no token), null when it could not be read.
  */
-const slippageFloor = (amount: bigint) => (amount * (10_000n - LIQUIDITY_SLIPPAGE_BPS - 1n)) / 10_000n;
+const useDecimals = (token: Token | undefined, network: 'mainnet' | 'testnet'): number | null | undefined => {
+  const [read, setRead] = useState<Record<string, number | null>>({});
+  const contract = token && !token.sac ? token.contract : '';
+  useEffect(() => {
+    if (!contract) return;
+    let active = true;
+    readTokenDecimals(contract, network).then(
+      (decimals) => { if (active) setRead((prev) => ({ ...prev, [contract]: decimals })); },
+      () => { if (active) setRead((prev) => ({ ...prev, [contract]: null })); },
+    );
+    return () => { active = false; };
+  }, [contract, network]);
+  if (!token) return undefined;
+  return token.sac ? ASSUMED_DECIMALS : read[contract];
+};
+
+/** Says why amounts in a token cannot be entered yet, if they cannot. */
+const DecimalsNote = ({ token, decimals }: { token: Token | undefined; decimals: number | null | undefined }) => {
+  if (!token || typeof decimals === 'number') return null;
+  return decimals === null ? (
+    <p className="text-xs text-destructive">
+      Could not read the decimals of {tokenLabel(token)} from the network, so amounts in it cannot be built.
+    </p>
+  ) : (
+    <p className="text-xs text-muted-foreground">Reading the decimals of {tokenLabel(token)} from the network…</p>
+  );
+};
+
+/** USD price of a token from the Reflector oracles; 0 when there is none, as for any contract that is not a Stellar Asset Contract. */
+const priceOf = (token: Token, network: 'mainnet' | 'testnet') =>
+  token.sac ? oraclePrice(token.code ?? '', token.issuer, network) : Promise.resolve(0);
+
+/** The same, for the form: undefined while loading. */
+const useOraclePrice = (token: Token | undefined, network: 'mainnet' | 'testnet'): number | undefined => {
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const contract = token?.sac ? token.contract : '';
+  const code = token?.code ?? '';
+  const issuer = token?.issuer;
+  useEffect(() => {
+    if (!contract) return;
+    let active = true;
+    oraclePrice(code, issuer, network).then((price) => {
+      if (active) setPrices((prev) => ({ ...prev, [contract]: price }));
+    });
+    return () => { active = false; };
+  }, [contract, code, issuer, network]);
+  if (!token) return undefined;
+  return token.sac ? prices[contract] : 0;
+};
+
+/** A quote checked against the request, or why it does not fit it. */
+const readQuote = (quote: QuoteResponse, request: SwapRequest): { quoted: CheckedQuote | null; problem: string } => {
+  try {
+    return { quoted: checkQuote(quote, request), problem: '' };
+  } catch (err) {
+    return { quoted: null, problem: apiErrorMessage(err, 'The quote cannot be read.') };
+  }
+};
+
+const percent = (bps: number) => `${(Math.abs(bps) / 100).toFixed(2)}%`;
+
+/** Why a quote's rate is refused, in the words shown on the form and in the build error. */
+const rateRefusal = (shortfallBps: number) =>
+  `This quote is ${percent(shortfallBps)} below the Reflector oracle price (the limit is ${percent(RATE_TOLERANCE_BPS)}). It will not be built: try a smaller amount or other routes.`;
 
 /** An API amount for display; 0 when the API sent something unreadable. */
 const readAmount = (value: unknown): bigint => {
@@ -124,7 +230,7 @@ const SoroswapPanel = ({
   onClearTransaction,
 }: SoroswapTabProps) => {
   const [operation, setOperation] = useState<Operation>('swap');
-  const [assets, setAssets] = useState<AssetInfo[]>([]);
+  const [assets, setAssets] = useState<Token[]>([]);
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   const [error, setError] = useState('');
 
@@ -135,8 +241,9 @@ const SoroswapPanel = ({
       try {
         const list = await soroswapSDK.getAssetList(SupportedAssetLists.SOROSWAP);
         if ('assets' in list) {
-          const hasXlm = list.assets.some((a) => a.contract === XLM_CONTRACT);
-          setAssets(hasXlm ? list.assets : [XLM_ASSET, ...list.assets]);
+          const tokens = checkTokenList(list.assets, network);
+          const hasXlm = tokens.some((a) => a.contract === XLM_CONTRACT);
+          setAssets(hasXlm ? tokens : [XLM_TOKEN, ...tokens]);
         }
       } catch (err) {
         setError(apiErrorMessage(err, 'Failed to load asset list'));
@@ -145,22 +252,24 @@ const SoroswapPanel = ({
       }
     };
     fetchAssets();
-  }, []);
+  }, [network]);
 
-  const balanceLine = (a: AssetInfo) =>
-    accountData?.balances.find((b) =>
-      a.contract === XLM_CONTRACT
-        ? b.asset_type === 'native'
-        : b.asset_code === a.code && b.asset_issuer === a.issuer
-    );
+  // Horizon only holds XLM and classic assets: a token's balance is the one of the
+  // asset its checked Stellar Asset Contract stands for, and nothing else.
+  const balanceLine = (a: Token) =>
+    a.contract === XLM_CONTRACT
+      ? accountData?.balances.find((b) => b.asset_type === 'native')
+      : a.sac && a.issuer
+        ? accountData?.balances.find((b) => b.asset_code === a.code && b.asset_issuer === a.issuer)
+        : undefined;
 
-  const getAssetBalance = (a: AssetInfo): number => {
+  const getAssetBalance = (a: Token): number => {
     const entry = balanceLine(a);
     return entry ? parseFloat(entry.balance) : 0;
   };
 
-  // What MAX may sell: the balance less open offers and, for XLM, the reserve and a fee margin
-  const getSpendable = (a: AssetInfo): Decimal => {
+  // What can be sold: the balance less open offers and, for XLM, the reserve and a fee margin
+  const getSpendable = (a: Token): Decimal => {
     if (!accountData || !balanceLine(a)) return new Decimal(0);
     return a.contract === XLM_CONTRACT
       ? spendableBalance(accountData, 'XLM')
@@ -168,8 +277,8 @@ const SoroswapPanel = ({
   };
 
   // A classic asset can only be received over a trustline; XLM and contract-only tokens need none
-  const lacksTrustline = (a: AssetInfo) =>
-    !!accountData && !!a.issuer && a.contract !== XLM_CONTRACT && !balanceLine(a);
+  const lacksTrustline = (a: Token) =>
+    !!accountData && a.sac && !!a.issuer && a.contract !== XLM_CONTRACT && !balanceLine(a);
 
   // Only tokens the account actually holds can be swapped from
   const fromAssets = accountData ? assets.filter((a) => getAssetBalance(a) > 0) : assets;
@@ -285,7 +394,7 @@ const ROUTING_PROTOCOLS: Array<{ id: SupportedProtocols; label: string }> = [
 ];
 
 interface FormProps {
-  assets: AssetInfo[];
+  assets: Token[];
   network: 'mainnet' | 'testnet';
   accountPublicKey: string;
   onBuild: (xdr: string) => void;
@@ -297,11 +406,21 @@ interface FormProps {
 }
 
 interface SwapFormProps extends FormProps {
-  fromAssets: AssetInfo[];
-  getAssetBalance: (asset: AssetInfo) => number;
-  getSpendable: (asset: AssetInfo) => Decimal;
-  lacksTrustline: (asset: AssetInfo) => boolean;
+  fromAssets: Token[];
+  getAssetBalance: (asset: Token) => number;
+  getSpendable: (asset: Token) => Decimal;
+  lacksTrustline: (asset: Token) => boolean;
 }
+
+/**
+ * Bumped on every edit and on unmount (another operation or tab), so a build
+ * that finishes afterwards is dropped instead of loading an outdated transaction.
+ */
+const useEdits = () => {
+  const editsRef = useRef(0);
+  useEffect(() => () => { editsRef.current += 1; }, []);
+  return editsRef;
+};
 
 const SwapForm = ({
   assets,
@@ -332,10 +451,12 @@ const SwapForm = ({
   const [quotedAt, setQuotedAt] = useState(0);
   const [isQuoting, setIsQuoting] = useState(false);
   const [isBuildingTx, setIsBuildingTx] = useState(false);
+  const editsRef = useEdits();
 
   // Anything that changes the trade drops the quote and any transaction built from it
   const resetQuote = () => {
     setQuote(null);
+    editsRef.current += 1;
     onInputChange();
   };
 
@@ -349,8 +470,11 @@ const SwapForm = ({
 
   const selectedIn = assets.find((a) => a.contract === assetIn);
   const selectedOut = assets.find((a) => a.contract === assetOut);
-  const inDecimals = selectedIn?.decimals ?? 7;
-  const outDecimals = selectedOut?.decimals ?? 7;
+  const inDecimals = useDecimals(selectedIn, network);
+  const outDecimals = useDecimals(selectedOut, network);
+  const decimalsReady = typeof inDecimals === 'number' && typeof outDecimals === 'number';
+  const priceIn = useOraclePrice(selectedIn, network);
+  const priceOut = useOraclePrice(selectedOut, network);
   const inBalance = selectedIn ? getAssetBalance(selectedIn) : 0;
   const outBalance = selectedOut ? getAssetBalance(selectedOut) : 0;
   const inSpendable = selectedIn ? getSpendable(selectedIn) : new Decimal(0);
@@ -358,9 +482,14 @@ const SwapForm = ({
 
   const exactIn = independentField === 'sell';
   const typedDecimals = exactIn ? inDecimals : outDecimals;
-  const typedAmount = parseUnits(typedValue, typedDecimals);
+  const typedAmount = typeof typedDecimals === 'number' ? parseUnits(typedValue, typedDecimals) : null;
   const slippage = /^\d+$/.test(slippageBps) ? Number(slippageBps) : NaN;
   const slippageValid = slippage >= 1 && slippage <= MAX_SLIPPAGE_BPS;
+  // The most of the sold token this account can spend, in contract units
+  const spendableRaw = typeof inDecimals === 'number'
+    ? parseUnits(inSpendable.toDecimalPlaces(inDecimals, Decimal.ROUND_DOWN).toFixed(), inDecimals) ?? 0n
+    : 0n;
+  const spendableText = `${typeof inDecimals === 'number' ? formatUnits(spendableRaw, inDecimals) : '0'} ${selectedIn ? tokenLabel(selectedIn) : ''}`;
 
   const sanitizeAmount = (raw: string) => {
     let s = raw.replace(/[^0-9.]/g, '');
@@ -399,7 +528,7 @@ const SwapForm = ({
   // Auto-quote (debounced): sell side -> EXACT_IN, buy side -> EXACT_OUT.
   // State is cleared in the type/select handlers, so the effect only schedules the fetch.
   useEffect(() => {
-    if (!assetIn || !assetOut || assetIn === assetOut || !typedAmount || !slippageValid || needsTrustline) {
+    if (!assetIn || !assetOut || assetIn === assetOut || !typedAmount || !slippageValid || needsTrustline || !decimalsReady) {
       return;
     }
     let cancelled = false;
@@ -422,43 +551,88 @@ const SwapForm = ({
       }
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [assetIn, assetOut, typedAmount, slippageValid, needsTrustline, fetchQuote, onError]);
+  }, [assetIn, assetOut, typedAmount, slippageValid, needsTrustline, decimalsReady, fetchQuote, onError]);
 
-  // The slippage bound: minimum received (EXACT_IN) or maximum sold (EXACT_OUT)
-  const threshold = (q: QuoteResponse) => apiAmount(q.otherAmountThreshold);
+  const swapRequest = (amount: bigint): SwapRequest => ({
+    tokenIn: assetIn,
+    tokenOut: assetOut,
+    exact: exactIn ? 'in' : 'out',
+    amount,
+    slippageBps: slippage,
+  });
+
+  // The quote as the app reads it: checked against the request, with the slippage
+  // bound computed from the user's slippage rather than taken from the API.
+  const { quoted, problem: quoteProblem } = quote && typedAmount
+    ? readQuote(quote, swapRequest(typedAmount))
+    : { quoted: null, problem: '' };
+
+  // The quoted rate against independent oracle prices; null while those load
+  const rateOf = (q: CheckedQuote, pIn: number, pOut: number): RateCheck | null =>
+    decimalsReady
+      ? checkRate({ raw: q.amountIn, decimals: inDecimals, price: pIn }, { raw: q.amountOut, decimals: outDecimals, price: pOut })
+      : null;
+  const rate = quoted && priceIn !== undefined && priceOut !== undefined ? rateOf(quoted, priceIn, priceOut) : null;
+
+  // The most this swap may take from the account: the typed amount, or the bound when buying
+  const mostSold = quoted ? (exactIn ? quoted.amountIn : quoted.bound) : null;
+  const overSpendable = mostSold !== null && mostSold > spendableRaw;
 
   const handleBuild = async () => {
-    if (!quote || !typedAmount) return;
+    if (!quote || !typedAmount || !selectedIn || !selectedOut || !decimalsReady) return;
+    const request = swapRequest(typedAmount);
+    const at = editsRef.current;
     onError('');
     setIsBuildingTx(true);
     try {
       let current = quote;
+      let bounds = checkQuote(current, request);
       if (Date.now() - quotedAt > QUOTE_TTL_MS) {
         // Refresh an old quote; build only if its bound is no worse than the one on screen
-        current = await fetchQuote(typedAmount);
+        const shown = bounds;
+        current = await fetchQuote(request.amount);
+        if (editsRef.current !== at) return;
         setQuote(current);
         setQuotedAt(Date.now());
-        const noWorse = exactIn ? threshold(current) >= threshold(quote) : threshold(current) <= threshold(quote);
+        bounds = checkQuote(current, request);
+        const noWorse = exactIn ? bounds.bound >= shown.bound : bounds.bound <= shown.bound;
         if (!noWorse) {
           onError('The price moved since this quote. Check the new amounts, then build again.');
           return;
         }
       }
-      const buildResponse = await soroswapSDK.build(
-        { quote: current, from: accountPublicKey },
-        getSoroswapNetwork(network)
-      );
+
+      const most = exactIn ? bounds.amountIn : bounds.bound;
+      if (most > spendableRaw) {
+        throw new Error(
+          `This swap can sell up to ${formatUnits(most, inDecimals)} ${tokenLabel(selectedIn)}, more than the ${spendableText} this account can spend.`,
+        );
+      }
+
+      // An independent look at the rate, since the quoted amounts come from the API too
+      const [pIn, pOut] = await Promise.all([priceOf(selectedIn, network), priceOf(selectedOut, network)]);
+      if (editsRef.current !== at) return;
+      const quotedRate = rateOf(bounds, pIn, pOut);
+      if (quotedRate?.status === 'off') throw new Error(rateRefusal(quotedRate.shortfallBps));
+
+      const [buildResponse, sequence] = await Promise.all([
+        soroswapSDK.build({ quote: current, from: accountPublicKey }, getSoroswapNetwork(network)),
+        loadAccountSequence(accountPublicKey, network),
+      ]);
+      if (editsRef.current !== at) return;
+      const xdr = withExpiry(buildResponse.xdr, network);
       verifyProtocolTransaction(
-        buildResponse.xdr,
+        xdr,
         network,
         accountPublicKey,
         exactIn
-          ? { kind: 'swap', exact: 'in', tokenIn: assetIn, tokenOut: assetOut, amountIn: typedAmount, minOut: threshold(current) }
-          : { kind: 'swap', exact: 'out', tokenIn: assetIn, tokenOut: assetOut, amountOut: typedAmount, maxIn: threshold(current) }
+          ? { kind: 'swap', exact: 'in', tokenIn: assetIn, tokenOut: assetOut, amountIn: request.amount, minOut: bounds.bound }
+          : { kind: 'swap', exact: 'out', tokenIn: assetIn, tokenOut: assetOut, amountOut: request.amount, maxIn: bounds.bound },
+        { sequence },
       );
-      onBuild(buildResponse.xdr);
+      onBuild(xdr);
     } catch (err) {
-      onError(apiErrorMessage(err, 'Failed to build swap transaction'));
+      if (editsRef.current === at) onError(apiErrorMessage(err, 'Failed to build swap transaction'));
     } finally {
       setIsBuildingTx(false);
     }
@@ -476,23 +650,23 @@ const SwapForm = ({
   };
 
   // The side the user did NOT type is computed from the quote
-  const derivedSell = quote && independentField === 'buy' && quote.tradeType === TradeType.EXACT_OUT
+  const derivedSell = quote && decimalsReady && independentField === 'buy' && quote.tradeType === TradeType.EXACT_OUT
     ? fmtUnits(quote.amountIn, inDecimals)
     : undefined;
-  const derivedBuy = quote && independentField === 'sell' && quote.tradeType === TradeType.EXACT_IN
+  const derivedBuy = quote && decimalsReady && independentField === 'sell' && quote.tradeType === TradeType.EXACT_IN
     ? fmtUnits(quote.amountOut, outDecimals)
     : undefined;
 
   const sellDisplay = independentField === 'sell' ? typedValue : (derivedSell ?? '');
   const buyDisplay = independentField === 'buy' ? typedValue : (derivedBuy ?? '');
 
-  // Slippage bound from the quote
-  const minReceived = quote && quote.tradeType === TradeType.EXACT_IN
-    ? fmtUnits(quote.otherAmountThreshold, outDecimals)
-    : undefined;
-  const maxSold = quote && quote.tradeType === TradeType.EXACT_OUT
-    ? fmtUnits(quote.otherAmountThreshold, inDecimals)
-    : undefined;
+  // The slippage bound that gets enforced: the app's, from the user's slippage
+  const minReceived = quoted && decimalsReady && exactIn ? formatUnits(quoted.bound, outDecimals) : undefined;
+  const maxSold = quoted && decimalsReady && !exactIn ? formatUnits(quoted.bound, inDecimals) : undefined;
+  // Tokens the oracle has no price for: the quoted rate then rests on the API alone
+  const unpriced = rate?.status === 'unpriced'
+    ? [priceIn ? undefined : selectedIn, priceOut ? undefined : selectedOut].filter((t): t is Token => !!t)
+    : [];
 
   return (
     <div className="space-y-2">
@@ -547,8 +721,8 @@ const SwapForm = ({
             <button
               type="button"
               className="text-xs text-muted-foreground hover:text-foreground disabled:hover:text-muted-foreground"
-              disabled={inSpendable.lte(0)}
-              onClick={() => handleTypeSell(inSpendable.toDecimalPlaces(inDecimals, Decimal.ROUND_DOWN).toFixed())}
+              disabled={inSpendable.lte(0) || typeof inDecimals !== 'number'}
+              onClick={() => handleTypeSell(inSpendable.toDecimalPlaces(inDecimals ?? 0, Decimal.ROUND_DOWN).toFixed())}
             >
               Balance: <span className="font-mono">{formatBalance(inBalance)}</span>{inSpendable.gt(0) ? ' · MAX' : ''}
             </button>
@@ -561,7 +735,7 @@ const SwapForm = ({
                 {selectedIn && (
                   <div className="flex items-center gap-2">
                     <TokenIcon asset={selectedIn} />
-                    <span className="truncate">{selectedIn.code || selectedIn.name || selectedIn.contract}</span>
+                    <span className="truncate">{tokenLabel(selectedIn)}</span>
                   </div>
                 )}
               </SelectValue>
@@ -571,10 +745,10 @@ const SwapForm = ({
                 <div className="px-3 py-2 text-sm text-muted-foreground">No tokens with an active balance</div>
               )}
               {fromAssets.map((a) => (
-                <SelectItem key={a.contract} value={a.contract!}>
+                <SelectItem key={a.contract} value={a.contract}>
                   <div className="flex items-center gap-2 min-w-[220px]">
                     <TokenIcon asset={a} />
-                    <span className="font-medium">{a.code || a.name || a.contract}</span>
+                    <span className="font-medium">{tokenLabel(a)}</span>
                     <span className="ml-auto font-mono text-xs text-muted-foreground">{formatBalance(getAssetBalance(a))}</span>
                   </div>
                 </SelectItem>
@@ -621,17 +795,17 @@ const SwapForm = ({
                 {selectedOut && (
                   <div className="flex items-center gap-2">
                     <TokenIcon asset={selectedOut} />
-                    <span className="truncate">{selectedOut.code || selectedOut.name || selectedOut.contract}</span>
+                    <span className="truncate">{tokenLabel(selectedOut)}</span>
                   </div>
                 )}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {assets.map((a) => (
-                <SelectItem key={a.contract} value={a.contract!}>
+                <SelectItem key={a.contract} value={a.contract}>
                   <div className="flex items-center gap-2 min-w-[220px]">
                     <TokenIcon asset={a} />
-                    <span>{a.code || a.name || a.contract}</span>
+                    <span>{tokenLabel(a)}</span>
                     {lacksTrustline(a) && (
                       <span className="ml-auto text-xs text-muted-foreground">No trustline</span>
                     )}
@@ -662,8 +836,15 @@ const SwapForm = ({
         )}
       </div>
 
-      {typedValue && typedAmount === null && (
+      <DecimalsNote token={selectedIn} decimals={inDecimals} />
+      <DecimalsNote token={selectedOut} decimals={outDecimals} />
+      {typedValue && typeof typedDecimals === 'number' && typedAmount === null && (
         <p className="text-xs text-destructive">Enter an amount with at most {typedDecimals} decimal places.</p>
+      )}
+      {overSpendable && (
+        <p className="text-xs text-destructive">
+          {exactIn ? 'This is' : 'This swap may sell'} more than the {spendableText} this account can spend.
+        </p>
       )}
 
       {/* Slippage */}
@@ -689,13 +870,13 @@ const SwapForm = ({
             {minReceived !== undefined && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Minimum received</span>
-                <span className="font-mono">{minReceived} {selectedOut?.code || ''}</span>
+                <span className="font-mono">{minReceived} {selectedOut ? tokenLabel(selectedOut) : ''}</span>
               </div>
             )}
             {maxSold !== undefined && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Maximum sold</span>
-                <span className="font-mono">{maxSold} {selectedIn?.code || ''}</span>
+                <span className="font-mono">{maxSold} {selectedIn ? tokenLabel(selectedIn) : ''}</span>
               </div>
             )}
             <div className="flex justify-between">
@@ -706,6 +887,22 @@ const SwapForm = ({
               <span className="text-muted-foreground">Route</span>
               <span>{quote.routePlan.length} hop{quote.routePlan.length !== 1 ? 's' : ''}</span>
             </div>
+            {quoted && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Rate vs Reflector oracle</span>
+                <span className="font-mono">
+                  {rate === null ? '…' : rate.status === 'unpriced' ? 'no price' : `${percent(rate.shortfallBps)} ${rate.shortfallBps > 0 ? 'below' : 'above'}`}
+                </span>
+              </div>
+            )}
+            {quoteProblem && <p className="text-xs text-destructive">{quoteProblem}</p>}
+            {rate?.status === 'off' && <p className="text-xs text-destructive">{rateRefusal(rate.shortfallBps)}</p>}
+            {unpriced.length > 0 && (
+              <p className="text-xs text-warning">
+                The Reflector oracle has no price for {unpriced.map(tokenLabel).join(' or ')}, so nothing independent
+                checks this rate: it comes from the Soroswap API alone. Compare the amounts with another source before you build.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
@@ -715,7 +912,7 @@ const SwapForm = ({
         <Button
           className="w-full"
           onClick={handleBuild}
-          disabled={loading || isTransactionBuilt}
+          disabled={loading || isTransactionBuilt || !quoted || overSpendable || rate?.status === 'off'}
         >
           {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
           Build Swap Transaction
@@ -727,114 +924,108 @@ const SwapForm = ({
 
 // --- Add Liquidity Sub-Form ---
 
-/**
- * A pool's reserves in the order the user picked the tokens: the API lists
- * them in contract order. Null for an empty pool or one that is not this pair.
- */
-const orientReserves = (pool: Pool | null, assetA: string, assetB: string) => {
-  if (!pool) return null;
-  const first = readAmount(pool.reserveA);
-  const second = readAmount(pool.reserveB);
-  const reserves =
-    pool.tokenA === assetA && pool.tokenB === assetB
-      ? { a: first, b: second }
-      : pool.tokenA === assetB && pool.tokenB === assetA
-        ? { a: second, b: first }
-        : null;
-  return reserves && reserves.a > 0n && reserves.b > 0n ? reserves : null;
-};
-
 const AddLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBuilding, isTransactionBuilt, onError, onInputChange }: FormProps) => {
   const [assetA, setAssetA] = useState('');
   const [assetB, setAssetB] = useState('');
   const [amountA, setAmountA] = useState('');
   const [amountB, setAmountB] = useState('');
-  const [poolInfo, setPoolInfo] = useState<Pool | null>(null);
-  const [isLoadingPool, setIsLoadingPool] = useState(false);
+  // The pair as read on chain through the pinned factory (never the API), for the pair it was read for
+  const [pool, setPool] = useState<{ pair: string; state: PoolState | null; error?: string } | null>(null);
   const [isBuildingTx, setIsBuildingTx] = useState(false);
+  const editsRef = useEdits();
 
-  // Fetch pool when both assets are selected. A pool left over from another
-  // pair is harmless: orientReserves only reads the pool of the selected pair.
+  const pairKey = assetA && assetB && assetA !== assetB ? `${assetA}/${assetB}` : '';
+
   useEffect(() => {
     if (!assetA || !assetB || assetA === assetB) return;
-
-    const fetchPool = async () => {
-      setIsLoadingPool(true);
-      onError('');
-      try {
-        const pools = await soroswapSDK.getPoolByTokens(
-          assetA,
-          assetB,
-          getSoroswapNetwork(network),
-          [SupportedProtocols.SOROSWAP]
-        );
-        if (pools.length > 0) {
-          setPoolInfo(pools[0]);
-        } else {
-          setPoolInfo(null);
-          onError('No pool found for this pair');
-        }
-      } catch (err) {
-        setPoolInfo(null);
-        onError(apiErrorMessage(err, 'Failed to load pool info'));
-      } finally {
-        setIsLoadingPool(false);
-      }
-    };
-    fetchPool();
-  }, [assetA, assetB, network, onError]);
+    const pair = `${assetA}/${assetB}`;
+    let active = true;
+    readSoroswapPool(assetA, assetB, network).then(
+      (state) => { if (active) setPool({ pair, state }); },
+      (err) => {
+        if (active) setPool({ pair, state: null, error: apiErrorMessage(err, 'Could not read this pool from the network.') });
+      },
+    );
+    return () => { active = false; };
+  }, [assetA, assetB, network]);
 
   const selectedA = assets.find((a) => a.contract === assetA);
   const selectedB = assets.find((a) => a.contract === assetB);
-  const decimalsA = selectedA?.decimals ?? 7;
-  const decimalsB = selectedB?.decimals ?? 7;
-  const reserves = orientReserves(poolInfo, assetA, assetB);
+  const decimalsA = useDecimals(selectedA, network);
+  const decimalsB = useDecimals(selectedB, network);
+  const current = pool && pool.pair === pairKey ? pool : null;
+  const isLoadingPool = !!pairKey && !current;
+  const reserves = current?.state?.exists ? { a: current.state.reserveA, b: current.state.reserveB } : null;
+  // Confirmed on chain: no pair yet, or an empty one. The deposit then sets the price.
+  const newPool = current?.state?.exists === false;
 
-  const rawA = parseUnits(amountA, decimalsA);
+  const rawA = typeof decimalsA === 'number' ? parseUnits(amountA, decimalsA) : null;
   // With reserves, amount B follows the pool price exactly as the router computes it
-  const rawB = reserves ? (rawA ? (rawA * reserves.b) / reserves.a : null) : parseUnits(amountB, decimalsB);
-  const amountBDisplay = reserves ? (rawB !== null ? formatUnits(rawB, decimalsB) : '') : amountB;
+  const rawB = typeof decimalsB !== 'number' || !current?.state
+    ? null
+    : reserves ? (rawA ? (rawA * reserves.b) / reserves.a : null) : parseUnits(amountB, decimalsB);
+  const amountBDisplay = reserves ? (rawB !== null && typeof decimalsB === 'number' ? formatUnits(rawB, decimalsB) : '') : amountB;
 
-  const selectAsset = (setAsset: (v: string) => void) => (v: string) => {
+  const changed = () => {
+    editsRef.current += 1;
+    onInputChange();
+  };
+
+  const selectAsset = (setAsset: (v: string) => void, v: string) => {
     setAsset(v);
     setAmountA('');
     setAmountB('');
-    onInputChange();
+    changed();
   };
 
   const handleBuild = async () => {
     onError('');
-    if (!assetA || !assetB || !rawA || !rawB) {
+    if (!assetA || !assetB || !rawA || !rawB || !current?.state) {
       onError('Fill in all fields');
       return;
     }
 
+    const at = editsRef.current;
     setIsBuildingTx(true);
     try {
-      const response = await soroswapSDK.addLiquidity(
-        {
-          assetA,
-          assetB,
-          amountA: rawA,
-          amountB: rawB,
-          to: accountPublicKey,
-          slippageBps: LIQUIDITY_SLIPPAGE_BPS.toString(),
-        },
-        getSoroswapNetwork(network)
-      );
-      // The first deposit into an empty pool sets its price: there is none to protect
-      verifyProtocolTransaction(response.xdr, network, accountPublicKey, {
+      // The pair may have been created or drained since it was read: check again before trusting a minimum of 0
+      const fresh = await readSoroswapPool(assetA, assetB, network);
+      if (editsRef.current !== at) return;
+      if (fresh.exists !== !newPool) {
+        setPool({ pair: pairKey, state: fresh });
+        throw new Error('This pool changed since it was loaded. Check the amounts, then build again.');
+      }
+
+      const [response, sequence] = await Promise.all([
+        soroswapSDK.addLiquidity(
+          {
+            assetA,
+            assetB,
+            amountA: rawA,
+            amountB: rawB,
+            to: accountPublicKey,
+            slippageBps: LIQUIDITY_SLIPPAGE_BPS.toString(),
+          },
+          getSoroswapNetwork(network)
+        ),
+        loadAccountSequence(accountPublicKey, network),
+      ]);
+      if (editsRef.current !== at) return;
+      // Minimums from the on-chain price; the first deposit into a new or empty pool sets the price, there is none to protect
+      const xdr = withExpiry(response.xdr, network);
+      verifyProtocolTransaction(xdr, network, accountPublicKey, {
         kind: 'add-liquidity',
         tokenA: assetA,
         tokenB: assetB,
         amountA: rawA,
         amountB: rawB,
-        minA: reserves ? slippageFloor(rawA) : 0n,
-        minB: reserves ? slippageFloor(rawB) : 0n,
-      });
-      onBuild(response.xdr);
+        minA: newPool ? 0n : slippageFloor(rawA, LIQUIDITY_SLIPPAGE_BPS),
+        minB: newPool ? 0n : slippageFloor(rawB, LIQUIDITY_SLIPPAGE_BPS),
+        newPool,
+      }, { sequence });
+      onBuild(xdr);
     } catch (err) {
-      onError(apiErrorMessage(err, 'Failed to build add liquidity transaction'));
+      if (editsRef.current === at) onError(apiErrorMessage(err, 'Failed to build add liquidity transaction'));
     } finally {
       setIsBuildingTx(false);
     }
@@ -847,54 +1038,62 @@ const AddLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBuildi
       {/* Asset A */}
       <div className="space-y-2">
         <Label>Asset A</Label>
-        <Select value={assetA} onValueChange={selectAsset(setAssetA)}>
+        <Select value={assetA} onValueChange={(v) => selectAsset(setAssetA, v)}>
           <SelectTrigger>
             <SelectValue placeholder="Select token" />
           </SelectTrigger>
           <SelectContent>
             {assets.map((a) => (
-              <SelectItem key={a.contract} value={a.contract!}>
-                {a.code || a.name || a.contract}
+              <SelectItem key={a.contract} value={a.contract}>
+                {tokenLabel(a)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <DecimalsNote token={selectedA} decimals={decimalsA} />
       </div>
 
       {/* Asset B */}
       <div className="space-y-2">
         <Label>Asset B</Label>
-        <Select value={assetB} onValueChange={selectAsset(setAssetB)}>
+        <Select value={assetB} onValueChange={(v) => selectAsset(setAssetB, v)}>
           <SelectTrigger>
             <SelectValue placeholder="Select token" />
           </SelectTrigger>
           <SelectContent>
             {assets.map((a) => (
-              <SelectItem key={a.contract} value={a.contract!}>
-                {a.code || a.name || a.contract}
+              <SelectItem key={a.contract} value={a.contract}>
+                {tokenLabel(a)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+        <DecimalsNote token={selectedB} decimals={decimalsB} />
       </div>
 
-      {/* Pool Info */}
+      {/* Pool Info, as read on chain */}
       {isLoadingPool && (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading pool...
         </div>
       )}
-      {reserves && (
+      {current?.error && <p className="text-xs text-destructive">{current.error} The deposit cannot be checked without it.</p>}
+      {newPool && (
+        <p className="text-xs text-muted-foreground">
+          This pair has no Soroswap pool with reserves yet: this deposit sets its price.
+        </p>
+      )}
+      {reserves && typeof decimalsA === 'number' && typeof decimalsB === 'number' && (
         <Card>
           <CardContent className="pt-4 pb-4 space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Reserve A</span>
-              <span className="font-mono">{formatShort(reserves.a, decimalsA, 2)} {selectedA?.code || ''}</span>
+              <span className="font-mono">{formatShort(reserves.a, decimalsA, 2)} {selectedA ? tokenLabel(selectedA) : ''}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Reserve B</span>
-              <span className="font-mono">{formatShort(reserves.b, decimalsB, 2)} {selectedB?.code || ''}</span>
+              <span className="font-mono">{formatShort(reserves.b, decimalsB, 2)} {selectedB ? tokenLabel(selectedB) : ''}</span>
             </div>
           </CardContent>
         </Card>
@@ -902,16 +1101,16 @@ const AddLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBuildi
 
       {/* Amount A */}
       <div className="space-y-2">
-        <Label>Amount A {selectedA?.code ? `(${selectedA.code})` : ''}</Label>
+        <Label>Amount A {selectedA ? `(${tokenLabel(selectedA)})` : ''}</Label>
         <Input
           type="number"
           placeholder="0.00"
           value={amountA}
-          onChange={(e) => { setAmountA(e.target.value); onInputChange(); }}
+          onChange={(e) => { setAmountA(e.target.value); changed(); }}
           min="0"
           step="any"
         />
-        {amountA && rawA === null && (
+        {amountA && typeof decimalsA === 'number' && rawA === null && (
           <p className="text-xs text-destructive">Enter an amount with at most {decimalsA} decimal places.</p>
         )}
       </div>
@@ -919,19 +1118,19 @@ const AddLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBuildi
       {/* Amount B (auto-calculated from the pool price) */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Label>Amount B {selectedB?.code ? `(${selectedB.code})` : ''}</Label>
+          <Label>Amount B {selectedB ? `(${tokenLabel(selectedB)})` : ''}</Label>
           {reserves && <Badge variant="secondary" className="text-xs">Auto</Badge>}
         </div>
         <Input
           type="number"
           placeholder="0.00"
           value={amountBDisplay}
-          onChange={(e) => { setAmountB(e.target.value); onInputChange(); }}
+          onChange={(e) => { setAmountB(e.target.value); changed(); }}
           min="0"
           step="any"
           disabled={!!reserves}
         />
-        {!reserves && amountB && rawB === null && (
+        {!reserves && amountB && typeof decimalsB === 'number' && current?.state && rawB === null && (
           <p className="text-xs text-destructive">Enter an amount with at most {decimalsB} decimal places.</p>
         )}
       </div>
@@ -957,6 +1156,7 @@ const RemoveLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBui
   const [lpAmount, setLpAmount] = useState('');
   const [isLoadingPositions, setIsLoadingPositions] = useState(false);
   const [isBuildingTx, setIsBuildingTx] = useState(false);
+  const editsRef = useEdits();
 
   useEffect(() => {
     const fetchPositions = async () => {
@@ -989,11 +1189,13 @@ const RemoveLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBui
 
   const updateLpAmount = (value: string) => {
     setLpAmount(value);
+    editsRef.current += 1;
     onInputChange();
   };
 
   const handleBuild = async () => {
     if (!selectedPosition || !validLiquidity) return;
+    const at = editsRef.current;
     onError('');
     setIsBuildingTx(true);
     try {
@@ -1001,30 +1203,38 @@ const RemoveLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBui
       // What the burnt shares are worth: the position's tokens, pro rata
       const expectedA = (apiAmount(selectedPosition.tokenAAmountEquivalent) * liquidity) / held;
       const expectedB = (apiAmount(selectedPosition.tokenBAmountEquivalent) * liquidity) / held;
-      const response = await soroswapSDK.removeLiquidity(
-        {
-          assetA: pool.tokenA.address,
-          assetB: pool.tokenB.address,
-          liquidity,
-          amountA: expectedA,
-          amountB: expectedB,
-          to: accountPublicKey,
-          slippageBps: LIQUIDITY_SLIPPAGE_BPS.toString(),
-        },
-        getSoroswapNetwork(network)
-      );
-      verifyProtocolTransaction(response.xdr, network, accountPublicKey, {
+      if (expectedA <= 0n || expectedB <= 0n) {
+        throw new Error('The Soroswap API reports nothing to receive for this position, so no minimum can be set. Not building it.');
+      }
+      const [response, sequence] = await Promise.all([
+        soroswapSDK.removeLiquidity(
+          {
+            assetA: pool.tokenA.address,
+            assetB: pool.tokenB.address,
+            liquidity,
+            amountA: expectedA,
+            amountB: expectedB,
+            to: accountPublicKey,
+            slippageBps: LIQUIDITY_SLIPPAGE_BPS.toString(),
+          },
+          getSoroswapNetwork(network)
+        ),
+        loadAccountSequence(accountPublicKey, network),
+      ]);
+      if (editsRef.current !== at) return;
+      const xdr = withExpiry(response.xdr, network);
+      verifyProtocolTransaction(xdr, network, accountPublicKey, {
         kind: 'remove-liquidity',
         pool: pool.address,
         tokenA: pool.tokenA.address,
         tokenB: pool.tokenB.address,
         liquidity,
-        minA: slippageFloor(expectedA),
-        minB: slippageFloor(expectedB),
-      });
-      onBuild(response.xdr);
+        minA: slippageFloor(expectedA, LIQUIDITY_SLIPPAGE_BPS),
+        minB: slippageFloor(expectedB, LIQUIDITY_SLIPPAGE_BPS),
+      }, { sequence });
+      onBuild(xdr);
     } catch (err) {
-      onError(apiErrorMessage(err, 'Failed to build remove liquidity transaction'));
+      if (editsRef.current === at) onError(apiErrorMessage(err, 'Failed to build remove liquidity transaction'));
     } finally {
       setIsBuildingTx(false);
     }

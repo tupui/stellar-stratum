@@ -1,12 +1,13 @@
-import { ShieldCheck, ShieldAlert, TriangleAlert } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, ShieldX, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { ProtocolMatch } from '@/lib/protocols/detect';
 import { PROTOCOL_LABELS, type ProtocolId } from '@/lib/protocols/registry';
 import { PROTOCOL_STYLE } from './protocolStyle';
 
 interface ProtocolBadgeProps {
   protocol: ProtocolId;
   role?: string;
-  confidence?: 'verified' | 'likely';
+  confidence?: ProtocolMatch['confidence'];
   size?: 'sm' | 'md';
   className?: string;
 }
@@ -24,25 +25,30 @@ export const ProtocolBadge = ({
 }: ProtocolBadgeProps) => {
   const style = PROTOCOL_STYLE[protocol];
   const Icon = style.icon;
-  const verified = confidence === 'verified';
+  // A known address whose authorization reaches further than the call: never dress it as safe.
+  const unsafe = confidence === 'unsafe';
 
   return (
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full ring-1 font-semibold whitespace-nowrap',
-        style.tint,
-        style.ring,
+        unsafe ? 'bg-destructive/10 ring-destructive/40' : [style.tint, style.ring],
         size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs',
         className,
       )}
+      title={unsafe ? 'Signing authorises more than this call shows' : undefined}
     >
       <Icon className={cn(size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5', style.accent)} />
       <span className={style.accent}>{PROTOCOL_LABELS[protocol]}</span>
       {role && <span className="text-muted-foreground font-normal">{role}</span>}
-      {verified ? (
+      {confidence === 'verified' && (
         <ShieldCheck className="w-3 h-3 text-success" aria-label="Address matches a known deployment" />
-      ) : (
+      )}
+      {confidence === 'likely' && (
         <ShieldAlert className="w-3 h-3 text-warning" aria-label="Interface matches, address unrecognized" />
+      )}
+      {unsafe && (
+        <ShieldX className="w-3 h-3 text-destructive" aria-label="Signing authorises more than this call shows" />
       )}
     </span>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Decimal } from 'decimal.js';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,8 @@ import { SupportedNetworks, VaultInfoResponse, VaultBalanceResponse } from '@def
 import { appConfig } from '@/lib/appConfig';
 import { spendableBalance } from '@/lib/balance-utils';
 import { apiAmount, apiErrorMessage } from '@/lib/protocols/api';
+import { slippageFloor } from '@/lib/protocols/guards';
+import { loadAccountSequence } from '@/lib/protocols/onchain';
 import { formatUnits, parseUnits, SHARE_DECIMALS } from '@/lib/protocols/tokens';
 import { verifyProtocolTransaction, withExpiry } from '@/lib/protocols/verify';
 
@@ -37,6 +39,12 @@ const VAULT = appConfig.DEFINDEX_VAULT_ADDRESS;
 
 /** The vault's underlying USDC is a Stellar Asset Contract: 7 decimals. */
 const USDC_DECIMALS = 7;
+
+/**
+ * Slippage a withdrawal is built with, in basis points: the vault must pay out
+ * at least the typed amount less this, whatever the API reports its shares are worth.
+ */
+const WITHDRAW_SLIPPAGE_BPS = 100n;
 
 /**
  * A vault balance from the API (JSON numbers), in contract units; 0 when
@@ -88,6 +96,9 @@ const DeFindexVault = ({
   const [isLoadingInfo, setIsLoadingInfo] = useState(false);
   const [isBuildingTx, setIsBuildingTx] = useState(false);
   const [error, setError] = useState('');
+  // Bumped on every edit and on unmount, so a build that finishes afterwards is dropped.
+  const edits = useRef(0);
+  useEffect(() => () => { edits.current += 1; }, []);
 
   // Fetch vault info and balance on mount
   useEffect(() => {
@@ -133,6 +144,7 @@ const DeFindexVault = ({
       setError(`Enter an amount greater than 0, with at most ${USDC_DECIMALS} decimal places`);
       return;
     }
+    const at = edits.current;
     setIsBuildingTx(true);
 
     try {
@@ -142,11 +154,15 @@ const DeFindexVault = ({
           setError('Amount exceeds wallet USDC balance');
           return;
         }
-        const response = await defindexSDK.depositToVault(
-          VAULT,
-          { amounts: [Number(raw)], invest: false, caller: accountPublicKey },
-          SupportedNetworks.MAINNET
-        );
+        const [response, sequence] = await Promise.all([
+          defindexSDK.depositToVault(
+            VAULT,
+            { amounts: [Number(raw)], invest: false, caller: accountPublicKey },
+            SupportedNetworks.MAINNET
+          ),
+          loadAccountSequence(accountPublicKey, network),
+        ]);
+        if (edits.current !== at) return;
         // The API returns deposits that never expire
         xdr = withExpiry(response.xdr, network);
         verifyProtocolTransaction(xdr, network, accountPublicKey, {
@@ -154,7 +170,7 @@ const DeFindexVault = ({
           vault: VAULT,
           amounts: [raw],
           invest: false,
-        });
+        }, { sequence });
       } else {
         if (raw > depositedUsdc) {
           setError('Amount exceeds your vault deposit');
@@ -163,21 +179,27 @@ const DeFindexVault = ({
         // Redeem shares rather than an amount: the whole position leaves no dust,
         // and a share count is something the transaction can be checked against.
         const redeem = raw === depositedUsdc ? shares : (raw * shares) / depositedUsdc;
-        const response = await defindexSDK.withdrawShares(
-          VAULT,
-          { shares: Number(redeem), caller: accountPublicKey },
-          SupportedNetworks.MAINNET
-        );
+        const [response, sequence] = await Promise.all([
+          defindexSDK.withdrawShares(
+            VAULT,
+            { shares: Number(redeem), caller: accountPublicKey, slippageBps: Number(WITHDRAW_SLIPPAGE_BPS) },
+            SupportedNetworks.MAINNET
+          ),
+          loadAccountSequence(accountPublicKey, network),
+        ]);
+        if (edits.current !== at) return;
         xdr = withExpiry(response.xdr, network);
+        // The shares follow the API's share price; the minimum out follows what the user typed.
         verifyProtocolTransaction(xdr, network, accountPublicKey, {
           kind: 'vault-withdraw',
           vault: VAULT,
           shares: redeem,
-        });
+          minAmountsOut: [slippageFloor(raw, WITHDRAW_SLIPPAGE_BPS)],
+        }, { sequence });
       }
       onBuild(xdr);
     } catch (err) {
-      setError(apiErrorMessage(err, `Failed to build ${mode} transaction`));
+      if (edits.current === at) setError(apiErrorMessage(err, `Failed to build ${mode} transaction`));
     } finally {
       setIsBuildingTx(false);
     }
@@ -187,6 +209,7 @@ const DeFindexVault = ({
 
   const updateAmount = (value: string) => {
     setAmount(value);
+    edits.current += 1;
     onClearTransaction?.();
   };
 

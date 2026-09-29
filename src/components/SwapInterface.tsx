@@ -7,7 +7,7 @@ import { AssetIcon } from '@/components/AssetIcon';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-import { formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount } from '@/lib/balance-utils';
+import { formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount, priceKey } from '@/lib/balance-utils';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 interface Asset {
@@ -131,11 +131,11 @@ export const SwapInterface = ({
   };
 
   // Path payment logic
-  const isPathPayment = toAsset && toAsset !== fromAsset;
+  const isPathPayment = Boolean(toAsset) && (toAsset !== fromAsset || (toAssetIssuer || '') !== (fromAssetIssuer || ''));
   
   // Get prices from parent and fetch missing ones
-  const fromPrice = assetPrices[fromAsset] || 0;
-  const toPrice = assetPrices[toAsset || ''] || 0;
+  const fromPrice = assetPrices[priceKey(fromAsset, fromAssetIssuer)] || 0;
+  const toPrice = assetPrices[priceKey(toAsset, toAssetIssuer)] || 0;
   
   // Fetch missing prices in background without blocking UI
   useEffect(() => {
@@ -172,8 +172,8 @@ export const SwapInterface = ({
           ])
         )).then(() => {
           // Prices might be available now, check again
-          const newFromPrice = assetPrices[fromAsset] || 0;
-          const newToPrice = assetPrices[toAsset || ''] || 0;
+          const newFromPrice = assetPrices[priceKey(fromAsset, fromAssetIssuer)] || 0;
+          const newToPrice = assetPrices[priceKey(toAsset, toAssetIssuer)] || 0;
           
           if (newFromPrice > 0 && newToPrice > 0) {
             setPriceError('');
@@ -199,8 +199,8 @@ export const SwapInterface = ({
     const numAmount = parseFloat(amount);
     if (!numAmount) return '0';
     
-    const fromPrice = assetPrices[fromAsset] || 0;
-    const toPrice = assetPrices[toAsset || ''] || 0;
+    const fromPrice = assetPrices[priceKey(fromAsset, fromAssetIssuer)] || 0;
+    const toPrice = assetPrices[priceKey(toAsset, toAssetIssuer)] || 0;
     
     if (fromPrice > 0 && toPrice > 0) {
       const usdValue = numAmount * fromPrice;
@@ -219,8 +219,8 @@ export const SwapInterface = ({
     if (!isPathPayment || !exactOut) return amount;
     const destAmt = parseFloat(receiveAmount || manualReceiveAmount || '0');
     if (!destAmt) return '0';
-    const fp = assetPrices[fromAsset] || 0;
-    const tp = assetPrices[toAsset || ''] || 0;
+    const fp = assetPrices[priceKey(fromAsset, fromAssetIssuer)] || 0;
+    const tp = assetPrices[priceKey(toAsset, toAssetIssuer)] || 0;
     if (fp > 0 && tp > 0) {
       const buffer = 1 + (slippageTolerance / 100);
       return (destAmt * (tp / fp) * buffer).toFixed(7);
@@ -240,8 +240,8 @@ export const SwapInterface = ({
     if (onSlippageToleranceChange && amount && newAmount) {
       const numAmount = parseFloat(amount);
       const numReceiveAmount = parseFloat(newAmount);
-      const fromPrice = assetPrices[fromAsset] || 0;
-      const toPrice = assetPrices[toAsset || ''] || 0;
+      const fromPrice = assetPrices[priceKey(fromAsset, fromAssetIssuer)] || 0;
+      const toPrice = assetPrices[priceKey(toAsset, toAssetIssuer)] || 0;
       
       if (fromPrice > 0 && toPrice > 0 && numAmount > 0 && numReceiveAmount > 0) {
         const expectedAmount = (numAmount * fromPrice) / toPrice;
@@ -268,7 +268,8 @@ export const SwapInterface = ({
 
   const getAssetExplorerUrl = (assetCode: string, assetIssuer?: string): string => {
     const networkPath = network === 'testnet' ? 'testnet' : 'public';
-    if (!assetIssuer || assetCode === 'XLM') {
+    // Only the issuer-less asset is native XLM: a token can be called "XLM" too.
+    if (!assetIssuer) {
       return `https://stellar.expert/explorer/${networkPath}/asset/XLM`;
     }
     return `https://stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;

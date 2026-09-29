@@ -33,6 +33,8 @@ export interface AccountData {
     limit?: string;
     liquidity_pool_id?: string;
   }>;
+  /** Current sequence number: the next transaction from this account must use this + 1. */
+  sequence?: string;
   /** Trustlines, offers, data entries and extra signers: each needs 0.5 XLM of reserve. */
   subentry_count: number;
   num_sponsoring: number;
@@ -96,6 +98,7 @@ export const fetchAccountData = async (publicKey: string, network: 'mainnet' | '
         }
         return baseBalance;
       }),
+      sequence: account.sequence,
       subentry_count: account.subentry_count,
       num_sponsoring: account.num_sponsoring ?? 0,
       num_sponsored: account.num_sponsored ?? 0,
@@ -191,24 +194,32 @@ const hostOf = (url: string) => {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Look a transaction hash up on every known Horizon; first hit wins, a slow mirror can't stall it. */
-const findTransactionAnywhere = async (
-  hash: string,
-  urls: string[],
-): Promise<Horizon.ServerApi.TransactionRecord | null> => {
-  const lookups = urls.map(async (url) => {
-    const record = await Promise.race([
-      new Horizon.Server(url).transactions().transaction(hash).call(),
-      sleep(5_000).then(() => null),
-    ]);
-    if (!record) throw new Error('not found');
-    return record;
-  });
-  try {
-    return await Promise.any(lookups);
-  } catch {
-    return null;
-  }
+interface Sighting {
+  record: Horizon.ServerApi.TransactionRecord;
+  host: string;
+  /** Reported by the user's primary Horizon rather than a third-party mirror. */
+  primary: boolean;
+}
+
+/**
+ * Look a transaction hash up on every known Horizon (each capped at 5s, so a slow mirror can't
+ * stall it). The primary Horizon's answer wins; a mirror's only counts for the hash asked for.
+ */
+const findTransactionAnywhere = async (hash: string, urls: string[]): Promise<Sighting | null> => {
+  const lookups = await Promise.allSettled(
+    urls.map(async (url) => {
+      const record = await Promise.race([
+        new Horizon.Server(url).transactions().transaction(hash).call(),
+        sleep(5_000).then(() => null),
+      ]);
+      if (!record || record.hash !== hash) throw new Error('not found');
+      return record;
+    }),
+  );
+  const sightings = lookups.flatMap((lookup, index) =>
+    lookup.status === 'fulfilled' ? [{ record: lookup.value, host: hostOf(urls[index]), primary: index === 0 }] : [],
+  );
+  return sightings.find((s) => s.primary) ?? sightings[0] ?? null;
 };
 
 /** Plain-language reasons for the result codes people actually hit. */
@@ -298,13 +309,26 @@ export const submitTransaction = async (
       submitLog.info('could not fetch fee stats', feeError);
     }
 
-    const alreadyIncluded = (found: Horizon.ServerApi.TransactionRecord) => {
+    const alreadyIncluded = ({ record: found, host, primary }: Sighting) => {
       if (!found.successful) {
+        if (!primary) {
+          // A third-party mirror alone cannot prove a failure: rebuilding on its word could pay twice.
+          submitLog.error(`${host} reports the transaction FAILED in ledger ${found.ledger_attr}; the primary Horizon has not confirmed it`, { hash });
+          throw new Error(
+            `${host} reports that the transaction failed, but your Horizon has not confirmed it. ` +
+              `Check hash ${hash} on an explorer before building it again.`,
+          );
+        }
         // Included in a ledger but failed: the fee and sequence number are spent, nothing else happened.
         submitLog.error(`transaction is in ledger ${found.ledger_attr} but FAILED`, { hash: found.hash, result_xdr: found.result_xdr });
         throw new Error(`The transaction was included in ledger ${found.ledger_attr} but failed, so nothing was transferred (the fee was charged).`);
       }
-      submitLog.ok(`transaction is in ledger ${found.ledger_attr} after ${elapsed()}`, { hash: found.hash });
+      submitLog.ok(
+        primary
+          ? `transaction is in ledger ${found.ledger_attr} after ${elapsed()}`
+          : `${host} reports the transaction in ledger ${found.ledger_attr} after ${elapsed()} (not confirmed by the primary Horizon: check the hash on an explorer)`,
+        { hash: found.hash },
+      );
       return found as unknown as Horizon.HorizonApi.SubmitTransactionResponse;
     };
 
@@ -320,6 +344,7 @@ export const submitTransaction = async (
             throw new Error(`no answer from ${host} within ${appConfig.HORIZON_SUBMIT_ATTEMPT_MS / 1000}s`);
           }),
         ]);
+        if (result.hash !== hash) throw new Error(`${host} answered for another transaction (${result.hash})`);
         submitLog.ok(`${host} accepted the transaction after ${attemptElapsed()} (total ${elapsed()})`, { hash: result.hash, ledger: result.ledger, successful: result.successful });
         return result;
       } catch (attemptError) {
@@ -443,10 +468,16 @@ export const pullFromRefractor = async (
     throw new Error(`Refractor returned an unknown network: ${String(result.network)}`);
   }
   const network = result.network === 'testnet' ? 'testnet' : 'mainnet';
+  let hash: string;
   try {
-    TransactionBuilder.fromXdr(xdr, getNetworkConfig(network).passphrase);
+    hash = getTransactionHash(TransactionBuilder.fromXdr(xdr, getNetworkConfig(network).passphrase));
   } catch {
     throw new Error('Refractor returned a payload that is not a valid Stellar transaction');
+  }
+  // The ID is the transaction hash, which commits to the network: a different transaction, or
+  // the same one claimed for the other network, cannot match it.
+  if (hash !== refractorId.trim().toLowerCase()) {
+    throw new Error('Refractor returned a different transaction than the one requested');
   }
   return { xdr, network };
 };

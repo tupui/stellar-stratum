@@ -5,7 +5,10 @@ import {
   ArrowUpFromLine,
   ChevronDown,
   Clock,
+  Coins,
   Droplets,
+  FileCode,
+  Hash,
   Layers,
   Route,
   Sparkles,
@@ -17,9 +20,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { getAssetColor } from '@/lib/assets';
 import { formatTokenAmount, SHARE_DECIMALS, shortenAddress } from '@/lib/protocols/tokens';
-import type { AnalyzedCall, TokenAmount } from '@/lib/protocols/detect';
+import { accountMovements, sameAccount, type DeployInfo } from '@/lib/protocols/auth';
+import type { ActivityDetails, AnalyzedCall, DecodedArg, TokenAmount } from '@/lib/protocols/detect';
 import { PROTOCOL_LABELS, type NetworkId } from '@/lib/protocols/registry';
 import { useProtocolMetadata, type ProtocolMetadata } from '@/hooks/useProtocolMetadata';
+import { Address, ArgValue, AuthorizationTree, AuthorizationWarning } from './AuthorizationTree';
 import { ProtocolBadge, UnknownContractBadge } from './ProtocolBadge';
 import { PROTOCOL_STYLE } from './protocolStyle';
 
@@ -106,8 +111,14 @@ const Fact = ({
   </div>
 );
 
-const Address = ({ value }: { value: string }) => (
-  <span className="font-mono text-xs break-all">{shortenAddress(value, 8, 8)}</span>
+/** A from/to row, flagged when it is not the account signing. */
+const AccountFact = ({ label, value, source }: { label: string; value: string; source?: string }) => (
+  <Fact icon={Wallet} label={label}>
+    <Address value={value} />
+    {source && !sameAccount(value, source) && (
+      <span className="text-destructive font-medium"> — not the signing account</span>
+    )}
+  </Fact>
 );
 
 /**
@@ -143,31 +154,9 @@ const Deadline = ({ deadline }: { deadline: number }) => {
   );
 };
 
-/** Human-readable value for one decoded contract argument. */
-const ArgValue = ({ value }: { value: unknown }) => {
-  if (value === undefined) return <span className="text-muted-foreground italic">not decodable</span>;
-  if (typeof value === 'boolean') return <span>{value ? 'yes' : 'no'}</span>;
-  if (typeof value === 'number') return <span className="tabular-nums">{value}</span>;
-  if (typeof value === 'string') {
-    if (/^[GC][A-Z2-7]{55}$/.test(value)) return <Address value={value} />;
-    if (/^-?\d+$/.test(value)) return <span className="tabular-nums">{value}</span>;
-    return <span className="break-all">{value}</span>;
-  }
-  if (Array.isArray(value)) {
-    return (
-      <span className="flex flex-col gap-0.5">
-        {value.map((item, i) => (
-          <ArgValue key={i} value={item} />
-        ))}
-      </span>
-    );
-  }
-  return <span className="font-mono text-xs break-all">{JSON.stringify(value)}</span>;
-};
-
-const ArgumentList = ({ call }: { call: AnalyzedCall }) => (
+const ArgumentList = ({ args }: { args: DecodedArg[] }) => (
   <dl className="grid gap-2 text-sm">
-    {call.args.map((arg, i) => (
+    {args.map((arg, i) => (
       <div key={i} className="grid grid-cols-[minmax(0,9rem)_1fr] gap-3 items-start">
         <dt className="font-mono text-xs text-muted-foreground pt-0.5 break-all">{arg.name}</dt>
         <dd className="min-w-0">
@@ -175,12 +164,116 @@ const ArgumentList = ({ call }: { call: AnalyzedCall }) => (
         </dd>
       </div>
     ))}
-    {!call.args.length && <p className="text-sm text-muted-foreground">No arguments.</p>}
+    {!args.length && <p className="text-sm text-muted-foreground">No arguments.</p>}
   </dl>
 );
 
+const TokenPath = ({ path, meta }: { path: string[]; meta: ProtocolMetadata }) => (
+  <>
+    {path.map((hop, i) => (
+      <span key={`${hop}-${i}`}>
+        {i > 0 && <span className="text-muted-foreground mx-1">→</span>}
+        {meta.symbol(hop)}
+      </span>
+    ))}
+  </>
+);
+
+/** Router path, or the aggregator's split across venues when the call spells it out. */
+const RouteFact = ({ details, meta }: { details: Extract<ActivityDetails, { kind: 'swap' }>; meta: ProtocolMetadata }) => {
+  const total = details.hops.reduce((sum, hop) => sum + (hop.parts ?? 0), 0);
+  return (
+    <Fact icon={Route} label="Route">
+      {details.hops.length > 0 ? (
+        <span className="flex flex-col gap-0.5">
+          {details.hops.map((hop, i) => {
+            // A hop that does not run from the sold token to the bought one is not part of this swap.
+            const offRoute =
+              hop.path[0] !== details.sell.contract || hop.path[hop.path.length - 1] !== details.buy.contract;
+            return (
+              <span key={i} className={offRoute ? 'text-destructive' : undefined}>
+                <span className="text-muted-foreground">{hop.protocol || 'Unnamed venue'}:</span>{' '}
+                {hop.path.length ? <TokenPath path={hop.path} meta={meta} /> : 'unreadable path'}
+                {hop.parts !== null && total > 0 && (
+                  <span className="text-muted-foreground"> ({Math.round((hop.parts / total) * 100)}%)</span>
+                )}
+                {offRoute && hop.path.length > 0 && ' — does not match the swap'}
+              </span>
+            );
+          })}
+        </span>
+      ) : (
+        <>
+          <TokenPath path={details.path} meta={meta} />
+          {!details.routeKnown && <span className="text-muted-foreground"> (route chosen by the aggregator)</span>}
+          {details.routeKnown && details.path.length === 2 && <span className="text-muted-foreground"> (direct)</span>}
+        </>
+      )}
+    </Fact>
+  );
+};
+
+/** Contract deployments and WASM uploads: code the app cannot read. */
+const DeployBody = ({ deploy }: { deploy: DeployInfo }) => {
+  if (deploy.kind === 'upload-wasm') {
+    return (
+      <div className="grid gap-2">
+        <Fact icon={FileCode} label="WASM hash">
+          <span className="font-mono text-xs break-all">{deploy.wasmHash}</span>
+        </Fact>
+        <Fact icon={Layers} label="Size">
+          {deploy.size.toLocaleString()} bytes
+        </Fact>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-2">
+        <Fact icon={Layers} label="New contract">
+          <span className="font-mono text-xs break-all">{deploy.contractId || 'cannot be computed'}</span>
+        </Fact>
+        {deploy.wasmHash && (
+          <Fact icon={FileCode} label="WASM hash">
+            <span className="font-mono text-xs break-all">{deploy.wasmHash}</span>
+          </Fact>
+        )}
+        {deploy.asset !== undefined && (
+          <Fact icon={Coins} label="Wraps asset">
+            <span className="break-all">{deploy.asset || 'unreadable'}</span>
+          </Fact>
+        )}
+        {deploy.externalRef && (
+          <Fact icon={FileCode} label="Code from">
+            <Address value={deploy.externalRef.owner} /> as &quot;{deploy.externalRef.tag}&quot;
+          </Fact>
+        )}
+        {deploy.deployer !== undefined && (
+          <Fact icon={Wallet} label="Deployer">
+            {deploy.deployer ? <Address value={deploy.deployer} /> : 'unreadable'}
+          </Fact>
+        )}
+        {deploy.salt && (
+          <Fact icon={Hash} label="Salt">
+            <span className="font-mono text-xs break-all">{deploy.salt}</span>
+          </Fact>
+        )}
+      </div>
+      {deploy.constructorArgs.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Constructor arguments</p>
+          <ArgumentList args={deploy.constructorArgs} />
+        </div>
+      )}
+    </div>
+  );
+};
+
 const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }) => {
   const { details } = call;
+
+  if (call.deploy) return <DeployBody deploy={call.deploy} />;
 
   if (!details) {
     return (
@@ -189,7 +282,7 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
           Calls <code className="font-mono text-foreground">{call.functionName}</code> with{' '}
           {call.args.length} argument{call.args.length === 1 ? '' : 's'}.
         </p>
-        <ArgumentList call={call} />
+        <ArgumentList args={call.args} />
       </div>
     );
   }
@@ -204,21 +297,9 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
             <AmountLeg label="You receive" amount={details.buy} meta={meta} />
           </div>
           <div className="grid gap-2 pt-3 border-t border-border/60">
-            <Fact icon={Route} label="Route">
-              {details.path.map((hop, i) => (
-                <span key={`${hop}-${i}`}>
-                  {i > 0 && <span className="text-muted-foreground mx-1">→</span>}
-                  {meta.symbol(hop)}
-                </span>
-              ))}
-              {!details.routeKnown && <span className="text-muted-foreground"> (route chosen by the aggregator)</span>}
-              {details.routeKnown && details.path.length === 2 && <span className="text-muted-foreground"> (direct)</span>}
-            </Fact>
-            {details.to && (
-              <Fact icon={Wallet} label="Sent to">
-                <Address value={details.to} />
-              </Fact>
-            )}
+            <RouteFact details={details} meta={meta} />
+            {details.from && <AccountFact label="From" value={details.from} source={call.source} />}
+            {details.to && <AccountFact label="Sent to" value={details.to} source={call.source} />}
             {details.deadline !== undefined && (
               <Fact icon={Clock} label="Valid until">
                 <Deadline deadline={details.deadline} />
@@ -241,11 +322,7 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
               {' + '}
               {meta.amount(details.minB.raw, details.minB.contract)} {meta.symbol(details.minB.contract)}
             </Fact>
-            {details.to && (
-              <Fact icon={Wallet} label="LP tokens to">
-                <Address value={details.to} />
-              </Fact>
-            )}
+            {details.to && <AccountFact label="LP tokens to" value={details.to} source={call.source} />}
             {details.deadline !== undefined && (
               <Fact icon={Clock} label="Valid until">
                 <Deadline deadline={details.deadline} />
@@ -271,11 +348,7 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
               {' + '}
               {meta.amount(details.minB.raw, details.minB.contract)} {meta.symbol(details.minB.contract)}
             </Fact>
-            {details.to && (
-              <Fact icon={Wallet} label="Sent to">
-                <Address value={details.to} />
-              </Fact>
-            )}
+            {details.to && <AccountFact label="Sent to" value={details.to} source={call.source} />}
             {details.deadline !== undefined && (
               <Fact icon={Clock} label="Valid until">
                 <Deadline deadline={details.deadline} />
@@ -326,11 +399,7 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
                 ? 'Yes — funds go straight into the vault strategies'
                 : 'No — funds sit idle until the manager rebalances'}
             </Fact>
-            {details.from && (
-              <Fact icon={Wallet} label="From">
-                <Address value={details.from} />
-              </Fact>
-            )}
+            {details.from && <AccountFact label="From" value={details.from} source={call.source} />}
           </div>
         </div>
       );
@@ -363,11 +432,7 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
                   .join(' + ')}
               </Fact>
             )}
-            {details.from && (
-              <Fact icon={Wallet} label="To">
-                <Address value={details.from} />
-              </Fact>
-            )}
+            {details.from && <AccountFact label="To" value={details.from} source={call.source} />}
           </div>
         </div>
       );
@@ -395,16 +460,31 @@ const CallCard = ({
   network: NetworkId;
   showIndex: boolean;
 }) => {
-  const { match } = call;
+  const { match, deploy } = call;
   const style = match ? PROTOCOL_STYLE[match.protocol] : null;
-  const title = match?.signature?.action ?? (match ? call.functionName : 'Unknown contract call');
+  const title = deploy
+    ? deploy.kind === 'upload-wasm'
+      ? 'Upload contract code'
+      : 'Deploy contract'
+    : (match?.signature?.action ?? (match ? call.functionName : 'Unknown contract call'));
   const Icon = call.intent ? INTENT_ICON[call.intent] : TriangleAlert;
+
+  // A pinned address is not enough: the attached authorization must stay within the summary.
+  const overreach = Boolean(match && call.authIssues.length);
+  const unknownMoves = !match && accountMovements(call.auth, call.source).length > 0;
+  const critical = overreach || unknownMoves;
+  const needsLook =
+    critical || Boolean(deploy) || call.auth.some((entry) => entry.credential !== 'source' || !entry.rootIsCall);
 
   return (
     <div
       className={cn(
         'rounded-xl border p-4 sm:p-5 space-y-4',
-        match ? 'border-border/60 bg-secondary/20' : 'border-warning/40 bg-warning/5',
+        critical
+          ? 'border-destructive/50 bg-destructive/5'
+          : match
+            ? 'border-border/60 bg-secondary/20'
+            : 'border-warning/40 bg-warning/5',
       )}
     >
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -434,7 +514,7 @@ const CallCard = ({
             <ProtocolBadge
               protocol={match.protocol}
               role={match.role}
-              confidence={match.confidence}
+              confidence={overreach ? 'unsafe' : match.confidence}
               size="sm"
             />
           ) : (
@@ -442,6 +522,8 @@ const CallCard = ({
           )}
         </div>
       </div>
+
+      <AuthorizationWarning call={call} meta={meta} />
 
       {match?.confidence === 'likely' && (
         <p className="text-xs text-warning flex items-start gap-2">
@@ -464,30 +546,43 @@ const CallCard = ({
       {!match && (
         <p className="text-xs text-warning flex items-start gap-2">
           <TriangleAlert className="w-3.5 h-3.5 mt-px shrink-0" />
-          <span>
-            Not Soroswap or DeFindex. This transaction invokes a contract we can&apos;t identify —
-            verify what it does before adding a signature.
-          </span>
+          {deploy?.kind === 'create-contract' ? (
+            <span>
+              Deploys a new contract. The app cannot read what its code does, and its constructor runs
+              with the authorizations below. Sign only if you know this code.
+            </span>
+          ) : deploy ? (
+            <span>
+              Uploads contract code to the network. The app cannot read what it does; sign only if you
+              know this code.
+            </span>
+          ) : (
+            <span>
+              Not Soroswap or DeFindex. This transaction invokes a contract we can&apos;t identify —
+              verify what it does before adding a signature.
+            </span>
+          )}
         </p>
       )}
 
       <CallBody call={call} meta={meta} />
 
-      <Collapsible>
-        <CollapsibleTrigger className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          <ChevronDown className="w-3.5 h-3.5 transition-transform group-data-[state=open]:rotate-180" />
-          Contract &amp; arguments
-        </CollapsibleTrigger>
-        <CollapsibleContent className="pt-3 space-y-3">
-          <Fact icon={Layers} label="Contract">
-            <span className="font-mono text-xs break-all">{call.contractId}</span>
-          </Fact>
-          {call.details && <ArgumentList call={call} />}
-          <p className="text-xs text-muted-foreground">
-            {call.authCount} authorization entr{call.authCount === 1 ? 'y' : 'ies'} attached.
-          </p>
-        </CollapsibleContent>
-      </Collapsible>
+      <AuthorizationTree call={call} meta={meta} network={network} defaultOpen={needsLook} />
+
+      {!deploy && (
+        <Collapsible>
+          <CollapsibleTrigger className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronDown className="w-3.5 h-3.5 transition-transform group-data-[state=open]:rotate-180" />
+            Contract &amp; arguments
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-3 space-y-3">
+            <Fact icon={Layers} label="Contract">
+              <span className="font-mono text-xs break-all">{call.contractId}</span>
+            </Fact>
+            {call.details && <ArgumentList args={call.args} />}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </div>
   );
 };

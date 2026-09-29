@@ -269,6 +269,13 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       : assetKey('credit', selectedAsset.code, selectedAsset.issuer);
 
   // Filter transactions based on current filters and selected asset
+  // Addresses this account has sent to. Anyone can send dust from a look-alike address to
+  // plant it in the activity list, so senders outside this set are marked, not offered to copy.
+  const paidCounterparties = useMemo(
+    () => new Set(transactions.filter((t) => t.direction === 'out' && t.counterparty).map((t) => t.counterparty!)),
+    [transactions],
+  );
+
   const filteredTransactions = useMemo(() => {
     const filtered = transactions.filter(tx => {
       // Incoming/Outgoing apply to transfers; every other category has its own checkbox
@@ -676,6 +683,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                 fiatLoading={fiatLoading}
                 formatFiatAmount={formatFiat}
                 truncateAddress={truncateAddress}
+                paidCounterparties={paidCounterparties}
                 network={network}
                 currencySymbol={getCurrentCurrency().symbol}
               />

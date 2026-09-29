@@ -1,4 +1,5 @@
 import { Decimal } from 'decimal.js';
+import { Asset, Networks } from '@stellar/stellar-sdk';
 import type { NetworkId } from './registry';
 
 export interface TokenMeta {
@@ -38,6 +39,47 @@ const BUILTIN: Record<NetworkId, Record<string, Omit<TokenMeta, 'known'>>> = {
 export const getBuiltinToken = (contract: string, network: NetworkId): TokenMeta | undefined => {
   const hit = BUILTIN[network][contract];
   return hit ? { ...hit, known: true } : undefined;
+};
+
+const passphrase = (network: NetworkId) => (network === 'testnet' ? Networks.TESTNET : Networks.PUBLIC);
+
+/** The Stellar Asset Contract of a classic asset (native XLM without an issuer); null for an invalid code or issuer. */
+export const sacContract = (code: string, issuer: string | undefined, network: NetworkId): string | null => {
+  try {
+    const asset = issuer ? new Asset(code, issuer) : code === 'XLM' ? Asset.native() : null;
+    return asset ? asset.contractId(passphrase(network)) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** A token list entry as far as the app can vouch for it. */
+export type ListedToken =
+  /** A Stellar Asset Contract: code and issuer are bound to the contract address, decimals are 7. */
+  | { contract: string; sac: true; code: string; issuer?: string; decimals: typeof ASSUMED_DECIMALS }
+  /** Any other contract: its name and decimals are only what the list claims. */
+  | { contract: string; sac: false };
+
+/**
+ * Check a token list entry against its contract address. An entry naming a
+ * classic asset (or XLM) must be that asset's Stellar Asset Contract, which is
+ * derived locally; one that is not is dropped (null). Decimals of a Stellar
+ * Asset Contract are always 7, whatever the list says.
+ */
+export const checkListedToken = (
+  entry: { contract?: string; code?: string; issuer?: string },
+  network: NetworkId,
+): ListedToken | null => {
+  const { contract, code, issuer } = entry;
+  if (!contract) return null;
+  if (issuer || contract === sacContract('XLM', undefined, network)) {
+    const claimed = issuer ? code : 'XLM';
+    if (!claimed || sacContract(claimed, issuer, network) !== contract) return null;
+    return { contract, sac: true, code: claimed, ...(issuer ? { issuer } : {}), decimals: ASSUMED_DECIMALS };
+  }
+  // No issuer: a list entry calling itself XLM must be the native contract.
+  if (code === 'XLM') return null;
+  return { contract, sac: false };
 };
 
 /** `CAG5LRYQ…CFAJDDH` — enough to eyeball against a block explorer. */
