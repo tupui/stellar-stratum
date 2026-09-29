@@ -219,27 +219,27 @@ const ASSET_FALLBACKS: Record<string, AssetInfo> = {
     code: 'EURC',
     issuer: 'GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2',
     name: 'Euro Coin',
-    image: '/images/assets/eurc.png'
+    image: `${import.meta.env.BASE_URL}images/assets/eurc.png`
   },
   // USDC from Circle
   'USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN': {
     code: 'USDC',
     issuer: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
     name: 'USD Coin',
-    image: '/images/assets/usdc.png'
+    image: `${import.meta.env.BASE_URL}images/assets/usdc.png`
   },
   // BLND from Blend
   'BLND:GDJEHTBE6ZHUXSWFI642DCGLUOECLHPF3KSXHPXTSTJ7E3JF6MQ5EZYY': {
     code: 'BLND',
     issuer: 'GDJEHTBE6ZHUXSWFI642DCGLUOECLHPF3KSXHPXTSTJ7E3JF6MQ5EZYY',
     name: 'Blend',
-    image: '/images/assets/blnd.png'
+    image: `${import.meta.env.BASE_URL}images/assets/blnd.png`
   },
   // Native XLM
   'XLM:': {
     code: 'XLM',
     name: 'Stellar Lumens',
-    image: '/xlm-logo.png'
+    image: `${import.meta.env.BASE_URL}xlm-logo.png`
   }
 };
 

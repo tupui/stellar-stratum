@@ -34,7 +34,7 @@ const showFallbackIcon = (e: React.SyntheticEvent<HTMLImageElement>) => {
 const WalletIcon = ({ wallet }: { wallet: ISupportedWallet }) => {
   const id = wallet.id.toLowerCase();
   if (id.includes('ledger')) {
-    return <img src="/ledger-logo.png" alt="Ledger logo" className="w-7 h-7 object-contain" onError={showFallbackIcon} />;
+    return <img src={`${import.meta.env.BASE_URL}ledger-logo.png`} alt="Ledger logo" className="w-7 h-7 object-contain" onError={showFallbackIcon} />;
   }
   if (id.includes('trezor')) return <TrezorLogo className="w-7 h-7 text-foreground" />;
   if (wallet.icon) {

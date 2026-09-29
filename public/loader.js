@@ -17,8 +17,8 @@ function preloadResources() {
 
   // Preload any critical images that might be used
   const criticalImages = [
-    '/ledger-logo.png',
-    '/xlm-logo.png'
+    new URL('ledger-logo.png', document.currentScript.src).href,
+    new URL('xlm-logo.png', document.currentScript.src).href
   ];
 
   criticalImages.forEach(src => {

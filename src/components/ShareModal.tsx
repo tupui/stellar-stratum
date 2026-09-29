@@ -20,7 +20,7 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const { toast } = useToast();
 
-  const shareUrl = `${window.location.origin}?r=${refractorId}`;
+  const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}?r=${refractorId}`;
 
   useEffect(() => {
     if (isOpen && refractorId) {

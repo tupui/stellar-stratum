@@ -32,7 +32,7 @@ export const SuccessModal = ({
     toast
   } = useToast();
   const [qrError, setQrError] = useState(false);
-  const shareUrl = type === 'refractor' && refractorId ? `${window.location.origin}?r=${refractorId}` : '';
+  const shareUrl = type === 'refractor' && refractorId ? `${window.location.origin}${import.meta.env.BASE_URL}?r=${refractorId}` : '';
   useEffect(() => {
     let qrData = '';
     if (type === 'offline' && xdr) {

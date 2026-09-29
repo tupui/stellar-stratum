@@ -1,4 +1,4 @@
-.PHONY: help pages-init deploy-pages live
+.PHONY: help pages-init pages-build deploy-pages live
 
 help:  ## list the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -11,10 +11,17 @@ help:  ## list the targets
 override pages_dir = pages
 override build_dir = dist
 
+# Radicle Pages serves the repository under its id, so the build is for that
+# path. The day the site has a domain of its own: `make deploy-pages base=/`.
+override rid = $(patsubst rad:%,%,$(shell rad inspect --rid))
+ifndef base
+   override base = /$(rid)/
+endif
+
 # Where that build is served, so `make live` reads the site itself rather than
 # what was last built. Another host: `make live site=https://example.com/`.
 ifndef site
-   override site = https://stellar-stratum.xyz/
+   override site = https://consulting-manao.radicle.page$(base)
 endif
 
 pages-init:  ## one-time: the canonical pages branch and the worktree that builds into it
@@ -26,21 +33,24 @@ pages-init:  ## one-time: the canonical pages branch and the worktree that build
 	rad sync
 	git worktree add --orphan -b $(pages_dir) $(pages_dir)
 
-deploy-pages:  ## build the app and publish it to Radicle Pages
+pages-build:  ## build the site into the pages worktree and commit it there, without pushing
 	@test -e $(pages_dir)/.git || { echo "run 'make pages-init' first"; exit 1; }
 	@test -z "$$(git status --porcelain --untracked-files=no)" \
 		|| { echo "commit first: a publish names the commit it was built from"; exit 1; }
-	npm run build
+	BASE_PATH=$(base) npm run build
 	find $(pages_dir) -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 	cp -R $(build_dir)/. $(pages_dir)/
 	git -C $(pages_dir) add -A
 	git -C $(pages_dir) commit -q -m "Publish $(shell git rev-parse --short HEAD)" \
 		|| echo "the build is identical, publishing it again"
+
+deploy-pages: pages-build  ## build the site and publish it to Radicle Pages
 	git -C $(pages_dir) push rad $(pages_dir)
 
 # The entry bundles are hashed on their contents, so the live ones name the
-# build. Against dist/ as `deploy-pages` leaves it: run this after a publish,
-# or after the same build, or the hashes differ for reasons of their own.
+# build. Against dist as `deploy-pages` leaves it: run this after a
+# publish, or after the same build, or the hashes differ for reasons of their
+# own.
 live:  ## whether the published app is the build in dist/
 	@diff <(curl -fsS $(site) | grep -o 'assets/[^"]*\.js' | sort -u) \
 		<(grep -o 'assets/[^"]*\.js' $(build_dir)/index.html | sort -u) \

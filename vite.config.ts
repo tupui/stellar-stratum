@@ -14,6 +14,8 @@ const allowInlineScriptsInDev = (): Plugin => ({
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  // `/` on a domain of its own, `/<repository>/` on Radicle Pages, see the Makefile.
+  base: process.env.BASE_PATH ?? "/",
   server: {
     // Local only: the dev server serves every file in the project. `npm run dev -- --host`
     // exposes it on the network when testing from a phone.
