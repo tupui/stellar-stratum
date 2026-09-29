@@ -1,4 +1,5 @@
 .PHONY: help pages-init pages-build deploy-pages live
+SHELL := /bin/bash
 
 help:  ## list the targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
