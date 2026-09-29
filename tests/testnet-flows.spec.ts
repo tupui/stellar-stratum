@@ -13,7 +13,6 @@ const MAINNET_HOSTS = [
   'horizon.stellar.lobstr.co',
   'horizon.stellarx.com',
   'rpc.ankr.com',
-  'rpc.lightsail.network',
   'api.soroswap.finance',
   'api.defindex.io',
 ];
@@ -26,11 +25,16 @@ const fund = async (kp: Keypair) => {
 const xlmBalance = async (id: string) =>
   Number((await horizon.loadAccount(id)).balances.find((b) => b.asset_type === 'native')!.balance);
 
-/** Abort mainnet requests and remember them so the test can fail on them. */
+// Testnet balances are shown at mainnet prices, read from Reflector through this RPC. The tests
+// never contact mainnet, so these reads are aborted too, but they are expected.
+const PRICE_HOSTS = ['rpc.lightsail.network'];
+
+/** Abort mainnet requests and remember the unexpected ones so the test can fail on them. */
 const guardMainnet = async (page: Page) => {
   const blocked: string[] = [];
   await page.route('**/*', (route) => {
     const url = new URL(route.request().url());
+    if (PRICE_HOSTS.includes(url.hostname)) return route.abort();
     if (MAINNET_HOSTS.includes(url.hostname)) {
       blocked.push(url.href);
       return route.abort();
@@ -175,11 +179,7 @@ test('Refractor share link opens the transaction on testnet', async ({ page }) =
   await page.goto(`/?r=${posted.hash}`);
   await expect(page.getByText(posted.hash).first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText('Testnet', { exact: true }).first()).toBeVisible();
-  // The switch is announced until acknowledged, and not remembered for the next visit
-  await expect(page.getByText('The link you opened switched the app to')).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem('stellar-network'))).toBe('mainnet');
-  // The app starts on mainnet here, so its mainnet price lookups before the switch are expected
-  // (and blocked). The transaction's account must never be read from mainnet Horizon.
+  // The app starts on mainnet here: the transaction's account must never be read from mainnet Horizon.
   expect(blocked.filter((url) => url.includes('horizon'))).toEqual([]);
 });
 

@@ -82,7 +82,7 @@ const AirgapSigner = () => {
       });
       return;
     }
-    setNetwork(target, { fromLink: true });
+    setNetwork(target);
     setXdr(payload.xdr);
     setSignedBy([]);
     setPasted('');
@@ -99,7 +99,7 @@ const AirgapSigner = () => {
     const requested = networkParam === 'testnet' || networkParam === 'mainnet' ? networkParam : undefined;
     const xdrParam = params.get('xdr');
     if (!xdrParam) {
-      if (requested) setNetwork(requested, { fromLink: true });
+      if (requested) setNetwork(requested);
       return;
     }
     const payload = parseTransactionPayload(xdrParam);

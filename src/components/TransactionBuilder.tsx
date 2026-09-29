@@ -134,12 +134,10 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
 
 
   // Function to fetch additional asset prices with timeout
-  // Reflector prices mainnet assets only: testnet balances have no market value.
   const fetchAdditionalAssetPrice = useCallback(async (assetCode: string, assetIssuer?: string) => {
-    if (currentNetwork !== 'mainnet') return 0;
     const key = priceKey(assetCode, assetIssuer);
     try {
-      const pricePromise = getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer);
+      const pricePromise = getAssetPrice(assetCode === 'XLM' ? undefined : assetCode, assetIssuer, currentNetwork);
       const price = await Promise.race([
         pricePromise,
         new Promise<number>((_, reject) => 
@@ -166,7 +164,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
 
   useEffect(() => {
     // Load asset prices for fiat conversion in parallel for better performance
-    if (!memoizedBalances.length || currentNetwork !== 'mainnet') {
+    if (!memoizedBalances.length) {
       setAssetPrices({});
       return;
     }
@@ -175,7 +173,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       const pricePromises = memoizedBalances.map(async (balance) => {
         const key = priceKey(balance.asset_code, balance.asset_issuer);
         try {
-          const price = await getAssetPrice(balance.asset_code, balance.asset_issuer);
+          const price = await getAssetPrice(balance.asset_code, balance.asset_issuer, currentNetwork);
           return { key, price };
         } catch (error) {
           return { key, price: 0 };

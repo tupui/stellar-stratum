@@ -221,9 +221,8 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
       try {
         const xlm = balances.find(b => b.asset_type === 'native');
         const qty = xlm ? parseFloat(xlm.balance) : 0;
-        // Only mainnet assets have a market price
-        if (!qty || Number.isNaN(qty) || network !== 'mainnet') { setCurrentXLMFiat(0); return; }
-        const usd = await getAssetPrice('XLM');
+        if (!qty || Number.isNaN(qty)) { setCurrentXLMFiat(0); return; }
+        const usd = await getAssetPrice('XLM', undefined, network);
         const valueUSD = (usd || 0) * qty;
         if (quoteCurrency === 'USD') setCurrentXLMFiat(valueUSD);
         else setCurrentXLMFiat(await convertFromUSD(valueUSD, quoteCurrency));
@@ -248,9 +247,9 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           b.asset_issuer === selectedAsset.issuer
         );
         const qty = asset ? parseFloat(asset.balance) : 0;
-        if (!qty || Number.isNaN(qty) || network !== 'mainnet') { setCurrentAssetFiat(0); return; }
+        if (!qty || Number.isNaN(qty)) { setCurrentAssetFiat(0); return; }
 
-        const usd = await getAssetPrice(selectedAsset.code, selectedAsset.issuer);
+        const usd = await getAssetPrice(selectedAsset.code, selectedAsset.issuer, network);
         const valueUSD = (usd || 0) * qty;
         if (quoteCurrency === 'USD') setCurrentAssetFiat(valueUSD);
         else setCurrentAssetFiat(await convertFromUSD(valueUSD, quoteCurrency));

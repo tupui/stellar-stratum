@@ -55,8 +55,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
       };
     };
 
-    // Reflector only prices mainnet assets: testnet balances have no market value.
-    if (network !== 'mainnet' || memoizedBalances.length === 0) {
+    if (memoizedBalances.length === 0) {
       setAssetsWithPrices(memoizedBalances.map((b) => toRow(b, 0)));
       setError(null);
       setLoading(false);
@@ -79,7 +78,7 @@ export const useAssetPrices = (balances: AssetBalance[]) => {
       const priceEntries = await Promise.all(
         Array.from(pricedAssets, async ([k, b]) => {
           try {
-            const price = await getAssetPrice(b.asset_code, b.asset_issuer);
+            const price = await getAssetPrice(b.asset_code, b.asset_issuer, network);
             return [k, price > 0 ? price : 0] as const;
           } catch {
             return [k, 0] as const;

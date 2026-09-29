@@ -22,9 +22,9 @@ reloaded or shared.
 
 ## Dashboard
 
-- **Balances**: every asset with its issuer, valued with Reflector prices on Mainnet (assets are
-  matched by code and issuer, so a look-alike "USDC" is not priced as the real one). Testnet
-  balances have no market value.
+- **Balances**: every asset with its issuer, valued with Reflector prices (assets are matched by
+  code and issuer, so a look-alike "USDC" is not priced as the real one). On Testnet, XLM and
+  Circle's testnet USDC are shown at their Mainnet price.
 - **Activity**: payments, swaps, contract transfers and configuration changes, with filters and a
   balance chart. New transactions are picked up on refresh.
 - **Multisig**: signers, weights and thresholds, and **Edit configuration**.
@@ -70,8 +70,6 @@ The review screen shows, before any signature:
 - memos with invisible or direction-changing characters made visible;
 - the transaction hash for the selected network, to compare with the signing device.
 
-The current network is always shown at the top. When a link switches it, the app says so until
-you acknowledge it.
 
 Signatures are counted only when they verify against the transaction, for every account involved
 and at the threshold its operations need (for example, high for signer changes and merges).

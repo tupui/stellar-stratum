@@ -54,4 +54,6 @@ export const appConfig = {
   DEFINDEX_VAULT_NAME: 'Soroswap USDC Vault',
   // Circle USDC issuer on mainnet (underlying asset of the DeFindex vault) — used to price vault deposits
   USDC_ISSUER_MAINNET: 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+  // Circle USDC issuer on testnet: valued at the mainnet USDC price
+  USDC_ISSUER_TESTNET: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
 } as const;

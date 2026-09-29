@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getAvailableFiatCurrencies, type FiatCurrency } from '@/lib/fiat-currencies';
 import { safeStorage } from '@/lib/storage';
-import { useNetwork } from '@/contexts/NetworkContext';
 
 const QUOTE_CURRENCY_STORAGE_KEY = 'stellar-quote-currency';
 const USD_ONLY: FiatCurrency[] = [{ code: 'USD', symbol: '$', name: 'US Dollar' }];
@@ -31,16 +30,10 @@ export const FiatCurrencyProvider = ({ children }: FiatCurrencyProviderProps) =>
   const [storedCurrency, setStoredCurrency] = useState<string>(
     () => safeStorage.get(QUOTE_CURRENCY_STORAGE_KEY) || 'USD',
   );
-  const { network } = useNetwork();
   const [availableCurrencies, setAvailableCurrencies] = useState<FiatCurrency[]>(USD_ONLY);
 
-  // Exchange rates come from Reflector's mainnet FX oracle. Testnet balances have no market
-  // value, so testnet stays in USD and never queries mainnet.
+  // Exchange rates come from Reflector's mainnet FX oracle.
   useEffect(() => {
-    if (network !== 'mainnet') {
-      setAvailableCurrencies(USD_ONLY);
-      return;
-    }
     let cancelled = false;
     getAvailableFiatCurrencies()
       .then((currencies) => {
@@ -52,7 +45,7 @@ export const FiatCurrencyProvider = ({ children }: FiatCurrencyProviderProps) =>
     return () => {
       cancelled = true;
     };
-  }, [network]);
+  }, []);
 
   const setQuoteCurrency = (currency: string) => {
     setStoredCurrency(currency);

@@ -6,8 +6,9 @@
 //   - maintain a small localStorage-backed stale-price fallback so the UI can
 //     still render a number when the oracle is temporarily unreachable
 //
-// Reflector oracles only exist on mainnet, so these are mainnet prices: do not
-// use them to value testnet balances.
+// Reflector oracles only exist on mainnet. Testnet balances are shown at the mainnet
+// price of the asset they stand for (XLM, Circle's testnet USDC); other testnet assets
+// have no price.
 //
 // TTL + inflight deduplication for individual oracle calls lives inside
 // OracleClient (a wrapper around Reflector's client). Do not add another retry/cache layer here.
@@ -40,6 +41,12 @@ const SYMBOL_PRICED_ASSETS: Record<string, string> = {
   [`USDC:${appConfig.USDC_ISSUER_MAINNET}`]: 'USDC',
   'EURC:GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2': 'EURC',
 };
+
+const TESTNET_SYMBOL_PRICED_ASSETS: Record<string, string> = {
+  [`USDC:${appConfig.USDC_ISSUER_TESTNET}`]: 'USDC',
+};
+
+type Network = 'mainnet' | 'testnet';
 
 // Stale-price fallback shown only when the oracle itself fails. OracleClient
 // handles the "fresh" TTL for live calls internally (60 s for prices, 24 h for
@@ -75,11 +82,13 @@ const mainnetContractId = (assetCode: string, assetIssuer: string): string | nul
 
 const findPriceSource = async (
   assetCode: string,
-  assetIssuer?: string,
+  assetIssuer: string | undefined,
+  network: Network,
 ): Promise<{ oracle: OracleConfig; asset: OracleAsset } | null> => {
-  const symbol = assetIssuer ? SYMBOL_PRICED_ASSETS[`${assetCode}:${assetIssuer}`] : assetCode === 'XLM' ? 'XLM' : undefined;
+  const symbols = network === 'testnet' ? TESTNET_SYMBOL_PRICED_ASSETS : SYMBOL_PRICED_ASSETS;
+  const symbol = assetIssuer ? symbols[`${assetCode}:${assetIssuer}`] : assetCode === 'XLM' ? 'XLM' : undefined;
   if (symbol) return { oracle: REFLECTOR_ORACLES.CEX_DEX, asset: symbol };
-  if (!assetIssuer) return null;
+  if (!assetIssuer || network === 'testnet') return null;
 
   const contractId = mainnetContractId(assetCode, assetIssuer);
   if (!contractId) return null;
@@ -93,8 +102,8 @@ const readOraclePrice = async (oracle: OracleConfig, asset: OracleAsset): Promis
   return rawPrice && rawPrice > 0n ? Number(rawPrice) / 10 ** oracle.decimals : 0;
 };
 
-const fetchReflectorPrice = async (assetCode: string, assetIssuer?: string): Promise<number> => {
-  const source = await findPriceSource(assetCode, assetIssuer);
+const fetchReflectorPrice = async (assetCode: string, assetIssuer: string | undefined, network: Network): Promise<number> => {
+  const source = await findPriceSource(assetCode, assetIssuer, network);
   if (!source) return 0;
 
   const price = await readOraclePrice(source.oracle, source.asset);
@@ -148,10 +157,15 @@ export const getLastFetchTimestamp = (): Date | null => {
 // --- Public API --------------------------------------------------------------
 
 /**
- * USD price of a mainnet asset, or 0 when no oracle prices that exact asset.
- * Native XLM is `assetCode` 'XLM' (or undefined) without an issuer.
+ * USD price of an asset, or 0 when no oracle prices that exact asset. On testnet it is the
+ * mainnet price of the asset it stands for. Native XLM is `assetCode` 'XLM' (or undefined)
+ * without an issuer.
  */
-export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): Promise<number> => {
+export const getAssetPrice = async (
+  assetCode?: string,
+  assetIssuer?: string,
+  network: Network = 'mainnet',
+): Promise<number> => {
   const assetKey = assetIssuer ? `${assetCode}:${assetIssuer}` : (assetCode || 'XLM');
 
   const existing = inflightPriceRequests.get(assetKey);
@@ -159,7 +173,7 @@ export const getAssetPrice = async (assetCode?: string, assetIssuer?: string): P
 
   const promise = (async () => {
     try {
-      const price = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer);
+      const price = await fetchReflectorPrice(assetCode || 'XLM', assetIssuer, network);
       if (price > 0) {
         setCachedPrice(assetKey, price);
         return price;

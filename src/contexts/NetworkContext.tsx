@@ -7,14 +7,7 @@ const NETWORK_STORAGE_KEY = 'stellar-network';
 
 interface NetworkContextType {
   network: Network;
-  /**
-   * `fromLink`: the network comes from a link or QR code rather than the user's own choice. It
-   * is not remembered for the next visit, and the app says the link switched it.
-   */
-  setNetwork: (network: Network, options?: { fromLink?: boolean }) => void;
-  /** Set when a link changed the network, until the user acknowledges it. */
-  switchedByLink: Network | null;
-  acknowledgeLinkSwitch: () => void;
+  setNetwork: (network: Network) => void;
 }
 
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
@@ -37,27 +30,13 @@ export const NetworkProvider = ({ children }: NetworkProviderProps) => {
     return saved === 'testnet' || saved === 'mainnet' ? saved : 'mainnet';
   });
 
-  const [switchedByLink, setSwitchedByLink] = useState<Network | null>(null);
-
   // Stable identity: effects depend on setNetwork and must not re-run on every network change.
-  const setNetwork = useCallback((newNetwork: Network, options?: { fromLink?: boolean }) => {
-    setNetworkState((current) => {
-      if (options?.fromLink) {
-        if (current !== newNetwork) setSwitchedByLink(newNetwork);
-      } else {
-        setSwitchedByLink(null);
-        safeStorage.set(NETWORK_STORAGE_KEY, newNetwork);
-      }
-      return newNetwork;
-    });
+  const setNetwork = useCallback((newNetwork: Network) => {
+    setNetworkState(newNetwork);
+    safeStorage.set(NETWORK_STORAGE_KEY, newNetwork);
   }, []);
 
-  const acknowledgeLinkSwitch = useCallback(() => setSwitchedByLink(null), []);
-
-  const value = useMemo(
-    () => ({ network, setNetwork, switchedByLink, acknowledgeLinkSwitch }),
-    [network, setNetwork, switchedByLink, acknowledgeLinkSwitch],
-  );
+  const value = useMemo(() => ({ network, setNetwork }), [network, setNetwork]);
 
   return (
     <NetworkContext.Provider value={value}>
