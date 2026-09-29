@@ -91,7 +91,7 @@ export const LandingPage = ({
               size="lg" 
               variant="outline" 
               className="w-full sm:w-auto h-12 sm:h-14 px-6 sm:px-8 md:px-12 text-sm sm:text-base md:text-lg font-semibold border-stellar-yellow text-stellar-yellow hover:bg-stellar-yellow hover:text-black transition-all duration-300 hover:scale-105 hover-scale"
-              onClick={() => openExternal('/sign')}
+              onClick={() => openExternal(`${import.meta.env.BASE_URL}sign`)}
             >
               Air-gapped Signer
             </Button>
