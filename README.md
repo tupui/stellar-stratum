@@ -33,3 +33,17 @@ npm run test:e2e   # end-to-end tests on Stellar testnet (Playwright)
 
 The end-to-end tests only use testnet accounts funded by friendbot, and fail if the app sends any
 request to a mainnet endpoint while on testnet.
+
+## Deployment
+
+The app is published on Radicle Pages, which serves the `pages` branch.
+
+```bash
+make pages-init     # once: the canonical rule for refs/heads/pages and its worktree
+make deploy-pages   # build, copy into the pages worktree, commit and push to Radicle
+make live           # is the published app the build in dist/?
+```
+
+`make pages-init` adds the canonical reference rule for `refs/heads/pages` and checks that
+branch out as an orphan worktree in `pages/`. `make deploy-pages` refuses a dirty tree, builds,
+replaces the content of the worktree, and pushes to Radicle only; every push redeploys.

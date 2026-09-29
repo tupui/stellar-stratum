@@ -1,0 +1,3 @@
+# The routes are client side: serve the app for anything the build does not
+# contain. Files that exist take precedence, so /assets is untouched.
+/*  /index.html  200

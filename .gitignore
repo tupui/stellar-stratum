@@ -26,3 +26,6 @@ dist-ssr
 .playwright-mcp
 test-results
 *.tsbuildinfo
+
+# the worktree of the pages branch, see `make pages-init`
+/pages
