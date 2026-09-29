@@ -21,6 +21,9 @@ import {
 import { format, subDays, startOfDay, endOfDay, startOfMonth } from 'date-fns';
 import { NormalizedTransaction } from '@/lib/horizon-utils';
 
+// SVG text attributes cannot read CSS variables, so the stack is spelled out (same as --font-mono).
+const MONO_FONT = "'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace";
+
 interface TransactionChartProps {
   transactions: NormalizedTransaction[];
   /** Signed change a transaction made to the charted balance; 0 when it did not touch it. */
@@ -184,7 +187,7 @@ export const TransactionChart = ({
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                 <XAxis 
                   dataKey="date"
-                  tick={{ fontSize: 10, fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
+                  tick={{ fontSize: 10, fontFamily: MONO_FONT }}
                   tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(value, index) => {
                     // Smart tick formatting to avoid overlap and show meaningful dates
@@ -214,7 +217,7 @@ export const TransactionChart = ({
                   }}
                 />
                 <YAxis 
-                  tick={{ fontSize: 10, fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
+                  tick={{ fontSize: 10, fontFamily: MONO_FONT }}
                   tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(value) => `${Number(value).toFixed(1)}`}
                 />
@@ -225,7 +228,7 @@ export const TransactionChart = ({
                     borderRadius: '8px',
                     fontSize: '12px',
                   }}
-                  wrapperStyle={{ fontFamily: 'Source Code Pro, ui-monospace, SFMono-Regular' }}
+                  wrapperStyle={{ fontFamily: MONO_FONT }}
                   formatter={(value: number | string) => [
                     fiatMode ? `${Number(value).toFixed(2)} ${fiatSymbol}` : `${Number(value).toFixed(7)} ${assetSymbol}`,
                     'Balance'

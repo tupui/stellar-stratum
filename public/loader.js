@@ -11,8 +11,8 @@ function preloadResources() {
 
   // Preload critical fonts
   if (document.fonts && document.fonts.load) {
-    preloadPromises.push(document.fonts.load('16px Inter'));
-    preloadPromises.push(document.fonts.load('600 20px Inter'));
+    preloadPromises.push(document.fonts.load("16px 'Inter Variable'"));
+    preloadPromises.push(document.fonts.load("600 20px 'Inter Variable'"));
   }
 
   // Preload any critical images that might be used

@@ -22,6 +22,8 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
+    // Font files stay files: the CSP allows fonts from this origin only, not data: URIs.
+    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
     sourcemap: true,
     rollupOptions: {
       output: {
