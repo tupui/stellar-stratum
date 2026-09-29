@@ -47,3 +47,6 @@ make live           # is the published app the build in dist/?
 `make pages-init` adds the canonical reference rule for `refs/heads/pages` and checks that
 branch out as an orphan worktree in `pages/`. `make deploy-pages` refuses a dirty tree, builds,
 replaces the content of the worktree, and pushes to Radicle only; every push redeploys.
+
+Radicle Pages serves a repository under its id, so `make deploy-pages` builds for `/<repository id>/`
+(`BASE_PATH`). Once the site has a domain of its own: `make deploy-pages base=/`.
