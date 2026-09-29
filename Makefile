@@ -28,7 +28,7 @@ pages-init:  ## one-time: the canonical pages branch and the worktree that build
 
 deploy-pages:  ## build the app and publish it to Radicle Pages
 	@test -e $(pages_dir)/.git || { echo "run 'make pages-init' first"; exit 1; }
-	@test -z "$$(git status --porcelain)" \
+	@test -z "$$(git status --porcelain --untracked-files=no)" \
 		|| { echo "commit first: a publish names the commit it was built from"; exit 1; }
 	npm run build
 	find $(pages_dir) -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
