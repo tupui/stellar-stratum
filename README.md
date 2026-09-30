@@ -48,5 +48,13 @@ make live           # is the published app the build in dist/?
 branch out as an orphan worktree in `pages/`. `make deploy-pages` refuses a dirty tree, builds,
 replaces the content of the worktree, and pushes to Radicle only; every push redeploys.
 
-Radicle Pages serves a repository under its id, so `make deploy-pages` builds for `/<repository id>/`
-(`BASE_PATH`). Once the site has a domain of its own: `make deploy-pages base=/`.
+The host is git-pages. `stellar-stratum.xyz` points at it (an A record and a
+`_git-pages-repository` TXT record naming the repository), so `make deploy-pages` builds for `/`.
+The first publication of a domain is a PUT of the repository URL, which the TXT record authorises:
+
+```bash
+curl -X PUT -H "Content-Type: application/x-www-form-urlencoded" \
+  --data "https://consulting-manao.radicle.garden/stellar-stratum.git" https://stellar-stratum.xyz/
+```
+
+Served from the pages host instead, under `/stellar-stratum/`: `make deploy-pages base=/stellar-stratum/`.
