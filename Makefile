@@ -12,17 +12,17 @@ help:  ## list the targets
 override pages_dir = pages
 override build_dir = dist
 
-# Radicle Pages serves the repository under its id, so the build is for that
-# path. The day the site has a domain of its own: `make deploy-pages base=/`.
-override rid = $(patsubst rad:%,%,$(shell rad inspect --rid))
+# The site has a domain of its own (git-pages reads the `_git-pages-repository` TXT
+# record), so the build is for `/`. Served from the pages host instead, under its
+# name: `make deploy-pages base=/stellar-stratum/`.
 ifndef base
-   override base = /$(rid)/
+   override base = /
 endif
 
 # Where that build is served, so `make live` reads the site itself rather than
 # what was last built. Another host: `make live site=https://example.com/`.
 ifndef site
-   override site = https://consulting-manao.radicle.page$(base)
+   override site = https://stellar-stratum.xyz/
 endif
 
 pages-init:  ## one-time: the canonical pages branch and the worktree that builds into it
