@@ -29,12 +29,16 @@ const xlmBalance = async (id: string) =>
 // never contact mainnet, so these reads are aborted too, but they are expected.
 const PRICE_HOSTS = ['rpc.lightsail.network'];
 
+// Reviewing a contract call with unknown tokens reads Soroswap's token list, on both networks.
+const isTokenList = (url: URL) => url.hostname === 'api.soroswap.finance' && url.pathname === '/asset-list';
+
 /** Abort mainnet requests and remember the unexpected ones so the test can fail on them. */
 const guardMainnet = async (page: Page) => {
   const blocked: string[] = [];
   await page.route('**/*', (route) => {
     const url = new URL(route.request().url());
     if (PRICE_HOSTS.includes(url.hostname)) return route.abort();
+    if (isTokenList(url)) return route.continue();
     if (MAINNET_HOSTS.includes(url.hostname)) {
       blocked.push(url.href);
       return route.abort();

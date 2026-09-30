@@ -325,7 +325,7 @@ const Index = memo(() => {
     <FiatCurrencyProvider>
       <DeepLinkHandler onDeepLinkLoaded={handleDeepLinkLoaded} />
       <div className="min-h-screen bg-background flex flex-col">
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           {/* Wallet active-account changed warning */}
           {appState !== "connecting" && walletAccountChanged && (
             <div className="sticky top-0 z-50 bg-warning/10 border-b border-warning/40">
@@ -426,8 +426,7 @@ const Index = memo(() => {
           )}
         </div>
 
-        {/* Only show footer when not on connecting page */}
-        {appState !== "connecting" && <Footer />}
+        <Footer />
       </div>
     </FiatCurrencyProvider>
   );

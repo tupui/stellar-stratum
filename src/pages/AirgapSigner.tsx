@@ -8,6 +8,7 @@ import { TransactionScanner } from '@/components/airgap/TransactionScanner';
 import { XdrDetails } from '@/components/XdrDetails';
 import { TransactionSubmitter } from '@/components/transaction/TransactionSubmitter';
 import { SuccessModal } from '@/components/SuccessModal';
+import { Footer } from '@/components/Footer';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
@@ -325,6 +326,7 @@ const AirgapSigner = () => {
             </div>
           </div>
         </main>
+        <Footer />
       </div>
 
       {showOfflineModal && parsed && (

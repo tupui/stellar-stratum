@@ -22,7 +22,7 @@ export const LandingPage = ({
   const handleModalControl = (isOpen: boolean) => {
     setShowWalletModal(isOpen);
   };
-  return <div className="h-screen bg-background relative overflow-hidden">
+  return <div className="flex-1 flex flex-col bg-background relative overflow-hidden">
       {/* Subtle Background Elements - Fixed dimensions to prevent shifts */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-gradient-to-br from-background to-background/50" style={{ contain: 'layout style paint', willChange: 'auto' }} />
@@ -64,8 +64,8 @@ export const LandingPage = ({
       </header>
 
       {/* Main Content */}
-      <div className="flex items-center justify-center h-screen px-4 sm:px-6">
-        <div className="max-w-6xl mx-auto text-center flex flex-col justify-center h-full py-20 sm:py-24">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto text-center flex flex-col justify-center py-20 sm:py-24">
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-black leading-[0.85] mb-4 sm:mb-6 md:mb-8 tracking-tight animate-fade-in">
             <span className="text-foreground">Multi-Signature</span>
             <br />
@@ -95,13 +95,6 @@ export const LandingPage = ({
             >
               Air-gapped Signer
             </Button>
-          </div>
-
-          <div className="mt-8 sm:mt-12 md:mt-16 text-xs sm:text-sm text-muted-foreground animate-fade-in">
-            Built on <span className="text-stellar-yellow font-medium">Stellar</span> by{' '}
-            <a href="https://consulting-manao.com/" target="_blank" rel="noopener noreferrer" className="text-stellar-yellow font-medium hover:underline transition-all duration-300 story-link">
-              Consulting Manao GmbH
-            </a>
           </div>
         </div>
       </div>
