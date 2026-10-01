@@ -13,8 +13,9 @@ navigator.serviceWorker?.getRegistrations().then((registrations) => {
 
 /**
  * Another site must not show the app in a frame: an invisible frame over a decoy page could
- * steer clicks onto Sign or Submit. The host cannot send `frame-ancestors`, so the app refuses
- * to start when framed, except in the Lovable editor preview.
+ * steer clicks onto Sign or Submit. The host sends `frame-ancestors 'none'` (`public/_headers`).
+ * A host that drops that header leaves this check: the app refuses to start when framed,
+ * except in the Lovable editor preview.
  */
 const isFramed = (() => {
   try {

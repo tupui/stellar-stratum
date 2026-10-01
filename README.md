@@ -58,3 +58,11 @@ curl -X PUT -H "Content-Type: application/x-www-form-urlencoded" \
 ```
 
 Served from the pages host instead, under `/stellar-stratum/`: `make deploy-pages base=/stellar-stratum/`.
+
+`public/_headers` carries the Content Security Policy, with `frame-ancestors 'none'`. git-pages
+applies only the headers its operator allowlists. What it rejected is listed under `problems` in
+https://consulting-manao.radicle.page/stellar-stratum/.git-pages/manifest.json.
+
+## License
+
+MIT, in `LICENSE`.

@@ -1,0 +1,8 @@
+# Sent with every response by the host. git-pages applies only the headers its operator
+# allowlists and drops a whole rule over one it does not, so this rule holds the CSP alone.
+# The policy is the one in the meta tag of index.html, and a test holds the two together.
+# It is repeated here for `frame-ancestors`, which a meta tag cannot carry: no site may show
+# the app in a frame. No HSTS, the host does not allowlist it. git-pages sends nosniff
+# itself, and the referrer policy is a meta tag in index.html.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https: wss: data: blob: ws://127.0.0.1:21335 ws://localhost:21335 http://127.0.0.1:21325 http://127.0.0.1:21328 http://localhost:21325 http://localhost:21328; media-src 'self' data: blob:; worker-src 'self' blob:; frame-src 'self' https://connect.trezor.io; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
