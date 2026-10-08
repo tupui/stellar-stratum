@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Horizon } from '@stellar/stellar-sdk';
 import { createHorizonServer } from '@/lib/stellar';
-import { isValidPublicKey } from '@/lib/validation';
+import { baseAccountId } from '@/lib/signatures';
+import { isContractAddress, isMuxedAddress, isValidPaymentDestination } from '@/lib/validation';
 
 export interface DestinationAsset {
   code: string;
@@ -14,6 +15,8 @@ export type DestinationLookup =
   | { status: 'loading' }
   /** The account does not exist yet: only a createAccount with XLM can reach it. */
   | { status: 'missing' }
+  /** A contract (C…): paid through the asset's contract, with no account to look up. */
+  | { status: 'contract' }
   | { status: 'error'; message: string }
   | { status: 'exists'; assets: DestinationAsset[]; memoRequired: boolean };
 
@@ -34,22 +37,28 @@ export const useDestinationAccount = (destination: string, network: 'mainnet' | 
 
   useEffect(() => {
     const address = destination.trim();
-    if (!isValidPublicKey(address)) {
+    if (!isValidPaymentDestination(address)) {
       setLookup({ status: 'idle' });
+      return;
+    }
+    if (isContractAddress(address)) {
+      setLookup({ status: 'contract' });
       return;
     }
     let cancelled = false;
     setLookup({ status: 'loading' });
     const timer = setTimeout(async () => {
       try {
-        const account = await createHorizonServer(network).loadAccount(address);
+        // Horizon only knows accounts by their G… address.
+        const account = await createHorizonServer(network).loadAccount(baseAccountId(address));
         if (cancelled) return;
         const assets: DestinationAsset[] = account.balances.flatMap((b) => {
           if (b.asset_type === 'native') return [{ code: 'XLM', balance: b.balance }];
           if ('asset_code' in b) return [{ code: b.asset_code, issuer: b.asset_issuer, balance: b.balance }];
           return [];
         });
-        setLookup({ status: 'exists', assets, memoRequired: requiresMemo(account) });
+        // A muxed address already says whose deposit this is: its ID stands in for the memo.
+        setLookup({ status: 'exists', assets, memoRequired: requiresMemo(account) && !isMuxedAddress(address) });
       } catch (error) {
         if (cancelled) return;
         setLookup(

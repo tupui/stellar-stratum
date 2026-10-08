@@ -45,10 +45,12 @@ flowchart TD
 ```
 
 - **Payment**: one or more operations in one transaction, with a single transaction memo (text or
-  ID). Unfunded destinations are created, cross-asset payments use Horizon's best path within the
-  chosen slippage, and "Merge account" closes the account after emptying its trustlines. Everything
-  is checked against the live account when building: trustlines, the minimum reserve, memos
-  required by exchanges.
+  ID). The destination is an account (G…) or a muxed account (M…), whose ID stands in for the memo
+  an exchange asks for. A contract (C…) is paid by calling `transfer` on the asset's contract, alone
+  in its transaction and without a memo. Unfunded destinations are created, cross-asset payments use Horizon's best
+  path within the chosen slippage, and "Merge account" closes the account after emptying its
+  trustlines. Everything is checked against the live account when building: trustlines, the minimum
+  reserve, memos required by exchanges.
 - **Contract call**: any Soroban contract, including Stellar Asset Contracts. A call that fails in
   simulation, or that needs another address to authorize it, is refused.
 - **DeFi**: the transaction returned by the Soroswap or DeFindex API is checked against the request

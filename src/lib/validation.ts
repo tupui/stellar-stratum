@@ -20,6 +20,30 @@ export const isValidPublicKey = (key: string): boolean => {
   }
 };
 
+/** A muxed account (M…): a G… account plus a 64-bit ID, used by exchanges instead of a memo. */
+export const isMuxedAddress = (address: string): boolean => {
+  if (typeof address !== 'string' || address.length !== 69 || address[0] !== 'M') return false;
+  try {
+    return StrKey.isValidMed25519PublicKey(address);
+  } catch {
+    return false;
+  }
+};
+
+/** A contract (C…). */
+export const isContractAddress = (address: string): boolean => {
+  if (typeof address !== 'string' || address.length !== 56 || address[0] !== 'C') return false;
+  try {
+    return StrKey.isValidContract(address);
+  } catch {
+    return false;
+  }
+};
+
+/** An address a payment can be sent to: an account (G…), a muxed account (M…) or a contract (C…). */
+export const isValidPaymentDestination = (address: string): boolean =>
+  isValidPublicKey(address) || isMuxedAddress(address) || isContractAddress(address);
+
 /**
  * CRITICAL: Validates a Stellar amount (numeric string with max 7 decimal places)
  * Invalid amounts could lead to transaction failures or fund loss

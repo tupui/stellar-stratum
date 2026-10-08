@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Plus, ArrowRight, ArrowDown, Merge, Edit2, X, ExternalLink } from 'lucide-react';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
-import { isValidPublicKey } from '@/lib/validation';
+import { isContractAddress, isMuxedAddress, isValidPaymentDestination } from '@/lib/validation';
+import { baseAccountId } from '@/lib/signatures';
 import { priceKey, spendableBalance } from '@/lib/balance-utils';
 import type { AccountData } from '@/lib/stellar';
 import { useToast } from '@/hooks/use-toast';
@@ -138,7 +139,9 @@ export const PaymentForm = ({
   const [hasActiveForm, setHasActiveForm] = useState(false);
 
   const destination = useDestinationAccount(paymentData.destination, network);
-  const recipientAssets = destination.status === 'exists' ? destination.assets : [{ code: 'XLM', balance: '0' }];
+  // A contract holds no trustline: it receives the asset sent, and nothing else can be picked.
+  const recipientAssets =
+    destination.status === 'exists' ? destination.assets : destination.status === 'contract' ? [] : [{ code: 'XLM', balance: '0' }];
 
   /** What was already planned for this asset by the other operations of the bundle. */
   const plannedOutflow = useCallback(
@@ -257,28 +260,44 @@ export const PaymentForm = ({
   const validationError = (): string | null => {
     const dest = paymentData.destination.trim();
     if (!dest) return 'Enter a destination address.';
-    if (!isValidPublicKey(dest)) return 'The destination is not a valid Stellar address.';
+    if (!isValidPaymentDestination(dest)) return 'The destination is not a valid Stellar address.';
+    // A muxed (M…) destination is the account behind it.
+    const toSelf = baseAccountId(dest) === accountPublicKey;
     if (destination.status === 'loading' || destination.status === 'idle') return 'Checking the destination account…';
     if (destination.status === 'error') return destination.message;
 
+    if (isContractAddress(dest)) {
+      if (willCloseAccount) return 'An account cannot be merged into a contract.';
+      if (compactPayments.some((p) => p.id !== editingPaymentId)) {
+        return 'A payment to a contract (C…) must be the only operation of its transaction. Send it separately.';
+      }
+      if (isPathPayment(paymentData)) return 'A contract can only be sent the asset itself.';
+    } else if (compactPayments.some((p) => p.id !== editingPaymentId && isContractAddress(p.destination))) {
+      return 'A payment to a contract (C…) must be the only operation of its transaction. Send this one separately.';
+    }
+
     if (willCloseAccount) {
-      if (dest === accountPublicKey) return 'An account cannot be merged into itself.';
+      if (toSelf) return 'An account cannot be merged into itself.';
       if (destination.status !== 'exists') return 'An account can only be merged into an existing account.';
       return canCloseAccount() ? null : 'This account cannot be merged yet (it still holds assets, offers or data).';
     }
 
     const path = isPathPayment(paymentData);
     if (paymentData.asset !== 'XLM' && !paymentData.assetIssuer) return 'Select the asset to send.';
-    if (!path && dest === accountPublicKey) return 'Sending an asset to yourself does nothing.';
+    if (!path && toSelf) return 'Sending an asset to yourself does nothing.';
 
+    // A contract has nothing to look up: the simulation checks the transfer when building.
     if (destination.status === 'missing') {
+      if (isMuxedAddress(dest)) {
+        return 'The account behind this muxed address does not exist yet. Create it by sending to its G… address first.';
+      }
       if (path || paymentData.asset !== 'XLM') {
         return 'This account does not exist yet. Send it at least 1 XLM first to create it.';
       }
       if (isPositiveAmount(paymentData.amount) && toDecimal(paymentData.amount).lt(1)) {
         return 'Creating a new account requires at least 1 XLM.';
       }
-    } else {
+    } else if (destination.status === 'exists') {
       const receiveCode = path ? paymentData.receiveAsset! : paymentData.asset;
       const receiveIssuer = path ? paymentData.receiveAssetIssuer : paymentData.assetIssuer;
       if (receiveCode !== 'XLM' && !recipientAssets.some((a) => sameAsset(a.code, a.issuer, receiveCode, receiveIssuer))) {
@@ -376,7 +395,12 @@ export const PaymentForm = ({
   // A transaction has one memo: two destinations that each need their own (two exchange
   // deposits) cannot share it.
   const memoConflict = new Set(compactPayments.filter((p) => p.memoRequired).map((p) => p.destination)).size > 1;
-  const currentMemoError = memoError(memo);
+  // Contract calls take no transaction memo.
+  const currentMemoError =
+    memoError(memo) ??
+    (memo.value && compactPayments.some((p) => isContractAddress(p.destination))
+      ? 'A payment to a contract cannot carry a memo. Remove the memo.'
+      : null);
   const hasMerge = compactPayments.some((p) => p.isAccountClosure);
 
   const handleBuild = () => {
@@ -389,14 +413,14 @@ export const PaymentForm = ({
   /** SEP-7 payment request (web+stellar:pay) or a plain address. */
   const handleQRScan = (data: string) => {
     const text = data.trim();
-    if (isValidPublicKey(text)) {
+    if (isValidPaymentDestination(text)) {
       onPaymentDataChange({ ...paymentData, destination: text });
       return;
     }
     try {
       const url = new URL(text);
       const target = url.searchParams.get('destination');
-      if ((url.protocol === 'web+stellar:' || url.protocol === 'stellar:') && url.pathname === 'pay' && target && isValidPublicKey(target)) {
+      if ((url.protocol === 'web+stellar:' || url.protocol === 'stellar:') && url.pathname === 'pay' && target && isValidPaymentDestination(target)) {
         const code = url.searchParams.get('asset_code');
         const issuer = url.searchParams.get('asset_issuer') ?? '';
         const held = code ? availableAssets.find((a) => sameAsset(a.code, a.issuer, code, issuer)) : undefined;
@@ -443,7 +467,7 @@ export const PaymentForm = ({
   };
 
   const formError = paymentData.destination || paymentData.amount ? validationError() : null;
-  const destinationInvalid = Boolean(paymentData.destination) && !isValidPublicKey(paymentData.destination.trim());
+  const destinationInvalid = Boolean(paymentData.destination) && !isValidPaymentDestination(paymentData.destination.trim());
 
   const renderAsset = (code: string, issuer?: string) => (
     <a
@@ -639,8 +663,8 @@ export const PaymentForm = ({
                   !isPathPayment(paymentData) &&
                   !willCloseAccount &&
                   canCloseAccount() &&
-                  isValidPublicKey(paymentData.destination.trim()) &&
-                  paymentData.destination.trim() !== accountPublicKey &&
+                  isValidPaymentDestination(paymentData.destination.trim()) &&
+                  baseAccountId(paymentData.destination.trim()) !== accountPublicKey &&
                   destination.status === 'exists' && (
                     <div className="text-center">
                       <Button

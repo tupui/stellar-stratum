@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import type { DestinationLookup } from '@/hooks/useDestinationAccount';
+import { isMuxedAddress } from '@/lib/validation';
 
 interface DestinationAccountInfoProps {
   destination: string;
@@ -78,7 +79,9 @@ export const DestinationAccountInfo = ({ destination, lookup, network }: Destina
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground truncate">{destination}</p>
               <p className="text-xs text-muted-foreground">
-                This account does not exist yet. It will be created with your payment, which must be at least 1 XLM.
+                {isMuxedAddress(destination)
+                  ? 'The account behind this muxed address does not exist yet. Create it by sending to its G… address first.'
+                  : 'This account does not exist yet. It will be created with your payment, which must be at least 1 XLM.'}
               </p>
             </div>
           </div>

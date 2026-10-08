@@ -6,13 +6,15 @@
  * actually spend after its minimum reserve, and path-payment limits from real order books.
  * Anything that would make the network reject the transaction is refused here instead.
  */
-import { Asset, Horizon, Memo, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
+import { Address, Asset, Horizon, Memo, Operation, StrKey, TransactionBuilder, nativeToScVal, rpc, xdr } from '@stellar/stellar-sdk';
 import { Decimal } from 'decimal.js';
 import { appConfig } from './appConfig';
 import { minimumBalance } from './balance-utils';
+import { baseAccountId } from './signatures';
 import { passphraseFor, type NetworkId } from './xdr/parse';
 
 export interface PaymentOperationInput {
+  /** An account (G…), a muxed account (M…) or a contract (C…). */
   destination: string;
   amount: string;
   asset: string;
@@ -55,14 +57,98 @@ const isNotFound = (error: unknown) => {
 const recordAsset = (r: { asset_type: string; asset_code?: string; asset_issuer?: string }) =>
   r.asset_type === 'native' ? Asset.native() : new Asset(r.asset_code!, r.asset_issuer);
 
+/** What a payment to a contract needs from Soroban RPC: ledger entries and the simulation. */
+export type SorobanServer = Pick<rpc.Server, 'getContractData' | 'prepareTransaction'>;
+
+const sorobanServer = (network: NetworkId): SorobanServer =>
+  new rpc.Server(network === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC);
+
+const contractExists = async (soroban: SorobanServer, contractId: string): Promise<boolean> => {
+  try {
+    await soroban.getContractData(contractId, xdr.ScVal.scvLedgerKeyContractInstance());
+    return true;
+  } catch (error) {
+    if ((error as { code?: number } | null)?.code === 404) return false;
+    throw new Error(`Could not check contract ${short(contractId)}. Check your connection and try again.`, { cause: error });
+  }
+};
+
+/**
+ * A contract holds no trustline and takes no payment operation: it is paid by calling `transfer`
+ * on the asset's contract, which the simulation checks against the live ledger. Such a
+ * transaction holds that single operation and no memo.
+ */
+async function buildContractTransfer(
+  server: Horizon.Server,
+  sourceId: string,
+  network: NetworkId,
+  op: PaymentOperationInput,
+  memo: MemoInput,
+  soroban: SorobanServer,
+): Promise<string> {
+  const destination = op.destination.trim();
+  if (op.isAccountClosure) throw new Error('An account cannot be merged into a contract.');
+  const asset = toAsset(op.asset, op.assetIssuer);
+  if (op.receiveAsset && !toAsset(op.receiveAsset, op.receiveAssetIssuer).equals(asset)) {
+    throw new Error(`A contract can only be sent the asset itself: convert to ${op.receiveAsset} first.`);
+  }
+  if (memo.value) throw new Error('A payment to a contract cannot carry a memo. Remove the memo.');
+  const amount = new Decimal(op.amount);
+  if (!amount.gt(0)) throw new Error('Enter an amount.');
+
+  // Nothing can move what is sent to an address where no contract lives (a contract of another network, say).
+  if (!(await contractExists(soroban, destination))) {
+    throw new Error(`There is no contract at ${short(destination)} on ${network === 'testnet' ? 'Testnet' : 'Mainnet'}.`);
+  }
+  const assetContract = asset.contractId(passphraseFor(network));
+  if (!(await contractExists(soroban, assetContract))) {
+    throw new Error(`${assetName(asset)} has no asset contract on this network yet, so it cannot be sent to a contract.`);
+  }
+
+  const source = await server.loadAccount(sourceId);
+  const builder = new TransactionBuilder(source, {
+    fee: appConfig.DEFAULT_BASE_FEE_STROOPS.toString(),
+    networkPassphrase: passphraseFor(network),
+  });
+  builder.addOperation(Operation.invokeContractFunction({
+    contract: assetContract,
+    function: 'transfer',
+    args: [
+      new Address(sourceId).toScVal(),
+      new Address(destination).toScVal(),
+      nativeToScVal(BigInt(amount.times(1e7).toFixed(0, Decimal.ROUND_DOWN)), { type: 'i128' }),
+    ],
+  }));
+  builder.setTimeout(appConfig.TX_VALIDITY_SECONDS);
+  try {
+    return (await soroban.prepareTransaction(builder.build())).toXDR();
+  } catch (error) {
+    // The first line says what failed; the rest is the host's event log.
+    const reason = (error instanceof Error ? error.message : String(error)).split('\n')[0];
+    throw new Error(
+      /Contract, #10\b/.test(reason)
+        ? `This account cannot spend ${amount.toFixed()} ${assetName(asset)} (after the minimum reserve and open offers).`
+        : `${assetName(asset)} cannot be sent to ${short(destination)}: ${reason}`,
+      { cause: error },
+    );
+  }
+}
+
 export async function buildPaymentTransaction(
   server: Horizon.Server,
   sourceId: string,
   network: NetworkId,
   operations: PaymentOperationInput[],
   memo: MemoInput,
+  soroban: SorobanServer = sorobanServer(network),
 ): Promise<string> {
   if (operations.length === 0) throw new Error('Add at least one operation.');
+  if (operations.some((op) => StrKey.isValidContract(op.destination.trim()))) {
+    if (operations.length > 1) {
+      throw new Error('A payment to a contract (C…) must be the only operation of its transaction. Send it separately.');
+    }
+    return buildContractTransfer(server, sourceId, network, operations[0], memo, soroban);
+  }
   const mergeIndex = operations.findIndex((op) => op.isAccountClosure);
   if (mergeIndex !== -1 && mergeIndex !== operations.length - 1) {
     throw new Error('The account merge must be the last operation: nothing can run after the account is closed.');
@@ -77,7 +163,9 @@ export async function buildPaymentTransaction(
   };
 
   const destinations = new Map<string, Horizon.AccountResponse | null>();
-  const loadDestination = async (id: string) => {
+  /** Looked up by base account: Horizon only knows accounts by their G… address. */
+  const loadDestination = async (address: string) => {
+    const id = baseAccountId(address);
     if (!destinations.has(id)) {
       try {
         destinations.set(id, await server.loadAccount(id));
@@ -112,9 +200,11 @@ export async function buildPaymentTransaction(
   for (const [index, op] of operations.entries()) {
     const label = `Operation ${index + 1}`;
     const destination = op.destination.trim();
+    // A muxed (M…) destination is the account behind it, with an ID the recipient reads.
+    const destinationAccount = baseAccountId(destination);
 
     if (op.isAccountClosure) {
-      if (destination === sourceId) throw new Error('An account cannot be merged into itself.');
+      if (destinationAccount === sourceId) throw new Error('An account cannot be merged into itself.');
       if (!(await loadDestination(destination))) throw new Error(`${label}: the merge destination does not exist.`);
       if (Number(source.num_sponsoring ?? 0) > 0) throw new Error('This account sponsors other entries and cannot be merged.');
       const trustlines = source.balances.filter((b) => b.asset_type !== 'native');
@@ -142,18 +232,22 @@ export async function buildPaymentTransaction(
     const destAsset = op.receiveAsset ? toAsset(op.receiveAsset, op.receiveAssetIssuer) : sendAsset;
     const isPath = !destAsset.equals(sendAsset);
     const slippage = new Decimal(op.slippageTolerance ?? 0.5).div(100);
-    const account = created.has(destination) ? null : await loadDestination(destination);
+    const account = created.has(destinationAccount) ? null : await loadDestination(destination);
 
-    if (!account && !created.has(destination)) {
+    if (!account && !created.has(destinationAccount)) {
       // Unfunded destination: only a createAccount with XLM can reach it.
       if (isPath || !sendAsset.isNative()) {
         throw new Error(`${label}: ${short(destination)} does not exist yet. Send it at least 1 XLM first to create it.`);
+      }
+      // createAccount takes no muxed ID, so the ID would be silently dropped.
+      if (destination !== destinationAccount) {
+        throw new Error(`${label}: the account behind ${short(destination)} does not exist yet. Create it by sending to its G… address first.`);
       }
       const amount = new Decimal(op.amount);
       if (amount.lt(1)) throw new Error(`${label}: creating ${short(destination)} requires at least 1 XLM.`);
       add(Operation.createAccount({ destination, startingBalance: amountString(amount, Decimal.ROUND_DOWN) }));
       spend(sendAsset, amount);
-      created.add(destination);
+      created.add(destinationAccount);
       continue;
     }
     if (!account) {

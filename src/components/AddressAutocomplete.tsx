@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Clock, Users, QrCode, BookOpen } from 'lucide-react';
 import { useAddressBook, type AddressBookEntry } from '@/hooks/useAddressBook';
-import { isValidPublicKey } from '@/lib/validation';
+import { isValidPaymentDestination } from '@/lib/validation';
 import { cn } from '@/lib/utils';
 
 interface AddressAutocompleteProps {
@@ -137,7 +137,7 @@ export const AddressAutocomplete = ({
 
 
       {/* Validation status for addresses */}
-      {value && !isValidPublicKey(value) && (
+      {value && !isValidPaymentDestination(value.trim()) && (
         <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg">
           <span className="text-sm text-destructive">
             Invalid Stellar address format
