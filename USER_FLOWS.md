@@ -17,8 +17,8 @@ flowchart TD
 ```
 
 A watch-only account can build transactions and collect signatures from other devices; it just
-cannot sign itself. The URL keeps the account, network and current view, so any screen can be
-reloaded or shared.
+cannot sign itself. A muxed address (M…) opens the account behind it. The URL keeps the account,
+network and current view, so any screen can be reloaded or shared.
 
 ## Dashboard
 

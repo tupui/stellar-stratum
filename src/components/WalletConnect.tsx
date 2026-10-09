@@ -9,7 +9,7 @@ import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import type { ISupportedWallet } from '@creit-tech/stellar-wallets-kit/types';
 import { appConfig } from '@/lib/appConfig';
-import { isValidPublicKey } from '@/lib/validation';
+import { accountIdOf } from '@/lib/validation';
 import { TrezorLogo } from '@/components/icons/TrezorLogo';
 
 interface WalletConnectProps {
@@ -135,11 +135,11 @@ export const WalletConnect = ({ onConnect, onModalControl }: WalletConnectProps)
   const secondaryWallets = orderedWallets.slice(PRIMARY_WALLET_COUNT);
 
   const handleManualConnect = () => {
-    const address = manualAddress.trim();
-    if (!isValidPublicKey(address)) {
+    const address = accountIdOf(manualAddress.trim());
+    if (!address) {
       toast({
         title: 'Invalid address',
-        description: 'Please enter a valid Stellar public key (starts with G, 56 characters)',
+        description: 'Please enter a valid Stellar account address (G…) or muxed address (M…)',
         variant: 'destructive',
         duration: 3000,
       });

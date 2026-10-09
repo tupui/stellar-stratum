@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { RefreshCw, AlertCircle, User, Copy, Share2, ExternalLink } from 'lucide-react';
-import { isValidPublicKey } from '@/lib/validation';
+import { accountIdOf, isValidPublicKey } from '@/lib/validation';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -45,9 +45,11 @@ export const SourceAccountSelector = ({
       return;
     }
 
-    if (isValidPublicKey(trimmed)) {
+    // A muxed (M…) address opens the account behind it.
+    const account = accountIdOf(trimmed);
+    if (account) {
       setValidationError('');
-      onSourceAccountChange(trimmed);
+      onSourceAccountChange(account);
     } else {
       setValidationError('Invalid Stellar address format');
     }

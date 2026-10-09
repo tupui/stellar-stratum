@@ -30,6 +30,16 @@ export const isMuxedAddress = (address: string): boolean => {
   }
 };
 
+/**
+ * The account an entered address opens: a G… address is that account, a muxed (M…) address is
+ * the account behind it. Null for anything else.
+ */
+export const accountIdOf = (address: string): string | null => {
+  if (isValidPublicKey(address)) return address;
+  if (!isMuxedAddress(address)) return null;
+  return StrKey.encodeEd25519PublicKey(StrKey.decodeMed25519PublicKey(address).subarray(0, 32));
+};
+
 /** A contract (C…). */
 export const isContractAddress = (address: string): boolean => {
   if (typeof address !== 'string' || address.length !== 56 || address[0] !== 'C') return false;

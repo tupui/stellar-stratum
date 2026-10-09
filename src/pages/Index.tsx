@@ -17,6 +17,7 @@ import { fetchAccountData, type AccountData } from "@/lib/stellar";
 import { WATCHABLE_WALLETS } from "@/lib/walletKit";
 import type { NetworkId } from "@/lib/xdr/parse";
 import { StrKey } from "@stellar/stellar-sdk";
+import { accountIdOf } from "@/lib/validation";
 import { useToast } from "@/hooks/use-toast";
 import { FiatCurrencyProvider } from "@/contexts/FiatCurrencyContext";
 import { useNetwork } from "@/contexts/NetworkContext";
@@ -148,14 +149,16 @@ const Index = memo(() => {
   useEffect(() => {
     if (addressDeepLinkHandled.current) return;
     const params = new URLSearchParams(window.location.search);
-    const address = params.get("address") ?? params.get("public_key");
-    if (!address) return;
+    const requested = params.get("address") ?? params.get("public_key");
+    if (!requested) return;
     addressDeepLinkHandled.current = true;
 
-    if (!StrKey.isValidEd25519PublicKey(address)) {
+    // A muxed (M…) address opens the account behind it.
+    const address = accountIdOf(requested);
+    if (!address) {
       toast({
         title: "Invalid address",
-        description: "The address in the URL is not a valid Stellar public key.",
+        description: "The address in the URL is not a valid Stellar account address.",
         variant: "destructive",
       });
       return;
