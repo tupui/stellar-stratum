@@ -1,6 +1,6 @@
-import { Address, Operation, scValToNative, type Transaction, TransactionBuilder, xdr } from '@stellar/stellar-sdk';
+import { Address, Asset, Operation, scValToNative, type Transaction, TransactionBuilder, xdr } from '@stellar/stellar-sdk';
 import { appConfig } from '@/lib/appConfig';
-import { tryParseTransaction } from '@/lib/xdr/parse';
+import { passphraseFor, tryParseTransaction } from '@/lib/xdr/parse';
 import { analyzeOperations, fitsSignature, type ActivityDetails, type AnalyzedCall } from './detect';
 import { findKnownVault, PROTOCOL_LABELS, type NetworkId, type ProtocolId } from './registry';
 
@@ -52,6 +52,7 @@ export interface AccountState {
 }
 
 type Kind = ExpectedCall['kind'];
+type SwapCall = Extract<ExpectedCall, { kind: 'swap' }>;
 
 const PROTOCOL: Record<Kind, ProtocolId> = {
   swap: 'soroswap',
@@ -78,6 +79,16 @@ const MAX_FEE_STROOPS = 100_000_000n;
 
 /** Room for the API's clock running ahead of ours when checking the expiry. */
 const CLOCK_SKEW_SECONDS = 300;
+
+/**
+ * The most Soroswap's fee on an SDEX route may take, in basis points of the swap's
+ * amount in the fee's token. The API charges it as a payment beside the path
+ * payment, to a wallet the app cannot pin, so it is capped instead.
+ */
+const MAX_SDEX_FEE_BPS = 100n;
+const BPS = 10_000n;
+
+const PATH_PAYMENTS = ['pathPaymentStrictSend', 'pathPaymentStrictReceive'];
 
 const amountOf = (raw: string) => BigInt(raw);
 
@@ -168,12 +179,12 @@ const mismatch = (details: ActivityDetails, expected: ExpectedCall): string | nu
  * wrong otherwise. Read from the raw XDR, so nothing the SDK's getters leave
  * out can slip through.
  */
-const checkConditions = (tx: Transaction, state: AccountState): { maxTime: bigint } | string => {
+const checkConditions = (tx: Transaction, state: AccountState, allowMemo: boolean): { maxTime: bigint } | string => {
   const envelope = tx.toEnvelope();
   if (envelope.type !== 'envelopeTypeTx') return 'cannot be read';
   const { cond, memo, seqNum } = envelope.v1.tx;
 
-  if (memo.type !== 'memoNone') return 'carries a memo';
+  if (memo.type !== 'memoNone' && !allowMemo) return 'carries a memo';
 
   let timeBounds: xdr.TimeBounds | null = null;
   if (cond.type === 'precondTime') timeBounds = cond.timeBounds;
@@ -197,6 +208,138 @@ const checkConditions = (tx: Transaction, state: AccountState): { maxTime: bigin
     return `uses sequence number ${seqNum} instead of your next one (${state.sequence + 1n})`;
   }
   return { maxTime: timeBounds.maxTime };
+};
+
+/**
+ * Why a classic path payment is not the requested swap, or null when it is. The
+ * API builds a swap it routes through SDEX this way instead of as a contract call.
+ * Assets and amounts are read from the raw XDR and compared through each asset's
+ * Stellar Asset Contract, the address the swap was requested in. The hops in
+ * `path` need no check: only the sent asset leaves the account, capped by the
+ * exact amount or `sendMax`, and only the bought asset arrives, floored by
+ * `destMin` or exact.
+ */
+const pathPaymentMismatch = (
+  tx: Transaction,
+  index: number,
+  network: NetworkId,
+  account: string,
+  expected: SwapCall,
+  /** Soroswap's fee when it is paid in the sold token: taken out of what is sold, so the two add up. */
+  feeIn: bigint,
+): string | null => {
+  const op = tx.operations[index];
+  if (op.type !== 'pathPaymentStrictSend' && op.type !== 'pathPaymentStrictReceive') return 'is not a swap';
+  if (op.destination !== account) return `pays ${op.destination} instead of your account`;
+
+  const raw = rawOperation(tx, index);
+  if (!raw) return 'cannot be read';
+  const { body } = raw;
+  const contractOf = (asset: xdr.Asset) => sacOf(asset, network);
+
+  if (body.type === 'pathPaymentStrictSend') {
+    if (expected.exact !== 'in') return 'sells an exact amount instead of buying one';
+    const { sendAsset, sendAmount, destAsset, destMin } = body.pathPaymentStrictSendOp;
+    if (contractOf(sendAsset) !== expected.tokenIn || contractOf(destAsset) !== expected.tokenOut) {
+      return 'swaps a different pair of tokens';
+    }
+    if (BigInt(sendAmount) + feeIn !== expected.amountIn) return 'sells a different amount';
+    if (BigInt(destMin) < expected.minOut) return 'guarantees less than the minimum you were quoted';
+    return null;
+  }
+  if (body.type === 'pathPaymentStrictReceive') {
+    if (expected.exact !== 'out') return 'buys an exact amount instead of selling one';
+    const { sendAsset, sendMax, destAsset, destAmount } = body.pathPaymentStrictReceiveOp;
+    if (contractOf(sendAsset) !== expected.tokenIn || contractOf(destAsset) !== expected.tokenOut) {
+      return 'swaps a different pair of tokens';
+    }
+    if (BigInt(destAmount) !== expected.amountOut) return 'buys a different amount';
+    if (BigInt(sendMax) + feeIn > expected.maxIn) return 'may sell more than the maximum you were quoted';
+    return null;
+  }
+  return 'cannot be read';
+};
+
+/** An operation as the envelope holds it, so amounts come as exact stroops. */
+const rawOperation = (tx: Transaction, index: number): xdr.Operation | null => {
+  const envelope = tx.toEnvelope();
+  return envelope.type === 'envelopeTypeTx' ? (envelope.v1.tx.operations[index] ?? null) : null;
+};
+
+/** The Stellar Asset Contract of a classic asset, the address swaps are requested in. */
+const sacOf = (asset: xdr.Asset, network: NetworkId): string | null => {
+  try {
+    return Asset.fromOperation(asset).contractId(passphraseFor(network));
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Where the path payment and Soroswap's fee payment sit, when the operations
+ * read as a swap routed through SDEX; null when they do not.
+ */
+const sdexLayout = (tx: Transaction): { swap: number; fee: number | null } | null => {
+  const ops = tx.operations;
+  const swap = ops.findIndex((op) => PATH_PAYMENTS.includes(op.type));
+  if (swap < 0 || ops.length > 2) return null;
+  const fee = ops.length === 2 ? 1 - swap : null;
+  if (fee !== null && ops[fee].type !== 'payment') return null;
+  return { swap, fee };
+};
+
+/**
+ * Why the fee payment beside an SDEX swap is not one the swap can carry, or null
+ * when it is: paid in one of the swapped tokens, and at most MAX_SDEX_FEE_BPS of
+ * the swap's bounded amount in that token.
+ */
+const feeMismatch = (fee: FeePayment | null, expected: SwapCall): string | null => {
+  if (!fee) return 'cannot be read';
+  const { token, amount } = fee;
+  const exactIn = expected.exact === 'in';
+  let base: bigint;
+  if (token === expected.tokenIn) base = exactIn ? expected.amountIn : expected.maxIn;
+  else if (token === expected.tokenOut) base = exactIn ? expected.minOut : expected.amountOut;
+  else return 'pays a fee in a token the swap does not trade';
+
+  if (amount <= 0n || amount * BPS > base * MAX_SDEX_FEE_BPS) {
+    return `pays a fee above ${Number(MAX_SDEX_FEE_BPS) / 100}% of the swap`;
+  }
+  return null;
+};
+
+interface FeePayment {
+  token: string | null;
+  amount: bigint;
+}
+
+/** The fee payment's token and exact amount, or null when it cannot be read. */
+const readFee = (tx: Transaction, index: number, network: NetworkId): FeePayment | null => {
+  const raw = rawOperation(tx, index);
+  if (!raw || raw.body.type !== 'payment') return null;
+  const { asset, amount } = raw.body.paymentOp;
+  return { token: sacOf(asset, network), amount: BigInt(amount) };
+};
+
+/** Why an SDEX swap, with or without its fee payment, is not the requested one, or null when it is. */
+const sdexMismatch = (
+  tx: Transaction,
+  layout: { swap: number; fee: number | null },
+  network: NetworkId,
+  account: string,
+  expected: SwapCall,
+  state: AccountState,
+): string | null => {
+  // The API tags SDEX swaps with a memo; harmless here, since the swap must land
+  // in the account itself, so no exchange or custodian reads it to credit anyone.
+  const conditions = checkConditions(tx, state, true);
+  if (typeof conditions === 'string') return conditions;
+  const foreign = tx.operations.find((op) => op.source && op.source !== account);
+  if (foreign) return `runs its operation from ${foreign.source}`;
+  if (layout.fee === null) return pathPaymentMismatch(tx, layout.swap, network, account, expected, 0n);
+  const fee = readFee(tx, layout.fee, network);
+  const feeIn = fee && fee.token === expected.tokenIn ? fee.amount : 0n;
+  return feeMismatch(fee, expected) ?? pathPaymentMismatch(tx, layout.swap, network, account, expected, feeIn);
 };
 
 /** Token contract → the most the account may be asked to transfer of it. */
@@ -245,7 +388,15 @@ export const verifyProtocolTransaction = (
 
   if (tx.source !== account) throw refusal(`uses ${tx.source} as its source account instead of yours`);
   if (BigInt(tx.fee) > MAX_FEE_STROOPS) throw refusal(`asks for a ${Number(tx.fee) / 1e7} XLM fee`);
-  const conditions = checkConditions(tx, state);
+  // A swap routed through SDEX comes back as a classic path payment, plus Soroswap's fee payment
+  const sdex = expected.kind === 'swap' ? sdexLayout(tx) : null;
+  if (sdex && expected.kind === 'swap') {
+    const reason = sdexMismatch(tx, sdex, network, account, expected, state);
+    if (reason) throw refusal(reason);
+    return;
+  }
+
+  const conditions = checkConditions(tx, state, false);
   if (typeof conditions === 'string') throw refusal(conditions);
   if (tx.operations.length !== 1) throw refusal(`has ${tx.operations.length} operations instead of one contract call`);
 

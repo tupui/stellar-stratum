@@ -385,12 +385,14 @@ const SoroswapPanel = ({
 
 // --- Swap Sub-Form ---
 
-// Liquidity sources the aggregator can route a swap through. SDEX is left out:
-// its routes come back as classic path payments, which the pre-signing check does not cover.
+// Liquidity sources the aggregator can route a swap through. An SDEX route comes
+// back as a classic path payment, which verifyProtocolTransaction checks separately.
 const ROUTING_PROTOCOLS: Array<{ id: SupportedProtocols; label: string }> = [
   { id: SupportedProtocols.SOROSWAP, label: 'Soroswap' },
   { id: SupportedProtocols.AQUA, label: 'Aqua' },
   { id: SupportedProtocols.PHOENIX, label: 'Phoenix' },
+  { id: SupportedProtocols.SUSHI, label: 'Sushi' },
+  { id: SupportedProtocols.SDEX, label: 'SDEX' },
 ];
 
 interface FormProps {
