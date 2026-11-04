@@ -96,6 +96,13 @@ const envelope = ({
   return tweak(builder.setTimeout(timeout)).build().toXDR();
 };
 
+/** The SDK refuses to build a Soroban transaction with a memo, so one is set on the built envelope. */
+const withMemo = (xdrBase64: string, memo: Memo) => {
+  const env = xdr.TransactionEnvelope.fromXDR(xdrBase64, 'base64');
+  env.v1().tx().memo(memo.toXDRObject());
+  return env.toXDR('base64');
+};
+
 // --- Swap through the aggregator, as `/quote/build` returns it today ---
 
 const swapArgs = ({ from = ACCOUNT, minOut = 2_147_305n, options = xdr.ScVal.scvVoid() as xdr.ScVal } = {}) => [
@@ -240,8 +247,8 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
   });
 
   it('refuses a memo and any condition beyond a time window', () => {
-    expect(check(swap({ tweak: (b) => b.addMemo(Memo.text('Claim your refund at …')) }))).toThrow(/carries a memo/);
-    expect(check(swap({ tweak: (b) => b.addMemo(Memo.id('1')) }))).toThrow(/carries a memo/);
+    expect(check(withMemo(swap(), Memo.text('Claim your refund at …')))).toThrow(/carries a memo/);
+    expect(check(withMemo(swap(), Memo.id('1')))).toThrow(/carries a memo/);
     expect(check(swap({ tweak: (b) => b.setLedgerbounds(1, 0) }))).toThrow(/range of ledgers/);
     expect(check(swap({ tweak: (b) => b.setMinAccountSequence('7') }))).toThrow(/conditions on the account sequence/);
     expect(check(swap({ tweak: (b) => b.setMinAccountSequenceAge(5n) }))).toThrow(/conditions on the account sequence/);
@@ -488,8 +495,8 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
     Operation.payment({ destination: OTHER, asset, amount, source });
 
   it("accepts Soroswap's fee payment beside the swap, in either traded token and either order", () => {
-    // 0.3% of the 0.2147305 USDC minimum; and 0.3% of the 1 XLM sold, taken out of it
-    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0006441')] }))).not.toThrow();
+    // 0.3% of the 0.2147305 USDC minimum, on top of it; and 0.3% of the 1 XLM sold, taken out of it
+    expect(check(strictSend({ destMin: '0.2153746', extraOps: [fee(USDC_ASSET, '0.0006441')] }))).not.toThrow();
     expect(check(strictSend({ sendAmount: '0.997', extraOps: [fee(Asset.native(), '0.0030000')] }))).not.toThrow();
     const feeFirst = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
       fee: '200',
@@ -502,7 +509,7 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
           sendAmount: '1',
           destination: ACCOUNT,
           destAsset: USDC_ASSET,
-          destMin: '0.2147305',
+          destMin: '0.2153746',
           path: [],
         }),
       )
@@ -516,6 +523,27 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
     expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0021474')] }))).toThrow(/fee above 1% of the swap/);
     expect(check(strictSend({ extraOps: [fee(Asset.native(), '0.0100001')] }))).toThrow(/fee above 1% of the swap/);
     expect(check(strictSend({ extraOps: [fee(EURC_ASSET, '0.0001')] }))).toThrow(/token the swap does not trade/);
+  });
+
+  it('refuses a fee in the bought token that leaves less than the quoted minimum', () => {
+    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0006441')] }))).toThrow(/less than the minimum/);
+    expect(check(strictSend({ destMin: '0.2153745', extraOps: [fee(USDC_ASSET, '0.0006441')] }))).toThrow(
+      /less than the minimum/,
+    );
+    const buy = (destAmount: string) =>
+      classic(
+        Operation.pathPaymentStrictReceive({
+          sendAsset: Asset.native(),
+          sendMax: '1.0050000',
+          destination: ACCOUNT,
+          destAsset: USDC_ASSET,
+          destAmount,
+          path: [],
+        }),
+        { extraOps: [fee(USDC_ASSET, '0.0006441')] },
+      );
+    expect(check(buy('0.2153746'), quotedBuy)).not.toThrow();
+    expect(check(buy('0.2147305'), quotedBuy)).toThrow(/buys a different amount/);
   });
 
   it('refuses a fee in the sold token that does not come out of the amount sold', () => {

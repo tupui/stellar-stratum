@@ -225,8 +225,12 @@ const pathPaymentMismatch = (
   network: NetworkId,
   account: string,
   expected: SwapCall,
-  /** Soroswap's fee when it is paid in the sold token: taken out of what is sold, so the two add up. */
-  feeIn: bigint,
+  /**
+   * Soroswap's fee in each traded token. In the sold token it is taken out of what
+   * is sold, so the two add up; in the bought token it leaves out of what is bought,
+   * so the guaranteed amount must still cover the quote once it is paid.
+   */
+  { feeIn, feeOut }: { feeIn: bigint; feeOut: bigint },
 ): string | null => {
   const op = tx.operations[index];
   if (op.type !== 'pathPaymentStrictSend' && op.type !== 'pathPaymentStrictReceive') return 'is not a swap';
@@ -244,7 +248,7 @@ const pathPaymentMismatch = (
       return 'swaps a different pair of tokens';
     }
     if (BigInt(sendAmount) + feeIn !== expected.amountIn) return 'sells a different amount';
-    if (BigInt(destMin) < expected.minOut) return 'guarantees less than the minimum you were quoted';
+    if (BigInt(destMin) - feeOut < expected.minOut) return 'guarantees less than the minimum you were quoted';
     return null;
   }
   if (body.type === 'pathPaymentStrictReceive') {
@@ -253,7 +257,7 @@ const pathPaymentMismatch = (
     if (contractOf(sendAsset) !== expected.tokenIn || contractOf(destAsset) !== expected.tokenOut) {
       return 'swaps a different pair of tokens';
     }
-    if (BigInt(destAmount) !== expected.amountOut) return 'buys a different amount';
+    if (BigInt(destAmount) - feeOut !== expected.amountOut) return 'buys a different amount';
     if (BigInt(sendMax) + feeIn > expected.maxIn) return 'may sell more than the maximum you were quoted';
     return null;
   }
@@ -336,10 +340,11 @@ const sdexMismatch = (
   if (typeof conditions === 'string') return conditions;
   const foreign = tx.operations.find((op) => op.source && op.source !== account);
   if (foreign) return `runs its operation from ${foreign.source}`;
-  if (layout.fee === null) return pathPaymentMismatch(tx, layout.swap, network, account, expected, 0n);
+  if (layout.fee === null) return pathPaymentMismatch(tx, layout.swap, network, account, expected, { feeIn: 0n, feeOut: 0n });
   const fee = readFee(tx, layout.fee, network);
   const feeIn = fee && fee.token === expected.tokenIn ? fee.amount : 0n;
-  return feeMismatch(fee, expected) ?? pathPaymentMismatch(tx, layout.swap, network, account, expected, feeIn);
+  const feeOut = fee && fee.token === expected.tokenOut ? fee.amount : 0n;
+  return feeMismatch(fee, expected) ?? pathPaymentMismatch(tx, layout.swap, network, account, expected, { feeIn, feeOut });
 };
 
 /** Token contract → the most the account may be asked to transfer of it. */
