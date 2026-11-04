@@ -98,9 +98,13 @@ const envelope = ({
 
 /** The SDK refuses to build a Soroban transaction with a memo, so one is set on the built envelope. */
 const withMemo = (xdrBase64: string, memo: Memo) => {
-  const env = xdr.TransactionEnvelope.fromXDR(xdrBase64, 'base64');
-  env.v1().tx().memo(memo.toXDRObject());
-  return env.toXDR('base64');
+  const tx = TransactionBuilder.fromXDR(xdrBase64, Networks.PUBLIC) as Transaction;
+  const env = tx.toEnvelope();
+  if (env.type !== 'envelopeTypeTx') throw new Error('not a transaction envelope');
+  const withIt = xdr.TransactionEnvelope.envelopeTypeTx(
+    new xdr.TransactionV1Envelope({ ...env.v1, tx: new xdr.Transaction({ ...env.v1.tx, memo: memo.toXDRObject() }) }),
+  );
+  return withIt.toXDR('base64');
 };
 
 // --- Swap through the aggregator, as `/quote/build` returns it today ---
