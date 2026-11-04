@@ -521,6 +521,8 @@ const SwapForm = ({
           tradeType: exactIn ? TradeType.EXACT_IN : TradeType.EXACT_OUT,
           protocols,
           slippageBps: slippage,
+          // The app takes no fee, and the pre-signing check refuses a swap that pays one
+          feeBps: 0,
         },
         getSoroswapNetwork(network)
       ),

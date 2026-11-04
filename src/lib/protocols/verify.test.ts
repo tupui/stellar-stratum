@@ -498,10 +498,12 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
   const fee = (asset: Asset, amount: string, source?: string) =>
     Operation.payment({ destination: OTHER, asset, amount, source });
 
-  it("accepts Soroswap's fee payment beside the swap, in either traded token and either order", () => {
-    // 0.3% of the 0.2147305 USDC minimum, on top of it; and 0.3% of the 1 XLM sold, taken out of it
-    expect(check(strictSend({ destMin: '0.2153746', extraOps: [fee(USDC_ASSET, '0.0006441')] }))).not.toThrow();
-    expect(check(strictSend({ sendAmount: '0.997', extraOps: [fee(Asset.native(), '0.0030000')] }))).not.toThrow();
+  it("refuses Soroswap's fee payment beside the swap, in any token, order or amount", () => {
+    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0006441')] }))).toThrow(/pays a fee beside the swap/);
+    expect(check(strictSend({ sendAmount: '0.997', extraOps: [fee(Asset.native(), '0.0030000')] }))).toThrow(
+      /pays a fee beside the swap/,
+    );
+    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0000001', OTHER)] }))).toThrow(/pays a fee beside the swap/);
     const feeFirst = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
       fee: '200',
       networkPassphrase: Networks.PUBLIC,
@@ -520,45 +522,13 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
       .setTimeout(3600)
       .build()
       .toXDR();
-    expect(check(feeFirst)).not.toThrow();
+    expect(check(feeFirst)).toThrow(/pays a fee beside the swap/);
+    const twice = [fee(USDC_ASSET, '0.0001'), fee(USDC_ASSET, '0.0001')];
+    expect(check(strictSend({ extraOps: twice }))).toThrow(/3 operations/);
   });
 
-  it('refuses a fee above 1% of the swap, an empty one, or one in another token', () => {
-    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0021474')] }))).toThrow(/fee above 1% of the swap/);
-    expect(check(strictSend({ extraOps: [fee(Asset.native(), '0.0100001')] }))).toThrow(/fee above 1% of the swap/);
-    expect(check(strictSend({ extraOps: [fee(EURC_ASSET, '0.0001')] }))).toThrow(/token the swap does not trade/);
-  });
-
-  it('refuses a fee in the bought token that leaves less than the quoted minimum', () => {
-    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0006441')] }))).toThrow(/less than the minimum/);
-    expect(check(strictSend({ destMin: '0.2153745', extraOps: [fee(USDC_ASSET, '0.0006441')] }))).toThrow(
-      /less than the minimum/,
-    );
-    const buy = (destAmount: string) =>
-      classic(
-        Operation.pathPaymentStrictReceive({
-          sendAsset: Asset.native(),
-          sendMax: '1.0050000',
-          destination: ACCOUNT,
-          destAsset: USDC_ASSET,
-          destAmount,
-          path: [],
-        }),
-        { extraOps: [fee(USDC_ASSET, '0.0006441')] },
-      );
-    expect(check(buy('0.2153746'), quotedBuy)).not.toThrow();
-    expect(check(buy('0.2147305'), quotedBuy)).toThrow(/buys a different amount/);
-  });
-
-  it('refuses a fee in the sold token that does not come out of the amount sold', () => {
-    expect(check(strictSend({ extraOps: [fee(Asset.native(), '0.0030000')] }))).toThrow(/sells a different amount/);
-    expect(check(strictSend({ sendAmount: '0.99', extraOps: [fee(Asset.native(), '0.0030000')] }))).toThrow(
-      /sells a different amount/,
-    );
-  });
-
-  it('accepts an SDEX swap in the shape /quote/build returns it', () => {
-    // Both operations name the account as source, the fee is 0.1% of the XLM sold, and a memo tags the build
+  it('accepts an SDEX swap in the shape /quote/build returns it without a fee', () => {
+    // The operation names the account as source, and a memo tags the build
     const built = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
       fee: '18070',
       networkPassphrase: Networks.PUBLIC,
@@ -566,7 +536,7 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
       .addOperation(
         Operation.pathPaymentStrictSend({
           sendAsset: Asset.native(),
-          sendAmount: '139860',
+          sendAmount: '140000',
           destination: ACCOUNT,
           destAsset: USDC_ASSET,
           destMin: '23324.7664100',
@@ -574,7 +544,6 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
           source: ACCOUNT,
         }),
       )
-      .addOperation(Operation.payment({ destination: OTHER, asset: Asset.native(), amount: '140', source: ACCOUNT }))
       .addMemo(Memo.text('SoroswapAggregator-8f9e70b99'))
       .setTimeout(3600)
       .build()
@@ -589,12 +558,6 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
     };
     expect(check(built, expected)).not.toThrow();
     expect(check(built, { ...expected, minOut: 233_247_664_101n })).toThrow(/less than the minimum/);
-  });
-
-  it('refuses a fee paid from another account, or more than one fee', () => {
-    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0006441', OTHER)] }))).toThrow(/runs its operation from/);
-    const twice = [fee(USDC_ASSET, '0.0001'), fee(USDC_ASSET, '0.0001')];
-    expect(check(strictSend({ extraOps: twice }))).toThrow(/3 operations/);
   });
 
   it('still refuses a memo on a payment to another account', () => {

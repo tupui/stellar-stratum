@@ -80,14 +80,6 @@ const MAX_FEE_STROOPS = 100_000_000n;
 /** Room for the API's clock running ahead of ours when checking the expiry. */
 const CLOCK_SKEW_SECONDS = 300;
 
-/**
- * The most Soroswap's fee on an SDEX route may take, in basis points of the swap's
- * amount in the fee's token. The API charges it as a payment beside the path
- * payment, to a wallet the app cannot pin, so it is capped instead.
- */
-const MAX_SDEX_FEE_BPS = 100n;
-const BPS = 10_000n;
-
 const PATH_PAYMENTS = ['pathPaymentStrictSend', 'pathPaymentStrictReceive'];
 
 const amountOf = (raw: string) => BigInt(raw);
@@ -225,12 +217,6 @@ const pathPaymentMismatch = (
   network: NetworkId,
   account: string,
   expected: SwapCall,
-  /**
-   * Soroswap's fee in each traded token. In the sold token it is taken out of what
-   * is sold, so the two add up; in the bought token it leaves out of what is bought,
-   * so the guaranteed amount must still cover the quote once it is paid.
-   */
-  { feeIn, feeOut }: { feeIn: bigint; feeOut: bigint },
 ): string | null => {
   const op = tx.operations[index];
   if (op.type !== 'pathPaymentStrictSend' && op.type !== 'pathPaymentStrictReceive') return 'is not a swap';
@@ -247,8 +233,8 @@ const pathPaymentMismatch = (
     if (contractOf(sendAsset) !== expected.tokenIn || contractOf(destAsset) !== expected.tokenOut) {
       return 'swaps a different pair of tokens';
     }
-    if (BigInt(sendAmount) + feeIn !== expected.amountIn) return 'sells a different amount';
-    if (BigInt(destMin) - feeOut < expected.minOut) return 'guarantees less than the minimum you were quoted';
+    if (BigInt(sendAmount) !== expected.amountIn) return 'sells a different amount';
+    if (BigInt(destMin) < expected.minOut) return 'guarantees less than the minimum you were quoted';
     return null;
   }
   if (body.type === 'pathPaymentStrictReceive') {
@@ -257,8 +243,8 @@ const pathPaymentMismatch = (
     if (contractOf(sendAsset) !== expected.tokenIn || contractOf(destAsset) !== expected.tokenOut) {
       return 'swaps a different pair of tokens';
     }
-    if (BigInt(destAmount) - feeOut !== expected.amountOut) return 'buys a different amount';
-    if (BigInt(sendMax) + feeIn > expected.maxIn) return 'may sell more than the maximum you were quoted';
+    if (BigInt(destAmount) !== expected.amountOut) return 'buys a different amount';
+    if (BigInt(sendMax) > expected.maxIn) return 'may sell more than the maximum you were quoted';
     return null;
   }
   return 'cannot be read';
@@ -280,55 +266,12 @@ const sacOf = (asset: xdr.Asset, network: NetworkId): string | null => {
 };
 
 /**
- * Where the path payment and Soroswap's fee payment sit, when the operations
- * read as a swap routed through SDEX; null when they do not.
+ * Why a swap routed through SDEX is not the requested one, or null when it is: a
+ * single path payment and nothing else. The API adds a payment for Soroswap's fee
+ * beside it unless asked for none, and the app takes no fee, so one is refused.
  */
-const sdexLayout = (tx: Transaction): { swap: number; fee: number | null } | null => {
-  const ops = tx.operations;
-  const swap = ops.findIndex((op) => PATH_PAYMENTS.includes(op.type));
-  if (swap < 0 || ops.length > 2) return null;
-  const fee = ops.length === 2 ? 1 - swap : null;
-  if (fee !== null && ops[fee].type !== 'payment') return null;
-  return { swap, fee };
-};
-
-/**
- * Why the fee payment beside an SDEX swap is not one the swap can carry, or null
- * when it is: paid in one of the swapped tokens, and at most MAX_SDEX_FEE_BPS of
- * the swap's bounded amount in that token.
- */
-const feeMismatch = (fee: FeePayment | null, expected: SwapCall): string | null => {
-  if (!fee) return 'cannot be read';
-  const { token, amount } = fee;
-  const exactIn = expected.exact === 'in';
-  let base: bigint;
-  if (token === expected.tokenIn) base = exactIn ? expected.amountIn : expected.maxIn;
-  else if (token === expected.tokenOut) base = exactIn ? expected.minOut : expected.amountOut;
-  else return 'pays a fee in a token the swap does not trade';
-
-  if (amount <= 0n || amount * BPS > base * MAX_SDEX_FEE_BPS) {
-    return `pays a fee above ${Number(MAX_SDEX_FEE_BPS) / 100}% of the swap`;
-  }
-  return null;
-};
-
-interface FeePayment {
-  token: string | null;
-  amount: bigint;
-}
-
-/** The fee payment's token and exact amount, or null when it cannot be read. */
-const readFee = (tx: Transaction, index: number, network: NetworkId): FeePayment | null => {
-  const raw = rawOperation(tx, index);
-  if (!raw || raw.body.type !== 'payment') return null;
-  const { asset, amount } = raw.body.paymentOp;
-  return { token: sacOf(asset, network), amount: BigInt(amount) };
-};
-
-/** Why an SDEX swap, with or without its fee payment, is not the requested one, or null when it is. */
 const sdexMismatch = (
   tx: Transaction,
-  layout: { swap: number; fee: number | null },
   network: NetworkId,
   account: string,
   expected: SwapCall,
@@ -338,13 +281,14 @@ const sdexMismatch = (
   // in the account itself, so no exchange or custodian reads it to credit anyone.
   const conditions = checkConditions(tx, state, true);
   if (typeof conditions === 'string') return conditions;
-  const foreign = tx.operations.find((op) => op.source && op.source !== account);
-  if (foreign) return `runs its operation from ${foreign.source}`;
-  if (layout.fee === null) return pathPaymentMismatch(tx, layout.swap, network, account, expected, { feeIn: 0n, feeOut: 0n });
-  const fee = readFee(tx, layout.fee, network);
-  const feeIn = fee && fee.token === expected.tokenIn ? fee.amount : 0n;
-  const feeOut = fee && fee.token === expected.tokenOut ? fee.amount : 0n;
-  return feeMismatch(fee, expected) ?? pathPaymentMismatch(tx, layout.swap, network, account, expected, { feeIn, feeOut });
+  const ops = tx.operations;
+  if (ops.length !== 1) {
+    return ops.length === 2 && ops.some((op) => op.type === 'payment')
+      ? 'pays a fee beside the swap'
+      : `has ${ops.length} operations instead of one swap`;
+  }
+  if (ops[0].source && ops[0].source !== account) return `runs its operation from ${ops[0].source}`;
+  return pathPaymentMismatch(tx, 0, network, account, expected);
 };
 
 /** Token contract → the most the account may be asked to transfer of it. */
@@ -393,10 +337,9 @@ export const verifyProtocolTransaction = (
 
   if (tx.source !== account) throw refusal(`uses ${tx.source} as its source account instead of yours`);
   if (BigInt(tx.fee) > MAX_FEE_STROOPS) throw refusal(`asks for a ${Number(tx.fee) / 1e7} XLM fee`);
-  // A swap routed through SDEX comes back as a classic path payment, plus Soroswap's fee payment
-  const sdex = expected.kind === 'swap' ? sdexLayout(tx) : null;
-  if (sdex && expected.kind === 'swap') {
-    const reason = sdexMismatch(tx, sdex, network, account, expected, state);
+  // A swap routed through SDEX comes back as a classic path payment instead of a contract call
+  if (expected.kind === 'swap' && tx.operations.some((op) => PATH_PAYMENTS.includes(op.type))) {
+    const reason = sdexMismatch(tx, network, account, expected, state);
     if (reason) throw refusal(reason);
     return;
   }
