@@ -371,6 +371,212 @@ describe('verifyProtocolTransaction — DeFindex vault', () => {
   });
 });
 
+// --- Swap routed through SDEX: `/quote/build` returns a classic path payment ---
+
+const USDC_ASSET = new Asset('USDC', 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN');
+const EURC_ASSET = new Asset('EURC', 'GDHU6WRG4IEQXM5NZ4BMPKOXHW76MZM4Y2IEMFDVXBSDP6SJY4ITNPP2');
+
+interface PathFixture {
+  destination?: string;
+  sendAsset?: Asset;
+  destAsset?: Asset;
+  /** Classic amounts, in XLM-style decimal strings. */
+  sendAmount?: string;
+  destMin?: string;
+  opSource?: string;
+  extraOps?: xdr.Operation[];
+  tweak?: (builder: TransactionBuilder) => TransactionBuilder;
+}
+
+const classic = (op: xdr.Operation, { extraOps = [], tweak = (b) => b }: Pick<PathFixture, 'extraOps' | 'tweak'>) => {
+  const builder = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
+    fee: '100',
+    networkPassphrase: Networks.PUBLIC,
+  }).addOperation(op);
+  extraOps.forEach((extra) => builder.addOperation(extra));
+  return tweak(builder.setTimeout(3600)).build().toXDR();
+};
+
+const strictSend = ({
+  destination = ACCOUNT,
+  sendAsset = Asset.native(),
+  destAsset = USDC_ASSET,
+  sendAmount = '1',
+  destMin = '0.2147305',
+  opSource,
+  ...rest
+}: PathFixture = {}) =>
+  classic(
+    Operation.pathPaymentStrictSend({ sendAsset, sendAmount, destination, destAsset, destMin, path: [], source: opSource }),
+    rest,
+  );
+
+const strictReceive = ({ sendMax = '1.0050000', destAmount = '0.2147305' } = {}) =>
+  classic(
+    Operation.pathPaymentStrictReceive({
+      sendAsset: Asset.native(),
+      sendMax,
+      destination: ACCOUNT,
+      destAsset: USDC_ASSET,
+      destAmount,
+      path: [EURC_ASSET],
+    }),
+    {},
+  );
+
+const quotedBuy: ExpectedCall = {
+  kind: 'swap',
+  exact: 'out',
+  tokenIn: XLM,
+  tokenOut: USDC,
+  amountOut: 2_147_305n,
+  maxIn: 10_050_000n,
+};
+
+describe('verifyProtocolTransaction — SDEX path payment', () => {
+  it('compares assets through their Stellar Asset Contracts', () => {
+    expect(USDC_ASSET.contractId(Networks.PUBLIC)).toBe(USDC);
+    expect(Asset.native().contractId(Networks.PUBLIC)).toBe(XLM);
+  });
+
+  it('accepts a strict-send payment for the requested exact-in swap', () => {
+    expect(check(strictSend())).not.toThrow();
+    expect(check(strictSend({ destMin: '0.2200000' }))).not.toThrow();
+  });
+
+  it('accepts a strict-receive payment for the requested exact-out swap, whatever its hops', () => {
+    expect(check(strictReceive(), quotedBuy)).not.toThrow();
+    expect(check(strictReceive({ sendMax: '1.0000000' }), quotedBuy)).not.toThrow();
+  });
+
+  it('refuses a payment to another account', () => {
+    expect(check(strictSend({ destination: OTHER }))).toThrow(/pays .* instead of your account/);
+  });
+
+  it('refuses an operation run from another account', () => {
+    expect(check(strictSend({ opSource: OTHER }))).toThrow(/runs its operation from/);
+  });
+
+  it('refuses a different pair of tokens', () => {
+    expect(check(strictSend({ destAsset: EURC_ASSET }))).toThrow(/different pair of tokens/);
+    expect(check(strictSend({ sendAsset: USDC_ASSET, destAsset: Asset.native() }))).toThrow(/different pair of tokens/);
+  });
+
+  it('refuses a different amount or a looser bound', () => {
+    expect(check(strictSend({ sendAmount: '2' }))).toThrow(/sells a different amount/);
+    expect(check(strictSend({ destMin: '0.2147304' }))).toThrow(/less than the minimum/);
+    expect(check(strictReceive({ destAmount: '0.3' }), quotedBuy)).toThrow(/buys a different amount/);
+    expect(check(strictReceive({ sendMax: '1.0050001' }), quotedBuy)).toThrow(/more than the maximum/);
+  });
+
+  it('refuses the wrong kind of path payment for the trade', () => {
+    expect(check(strictReceive())).toThrow(/buys an exact amount instead of selling one/);
+    expect(check(strictSend(), quotedBuy)).toThrow(/sells an exact amount instead of buying one/);
+  });
+
+  it('accepts the memo the API tags its SDEX payments with', () => {
+    expect(check(strictSend({ tweak: (b) => b.addMemo(Memo.text('soroswap')) }))).not.toThrow();
+  });
+
+  it('refuses extra operations or the wrong sequence', () => {
+    const trust = Operation.changeTrust({ asset: EURC_ASSET });
+    expect(check(strictSend({ extraOps: [trust] }))).toThrow(/2 operations/);
+    expect(check(strictSend(), quotedSwap, 'mainnet', SEQUENCE + 1n)).toThrow(/sequence number/);
+  });
+
+  const fee = (asset: Asset, amount: string, source?: string) =>
+    Operation.payment({ destination: OTHER, asset, amount, source });
+
+  it("accepts Soroswap's fee payment beside the swap, in either traded token and either order", () => {
+    // 0.3% of the 0.2147305 USDC minimum; and 0.3% of the 1 XLM sold, taken out of it
+    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0006441')] }))).not.toThrow();
+    expect(check(strictSend({ sendAmount: '0.997', extraOps: [fee(Asset.native(), '0.0030000')] }))).not.toThrow();
+    const feeFirst = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
+      fee: '200',
+      networkPassphrase: Networks.PUBLIC,
+    })
+      .addOperation(fee(USDC_ASSET, '0.0006441'))
+      .addOperation(
+        Operation.pathPaymentStrictSend({
+          sendAsset: Asset.native(),
+          sendAmount: '1',
+          destination: ACCOUNT,
+          destAsset: USDC_ASSET,
+          destMin: '0.2147305',
+          path: [],
+        }),
+      )
+      .setTimeout(3600)
+      .build()
+      .toXDR();
+    expect(check(feeFirst)).not.toThrow();
+  });
+
+  it('refuses a fee above 1% of the swap, an empty one, or one in another token', () => {
+    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0021474')] }))).toThrow(/fee above 1% of the swap/);
+    expect(check(strictSend({ extraOps: [fee(Asset.native(), '0.0100001')] }))).toThrow(/fee above 1% of the swap/);
+    expect(check(strictSend({ extraOps: [fee(EURC_ASSET, '0.0001')] }))).toThrow(/token the swap does not trade/);
+  });
+
+  it('refuses a fee in the sold token that does not come out of the amount sold', () => {
+    expect(check(strictSend({ extraOps: [fee(Asset.native(), '0.0030000')] }))).toThrow(/sells a different amount/);
+    expect(check(strictSend({ sendAmount: '0.99', extraOps: [fee(Asset.native(), '0.0030000')] }))).toThrow(
+      /sells a different amount/,
+    );
+  });
+
+  it('accepts an SDEX swap in the shape /quote/build returns it', () => {
+    // Both operations name the account as source, the fee is 0.1% of the XLM sold, and a memo tags the build
+    const built = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
+      fee: '18070',
+      networkPassphrase: Networks.PUBLIC,
+    })
+      .addOperation(
+        Operation.pathPaymentStrictSend({
+          sendAsset: Asset.native(),
+          sendAmount: '139860',
+          destination: ACCOUNT,
+          destAsset: USDC_ASSET,
+          destMin: '23324.7664100',
+          path: [],
+          source: ACCOUNT,
+        }),
+      )
+      .addOperation(Operation.payment({ destination: OTHER, asset: Asset.native(), amount: '140', source: ACCOUNT }))
+      .addMemo(Memo.text('SoroswapAggregator-8f9e70b99'))
+      .setTimeout(3600)
+      .build()
+      .toXDR();
+    const expected: ExpectedCall = {
+      kind: 'swap',
+      exact: 'in',
+      tokenIn: XLM,
+      tokenOut: USDC,
+      amountIn: 1_400_000_000_000n,
+      minOut: 233_247_664_100n,
+    };
+    expect(check(built, expected)).not.toThrow();
+    expect(check(built, { ...expected, minOut: 233_247_664_101n })).toThrow(/less than the minimum/);
+  });
+
+  it('refuses a fee paid from another account, or more than one fee', () => {
+    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0006441', OTHER)] }))).toThrow(/runs its operation from/);
+    const twice = [fee(USDC_ASSET, '0.0001'), fee(USDC_ASSET, '0.0001')];
+    expect(check(strictSend({ extraOps: twice }))).toThrow(/3 operations/);
+  });
+
+  it('still refuses a memo on a payment to another account', () => {
+    expect(check(strictSend({ destination: OTHER, tweak: (b) => b.addMemo(Memo.id('42')) }))).toThrow(
+      /instead of your account/,
+    );
+  });
+
+  it('refuses a path payment for anything but a swap', () => {
+    const deposit: ExpectedCall = { kind: 'vault-deposit', vault: VAULT, amounts: [10_000_000n], invest: true };
+    expect(check(strictSend(), deposit)).toThrow(/pathPaymentStrictSend operation instead of a contract call/);
+  });
+});
+
 describe('withExpiry', () => {
   it('bounds a transaction that never expires and changes nothing else', () => {
     const args = [nativeToScVal([i128(10_000_000n)]), nativeToScVal([i128(10_000_000n)]), address(ACCOUNT), nativeToScVal(false)];
