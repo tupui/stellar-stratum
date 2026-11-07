@@ -85,12 +85,13 @@ The C account column describes the plan. Today Stratum signs for G accounts only
 | Passkey | ghostsig, a G key derived from the passkey (SEP-52) | Perch's WebAuthn verifier, or ghostsig as a delegated G key |
 | Custodian vault (Fordefi first) | As a classic signer | If the custodian signs entries for a delegated member |
 | ML-DSA-65 key | Not possible | Perch's ML-DSA-65 verifier, key on an offline device |
+| Smart account (a Nido wallet) | Not possible | As a delegated member, through CAP-0071 |
 
 ML-DSA has no authenticator yet. The key lives on an offline device, which signs with
-`@noble/post-quantum` and answers with a sequence of QR codes, since a signature is 3,309 bytes. Perch's
-verifier costs 95.0M instructions, 23.8% of the transaction limit. Protocol 30 adds native host
-functions (CAP-0087) with the same context string. Once the network adopts it, the verifier moves to the
-host function and members keep their keys.
+`@noble/post-quantum` and answers with a sequence of QR codes, since a signature is 3,309 bytes. Since
+protocol 30, Stellar verifies ML-DSA natively (CAP-0087), with the same context string Perch's
+verifier uses, so members keep their keys. Where the host function is not available, Perch's verifier
+runs in the contract for 95.0M instructions, 23.8% of the transaction limit.
 
 ## Recovery
 
@@ -100,6 +101,29 @@ host function and members keep their keys.
   zero-knowledge proof, or both, after a delay. Under the `Loss` profile the account keeps working and
   the quorum can veto an attempt. Under `Protected` the account freezes while an attempt is authorized,
   and only the recovery evidence can cancel it.
+
+## DeFi from a shared account
+
+A swap quote expires long before three people have signed, so a policy can let one operator swap alone.
+A swap from a C account authorizes two calls, the router call and the token transfer inside it, so the
+operator gets two rules. The router rule allows the swap functions with the account as recipient, and
+the token rule carries the spending cap. From a G account, swaps route through Soroswap, Aquarius,
+Phoenix, Sushi and SDEX. From a C account they use Soroban pools only, since an SDEX leg is a classic
+path payment that a C account cannot send.
+
+## Relay and custodians
+
+The relay stores pending authorization entries until they expire and keeps nothing after. It can delay
+or withhold an entry, but it cannot change or sign one, and accounts keep working without it through a
+link or a QR code. Custodians connect through an interface modelled on Ripple's simpleXRPL, with Fordefi
+as the first implementation.
+
+## Privacy
+
+Stratum keeps no data about its users. There is no account, no analytics and no telemetry. Every outside
+service the app calls is listed in the [privacy policy](https://stellar-stratum.xyz/legal/privacy). The
+relay logs no IP address. The directory lookup sends StellarExpert the destination of a payment and
+nothing else, on mainnet only and never from the air-gapped signer, and a failed lookup changes nothing.
 
 ## Who holds which authority
 
@@ -127,10 +151,10 @@ mainnet since 26 October 2026. The addresses and wasm hashes are in Perch's mani
 | `perch-doc-compiler`, `perch-interpreter` | Turn the policy document into rules, and evaluate what stock policies cannot |
 | `perch-spending-limit` | Cumulative caps |
 | `perch-ed25519-verifier`, `perch-webauthn-verifier` | Ed25519 and passkey members |
-| `perch-mldsa-verifier` | ML-DSA-65 members, released but not deployed yet |
+| `perch-mldsa-verifier` | ML-DSA-65 members, released, on mainnet after the audit |
 | `perch-recovery`, `perch-zk-pool`, `perch-zk-adapter` | Recovery with guardians or a zero-knowledge proof |
 
-Perch's external audit is scoped in
+Perch's audit goes through the Audit Bank, with the scope in
 [docs/audit-scope.md](https://github.com/stellar-registry/perch/blob/main/docs/audit-scope.md). Until it
 is published, C accounts on mainnet use only rules that lower to stock OpenZeppelin policies.
 
@@ -146,6 +170,7 @@ is published, C accounts on mainnet use only rules that lower to stock OpenZeppe
 | Recovery screens for shared accounts | |
 | DeFi from C accounts with an operator rule | |
 | Relay for authorization entries, custodian interface | |
+| Directory warnings and contract display descriptors | |
 | A SEP draft for multisig on C accounts | |
 
 ## Tests
