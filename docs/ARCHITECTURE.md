@@ -81,15 +81,13 @@ The C account column describes the plan. Today Stratum signs for G accounts only
 | Member | G account | C account |
 |---|---|---|
 | Ledger | Through Stellar Wallets Kit | Directly, Stellar app 6.1.0 or later |
-| Other hardware wallets | Through Stellar Wallets Kit | Only if the device signs CAP-0071 entries |
-| LumenSigner, air-gapped | Over QR codes | Not planned |
+| Other wallets | Through Stellar Wallets Kit, as the kit adds them | Only if the wallet signs CAP-0071 entries |
 | Passkey | ghostsig, a G key derived from the passkey (SEP-52) | Perch's WebAuthn verifier, or ghostsig as a delegated G key |
 | Custodian vault (Fordefi first) | As a classic signer | If the custodian signs entries for a delegated member |
 | ML-DSA-65 key | Not possible | Perch's ML-DSA-65 verifier, key on an offline device |
 
 ML-DSA has no authenticator yet. The key lives on an offline device, which signs with
-`@noble/post-quantum` and answers with a sequence of QR codes, since a signature is 3,309 bytes. The
-sequence uses the `pXofN` framing that LumenSigner and xBull already use for Stellar. Perch's
+`@noble/post-quantum` and answers with a sequence of QR codes, since a signature is 3,309 bytes. Perch's
 verifier costs 95.0M instructions, 23.8% of the transaction limit. Protocol 30 adds native host
 functions (CAP-0087) with the same context string. Once the network adopts it, the verifier moves to the
 host function and members keep their keys.
