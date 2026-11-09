@@ -3,7 +3,7 @@
 Multisig for Stellar G and C accounts, with passkeys for signing, policies for permissions and
 post-quantum keys.
 
-Open Track. The Aha Company. Budget: $140,000. Timeline: 26 weeks.
+Open Track. The Aha Company. Budget: $140,000. Timeline: 16 weeks.
 
 Website: https://stellar-stratum.xyz. Code: [GitHub](https://github.com/tupui/stellar-stratum) and
 [Radicle](https://radicle.network/nodes/consulting-manao.radicle.garden/rad:z26DiFQyjzLf5CedumY5uUbFSjj7C).
@@ -222,14 +222,14 @@ budget.
 The budget pays for new work only. Perch, Nido's passkey SDK, ghostsig and the Soroswap and DeFindex
 integration are reused without funding. Perch's development and audit are funded separately.
 
-### Tranche 1: MVP (weeks 1 to 8)
+### Tranche 1: MVP (weeks 1 to 5)
 
 #### Deliverable 1: Signing for G and C quorums
 
 Stratum builds the CAP-0071 entry of a C account, collects its members' signatures and counts them
 against the account's rules.
 
-Estimated completion: week 4. Budget: $13,000.
+Estimated completion: week 3. Budget: $13,000.
 
 How to measure completion:
 1. On testnet, one Ledger key signs a G payment and, as a member, a payment of a 2-of-3 C account.
@@ -241,7 +241,7 @@ How to measure completion:
 
 A co-signer joins from a link with a passkey and approves from a phone.
 
-Estimated completion: week 6. Budget: $9,000.
+Estimated completion: week 4. Budget: $9,000.
 
 How to measure completion:
 1. A video shows a co-signer joining from a link and approving a 2-of-3 testnet payment with a passkey.
@@ -254,7 +254,7 @@ Templates for treasury, protocol admin and DeFi operator. The policy is shown in
 change as a diff, and the device checks the hash before signing. The view also shows what each signer
 can do across all rules.
 
-Estimated completion: week 7. Budget: $14,000.
+Estimated completion: week 5. Budget: $14,000.
 
 How to measure completion:
 1. On testnet, a protocol admin policy is created from a template, changed and signed. Account address
@@ -265,13 +265,13 @@ How to measure completion:
 
 The new flows join the testnet suite, which then runs on every pull request.
 
-Estimated completion: week 8. Budget: $6,000.
+Estimated completion: week 5. Budget: $6,000.
 
 How to measure completion:
 1. A passing CI run on the Stratum repository.
 2. The suite refuses a key outside the quorum, a tampered policy and a lock-out `setOptions`.
 
-### Tranche 2: Testnet (weeks 9 to 15)
+### Tranche 2: Testnet (weeks 6 to 10)
 
 #### Deliverable 5: Threat model and monitoring plan
 
@@ -279,7 +279,7 @@ A STRIDE threat model and an on-chain monitoring plan following SDF's templates,
 the rest of tranche 2 follows it. For alerts we will look at Hypernative, which recently added Stellar,
 and at community solutions such as Overcat's Quasar and StellarExpert's paid plan.
 
-Estimated completion: week 10. Budget: $8,000.
+Estimated completion: week 6. Budget: $8,000.
 
 How to measure completion:
 1. docs/THREAT_MODEL.md and docs/MONITORING.md at a tagged commit.
@@ -292,7 +292,7 @@ How to measure completion:
 Enrolling an ML-DSA-65 key, a rule that needs a passkey and an ML-DSA signature, and an offline signer
 that answers with a sequence of QR codes.
 
-Estimated completion: week 12. Budget: $10,000.
+Estimated completion: week 8. Budget: $10,000.
 
 How to measure completion:
 1. On testnet, an admin change signed with a passkey and the ML-DSA key succeeds, and fails with the
@@ -304,7 +304,7 @@ How to measure completion:
 A G multisig becomes a C quorum with the same signers. The quantum report lists every rule that
 classical signatures alone can satisfy.
 
-Estimated completion: week 13. Budget: $7,000.
+Estimated completion: week 9. Budget: $7,000.
 
 How to measure completion:
 1. On testnet, a G multisig is migrated, with a report of every signer and threshold difference.
@@ -316,7 +316,7 @@ How to measure completion:
 The quorum replaces a lost member. Guardians, a zero-knowledge proof made in the browser, or both,
 recover a C account through Perch's controller, under its `Loss` or `Protected` profile.
 
-Estimated completion: week 15. Budget: $17,000.
+Estimated completion: week 10. Budget: $17,000.
 
 How to measure completion:
 1. On testnet, a 3-of-5 account is recovered by guardians after losing three members.
@@ -324,14 +324,14 @@ How to measure completion:
 3. Under `Protected`, a zero-knowledge recovery completes, and the account refuses other activity
    meanwhile. Transaction hashes are published.
 
-### Tranche 3: Mainnet (weeks 16 to 26)
+### Tranche 3: Mainnet (weeks 11 to 16)
 
 #### Deliverable 9: Mainnet launch
 
 G and C accounts on mainnet, with onboarding, templates, user documentation and directory warnings.
 The admin key of the Stellar Registry contract moves to a Stratum account.
 
-Estimated completion: week 21. Budget: $19,000.
+Estimated completion: week 13. Budget: $19,000.
 
 How to measure completion:
 1. On mainnet, a C account is created from onboarding, a co-signer joins from a link, and a Ledger
@@ -345,7 +345,7 @@ How to measure completion:
 Soroswap and DeFindex from a C quorum, and the operator rule. Calls are described through contract
 display descriptors, and we publish those for Soroswap and DeFindex.
 
-Estimated completion: week 23. Budget: $11,000.
+Estimated completion: week 14. Budget: $11,000.
 
 How to measure completion:
 1. On mainnet, a 2-of-3 C account deposits into a DeFindex vault, withdraws and swaps on Soroswap.
@@ -359,7 +359,7 @@ Stratum gathers signatures from phones, hardware wallets, smart accounts and cus
 first, and submits once the threshold is met. G transactions go through Refractor. C entries go by link
 or QR code, and through Refractor once it accepts them.
 
-Estimated completion: week 25. Budget: $16,000.
+Estimated completion: week 15. Budget: $16,000.
 
 How to measure completion:
 1. On mainnet, a 2-of-3 G account with a Fordefi vault as signer pays without copying XDR by hand.
@@ -374,17 +374,17 @@ A SEP draft on how a C account declares its members and rules, and how co-signer
 entry between wallets, building on CAP-0071. Perch and Stratum are the reference implementation. The
 deliverable is the discussion and the draft pull request, and acceptance of the SEP is not required.
 
-Estimated completion: week 25. Budget: $5,000.
+Estimated completion: week 16. Budget: $5,000.
 
 How to measure completion:
-1. A discussion is opened on stellar/stellar-protocol by week 18.
+1. A discussion is opened on stellar/stellar-protocol by week 11.
 2. A draft pull request for the SEP is opened, linking the code that implements it.
 
 #### Deliverable 13: Package and documentation
 
 A TypeScript package for quorum signing on G and C accounts, and developer documentation.
 
-Estimated completion: week 26. Budget: $5,000.
+Estimated completion: week 16. Budget: $5,000.
 
 How to measure completion:
 1. The package is published on npm with a worked example.
