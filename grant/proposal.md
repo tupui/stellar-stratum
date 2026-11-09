@@ -25,7 +25,7 @@ before it signs. Stratum has run on mainnet since 2025 at
 [stellar-stratum.xyz](https://stellar-stratum.xyz) for G accounts. PaltaLabs, the team behind Soroswap
 and DeFindex, uses it, and so do some of our partners.
 
-Stratum is one part of a self-custody suite we build. [Skychart](https://skychart.dev) follows a
+Stratum is one part of a self-custody suite. [Skychart](https://skychart.dev) follows a
 portfolio across Stellar and other chains, and opens any Stellar account in Stratum with one link.
 ghostsig signs alone with a passkey and is already a signer in Stratum. Nido is a person's own smart
 account, and with this award a Nido wallet joins a Stratum quorum as a member. At every step, from a
