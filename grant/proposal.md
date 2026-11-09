@@ -33,9 +33,9 @@ portfolio to a group account, users keep their own keys.
 
 This award adds the following to Stratum.
 
-1. One key for G and C accounts. Since protocol 27, CAP-0071 lets a C account delegate its
-   authorization to other accounts in one entry. The same Ledger or passkey signs for a G account and is
-   a member of a C account, and a member can itself be a smart account, such as a Nido wallet.
+1. One key for G and C accounts. Since protocol 27, CAP-0071 lets a C account delegate its authorization
+   to other accounts in one entry. The same Ledger or passkey signs for a G account and is a member of a
+   C account, and a member can itself be a smart account, such as a Nido wallet.
 2. Policies. A [Perch](https://github.com/stellar-registry/perch) policy states who may call which
    contract and function, with how many signatures, until when and under which spending cap. Stratum
    shows it in plain language, and each device checks its hash before signing. Once Perch is audited, a
@@ -43,7 +43,8 @@ This award adds the following to Stratum.
 3. Post-quantum members. An ML-DSA-65 key (FIPS 204) can be a member of a C account, verified natively
    since protocol 30. Stratum reports which rules classical signatures alone can still satisfy.
 4. DeFi from a shared account. Soroswap and DeFindex from C accounts. A quote expires before three
-   people have signed, so a policy can let one operator swap alone, to the account only and within a cap.
+   people have signed, so a policy can let one operator swap alone, to the account only and within a
+   cap.
 5. Passkeys and custodians. A co-signer joins from a link and signs with a passkey. Custodian vaults
    join too, starting with Fordefi, whose vault co-signed a 2-of-2 Stellar account on mainnet in July
    2026
@@ -62,7 +63,7 @@ A signing session goes as follows.
 3. Stratum simulates the call and fixes the authorization entry: call tree, nonce and expiry ledger.
 4. Each co-signer signs on their device, the transaction hash on a G account and the authorization
    entry on a C account, where all signatures go into the one entry CAP-0071 defines.
-5. Signatures wait in Refractor, for G transactions and, with this award, for C entries.
+5. Signatures wait in Refractor. For C entries, Refractor adds authorization entries in its Public Goods work ([plan](https://scf-public-goods-maintenance.github.io/projects/refractorspace/)), and until then they travel by link or QR code.
 6. Once the threshold is met, any co-signer submits and pays the fee from a G account.
 
 ```
@@ -189,6 +190,7 @@ decide on proposals. Stratum is for a few known co-signers, with rules enforced 
   keep maintaining the fork.
 - A hardware wallet that cannot sign CAP-0071 entries stays a G-account signer.
 - If Fordefi cannot sign entries for a delegated member, its vault stays a G-account signer.
+- Until Refractor accepts authorization entries, C entries travel by link or QR code.
 
 ## AI disclosure and open source
 
@@ -353,20 +355,18 @@ How to measure completion:
 
 #### Deliverable 11: Co-signing across devices and custodians
 
-Refractor already collects the signatures of a G transaction. On a C account each signature goes inside
-the authorization entry and changes the transaction hash, which Refractor keys on. We contribute support
-for these entries to Refractor, which is open source, so phones, hardware wallets, smart accounts and
-custodian vaults, Fordefi first, sign in one place.
+Stratum gathers signatures from phones, hardware wallets, smart accounts and custodian vaults, Fordefi
+first, and submits once the threshold is met. G transactions go through Refractor. C entries go by link
+or QR code, and through Refractor once it accepts them.
 
 Estimated completion: week 25. Budget: $16,000.
 
 How to measure completion:
 1. On mainnet, a 2-of-3 G account with a Fordefi vault as signer pays without copying XDR by hand.
    Video and transaction hash are published.
-2. The pull request adding authorization entries to Refractor is opened on its repository.
-3. A 2-of-3 C account pays with entries from a phone and a Ledger collected through Refractor, on
-   mainnet once the change is deployed there, otherwise on testnet.
-4. On testnet, a Nido wallet signs as a member of a 2-of-3 C account.
+2. On mainnet, a 2-of-3 C account pays with entries from a phone and a Ledger. Transaction hash is
+   published.
+3. On testnet, a Nido wallet signs as a member of a 2-of-3 C account.
 
 #### Deliverable 12: SEP draft for multisig on C accounts
 

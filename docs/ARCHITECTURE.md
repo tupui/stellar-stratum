@@ -115,9 +115,10 @@ path payment that a C account cannot send.
 Refractor stores a partly signed transaction until its threshold is met or it expires, verifies each
 signature and cannot change the transaction, since a link names its hash. It merges the signatures of a
 G transaction. On a C account, each member's signature goes inside the authorization entry and changes
-the transaction hash, which Refractor keys on, so we add support for authorization entries to Refractor,
-which is open source. Until that change is deployed, a C entry travels by link or QR code. Custodians
-connect through an interface modelled on Ripple's simpleXRPL, with Fordefi as the first implementation.
+the transaction hash. Refractor adds authorization entries and CAP-0071 in its Public Goods work
+([plan](https://scf-public-goods-maintenance.github.io/projects/refractorspace/)), and until then a C
+entry travels by link or QR code. Custodians connect through an interface modelled on Ripple's
+simpleXRPL, with Fordefi as the first implementation.
 
 ## Privacy
 
@@ -167,10 +168,10 @@ is published, C accounts on mainnet use only rules that lower to stock OpenZeppe
 | Co-signer onboarding by link and passkey | ghostsig, in Stellar Wallets Kit since 2.7.0 |
 | Policy view, diff and hash check, templates | Nido's passkey SDK |
 | Offline ML-DSA signer with QR sequences | The Soroswap and DeFindex integration |
-| Migration of a G multisig to a C quorum, quantum report | Refractor for G transactions |
+| Migration of a G multisig to a C quorum, quantum report | Refractor, and its planned authorization entries |
 | Recovery screens for shared accounts | |
 | DeFi from C accounts with an operator rule | |
-| Authorization entries in Refractor, custodian interface | |
+| Custodian interface | |
 | Directory warnings and contract display descriptors | |
 | A SEP draft for multisig on C accounts | |
 
