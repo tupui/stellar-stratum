@@ -45,9 +45,9 @@ This award adds the following to Stratum.
 4. DeFi from a shared account. Soroswap and DeFindex from C accounts. A quote expires before three
    people have signed, so a policy can let one operator swap alone, to the account only and within a
    cap.
-5. Passkeys and custodians. A co-signer joins from a link and signs with a passkey. Custodian vaults
-   join too, starting with Fordefi, whose vault co-signed a 2-of-2 Stellar account on mainnet in July
-   2026
+5. Passkeys and custodians. A co-signer joins from a link and signs with a passkey. A custodian vault
+   can be a member too, as a Fordefi vault showed when it co-signed a 2-of-2 Stellar account with us on
+   mainnet in July 2026
    ([setOptions](https://stellar.expert/explorer/public/tx/d671233a078f93b63c43740f0b17896a2eac70e1eec7a316269a5c39caa37d45),
    [payment](https://stellar.expert/explorer/public/tx/5c7dafe1f130861a6e1985ce5bbafc6f191b6666f41ec5a924875857208359f8)).
    The second signature still had to be added by hand.
@@ -113,7 +113,7 @@ only the destination of a payment.
 ### Open questions
 
 We settle a few design choices while building. How a half-signed entry moves between wallets is the
-subject of the SEP discussion, and with Fordefi we work out signing for a delegated member. The teams
+subject of the SEP discussion, and with custodians we work out signing for a delegated member. The teams
 that test Stratum will help us choose recovery profiles for groups and how narrow an operator rule can
 be. Part of this award is the time to answer these questions well.
 
@@ -149,8 +149,9 @@ behind a 2-of-3 multisig
 ([DEFERRED.md](https://github.com/stellar-registry/perch/blob/main/docs/DEFERRED.md)), and the admin key
 of the Stellar Registry contract follows. SCF has funded hundreds of projects, and each ends up with an
 admin key or a treasury. We reach them through ghostsig in Stellar Wallets Kit, Skychart, the projects
-that publish through the Stellar Registry, and our work as an SDF integration partner. Stratum stays
-free and open source, and we maintain it because our own keys depend on it.
+that publish through the Stellar Registry, and our work as an SDF integration partner. We will also work
+with custodians such as Fordefi, so that their customers can put a vault in a Stratum quorum. Stratum
+stays free and open source, and we maintain it because our own keys depend on it.
 
 ## Traction Evidence
 
@@ -189,7 +190,8 @@ decide on proposals. Stratum is for a few known co-signers, with rules enforced 
 - Perch pins our CAP-0071 patch of OpenZeppelin's stellar-accounts. If it is not merged upstream, we
   keep maintaining the fork.
 - A hardware wallet that cannot sign CAP-0071 entries stays a G-account signer.
-- If Fordefi cannot sign entries for a delegated member, its vault stays a G-account signer.
+- A custodian that cannot sign entries for a delegated member stays a G-account signer.
+
 - Until Refractor accepts authorization entries, C entries travel by link or QR code.
 
 ## AI disclosure and open source
@@ -227,53 +229,35 @@ integration are reused without funding. Perch's development and audit are funded
 #### Deliverable 1: Signing for G and C quorums
 
 Stratum builds the CAP-0071 entry of a C account, collects its members' signatures and counts them
-against the account's rules.
+against the account's rules. The testnet suite covers the new flows and runs on every pull request.
 
-Estimated completion: week 3. Budget: $13,000.
+Estimated completion: week 4. Budget: $19,000.
 
 How to measure completion:
-1. On testnet, one Ledger key signs a G payment and, as a member, a payment of a 2-of-3 C account.
-   Both transaction hashes are published.
+1. On testnet, one Ledger key signs a G payment and, as a member, a payment of a 2-of-3 C account. Both
+   transaction hashes are published.
 2. The C payment fails with one signature and succeeds with two.
-3. Tests refuse a key outside the quorum and a member removed after approving.
+3. A passing CI run whose suite refuses a key outside the quorum, a member removed after approving and a
+   lock-out `setOptions`.
 
-#### Deliverable 2: Co-signer onboarding
-
-A co-signer joins from a link with a passkey and approves from a phone.
-
-Estimated completion: week 4. Budget: $9,000.
-
-How to measure completion:
-1. A video shows a co-signer joining from a link and approving a 2-of-3 testnet payment with a passkey.
-   The transaction hash is published.
-2. A passkey outside the quorum is refused.
-
-#### Deliverable 3: Policies in the interface
+#### Deliverable 2: Policies and passkey co-signers
 
 Templates for treasury, protocol admin and DeFi operator. The policy is shown in plain language, a
-change as a diff, and the device checks the hash before signing. The view also shows what each signer
-can do across all rules.
+change as a diff, the device checks the hash before signing, and the view shows what each signer can do
+across all rules. A co-signer joins from a link with a passkey and approves from a phone.
 
-Estimated completion: week 5. Budget: $14,000.
+Estimated completion: week 5. Budget: $23,000.
 
 How to measure completion:
 1. On testnet, a protocol admin policy is created from a template, changed and signed. Account address
    and policy hash are published.
 2. Tests refuse a tampered or outdated policy, and report the rights of a signer named in two rules.
-
-#### Deliverable 4: End-to-end tests
-
-The new flows join the testnet suite, which then runs on every pull request.
-
-Estimated completion: week 5. Budget: $6,000.
-
-How to measure completion:
-1. A passing CI run on the Stratum repository.
-2. The suite refuses a key outside the quorum, a tampered policy and a lock-out `setOptions`.
+3. A video shows a co-signer joining from a link and approving a 2-of-3 testnet payment with a passkey,
+   and a passkey outside the quorum refused.
 
 ### Tranche 2: Testnet (weeks 6 to 10)
 
-#### Deliverable 5: Threat model and monitoring plan
+#### Deliverable 3: Threat model and monitoring plan
 
 A STRIDE threat model and an on-chain monitoring plan following SDF's templates, written first so that
 the rest of tranche 2 follows it. For alerts we will look at Hypernative, which recently added Stellar,
@@ -287,31 +271,22 @@ How to measure completion:
    transaction hashes published.
 3. The plan names the services chosen for mainnet.
 
-#### Deliverable 6: Post-quantum members
+#### Deliverable 4: Post-quantum members and migration
 
 Enrolling an ML-DSA-65 key, a rule that needs a passkey and an ML-DSA signature, and an offline signer
-that answers with a sequence of QR codes.
+that answers with a sequence of QR codes. A G multisig becomes a C quorum with the same signers, and a
+quantum report lists every rule that classical signatures alone can satisfy.
 
-Estimated completion: week 8. Budget: $10,000.
+Estimated completion: week 9. Budget: $17,000.
 
 How to measure completion:
 1. On testnet, an admin change signed with a passkey and the ML-DSA key succeeds, and fails with the
    passkey alone or a wrong ML-DSA signature. Hashes and instruction counts are published.
 2. The offline signer passes the ACVP ML-DSA-65 vectors in CI.
+3. On testnet, a G multisig is migrated with a report of every difference. Once ML-DSA members are added
+   and recovery requires one, the quantum report lists only the fee-paying G account.
 
-#### Deliverable 7: Classic multisig to C quorum, and quantum report
-
-A G multisig becomes a C quorum with the same signers. The quantum report lists every rule that
-classical signatures alone can satisfy.
-
-Estimated completion: week 9. Budget: $7,000.
-
-How to measure completion:
-1. On testnet, a G multisig is migrated, with a report of every signer and threshold difference.
-2. Once ML-DSA members are added and recovery requires one, the report lists only the fee-paying G
-   account.
-
-#### Deliverable 8: Recovery for shared accounts
+#### Deliverable 5: Recovery for shared accounts
 
 The quorum replaces a lost member. Guardians, a zero-knowledge proof made in the browser, or both,
 recover a C account through Perch's controller, under its `Loss` or `Protected` profile.
@@ -326,21 +301,23 @@ How to measure completion:
 
 ### Tranche 3: Mainnet (weeks 11 to 16)
 
-#### Deliverable 9: Mainnet launch
+#### Deliverable 6: Mainnet launch
 
-G and C accounts on mainnet, with onboarding, templates, user documentation and directory warnings.
-The admin key of the Stellar Registry contract moves to a Stratum account.
+G and C accounts on mainnet, with onboarding, templates, directory warnings, user and developer
+documentation, and a TypeScript package for quorum signing. The admin key of the Stellar Registry
+contract moves to a Stratum account.
 
-Estimated completion: week 13. Budget: $19,000.
+Estimated completion: week 13. Budget: $24,000.
 
 How to measure completion:
 1. On mainnet, a C account is created from onboarding, a co-signer joins from a link, and a Ledger
    member and a passkey member sign a payment. Transaction hashes are published.
 2. The Registry admin key moves to a Stratum account, and the monitoring alerts run on it.
 3. A payment to an address the directory flags as malicious needs an explicit confirmation.
-4. User documentation is online, and onboarding is tested with three outside teams.
+4. Documentation is online, onboarding is tested with three outside teams, and the package is on npm
+   with a worked example.
 
-#### Deliverable 10: DeFi from C accounts
+#### Deliverable 7: DeFi from C accounts
 
 Soroswap and DeFindex from a C quorum, and the operator rule. Calls are described through contract
 display descriptors, and we publish those for Soroswap and DeFindex.
@@ -353,22 +330,23 @@ How to measure completion:
 2. On testnet, an operator swaps alone within 100 USDC per week. A swap above the cap, or to the
    operator, fails.
 
-#### Deliverable 11: Co-signing across devices and custodians
+#### Deliverable 8: Co-signing across wallets
 
-Stratum gathers signatures from phones, hardware wallets, smart accounts and custodian vaults, Fordefi
-first, and submits once the threshold is met. G transactions go through Refractor. C entries go by link
-or QR code, and through Refractor once it accepts them.
+Stratum gathers signatures from phones, hardware wallets, smart accounts and custodian vaults, and
+submits once the threshold is met. G transactions go through Refractor. C entries go by link or QR code,
+and through Refractor once it accepts them. Custodians plug in through one interface modelled on
+Ripple's simpleXRPL.
 
 Estimated completion: week 15. Budget: $16,000.
 
 How to measure completion:
-1. On mainnet, a 2-of-3 G account with a Fordefi vault as signer pays without copying XDR by hand.
-   Video and transaction hash are published.
-2. On mainnet, a 2-of-3 C account pays with entries from a phone and a Ledger. Transaction hash is
+1. On mainnet, a 2-of-3 C account pays with entries from a phone and a Ledger. The transaction hash is
    published.
-3. On testnet, a Nido wallet signs as a member of a 2-of-3 C account.
+2. On testnet, a Nido wallet signs as a member of a 2-of-3 C account.
+3. The documentation lists which wallets of Stellar Wallets Kit sign in Stratum, and the custodian
+   interface is documented with a test implementation that signs as a member on testnet.
 
-#### Deliverable 12: SEP draft for multisig on C accounts
+#### Deliverable 9: SEP draft for multisig on C accounts
 
 A SEP draft on how a C account declares its members and rules, and how co-signers pass a partly signed
 entry between wallets, building on CAP-0071. Perch and Stratum are the reference implementation. The
@@ -380,33 +358,19 @@ How to measure completion:
 1. A discussion is opened on stellar/stellar-protocol by week 11.
 2. A draft pull request for the SEP is opened, linking the code that implements it.
 
-#### Deliverable 13: Package and documentation
-
-A TypeScript package for quorum signing on G and C accounts, and developer documentation.
-
-Estimated completion: week 16. Budget: $5,000.
-
-How to measure completion:
-1. The package is published on npm with a worked example.
-2. Developer documentation is online.
-
 ## Budget
 
 | Deliverable | Tranche | Budget |
 |---|---|---|
-| 1. Signing for G and C quorums | 1 | $13,000 |
-| 2. Co-signer onboarding | 1 | $9,000 |
-| 3. Policies in the interface | 1 | $14,000 |
-| 4. End-to-end tests | 1 | $6,000 |
-| 5. Threat model and monitoring plan | 2 | $8,000 |
-| 6. Post-quantum members | 2 | $10,000 |
-| 7. Classic multisig to C quorum, and quantum report | 2 | $7,000 |
-| 8. Recovery for shared accounts | 2 | $17,000 |
-| 9. Mainnet launch | 3 | $19,000 |
-| 10. DeFi from C accounts | 3 | $11,000 |
-| 11. Co-signing across devices and custodians | 3 | $16,000 |
-| 12. SEP draft for multisig on C accounts | 3 | $5,000 |
-| 13. Package and documentation | 3 | $5,000 |
+| 1. Signing for G and C quorums | 1 | $19,000 |
+| 2. Policies and passkey co-signers | 1 | $23,000 |
+| 3. Threat model and monitoring plan | 2 | $8,000 |
+| 4. Post-quantum members and migration | 2 | $17,000 |
+| 5. Recovery for shared accounts | 2 | $17,000 |
+| 6. Mainnet launch | 3 | $24,000 |
+| 7. DeFi from C accounts | 3 | $11,000 |
+| 8. Co-signing across wallets | 3 | $16,000 |
+| 9. SEP draft for multisig on C accounts | 3 | $5,000 |
 | Total | | $140,000 |
 
 Tranche 1 is $42,000, tranche 2 is $42,000 and tranche 3 is $56,000. Payments follow SCF's schedule:

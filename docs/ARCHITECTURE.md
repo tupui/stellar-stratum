@@ -82,7 +82,7 @@ The C account column describes the plan. Today Stratum signs for G accounts only
 | Ledger | Through Stellar Wallets Kit | Directly, Stellar app 6.1.0 or later |
 | Other wallets | Through Stellar Wallets Kit, as the kit adds them | Only if the wallet signs CAP-0071 entries |
 | Passkey | ghostsig, a G key derived from the passkey (SEP-52) | Perch's WebAuthn verifier, or ghostsig as a delegated G key |
-| Custodian vault (Fordefi first) | As a classic signer | If the custodian signs entries for a delegated member |
+| Custodian vault | As a classic signer | If the custodian signs entries for a delegated member |
 | ML-DSA-65 key | Not possible | Perch's ML-DSA-65 verifier, key on an offline device |
 | Smart account (a Nido wallet) | Not possible | As a delegated member, through CAP-0071 |
 
@@ -118,7 +118,7 @@ G transaction. On a C account, each member's signature goes inside the authoriza
 the transaction hash. Refractor adds authorization entries and CAP-0071 in its Public Goods work
 ([plan](https://scf-public-goods-maintenance.github.io/projects/refractorspace/)), and until then a C
 entry travels by link or QR code. Custodians connect through an interface modelled on Ripple's
-simpleXRPL, with Fordefi as the first implementation.
+simpleXRPL. A Fordefi vault co-signed a 2-of-2 Stellar account with us on mainnet in July 2026.
 
 ## Privacy
 
