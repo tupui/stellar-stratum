@@ -38,12 +38,14 @@ Stratum handles two kinds of shared accounts.
 - A C account is a [Perch](https://github.com/stellar-registry/perch) smart account. Its rules are a
   policy document in canonical JSON, identified by its SHA-256 hash. The document says who may call
   which contract and function, with how many signatures, until which ledger and under which spending
-  cap. Perch compiles it into OpenZeppelin context rules.
+  cap. Perch compiles it into OpenZeppelin context rules, with an interpreter whose semantics are
+  proven in Lean 4.
 
 Since protocol 27, CAP-0071 lets a C account delegate its authorization to other accounts inside one
 authorization entry. Hence the same Ledger key or passkey can sign for a G account and be a member of a
 C account. The members all sign the same payload, which names the C account, so a signature cannot be
-reused for another account.
+reused for another account. Each entry must also name the Perch rule it relies on, which is why only
+Perch's own deployment tool builds such entries today.
 
 ## Signing a C account operation
 
@@ -120,13 +122,19 @@ the transaction hash. Refractor adds authorization entries and CAP-0071 in its P
 entry travels by link or QR code. Custodians connect through an interface modelled on Ripple's
 simpleXRPL. A Fordefi vault co-signed a 2-of-2 Stellar account with us on mainnet in July 2026.
 
-## Privacy
+## Privacy and safety
 
 Stratum keeps no data about its users and runs no server of its own. There is no account, no analytics
-and no telemetry. Every outside service the app calls is listed in the [privacy
-policy](https://stellar-stratum.xyz/legal/privacy). The directory lookup sends StellarExpert the
-destination of a payment and nothing else, on mainnet only and never from the air-gapped signer, and a
-failed lookup changes nothing.
+and no telemetry. Hardware wallet makers have leaked customer lists, and a compromised front-end library
+has drained wallets, so we hold nothing that could leak.
+
+The app is served from Radicle Pages, whose
+[manifest](https://consulting-manao.radicle.page/stellar-stratum/.git-pages/manifest.json) gives the
+commit and the hash of every file, with bundled libraries and a strict Content Security Policy. Every
+outside service the app calls is listed in the [privacy
+policy](https://stellar-stratum.xyz/legal/privacy). Partly signed transactions wait in Refractor. The
+directory lookup sends StellarExpert the destination of a payment and nothing else, on mainnet only and
+never from the air-gapped signer, and a failed lookup changes nothing.
 
 ## Who holds which authority
 
@@ -187,12 +195,37 @@ is published, C accounts on mainnet use only rules that lower to stock OpenZeppe
   refused before submission, and a lock-out `setOptions` is refused.
 - The offline ML-DSA signer passes the NIST ACVP ML-DSA-65 key generation and signing vectors in CI.
 
+## Use of Stellar
+
+Classic multisig is native to G accounts, and Soroban custom accounts make C accounts programmable.
+CAP-0071 lets a G key be a member of a C account inside the account's own entry. Protocol 30 verifies
+ML-DSA natively (CAP-0087) and lets a shared C account label its deposits with muxed addresses
+(CAP-0084). SEP-52 defines the passkey key derivation and its backup, and the Stellar Registry publishes
+our contracts with verified builds.
+
+## Open questions
+
+We settle a few design choices while building. How a half-signed entry moves between wallets is the
+subject of the SEP discussion, and with custodians we work out signing for a delegated member. The teams
+that test Stratum will help us choose recovery profiles for groups and how narrow an operator rule can
+be.
+
+## Risks
+
+- Perch's contracts wait for their Audit Bank audit, which is part of Perch's own work. Until then, C
+  accounts on mainnet use only rules that stock OpenZeppelin policies cover.
+- Perch pins our CAP-0071 patch of OpenZeppelin's stellar-accounts. If it is not merged upstream, we
+  keep maintaining the fork.
+- A hardware wallet or a custodian that cannot sign CAP-0071 entries stays a G-account signer.
+- Until Refractor accepts authorization entries, C entries travel by link or QR code.
+
 ## Limits
 
-- The transaction is still paid and signed with Ed25519 by a G account. Only the authorization of a C
-  account can be post-quantum today.
+- The transaction is still paid and signed with Ed25519 by a G account, until stage 2 of the Quantum
+  Preparedness Plan. Only the authorization of a C account can be post-quantum today.
 - Perch binds a policy change to the revision it replaces, but not yet an ordinary approval. A rule
   edited in place between signing and inclusion applies to the pending operation. Stratum checks the
   policy hash on every device and keeps signature expirations short.
-- Perch policies govern C accounts only. Moving from G to C changes the address, so it stays optional.
+- Perch policies govern C accounts only, since governing a G account by contract would need CAP-72,
+  which is not scheduled. Moving from G to C changes the address, so it stays optional.
 - ghostsig is beta software and has not been audited. In a quorum its key is one signer among several.
