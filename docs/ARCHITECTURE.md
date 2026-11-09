@@ -52,7 +52,7 @@ sequenceDiagram
   participant M as Member who proposes
   participant S as Stratum
   participant R as Stellar RPC
-  participant Re as Stratum relay
+  participant Re as Refractor
   participant C as Co-signers (phone, Ledger, custodian)
   M->>S: build the operation
   S->>R: read the policy hash installed on the account
@@ -68,11 +68,10 @@ sequenceDiagram
 2. Stratum reads the policy hash installed on the account and shows the policy only if it matches.
 3. Stratum simulates the call and fixes the authorization entry: call tree, nonce and expiry ledger.
 4. Each co-signer signs on their device. All the signatures go into the one entry CAP-0071 defines.
-5. The entry waits in the relay, or travels by link or QR code without it.
+5. The transaction waits in Refractor, or travels by link or QR code without it.
 6. Once the threshold is met, any co-signer submits the transaction and pays the fee from a G account.
 
-A G account follows the same steps with the transaction hash instead of the authorization entry, and
-Refractor instead of the relay.
+A G account follows the same steps with the transaction hash instead of the authorization entry.
 
 ## Members
 
@@ -111,19 +110,22 @@ the token rule carries the spending cap. From a G account, swaps route through S
 Phoenix, Sushi and SDEX. From a C account they use Soroban pools only, since an SDEX leg is a classic
 path payment that a C account cannot send.
 
-## Relay and custodians
+## Refractor and custodians
 
-The relay stores pending authorization entries until they expire and keeps nothing after. It can delay
-or withhold an entry, but it cannot change or sign one, and accounts keep working without it through a
-link or a QR code. Custodians connect through an interface modelled on Ripple's simpleXRPL, with Fordefi
-as the first implementation.
+Refractor stores a partly signed transaction until its threshold is met or it expires, verifies each
+signature and cannot change the transaction, since a link names its hash. It merges the signatures of a
+G transaction. On a C account, each member's signature goes inside the authorization entry and changes
+the transaction hash, which Refractor keys on, so we add support for authorization entries to Refractor,
+which is open source. Until that change is deployed, a C entry travels by link or QR code. Custodians
+connect through an interface modelled on Ripple's simpleXRPL, with Fordefi as the first implementation.
 
 ## Privacy
 
-Stratum keeps no data about its users. There is no account, no analytics and no telemetry. Every outside
-service the app calls is listed in the [privacy policy](https://stellar-stratum.xyz/legal/privacy). The
-relay logs no IP address. The directory lookup sends StellarExpert the destination of a payment and
-nothing else, on mainnet only and never from the air-gapped signer, and a failed lookup changes nothing.
+Stratum keeps no data about its users and runs no server of its own. There is no account, no analytics
+and no telemetry. Every outside service the app calls is listed in the [privacy
+policy](https://stellar-stratum.xyz/legal/privacy). The directory lookup sends StellarExpert the
+destination of a payment and nothing else, on mainnet only and never from the air-gapped signer, and a
+failed lookup changes nothing.
 
 ## Who holds which authority
 
@@ -132,8 +134,7 @@ nothing else, on mainnet only and never from the air-gapped signer, and a failed
 | Members (quorum) | Approve operations within the policy, change the policy, enroll recovery | Act alone above the threshold a rule requires |
 | An operator on a DeFi rule | Swap alone, to the account, within its cap | Send the output elsewhere, exceed the cap |
 | Guardians | Approve a recovery statement | Move funds, change the policy outside recovery |
-| Stratum relay | Store and forward pending entries until they expire | Change or sign an entry, it can only delay or withhold one |
-| Refractor | Store and forward a partly signed G transaction | Change it: the link names the transaction hash |
+| Refractor | Store a partly signed transaction and collect signatures | Change it, since the link names its hash |
 | Custodian | Sign as one member | Sign for the others |
 | Perch's WebAuthn and ML-DSA verifiers | Check a signature | Nothing else: they have no admin |
 
@@ -169,7 +170,7 @@ is published, C accounts on mainnet use only rules that lower to stock OpenZeppe
 | Migration of a G multisig to a C quorum, quantum report | Refractor for G transactions |
 | Recovery screens for shared accounts | |
 | DeFi from C accounts with an operator rule | |
-| Relay for authorization entries, custodian interface | |
+| Authorization entries in Refractor, custodian interface | |
 | Directory warnings and contract display descriptors | |
 | A SEP draft for multisig on C accounts | |
 

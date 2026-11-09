@@ -62,7 +62,7 @@ A signing session goes as follows.
 3. Stratum simulates the call and fixes the authorization entry: call tree, nonce and expiry ledger.
 4. Each co-signer signs on their device, the transaction hash on a G account and the authorization
    entry on a C account, where all signatures go into the one entry CAP-0071 defines.
-5. Signatures wait in Refractor for G transactions and in the Stratum relay for C entries.
+5. Signatures wait in Refractor, for G transactions and, with this award, for C entries.
 6. Once the threshold is met, any co-signer submits and pays the fee from a G account.
 
 ```
@@ -105,9 +105,9 @@ Stratum keeps no data about its users. There is no account, no analytics and no 
 wallet makers have leaked customer lists, and a compromised front-end library has drained wallets, so we
 hold nothing that could leak. The app is served from Radicle Pages, whose
 [manifest](https://consulting-manao.radicle.page/stellar-stratum/.git-pages/manifest.json) gives the
-commit and the hash of every file, with bundled libraries and a strict Content Security Policy. The
-relay keeps entries only until they expire and logs no IP address, and the directory lookup sends only
-the destination of a payment.
+commit and the hash of every file, with bundled libraries and a strict Content Security Policy. Stratum
+runs no server of its own. Partly signed transactions wait in Refractor, and the directory lookup sends
+only the destination of a payment.
 
 ### Open questions
 
@@ -148,8 +148,8 @@ behind a 2-of-3 multisig
 ([DEFERRED.md](https://github.com/stellar-registry/perch/blob/main/docs/DEFERRED.md)), and the admin key
 of the Stellar Registry contract follows. SCF has funded hundreds of projects, and each ends up with an
 admin key or a treasury. We reach them through ghostsig in Stellar Wallets Kit, Skychart, the projects
-that publish through the Stellar Registry, and our work as an SDF integration partner. Stratum stays free
-and open source, and we maintain it because our own keys depend on it.
+that publish through the Stellar Registry, and our work as an SDF integration partner. Stratum stays
+free and open source, and we maintain it because our own keys depend on it.
 
 ## Traction Evidence
 
@@ -353,16 +353,20 @@ How to measure completion:
 
 #### Deliverable 11: Co-signing across devices and custodians
 
-The relay collects entries from phones, hardware wallets, smart accounts and custodian vaults, Fordefi
-first, and submits once the threshold is met.
+Refractor already collects the signatures of a G transaction. On a C account each signature goes inside
+the authorization entry and changes the transaction hash, which Refractor keys on. We contribute support
+for these entries to Refractor, which is open source, so phones, hardware wallets, smart accounts and
+custodian vaults, Fordefi first, sign in one place.
 
 Estimated completion: week 25. Budget: $16,000.
 
 How to measure completion:
 1. On mainnet, a 2-of-3 G account with a Fordefi vault as signer pays without copying XDR by hand.
    Video and transaction hash are published.
-2. On mainnet, a 2-of-3 C account pays with entries from a phone and a Ledger, collected by the relay.
-3. On testnet, a Nido wallet signs as a member of a 2-of-3 C account.
+2. The pull request adding authorization entries to Refractor is opened on its repository.
+3. A 2-of-3 C account pays with entries from a phone and a Ledger collected through Refractor, on
+   mainnet once the change is deployed there, otherwise on testnet.
+4. On testnet, a Nido wallet signs as a member of a 2-of-3 C account.
 
 #### Deliverable 12: SEP draft for multisig on C accounts
 
