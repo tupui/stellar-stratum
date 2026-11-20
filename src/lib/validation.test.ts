@@ -12,7 +12,9 @@ describe('accountIdOf', () => {
 
   it('refuses anything that is not an account', () => {
     expect(accountIdOf(StrKey.encodeContract(Buffer.alloc(32, 7)))).toBeNull();
-    expect(accountIdOf(`${account.slice(0, -1)}A`)).toBeNull();
+    // A different last character breaks the checksum; replacing it with itself would not.
+    const corrupt = account.endsWith('A') ? 'B' : 'A';
+    expect(accountIdOf(`${account.slice(0, -1)}${corrupt}`)).toBeNull();
     expect(accountIdOf('')).toBeNull();
   });
 });
