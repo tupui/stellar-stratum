@@ -69,7 +69,7 @@ export interface TokenAmount {
   bound: 'exact' | 'min' | 'max';
 }
 
-/** One leg of an aggregator's `distribution`. */
+/** One leg of an aggregator's `distribution`, or one of its `routes`. */
 export interface RouteHop {
   /** Venue as the aggregator names it, e.g. "Soroswap"; empty when unreadable. */
   protocol: string;
@@ -181,6 +181,50 @@ const asHops = (value: unknown): RouteHop[] =>
       })
     : [];
 
+const record = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+
+/**
+ * One aggregator `Hop` enum value, `["Soroswap", { pair, token_in, token_out }]`:
+ * its venue and the tokens it runs through. Aqua chains its own steps, each
+ * `(pool tokens, pool hash, token_out)`.
+ */
+const asHop = (value: unknown): { venue: string; path: string[] } | null => {
+  if (!Array.isArray(value) || value.length !== 2 || typeof value[0] !== 'string') return null;
+  const body = record(value[1]);
+  if (!body || typeof body.token_in !== 'string') return null;
+  if (typeof body.token_out === 'string') return { venue: value[0], path: [body.token_in, body.token_out] };
+  if (!Array.isArray(body.steps) || body.steps.length === 0) return null;
+  const outs = body.steps.map((step) => (Array.isArray(step) ? step[2] : undefined));
+  if (!outs.every((out): out is string => typeof out === 'string')) return null;
+  return { venue: value[0], path: [body.token_in, ...outs] };
+};
+
+/**
+ * The aggregator's `routes: Vec<Route>`, each `{ amount_in, hops: Vec<Hop> }`:
+ * one entry per route, its venues in order and its share being the amount it
+ * swaps. A route whose hops do not chain is kept as an empty hop, so it still
+ * shows up instead of silently vanishing.
+ */
+const asRoutes = (value: unknown): RouteHop[] =>
+  Array.isArray(value)
+    ? value.map((item) => {
+        const route = record(item);
+        const share = toAmount(route?.amount_in);
+        const parts = share === null ? null : Number(share);
+        const hops = Array.isArray(route?.hops) ? route.hops.map(asHop) : [];
+        const chained =
+          hops.length > 0 &&
+          hops.every((hop, i): hop is NonNullable<typeof hop> => !!hop && (i === 0 || hops[i - 1]?.path.at(-1) === hop.path[0]));
+        if (!chained) return { protocol: '', path: [], parts };
+        return {
+          protocol: [...new Set(hops.map((hop) => hop.venue))].join(' → '),
+          path: [hops[0].path[0], ...hops.flatMap((hop) => hop.path.slice(1))],
+          parts,
+        };
+      })
+    : [];
+
 /** Base account of a (possibly muxed) source account. */
 const accountOf = (address: string | undefined): string | undefined => {
   if (!address) return undefined;
@@ -254,8 +298,9 @@ const SHAPES: Record<string, readonly string[]> = {
   token_b: ['scvAddress'],
   invest: ['scvBool'],
   deadline: ['scvU64', 'scvU32'],
-  // An option whose meaning is not pinned: only the empty value is a call we can read.
-  options: ['scvVoid'],
+  routes: ['scvVec'],
+  // A partner takes a cut of the output the quote did not show: only a call without one is read.
+  partner: ['scvVoid'],
 };
 
 /** Exact name, arity and argument shapes — the bar for acting on a match, not just labelling it. */
@@ -320,7 +365,7 @@ const extractDetails = (call: ContractCall, sig: FunctionSignature): ActivityDet
         buy: { contract: tokenOut, raw: buyRaw, bound: exactIn ? 'min' : 'exact' },
         path: path.length ? path : [tokenIn, tokenOut],
         routeKnown: path.length > 0,
-        hops: asHops(at('distribution')),
+        hops: sig.params.includes('routes') ? asRoutes(at('routes')) : asHops(at('distribution')),
         from: typeof from === 'string' ? from : undefined,
         to: (at('to') as string) ?? '',
         deadline: toSeconds(at('deadline')),

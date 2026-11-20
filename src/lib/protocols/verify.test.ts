@@ -109,22 +109,22 @@ const withMemo = (xdrBase64: string, memo: Memo) => {
 
 // --- Swap through the aggregator, as `/quote/build` returns it today ---
 
-const swapArgs = ({ from = ACCOUNT, minOut = 2_147_305n, options = xdr.ScVal.scvVoid() as xdr.ScVal } = {}) => [
+const swapArgs = ({ from = ACCOUNT, minOut = 2_147_305n, partner = xdr.ScVal.scvVoid() as xdr.ScVal } = {}) => [
   address(from),
   address(XLM),
   i128(10_000_000n),
   address(USDC),
   i128(minOut),
   xdr.ScVal.scvVec([]),
-  options,
+  partner,
 ];
 
-const swap = (overrides: Partial<Fixture> & { from?: string; minOut?: bigint; options?: xdr.ScVal } = {}) => {
-  const { from, minOut, options, ...rest } = overrides;
+const swap = (overrides: Partial<Fixture> & { from?: string; minOut?: bigint; partner?: xdr.ScVal } = {}) => {
+  const { from, minOut, partner, ...rest } = overrides;
   return envelope({
     contract: AGGREGATOR,
     fn: 'swap_exact_in',
-    args: swapArgs({ from, minOut, options }),
+    args: swapArgs({ from, minOut, partner }),
     transfers: [transfer(XLM, from ?? ACCOUNT, AGGREGATOR, 10_000_000n)],
     ...rest,
   });
@@ -179,7 +179,7 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
   });
 
   it('refuses a filled trailing option (it could redirect or skim the output)', () => {
-    expect(check(swap({ options: address(OTHER) }))).toThrow(/form the app cannot check/);
+    expect(check(swap({ partner: address(OTHER) }))).toThrow(/form the app cannot check/);
   });
 
   it('refuses a minimum below the quote', () => {

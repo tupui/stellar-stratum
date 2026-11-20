@@ -72,23 +72,30 @@ const invoke = (contract: string, fn: string, args: xdr.ScVal[], auth: xdr.Sorob
 
 // --- The aggregator swap the Soroswap API builds: sell 1 XLM for at least 0.2147305 USDC ---
 
-const distribution = (path: string[]) =>
-  xdr.ScVal.scvVec([
-    xdr.ScVal.scvMap([
-      new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('bytes'), val: xdr.ScVal.scvVoid() }),
-      new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('parts'), val: xdr.ScVal.scvU32(10) }),
-      new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('path'), val: nativeToScVal(path.map((c) => new Address(c))) }),
-      new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol('protocol_id'), val: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Soroswap')]) }),
-    ]),
-  ]);
+const sym = (s: string) => xdr.ScVal.scvSymbol(s);
+// A `#[contracttype]` struct is a map keyed by field name, in sorted order.
+const struct = (fields: Record<string, xdr.ScVal>) =>
+  xdr.ScVal.scvMap(Object.keys(fields).sort().map((key) => new xdr.ScMapEntry({ key: sym(key), val: fields[key] })));
+// A tuple enum variant is a vector: its name, then its payload.
+const variant = (name: string, payload: xdr.ScVal) => xdr.ScVal.scvVec([sym(name), payload]);
 
-const swapArgs = (path = [XLM, USDC]) => [
+/** A Soroswap `Hop` per consecutive pair of `path`, through a pool of its own. */
+const soroswapHops = (path: string[]) =>
+  path.slice(1).map((tokenOut, i) =>
+    variant('Soroswap', struct({ pair: address(PAIR), token_in: address(path[i]), token_out: address(tokenOut) })),
+  );
+
+/** `routes: Vec<Route>`, the aggregator's `swap_exact_in` argument, per its WASM spec. */
+const routes = (...legs: { amountIn: bigint; hops: xdr.ScVal[] }[]) =>
+  xdr.ScVal.scvVec(legs.map(({ amountIn, hops }) => struct({ amount_in: i128(amountIn), hops: xdr.ScVal.scvVec(hops) })));
+
+const swapArgs = (path = [XLM, USDC], route = routes({ amountIn: 10_000_000n, hops: soroswapHops(path) })) => [
   address(ACCOUNT),
   address(XLM),
   i128(10_000_000n),
   address(USDC),
   i128(2_147_305n),
-  distribution(path),
+  route,
   xdr.ScVal.scvVoid(),
 ];
 
@@ -113,7 +120,7 @@ describe('authorization tree decoding', () => {
     expect(entry).toMatchObject({ credential: 'source', address: ACCOUNT, rootIsCall: true });
     expect(entry.root).toMatchObject({ contractId: AGGREGATOR, functionName: 'swap_exact_in' });
     // The root is the call itself: its arguments carry the protocol's names.
-    expect(entry.root.args.map((a) => a.name)).toEqual(['from', 'token_in', 'amount_in', 'token_out', 'amount_out_min', 'distribution', 'options']);
+    expect(entry.root.args.map((a) => a.name)).toEqual(['from', 'token_in', 'amount_in', 'token_out', 'amount_out_min', 'routes', 'partner']);
 
     const [first, nested] = entry.root.subInvocations;
     expect(first.movement).toEqual({ kind: 'transfer', token: XLM, from: ACCOUNT, to: AGGREGATOR, amount: '10000000' });
@@ -146,14 +153,41 @@ describe('authorization tree decoding', () => {
     expect(decoded.match?.confidence).toBe('verified');
   });
 
-  it('renders the aggregator distribution as route hops and names the payer', () => {
+  it('renders each aggregator route as a hop and names the payer', () => {
     const [decoded] = analyzeOperations(swapOps([legitTransfer()], [], [XLM, EVIL, USDC]), 'mainnet', ACCOUNT);
     expect(decoded.details).toMatchObject({
       kind: 'swap',
       from: ACCOUNT,
-      hops: [{ protocol: 'Soroswap', path: [XLM, EVIL, USDC], parts: 10 }],
+      hops: [{ protocol: 'Soroswap', path: [XLM, EVIL, USDC], parts: 10_000_000 }],
     });
     expect(decoded.tokens).toContain(EVIL);
+  });
+
+  it('reads a split across venues, multi-hop routes included, with each route\'s share of the amount', () => {
+    const SUSHI_POOL = StrKey.encodeContract(hash('sushi pool'));
+    const aqua = variant(
+      'Aqua',
+      struct({
+        steps: xdr.ScVal.scvVec([
+          xdr.ScVal.scvVec([nativeToScVal([new Address(XLM), new Address(EVIL)]), xdr.ScVal.scvBytes(Buffer.alloc(32)), address(EVIL)]),
+        ]),
+        token_in: address(XLM),
+      }),
+    );
+    const sushi = variant(
+      'Sushi',
+      struct({ pool: address(SUSHI_POOL), token_in: address(EVIL), token_out: address(USDC), zero_for_one: xdr.ScVal.scvBool(true) }),
+    );
+    const args = swapArgs(undefined, routes({ amountIn: 7_500_000n, hops: soroswapHops([XLM, USDC]) }, { amountIn: 2_500_000n, hops: [aqua, sushi] }));
+    const ops = invoke(AGGREGATOR, 'swap_exact_in', args, [sourceAuth(call(AGGREGATOR, 'swap_exact_in', args, [legitTransfer()]))]);
+    const [decoded] = analyzeOperations(ops, 'mainnet', ACCOUNT);
+    expect(decoded.details).toMatchObject({
+      kind: 'swap',
+      hops: [
+        { protocol: 'Soroswap', path: [XLM, USDC], parts: 7_500_000 },
+        { protocol: 'Aqua → Sushi', path: [XLM, EVIL, USDC], parts: 2_500_000 },
+      ],
+    });
   });
 });
 
