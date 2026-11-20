@@ -99,10 +99,18 @@ export const KNOWN_FUNCTIONS: FunctionSignature[] = [
     protocol: 'soroswap',
     role: 'Aggregator',
     name: 'swap_exact_in',
-    // Order read off the transactions the Soroswap API builds, not a WASM spec.
-    // The trailing option is always empty in those builds and its meaning is
-    // not pinned, so only an empty one fits (see `options` in detect.ts).
-    params: ['from', 'token_in', 'amount_in', 'token_out', 'amount_out_min', 'distribution', 'options'],
+    // Per the contract's WASM spec: `(user, token_in, amount_in, token_out, min_out,
+    // routes: Vec<Route>, partner: Option<Partner>)`. A partner takes a cut of the
+    // output, so only a call without one fits (see `partner` in detect.ts).
+    params: ['from', 'token_in', 'amount_in', 'token_out', 'amount_out_min', 'routes', 'partner'],
+    intent: 'swap',
+    action: 'Swap',
+  },
+  {
+    protocol: 'soroswap',
+    role: 'Aggregator',
+    name: 'swap_exact_out',
+    params: ['from', 'token_in', 'amount_in_max', 'token_out', 'amount_out', 'routes', 'partner'],
     intent: 'swap',
     action: 'Swap',
   },
