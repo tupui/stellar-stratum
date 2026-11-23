@@ -12,7 +12,7 @@ import { Footer } from '@/components/Footer';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
-import { parseTransactionPayload, type TransactionPayload } from '@/lib/sep7';
+import { isRefusal, parseTransactionPayload, type TransactionPayload } from '@/lib/sep7';
 import { verifiedSignerKeys } from '@/lib/signatures';
 import { getInnerTransaction, getTransactionHash, tryParseTransaction } from '@/lib/xdr/parse';
 import { shortAddress } from '@/lib/xdr/describe';
@@ -105,7 +105,9 @@ const AirgapSigner = () => {
       return;
     }
     const payload = parseTransactionPayload(xdrParam);
-    if (payload) {
+    if (isRefusal(payload)) {
+      toast({ title: 'Transaction refused', description: payload.refused, variant: 'destructive' });
+    } else if (payload) {
       loadTransaction({ xdr: payload.xdr, network: payload.network ?? requested });
     } else {
       toast({
@@ -203,7 +205,8 @@ const AirgapSigner = () => {
           disabled={!pasted.trim()}
           onClick={() => {
             const payload = parseTransactionPayload(pasted);
-            if (payload) loadTransaction(payload);
+            if (isRefusal(payload)) toast({ title: 'Transaction refused', description: payload.refused, variant: 'destructive' });
+            else if (payload) loadTransaction(payload);
             else toast({ title: 'Invalid Transaction', description: 'This is not a transaction XDR or SEP-7 URI.', variant: 'destructive' });
           }}
         >

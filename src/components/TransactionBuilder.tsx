@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Send, FileCode, ArrowLeft, ArrowLeftRight, Landmark, Blocks, Coins } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { pullFromRefractor, createHorizonServer, type AccountData } from '@/lib/stellar';
-import { parseTransactionPayload } from '@/lib/sep7';
+import { isRefusal, parseTransactionPayload } from '@/lib/sep7';
 import { tryParseTransaction } from '@/lib/xdr/parse';
 import { XdrDetails } from './XdrDetails';
 import { TransactionSigningPanel } from './transaction/TransactionSigningPanel';
@@ -79,7 +79,13 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
 
   // A new transaction was pasted, scanned or linked: it replaces whatever was being signed.
   const handleXdrInputChange = useCallback((text: string) => {
-    const payload = parseTransactionPayload(text);
+    const parsed = parseTransactionPayload(text);
+    if (isRefusal(parsed)) {
+      setXdrData({ input: text.trim(), output: '' });
+      setXdrInputError(parsed.refused);
+      return;
+    }
+    const payload = parsed;
     const xdr = payload?.xdr ?? text.trim();
     setXdrData({ input: xdr, output: '' });
     if (!xdr) {

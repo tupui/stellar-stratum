@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { QrCode, X } from 'lucide-react';
 import { QRScanner } from '@/components/QRScanner';
-import { parseTransactionPayload, type TransactionPayload } from '@/lib/sep7';
+import { isRefusal, parseTransactionPayload, type TransactionPayload } from '@/lib/sep7';
 import { useToast } from '@/hooks/use-toast';
 
 interface TransactionScannerProps {
@@ -16,6 +16,10 @@ export const TransactionScanner = ({ onTransaction }: TransactionScannerProps) =
 
   const handleQRScan = (data: string) => {
     const payload = parseTransactionPayload(data);
+    if (isRefusal(payload)) {
+      toast({ title: 'Transaction refused', description: payload.refused, variant: 'destructive' });
+      return;
+    }
     if (!payload) {
       toast({
         title: 'Invalid QR Code',

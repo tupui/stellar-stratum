@@ -10,7 +10,7 @@ import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useToast } from '@/hooks/use-toast';
 import { ShareModal } from './ShareModal';
 import { QRScanner } from './QRScanner';
-import { parseTransactionPayload } from '@/lib/sep7';
+import { isRefusal, parseTransactionPayload } from '@/lib/sep7';
 
 interface ImportTabProps {
   xdrInput: string;
@@ -76,6 +76,10 @@ export const ImportTab = ({
   const handleQRScan = (data: string) => {
     const text = data.trim();
     const payload = parseTransactionPayload(text);
+    if (isRefusal(payload)) {
+      toast({ title: "Transaction refused", description: payload.refused, variant: "destructive" });
+      return;
+    }
     if (payload) {
       onXdrInputChange(text);
       toast({ title: "Transaction Imported", description: "Transaction loaded from the QR code", duration: 3000 });
@@ -95,7 +99,7 @@ export const ImportTab = ({
       return;
     }
     toast({
-      title: "Unrecognised QR code",
+      title: "Unrecognized QR code",
       description: "Expected a transaction (SEP-7 or XDR), a share link or a Refractor ID.",
       variant: "destructive",
     });

@@ -16,16 +16,29 @@ describe('SEP-7 transaction URIs', () => {
   });
 
   it('reads the legacy network parameter and the bare stellar: scheme', () => {
-    expect(parseSEP7TxUri(`stellar:tx?xdr=${encodeURIComponent(xdr)}&network=testnet`)?.network).toBe('testnet');
+    expect(parseSEP7TxUri(`stellar:tx?xdr=${encodeURIComponent(xdr)}&network=testnet`)).toEqual({ xdr, network: 'testnet' });
   });
 
   it('restores + signs that URLSearchParams turns into spaces', () => {
-    expect(parseSEP7TxUri(`web+stellar:tx?xdr=${xdr}`)?.xdr).toBe(xdr);
+    expect(parseSEP7TxUri(`web+stellar:tx?xdr=${xdr}`)).toEqual({ xdr, network: 'mainnet' });
   });
 
-  it('refuses networks the app cannot sign for and other operations', () => {
-    expect(parseSEP7TxUri(`web+stellar:tx?xdr=${encodeURIComponent(xdr)}&network_passphrase=Other`)).toBeNull();
+  it('refuses networks the app cannot sign for, and ignores other operations', () => {
+    expect(parseSEP7TxUri(`web+stellar:tx?xdr=${encodeURIComponent(xdr)}&network_passphrase=Other`)).toEqual({
+      refused: 'This request is for a network Stratum does not support.',
+    });
     expect(parseSEP7TxUri(`web+stellar:pay?destination=${Keypair.random().publicKey()}`)).toBeNull();
+  });
+
+  it('refuses a transaction with fields left to fill in', () => {
+    const uri = `web+stellar:tx?xdr=${encodeURIComponent(xdr)}&replace=${encodeURIComponent('sourceAccount:X;X:account to pay from')}`;
+    expect(parseSEP7TxUri(uri)).toHaveProperty('refused', expect.stringMatching(/fill in/));
+    expect(parseTransactionPayload(uri)).toHaveProperty('refused');
+  });
+
+  it('ignores msg, callback, origin_domain and chain', () => {
+    const extra = 'msg=Sign%20now&callback=url%3Ahttps%3A%2F%2Fexample.org&origin_domain=example.org&signature=abc&chain=x';
+    expect(parseSEP7TxUri(`${buildSEP7TxUri(xdr, 'testnet')}&${extra}`)).toEqual({ xdr, network: 'testnet' });
   });
 });
 

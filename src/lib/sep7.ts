@@ -43,20 +43,22 @@ const sep7Url = (uri: string): URL | null => {
 
 /**
  * Parse a SEP-7 `tx` URI (`web+stellar:tx?xdr=…`, also accepting the bare `stellar:` scheme).
- * Returns null for anything else, including other operations such as `pay`.
+ * Returns null for anything else, including other operations such as `pay`, and a refusal for a
+ * network the app cannot sign for or a transaction with fields left to fill in (`replace`).
  */
-export function parseSEP7TxUri(uri: string): TransactionPayload | null {
-  let url: URL;
-  try {
-    url = new URL(uri.trim());
-  } catch {
-    return null;
-  }
-  if ((url.protocol !== 'web+stellar:' && url.protocol !== 'stellar:') || url.pathname !== 'tx') return null;
+export function parseSEP7TxUri(uri: string): TransactionPayload | Refusal | null {
+  const url = sep7Url(uri);
+  if (!url || url.pathname !== 'tx') return null;
 
   // A '+' in unencoded base64 is read back as a space by URLSearchParams; restore it.
   const xdr = url.searchParams.get('xdr')?.replace(/ /g, '+');
   if (!xdr) return null;
+
+  // `replace` marks fields of the transaction as placeholders for the signer to fill in. Signed as
+  // is, the placeholders would be what the network executes.
+  if (url.searchParams.has('replace')) {
+    return { refused: 'This request leaves parts of the transaction for the signer to fill in. Ask for the complete transaction.' };
+  }
 
   const passphrase = url.searchParams.get('network_passphrase');
   // `network=public|testnet` is what earlier versions of this app wrote.
@@ -64,7 +66,7 @@ export function parseSEP7TxUri(uri: string): TransactionPayload | null {
   let network: NetworkId | undefined;
   if (passphrase) {
     network = networkFromPassphrase(passphrase);
-    if (!network) return null; // A network this app cannot sign for.
+    if (!network) return { refused: UNKNOWN_NETWORK };
   } else if (legacy === 'testnet') {
     network = 'testnet';
   } else {
@@ -131,7 +133,7 @@ export function buildSEP7TxUri(xdr: string, network: NetworkId): string {
  * Read a transaction from pasted or scanned text: a SEP-7 URI, or base64 XDR that may be
  * wrapped over several lines or URL-encoded.
  */
-export function parseTransactionPayload(data: string): TransactionPayload | null {
+export function parseTransactionPayload(data: string): TransactionPayload | Refusal | null {
   if (!data || typeof data !== 'string') return null;
   const sep7 = parseSEP7TxUri(data);
   if (sep7) return sep7;

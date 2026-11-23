@@ -57,6 +57,8 @@ flowchart TD
   simulation, or that needs another address to authorize it, is refused.
 - **DeFi**: the transaction returned by the Soroswap or DeFindex API is checked against the request
   (account, contract, amounts, recipient, authorizations) before it can be signed.
+- **Import**: a SEP-7 request that leaves parts of the transaction for the signer to fill in
+  (`replace`) is refused.
 - **Transactions are valid for 24 hours**, so co-signers have time to sign.
 
 ## Review and sign
