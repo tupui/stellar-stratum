@@ -20,6 +20,7 @@ import { AssetIcon } from '../AssetIcon';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { AddressAutocomplete } from '../AddressAutocomplete';
 import { QRScanner } from '../QRScanner';
+import { isRefusal, parseSEP7PayUri } from '@/lib/sep7';
 
 export interface PaymentDraft {
   destination: string;
@@ -74,6 +75,8 @@ const EMPTY_DRAFT: PaymentDraft = { destination: '', amount: '', asset: 'XLM', a
 
 const sameAsset = (codeA: string, issuerA: string | undefined, codeB: string, issuerB: string | undefined) =>
   codeA === codeB && (issuerA || '') === (issuerB || '');
+
+const networkLabel = (network: string) => (network === 'testnet' ? 'Testnet' : 'Mainnet');
 
 const isPathPayment = (p: PaymentDraft) =>
   Boolean(p.receiveAsset) && !sameAsset(p.receiveAsset!, p.receiveAssetIssuer, p.asset, p.assetIssuer);
@@ -417,53 +420,57 @@ export const PaymentForm = ({
       onPaymentDataChange({ ...paymentData, destination: text });
       return;
     }
-    try {
-      const url = new URL(text);
-      const target = url.searchParams.get('destination');
-      if ((url.protocol === 'web+stellar:' || url.protocol === 'stellar:') && url.pathname === 'pay' && target && isValidPaymentDestination(target)) {
-        const code = url.searchParams.get('asset_code');
-        const issuer = url.searchParams.get('asset_issuer') ?? '';
-        const held = code ? availableAssets.find((a) => sameAsset(a.code, a.issuer, code, issuer)) : undefined;
-        const requestedAmount = url.searchParams.get('amount');
-        const amountOk = requestedAmount !== null && isPositiveAmount(requestedAmount);
-        if (code && !held) {
-          // Never carry the requested amount over to another asset (such as XLM).
-          toast({ title: 'Asset not held', description: `This request asks for ${code}, which this account does not hold.`, variant: 'destructive' });
-          onPaymentDataChange({ ...paymentData, destination: target, amount: '' });
-        } else {
-          if (requestedAmount !== null && !amountOk) {
-            toast({ title: 'Amount not applied', description: 'The amount in this request is not a plain number.', variant: 'destructive' });
-          }
-          onPaymentDataChange({
-            ...paymentData,
-            destination: target,
-            amount: amountOk ? requestedAmount.trim() : '',
-            asset: held ? held.code : 'XLM',
-            assetIssuer: held ? held.issuer : '',
-          });
-        }
-        const requestedMemo = url.searchParams.get('memo');
-        if (requestedMemo) {
-          const memoType = url.searchParams.get('memo_type');
-          if (memoType && memoType !== 'MEMO_TEXT' && memoType !== 'MEMO_ID') {
-            toast({ title: 'Memo not applied', description: `${memoType} memos are not supported; enter it manually.`, variant: 'destructive' });
-          } else if (memo.value && memo.value !== requestedMemo) {
-            // The memo usually says whose deposit this is: never replace one silently.
-            toast({
-              title: 'Memo not applied',
-              description: `This request asks for memo "${requestedMemo}", but this transaction already uses "${memo.value}". Send it as a separate transaction.`,
-              variant: 'destructive',
-            });
-          } else {
-            setMemo({ type: memoType === 'MEMO_ID' ? 'id' : 'text', value: requestedMemo });
-          }
-        }
-        return;
-      }
-    } catch {
-      // Not a URL
+    const request = parseSEP7PayUri(text);
+    if (!request) {
+      toast({ title: 'Unrecognized QR code', description: 'Expected a Stellar address or a payment request.', variant: 'destructive' });
+      return;
     }
-    toast({ title: 'Unrecognised QR code', description: 'Expected a Stellar address or a payment request.', variant: 'destructive' });
+    if (isRefusal(request)) {
+      toast({ title: 'Payment request refused', description: request.refused, variant: 'destructive' });
+      return;
+    }
+    if (request.network !== network) {
+      // Never fill in a payment for the other network, and never switch networks from a QR code.
+      toast({
+        title: 'Wrong network',
+        description: `This payment request is for ${networkLabel(request.network)}, and this account is on ${networkLabel(network)}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const { destination, asset, amount } = request;
+    const held = asset ? availableAssets.find((a) => sameAsset(a.code, a.issuer, asset.code, asset.issuer)) : undefined;
+    const amountOk = amount !== undefined && isPositiveAmount(amount);
+    if (asset && !held) {
+      // Never carry the requested amount over to another asset (such as XLM).
+      toast({ title: 'Asset not held', description: `This request asks for ${asset.code}, which this account does not hold.`, variant: 'destructive' });
+      onPaymentDataChange({ ...paymentData, destination, amount: '' });
+    } else {
+      if (amount !== undefined && !amountOk) {
+        toast({ title: 'Amount not applied', description: 'The amount in this request is not a plain number.', variant: 'destructive' });
+      }
+      onPaymentDataChange({
+        ...paymentData,
+        destination,
+        amount: amountOk ? amount : '',
+        asset: held ? held.code : 'XLM',
+        assetIssuer: held ? held.issuer : '',
+      });
+    }
+
+    if (request.memo) {
+      if (memo.value && memo.value !== request.memo.value) {
+        // The memo usually says whose deposit this is: never replace one silently.
+        toast({
+          title: 'Memo not applied',
+          description: `This request asks for memo "${request.memo.value}", but this transaction already uses "${memo.value}". Send it as a separate transaction.`,
+          variant: 'destructive',
+        });
+      } else {
+        setMemo(request.memo);
+      }
+    }
   };
 
   const formError = paymentData.destination || paymentData.amount ? validationError() : null;

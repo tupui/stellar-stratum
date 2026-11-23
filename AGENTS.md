@@ -77,7 +77,7 @@ widths outside `/sign`. A board for one of these is drawn when its code next cha
 | Dashboard | `dash-multisig`, `multisig-confirm` | the multisig tab of `components/AccountOverview.tsx`, `ThresholdInfoTooltip.tsx` | `lib/labels.test.ts` |
 | Dashboard | `dash-endpoints` | `components/HorizonSettingsDialog.tsx`, `lib/horizonSettings.ts` | |
 | Dashboard | `multisig-edit` | `components/MultisigConfigBuilder.tsx` | `lib/multisig.test.ts`, `lib/validation.test.ts` |
-| Build | `build-payment`, `build-payment-filled`, `build-payment-bundled` | `components/TransactionBuilder.tsx`, `components/payment/`, `SwapInterface.tsx`, `AddressAutocomplete.tsx`, `SourceAccountSelector.tsx` | `lib/payments.test.ts`, `lib/validation.test.ts`, `hooks/useAddressBook.test.ts`, `tests/testnet-flows.spec.ts` |
+| Build | `build-payment`, `build-payment-filled`, `build-payment-bundled` | `components/TransactionBuilder.tsx`, `components/payment/`, `SwapInterface.tsx`, `AddressAutocomplete.tsx`, `SourceAccountSelector.tsx` | `lib/payments.test.ts`, `lib/validation.test.ts`, `hooks/useAddressBook.test.ts`, `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |
 | Build | `build-contract`, `build-contract-filled` | `components/contract/`, `lib/contract/` | |
 | Build | `build-defi` | the DeFi tab of `components/TransactionBuilder.tsx`, `components/soroswap/`, `components/defindex/` | `lib/protocols/guards.test.ts`, `lib/protocols/verify.test.ts`, `lib/protocols/onchain.test.ts`, `lib/protocols/tokens.test.ts` |
 | Build | `build-import` | `components/ImportTab.tsx`, `QRScanner.tsx`, `DeepLinkHandler.tsx` | `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |

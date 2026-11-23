@@ -50,7 +50,9 @@ flowchart TD
   in its transaction and without a memo. Unfunded destinations are created, cross-asset payments use Horizon's best
   path within the chosen slippage, and "Merge account" closes the account after emptying its
   trustlines. Everything is checked against the live account when building: trustlines, the minimum
-  reserve, memos required by exchanges.
+  reserve, memos required by exchanges. A scanned payment request (SEP-7 `pay`) fills the form only
+  for the account's network, and only with a text or ID memo; a request without a network is for
+  Mainnet.
 - **Contract call**: any Soroban contract, including Stellar Asset Contracts. A call that fails in
   simulation, or that needs another address to authorize it, is refused.
 - **DeFi**: the transaction returned by the Soroswap or DeFindex API is checked against the request

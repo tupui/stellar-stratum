@@ -4,6 +4,7 @@
  */
 import { Networks } from '@stellar/stellar-sdk';
 import type { NetworkId } from '@/lib/xdr/parse';
+import { isValidPaymentDestination } from '@/lib/validation';
 
 export interface TransactionPayload {
   xdr: string;
@@ -14,10 +15,30 @@ export interface TransactionPayload {
   network?: NetworkId;
 }
 
+/** A SEP-7 URI the app recognizes but will not act on, with the reason to show. */
+export interface Refusal {
+  refused: string;
+}
+
+export const isRefusal = (value: unknown): value is Refusal =>
+  typeof value === 'object' && value !== null && 'refused' in value;
+
+const UNKNOWN_NETWORK = 'This request is for a network Stratum does not support.';
+
 const networkFromPassphrase = (passphrase: string): NetworkId | undefined => {
   if (passphrase === Networks.PUBLIC) return 'mainnet';
   if (passphrase === Networks.TESTNET) return 'testnet';
   return undefined;
+};
+
+/** The URL of a SEP-7 URI (`web+stellar:` or bare `stellar:`), or null for anything else. */
+const sep7Url = (uri: string): URL | null => {
+  try {
+    const url = new URL(uri.trim());
+    return url.protocol === 'web+stellar:' || url.protocol === 'stellar:' ? url : null;
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -50,6 +71,52 @@ export function parseSEP7TxUri(uri: string): TransactionPayload | null {
     network = 'mainnet';
   }
   return { xdr, network };
+}
+
+/** A SEP-7 payment request. Amount and memo are as written in the URI, for the form to check. */
+export interface PayRequest {
+  destination: string;
+  network: NetworkId;
+  amount?: string;
+  /** Absent for XLM. */
+  asset?: { code: string; issuer: string };
+  memo?: { type: 'text' | 'id'; value: string };
+}
+
+/**
+ * Parse a SEP-7 `pay` URI. No network_passphrase means the public network, as for `tx`.
+ * Returns null for anything else, and a refusal for an unknown network, an invalid destination
+ * or a memo the app cannot send (hash and return memos).
+ */
+export function parseSEP7PayUri(uri: string): PayRequest | Refusal | null {
+  const url = sep7Url(uri);
+  if (!url || url.pathname !== 'pay') return null;
+  const params = url.searchParams;
+
+  const passphrase = params.get('network_passphrase');
+  const network = passphrase ? networkFromPassphrase(passphrase) : 'mainnet';
+  if (!network) return { refused: UNKNOWN_NETWORK };
+
+  const destination = params.get('destination')?.trim() ?? '';
+  if (!isValidPaymentDestination(destination)) return { refused: 'This payment request has no valid destination.' };
+
+  const request: PayRequest = { destination, network };
+  const amount = params.get('amount');
+  if (amount !== null) request.amount = amount.trim();
+  const code = params.get('asset_code');
+  const issuer = params.get('asset_issuer') ?? '';
+  if (code && !(code === 'XLM' && !issuer)) request.asset = { code, issuer };
+
+  const memo = params.get('memo');
+  if (memo) {
+    // SEP-7 names MEMO_TEXT and MEMO_ID; Albedo, Sunce and the stellar-uri library write text and id.
+    const memoType = (params.get('memo_type') ?? 'MEMO_TEXT').toUpperCase().replace(/^MEMO_/, '');
+    if (memoType !== 'TEXT' && memoType !== 'ID') {
+      return { refused: `This request needs a ${memoType.toLowerCase()} memo, which Stratum cannot send.` };
+    }
+    request.memo = { type: memoType === 'ID' ? 'id' : 'text', value: memo };
+  }
+  return request;
 }
 
 /** Build a SEP-7 `tx` URI for the given network. */
