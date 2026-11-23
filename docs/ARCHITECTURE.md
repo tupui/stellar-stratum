@@ -29,6 +29,33 @@ in its [manifest](https://consulting-manao.radicle.page/stellar-stratum/.git-pag
 Content Security Policy is sent as a header from [`public/_headers`](../public/_headers), with
 `frame-ancestors 'none'`.
 
+## Air-gapped signing
+
+The online device and the `/sign` page exchange QR codes. Out goes the transaction: a SEP-7 `tx`
+link, which other wallets read too, when it fits a QR code of version 15 or less; otherwise an
+animated QR. Back comes a Signature QR with only the signatures added on `/sign`, or the whole signed
+envelope, which Import loads.
+
+The animated QR is a multipart Uniform Resource (BCR-2020-005, BCR-2024-001), the format of Keystone
+and xBull. Its parts are fountain-coded and carry a CRC-32, so they are read in any order and a missed
+frame costs little. A frame holds 200 bytes, a QR code of version 12 or 13, and changes every 250 ms.
+Two UR types carry the data, as CBOR maps with integer keys that are decoded strictly:
+
+| Type | Fields |
+|---|---|
+| `stellar-envelope` | 1: network ID (SHA-256 of the passphrase), 2: transaction envelope XDR |
+| `stellar-signature-set` | 1: transaction hash, 2: list of DecoratedSignature XDR |
+
+Both are bound to a network, since the network ID and the hash depend on it. The online device adds
+a returned signature only when it verifies for a signer of the transaction and adds weight.
+Keystone's `stellar-sign-request` does not fit `/sign`: it carries what is signed, not the envelope,
+and needs the key path of the device. A hardware QR signer would need its own pairing first.
+
+Measured on testnet: a SAC transfer with three signatures is 812 bytes, a version 28 code when static
+and 5 frames (1.25 s a loop) when animated. 25 payments with three signatures do not fit one code and
+take 9 frames. One signature comes back in a version 9 code. `@ngraveio/bc-ur` 1.1.13 does the UR
+encoding, pinned and wrapped in `src/lib/airgap/ur.ts`.
+
 ## Accounts
 
 Stratum handles two kinds of shared accounts.
@@ -188,8 +215,9 @@ is published, C accounts on mainnet use only rules that lower to stock OpenZeppe
 - Unit tests run in CI on every push: typecheck, lint, Vitest and the build.
 - End-to-end tests run on testnet with Playwright, on throwaway accounts funded by friendbot. Any
   request to a mainnet endpoint fails the test. They cover a payment signed outside the app, the
-  sequence check, a 2-of-2 multisig where one signature is not enough, a Refractor link and the
-  air-gapped signer.
+  sequence check, a 2-of-2 multisig where one signature is not enough, a Refractor link, the
+  air-gapped signer, an animated QR read frame by frame with a Signature QR sent back, and `/sign`
+  reading an animated QR through a camera (a generated video) with the browser offline.
 - New flows come with negative tests: a key outside the quorum is refused, a tampered or outdated policy
   is refused before signing, a member removed after approving no longer counts, an expired entry is
   refused before submission, and a lock-out `setOptions` is refused.

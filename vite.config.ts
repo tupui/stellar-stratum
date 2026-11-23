@@ -31,6 +31,8 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return;
+          // Animated QR codes (Uniform Resources) and what only they use, crc's own buffer copy included.
+          if (/node_modules\/(@ngraveio\/bc-ur|@keystonehq\/alias-sampling|cbor-sync|jsbi|crc)\//.test(id)) return 'qr';
           if (id.includes('@stellar/stellar-sdk') || id.match(/node_modules\/buffer\//)) return 'stellar';
           if (id.includes('stellar-wallets-kit')) return 'wallets';
           if (id.includes('qrcode') || id.includes('jsqr') || id.includes('@zxing')) return 'qr';

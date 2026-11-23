@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SignerSelector } from '@/components/SignerSelector';
 import { SuccessModal } from '@/components/SuccessModal';
+import { AirgapSyncModal, type ReturnedSignatures } from '@/components/airgap/AirgapSyncModal';
+import type { ScanRefusal } from '@/components/QRScanner';
 import { TransactionSubmitter } from './TransactionSubmitter';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import { useSignatureStatus } from '@/hooks/useSignatureStatus';
 import { submitTransaction, submitToRefractor, type AccountData } from '@/lib/stellar';
 import { submitLog } from '@/lib/submitLog';
-import { verifiedSignerKeys } from '@/lib/signatures';
+import { addVerifiedSignatures, verifiedSignerKeys } from '@/lib/signatures';
+import { shortAddress } from '@/lib/xdr/describe';
 import { getInnerTransaction, getTransactionHash, tryParseTransaction, type NetworkId } from '@/lib/xdr/parse';
 
 interface TransactionSigningPanelProps {
@@ -26,7 +29,7 @@ interface TransactionSigningPanelProps {
   onDone: () => void;
 }
 
-type SuccessData = { type: 'network' | 'refractor' | 'offline'; hash: string; xdr?: string };
+type SuccessData = { type: 'network' | 'refractor'; hash: string };
 
 /**
  * Collect signatures on a transaction, then submit it or hand it to the other signers
@@ -49,6 +52,7 @@ export const TransactionSigningPanel = ({
   const [isSubmittingToNetwork, setIsSubmittingToNetwork] = useState(false);
   const [isSubmittingToRefractor, setIsSubmittingToRefractor] = useState(false);
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
+  const [showAirgap, setShowAirgap] = useState(false);
 
   const handleSignWithSigner = async (signerKey: string, walletId: string) => {
     const original = tryParseTransaction(xdr, network);
@@ -132,9 +136,30 @@ export const TransactionSigningPanel = ({
   };
 
   const handleShowOfflineModal = () => {
+    if (tryParseTransaction(xdr, network)) setShowAirgap(true);
+  };
+
+  /** Signatures read back from the air-gapped signer: keep those of this transaction's signers. */
+  const handleReturnedSignatures = ({ hash, signatures }: ReturnedSignatures): ScanRefusal | void => {
     const parsed = tryParseTransaction(xdr, network);
-    if (!parsed) return;
-    setSuccessData({ type: 'offline', hash: getTransactionHash(parsed.tx), xdr });
+    if (!parsed || getTransactionHash(parsed.tx) !== hash) {
+      return { title: 'Not this transaction', description: 'This QR code holds signatures for another transaction or network.' };
+    }
+    if (loading) return { title: 'Signers still loading', description: 'The signers of this transaction are still loading. Scan again in a moment.' };
+    const { added, unmatched } = addVerifiedSignatures(parsed.tx, signatures, signers);
+    if (added.length === 0) {
+      return unmatched > 0
+        ? { title: 'Signature not added', description: 'No signature in this QR code is from a signer of this transaction.' }
+        : { title: 'Already signed', description: 'These signatures are already on the transaction.' };
+    }
+    onXdrChange(parsed.tx.toXDR());
+    setShowAirgap(false);
+    toast({
+      title: added.length === 1 ? 'Signature added' : `${added.length} signatures added`,
+      description:
+        `Signed by ${added.map((key) => shortAddress(key)).join(', ')}` +
+        (unmatched > 0 ? `. ${unmatched} other signature${unmatched === 1 ? ' was' : 's were'} not from a signer and ${unmatched === 1 ? 'was' : 'were'} left out.` : ''),
+    });
   };
 
   return (
@@ -169,12 +194,21 @@ export const TransactionSigningPanel = ({
         onShowOfflineModal={handleShowOfflineModal}
       />
 
+      {showAirgap && xdr && (
+        <AirgapSyncModal
+          mode="request"
+          xdr={xdr}
+          network={network}
+          onSignatures={handleReturnedSignatures}
+          onClose={() => setShowAirgap(false)}
+        />
+      )}
+
       {successData && (
         <SuccessModal
           type={successData.type}
           hash={successData.type === 'refractor' ? undefined : successData.hash}
           refractorId={successData.type === 'refractor' ? successData.hash : undefined}
-          xdr={successData.xdr}
           network={network}
           onClose={() => setSuccessData(null)}
           onNavigateToDashboard={onDone}

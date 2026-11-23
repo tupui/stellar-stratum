@@ -61,8 +61,9 @@ design:stylesheet` builds it into `design-out/uploads/`: upload it, put its url 
 
 Drawn from the commit named on the Main board: the main state of each journey of `USER_FLOWS.md` at 1280 px, and the air-gapped
 signer at 390 px too. Not drawn yet: cross-asset and merge payments, the review warnings (look-alike
-assets, lockout, sequence number), the activity filters, a Refractor link (`?r=`) opening, the QR
-scanner, the wallet list with browser extensions installed, the Soroswap and DeFindex forms (mainnet
+assets, lockout, sequence number), the activity filters, a Refractor link (`?r=`) opening, the
+Signature QR of `/sign` (it needs a wallet there: its board, `airgap-signature-qr-phone`, is drawn by
+hand), the wallet list with browser extensions installed, the Soroswap and DeFindex forms (mainnet
 only; the DeFi board shows the testnet notice), Privacy and Terms (laid out as Impressum), and phone
 widths outside `/sign`. A board for one of these is drawn when its code next changes.
 
@@ -80,10 +81,10 @@ widths outside `/sign`. A board for one of these is drawn when its code next cha
 | Build | `build-payment`, `build-payment-filled`, `build-payment-bundled` | `components/TransactionBuilder.tsx`, `components/payment/`, `SwapInterface.tsx`, `AddressAutocomplete.tsx`, `SourceAccountSelector.tsx` | `lib/payments.test.ts`, `lib/validation.test.ts`, `hooks/useAddressBook.test.ts`, `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |
 | Build | `build-contract`, `build-contract-filled` | `components/contract/`, `lib/contract/` | |
 | Build | `build-defi` | the DeFi tab of `components/TransactionBuilder.tsx`, `components/soroswap/`, `components/defindex/` | `lib/protocols/guards.test.ts`, `lib/protocols/verify.test.ts`, `lib/protocols/onchain.test.ts`, `lib/protocols/tokens.test.ts` |
-| Build | `build-import`, `build-import-scan-refused` | `components/ImportTab.tsx`, `QRScanner.tsx`, `DeepLinkHandler.tsx` | `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |
+| Build | `build-import`, `build-import-scan-refused` | `components/ImportTab.tsx`, `QRScanner.tsx`, `DeepLinkHandler.tsx` | `lib/sep7.test.ts`, `lib/airgap/ur.test.ts`, `tests/testnet-flows.spec.ts` |
 | Review and sign | `review-unsigned`, `review-partly-signed`, `review-ready` | `components/XdrDetails.tsx`, `components/transaction/`, `SignerSelector.tsx` | `lib/xdr/describe.test.ts`, `lib/xdr/interpret.test.ts`, `lib/signatures.test.ts`, `lib/protocols/auth.test.ts`, `lib/protocols/tokens.test.ts`, `lib/protocols/enrich.test.ts`, `lib/labels.test.ts`, `tests/testnet-flows.spec.ts` |
-| Review and sign | `review-airgap-mode`, `review-airgap-qr` | `components/transaction/TransactionSubmitter.tsx`, `SuccessModal.tsx` (offline) | `lib/sep7.test.ts` |
+| Review and sign | `review-airgap-mode`, `review-airgap-qr`, `review-airgap-qr-animated` | `components/transaction/TransactionSubmitter.tsx`, `TransactionSigningPanel.tsx`, `components/airgap/AirgapSyncModal.tsx`, `AirgapQRCode.tsx`, `components/GlassModal.tsx`, `HashField.tsx`, `lib/airgap/` | `lib/airgap/cbor.test.ts`, `lib/airgap/ur.test.ts`, `lib/airgap/payloads.test.ts`, `lib/signatures.test.ts`, `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |
 | Coordinate and submit | `share-sent`, `share-link` | `components/transaction/TransactionSigningPanel.tsx`, `SuccessModal.tsx` (Refractor), `ImportTab.tsx`, `ShareModal.tsx` | `tests/testnet-flows.spec.ts` |
 | Coordinate and submit | `submit-success` | `SuccessModal.tsx` (network), `components/transaction/SubmissionTerminal.tsx` | `tests/testnet-flows.spec.ts` |
-| Air-gapped signer | `airgap-empty`, `airgap-loaded` and their `-phone` boards | `pages/AirgapSigner.tsx`, `components/airgap/TransactionScanner.tsx` | `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |
+| Air-gapped signer | `airgap-empty`, `airgap-scanning`, `airgap-loaded` and their `-phone` boards, `airgap-signature-qr-phone` | `pages/AirgapSigner.tsx`, `components/airgap/`, `QRScanner.tsx` | `lib/airgap/payloads.test.ts`, `lib/signatures.test.ts`, `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts`, `tests/airgap-camera.spec.ts` |
 | Other | `legal-impressum`, `misc-404` | `pages/legal/`, `components/legal.tsx`, `pages/NotFound.tsx` | |

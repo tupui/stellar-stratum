@@ -26,7 +26,23 @@ const cleanBody = () => {
     else i.setAttribute('value', i.value);
   });
   live.querySelectorAll('textarea').forEach((t) => (t.textContent = t.value));
+  // A canvas (the animated QR) is drawn as an image of its current frame.
+  const frames = [...live.querySelectorAll('canvas')].map((c) => {
+    try {
+      return c.toDataURL('image/png');
+    } catch {
+      return '';
+    }
+  });
   const root = live.cloneNode(true) as HTMLElement;
+  root.querySelectorAll('canvas').forEach((canvas, i) => {
+    if (!frames[i]) return;
+    const img = document.createElement('img');
+    img.src = frames[i];
+    img.className = canvas.className;
+    img.alt = canvas.getAttribute('aria-label') ?? '';
+    canvas.replaceWith(img);
+  });
   // The pre-React loader of index.html: its styles are inline there, not in the stylesheet
   root.querySelector('#app-loader')?.remove();
   root.querySelectorAll('script,style,link,noscript,iframe,template,canvas,.sr-only').forEach((n) => n.remove());

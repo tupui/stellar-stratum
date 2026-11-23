@@ -97,7 +97,7 @@ export const ImportTab = ({
     }
     return {
       title: "Unrecognized QR code",
-      description: "Expected a transaction (SEP-7 or XDR), a share link or a Refractor ID.",
+      description: "Expected a transaction (SEP-7, XDR or an animated QR), a share link or a Refractor ID.",
     };
   };
 

@@ -86,6 +86,28 @@ const sep7 = (accounts: Accounts) => {
   return `web+stellar:tx?xdr=${encodeURIComponent(tx.toXDR())}&network_passphrase=${encodeURIComponent(Networks.TESTNET)}`;
 };
 
+/** Ten payments from A to D: too much for one readable QR code, so the app animates it. */
+const batch = (accounts: Accounts) => {
+  const builder = new TransactionBuilder(new Account(accounts.A.publicKey(), '1'), { fee: '1000', networkPassphrase: Networks.TESTNET });
+  for (let i = 0; i < 10; i++) builder.addOperation(Operation.payment({ destination: accounts.D.publicKey(), asset: Asset.native(), amount: '12.5' }));
+  return builder.setTimeout(0).build().toXDR();
+};
+
+/**
+ * The first frames of the animated QR the app would show for this envelope. They are made in the
+ * page, by the app's own modules as the dev server serves them: Node cannot load them as they are.
+ */
+const animatedFrames = (page: Page, base: string, envelope: string, count: number): Promise<string[]> =>
+  page.evaluate(
+    async ({ root, envelope, count }) => {
+      const load = (path: string) => import(/* @vite-ignore */ `${root}/src/lib/airgap/${path}.ts`);
+      const [{ encodeEnvelope }, { createFrameEncoder }, { FRAGMENT_BYTES }] = await Promise.all([load('payloads'), load('ur'), load('qr')]);
+      const encoder = createFrameEncoder(encodeEnvelope(envelope, 'testnet'), FRAGMENT_BYTES);
+      return Array.from({ length: count }, () => encoder.next() as string);
+    },
+    { root: base, envelope, count },
+  );
+
 /** Show a QR code to the open scanner through its image upload: the capture has no real camera. */
 const uploadQr = async (page: Page, text: string) => {
   const buffer = await QRCode.toBuffer(text, { margin: 2, scale: 6 });
@@ -101,6 +123,7 @@ const signerFlow = (phone: boolean): Flow => {
     phone,
     boards: [
       { name: `airgap-empty${suffix}`, page: 'airgap', title: `/sign · empty${label}`, phone },
+      { name: `airgap-scanning${suffix}`, page: 'airgap', title: `/sign · reading an animated QR${label}`, phone, dialog: true },
       { name: `airgap-loaded${suffix}`, page: 'airgap', title: `/sign · loaded${label}`, phone },
     ],
     run: async (ctx) => {
@@ -108,6 +131,13 @@ const signerFlow = (phone: boolean): Flow => {
       await page.goto(`${base}/sign`);
       const input = page.getByPlaceholder('Or paste a transaction XDR / SEP-7 URI');
       await shot(`airgap-empty${suffix}`, () => input.waitFor());
+      await shot(`airgap-scanning${suffix}`, async () => {
+        await page.getByRole('button', { name: 'Start Scanning' }).click();
+        for (const frame of await animatedFrames(page, base, batch(ctx.accounts), 2)) await uploadQr(page, frame);
+        await page.getByText('Receiving transaction').waitFor();
+      });
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
       await shot(`airgap-loaded${suffix}`, async () => {
         await input.fill(sep7(ctx.accounts));
         await page.getByRole('button', { name: 'Load Transaction' }).click();
@@ -277,6 +307,22 @@ export const FLOWS: Flow[] = [
       await shot('submit-success', async () => {
         await page.getByRole('button', { name: 'Send Transaction to Testnet' }).click();
         await page.getByText('Transaction Submitted Successfully').waitFor({ timeout: 90_000 });
+        await page.waitForTimeout(1000);
+      });
+    },
+  },
+  {
+    name: 'airgap-sync',
+    boards: [{ name: 'review-airgap-qr-animated', page: 'review', title: 'Air-gap Sync QR · animated', dialog: true }],
+    run: async (ctx) => {
+      const { page, shot } = ctx;
+      await openBuilder(ctx);
+      await page.getByRole('tab', { name: 'Import' }).click();
+      await page.getByPlaceholder('Paste transaction XDR here...').fill(batch(ctx.accounts));
+      await page.getByText('Air-gapped (Offline)').click();
+      await shot('review-airgap-qr-animated', async () => {
+        await page.getByRole('button', { name: 'Air-gap Sync' }).click();
+        await page.getByText(/parts, read in any order/).waitFor();
         await page.waitForTimeout(1000);
       });
     },

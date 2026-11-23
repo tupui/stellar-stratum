@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Account, Asset, Keypair, MuxedAccount, Networks, Operation, StrKey, TransactionBuilder, hash, type xdr } from '@stellar/stellar-sdk';
-import { computeSignatureStatus, involvedAccounts, operationThresholdLevel, type AccountAuth } from './signatures';
+import { addVerifiedSignatures, computeSignatureStatus, involvedAccounts, operationThresholdLevel, signaturesBy, type AccountAuth } from './signatures';
 
 const A = Keypair.random();
 const B = Keypair.random();
@@ -100,5 +100,36 @@ describe('computeSignatureStatus', () => {
     expect(computeSignatureStatus(feeBump, accounts).ready).toBe(false);
     feeBump.sign(D);
     expect(computeSignatureStatus(feeBump, accounts).ready).toBe(true);
+  });
+});
+
+describe('signatures from another device', () => {
+  const signers = accounts.get(A.publicKey())!.signers;
+
+  it('sends back only the signatures of the keys that signed on this device', () => {
+    const tx = build([pay()]);
+    tx.sign(A, B);
+    expect(signaturesBy(tx, [B.publicKey()]).map((s) => Buffer.from(s.hint.value).toString('hex'))).toEqual([Buffer.from(B.signatureHint()).toString('hex')]);
+  });
+
+  it('adds a signature that verifies for a signer not yet counted', () => {
+    const tx = build([pay()]);
+    tx.sign(A);
+    const elsewhere = reparse(tx);
+    elsewhere.sign(B);
+    expect(addVerifiedSignatures(tx, elsewhere.signatures, signers)).toEqual({ added: [B.publicKey()], unmatched: 0 });
+    expect(tx.signatures).toHaveLength(2);
+  });
+
+  it('keeps out a stranger, a signature for another network and a repeat', () => {
+    const tx = build([pay()]);
+    tx.sign(A);
+    const stranger = reparse(tx);
+    stranger.sign(C);
+    const mainnet = build([pay()], Networks.PUBLIC);
+    mainnet.sign(B);
+    const result = addVerifiedSignatures(tx, [...stranger.signatures, ...mainnet.signatures, ...tx.signatures], signers);
+    expect(result).toEqual({ added: [], unmatched: 2 });
+    expect(tx.signatures).toHaveLength(1);
   });
 });

@@ -7,7 +7,7 @@ import { CheckCircle, Plus, Smartphone } from 'lucide-react';
 import { TransactionScanner } from '@/components/airgap/TransactionScanner';
 import { XdrDetails } from '@/components/XdrDetails';
 import { TransactionSubmitter } from '@/components/transaction/TransactionSubmitter';
-import { SuccessModal } from '@/components/SuccessModal';
+import { AirgapSyncModal } from '@/components/airgap/AirgapSyncModal';
 import { Footer } from '@/components/Footer';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
@@ -334,13 +334,7 @@ const AirgapSigner = () => {
       </div>
 
       {showOfflineModal && parsed && (
-        <SuccessModal
-          type="offline"
-          hash={getTransactionHash(parsed.tx)}
-          xdr={xdr}
-          network={network}
-          onClose={() => setShowOfflineModal(false)}
-        />
+        <AirgapSyncModal mode="response" xdr={xdr} network={network} signedBy={signedBy} onClose={() => setShowOfflineModal(false)} />
       )}
     </div>
   );

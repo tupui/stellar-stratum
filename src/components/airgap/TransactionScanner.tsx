@@ -15,7 +15,7 @@ export const TransactionScanner = ({ onTransaction }: TransactionScannerProps) =
   const handleQRScan = (data: string): ScanRefusal | void => {
     const payload = parseTransactionPayload(data);
     if (isRefusal(payload)) return { title: 'Transaction refused', description: payload.refused };
-    if (!payload) return { title: 'Unrecognized QR code', description: 'Expected a transaction: a SEP-7 QR or XDR.' };
+    if (!payload) return { title: 'Unrecognized QR code', description: 'Expected a transaction: a SEP-7 QR, an animated QR or XDR.' };
     onTransaction(payload);
     setIsScanning(false);
   };

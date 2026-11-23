@@ -100,11 +100,15 @@ flowchart TD
   The transaction pulled must have the hash the link names, so Refractor cannot swap it.
 - **Air-gapped signing** (`/sign`): open the page, then take the device offline before loading a
   transaction. The page sends nothing itself and blocks scripts from reaching the network, but the
-  protection that counts is the device being offline. It reads the network from the SEP-7 QR,
-  shows it, and lets the signer switch it for raw XDR. Large transactions that do not fit one QR
-  code can be copied as XDR instead.
-- A QR code the scanner cannot use (another network, another format) is explained in the scanner,
-  which keeps scanning.
+  protection that counts is the device being offline. It reads the network from the QR code,
+  shows it, and lets the signer switch it for raw XDR.
+- **The QR codes**: a transaction that fits one QR code a phone reads off a screen goes as a SEP-7
+  link; a bigger one (contract calls, batches, many signatures) as an animated QR, whose parts the
+  scanner reads in any order while it shows its progress. `/sign` answers with a Signature QR that
+  holds only the signatures added there; **Scan Signature** in Air-gap Sync adds those that verify
+  for a signer of the transaction. The whole signed transaction can go back too, to load in Import.
+- A QR code the scanner cannot use (another network, another transaction, another format) is
+  explained in the scanner, which keeps scanning.
 
 ## Submit
 

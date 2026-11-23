@@ -6,6 +6,10 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { Asset, Horizon, Keypair, Networks, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
+import jsQR from 'jsqr';
+import QRCode from 'qrcode';
+import { decodeEnvelope, encodeEnvelope, encodeSignatureSet } from '../src/lib/airgap/payloads';
+import { encodeSinglePartUR, URAssembler } from '../src/lib/airgap/ur';
 
 const horizon = new Horizon.Server('https://horizon-testnet.stellar.org');
 const MAINNET_HOSTS = [
@@ -202,6 +206,95 @@ test('air-gapped signer keeps the network of a SEP-7 QR and hashes for it', asyn
 
   await page.goto('/sign');
   await page.getByPlaceholder('Or paste a transaction XDR / SEP-7 URI').fill(uri);
+  await page.getByRole('button', { name: 'Load Transaction' }).click();
+  await expect(page.getByText('Signing for')).toContainText('Testnet');
+  await expect(page.getByText(Buffer.from(tx.hash()).toString('hex')).first()).toBeVisible();
+  expect(blocked).toEqual([]);
+});
+
+/** Read the animated QR on the page frame by frame, as the air-gapped signer's camera would. */
+const readAnimatedQr = async (page: Page) => {
+  const canvas = page.getByRole('img', { name: 'QR code of the transaction' });
+  const assembler = new URAssembler();
+  for (let i = 0; i < 60; i++) {
+    const { width, height, pixels } = await canvas.evaluate((el: HTMLCanvasElement) => {
+      const data = el.getContext('2d')!.getImageData(0, 0, el.width, el.height);
+      return { width: data.width, height: data.height, pixels: Array.from(data.data) };
+    });
+    const code = jsQR(Uint8ClampedArray.from(pixels), width, height);
+    if (code) {
+      const state = assembler.receive(code.data);
+      if (state.status === 'complete') return state.payload;
+      expect(state.status).toBe('collecting');
+    }
+    await page.waitForTimeout(120);
+  }
+  throw new Error('The animated QR never completed');
+};
+
+/** Show a QR code to the scanner through its image upload (the test browser has no camera). */
+const uploadQr = async (page: Page, text: string) => {
+  const buffer = await QRCode.toBuffer(text, { margin: 2, scale: 6 });
+  await page.locator('input[type=file][accept^="image/"]').setInputFiles({ name: 'qr.png', mimeType: 'image/png', buffer });
+};
+
+test('air-gap: an animated QR out, a Signature QR back', async ({ page }) => {
+  const A = Keypair.random();
+  const B = Keypair.random();
+  await Promise.all([fund(A), fund(B)]);
+  // Ten payments do not fit one readable QR code: the app must animate them.
+  const builder = new TransactionBuilder(await horizon.loadAccount(A.publicKey()), { fee: '1000', networkPassphrase: Networks.TESTNET });
+  for (let i = 0; i < 10; i++) builder.addOperation(Operation.payment({ destination: B.publicKey(), asset: Asset.native(), amount: '1' }));
+  const tx = builder.setTimeout(3600).build();
+  const blocked = await guardMainnet(page);
+
+  await openAccount(page, A.publicKey());
+  await page.getByRole('button', { name: /Initiate Multisig Transaction/ }).click();
+  await importXdr(page, tx.toXDR());
+  await expect(page.getByText('Weight: 0/1')).toBeVisible({ timeout: 30_000 });
+  await page.getByText('Air-gapped (Offline)').click();
+  await page.getByRole('button', { name: 'Air-gap Sync' }).click();
+  await expect(page.getByText(/\d parts, read in any order/)).toBeVisible();
+
+  await expect(page.getByText(Buffer.from(tx.hash()).toString('hex')).first()).toBeVisible();
+  // The offline device reads the whole transaction, on testnet, from the frames
+  const received = decodeEnvelope((await readAnimatedQr(page)).cbor);
+  expect(received).toEqual({ xdr: tx.toXDR(), network: 'testnet' });
+
+  // and answers with its signature only. A signature for another transaction is refused first.
+  await page.getByRole('button', { name: 'Scan Signature' }).click();
+  const other = TransactionBuilder.fromXDR(tx.toXDR(), Networks.PUBLIC);
+  other.sign(A);
+  await uploadQr(page, encodeSinglePartUR(encodeSignatureSet({ hash: other.hash(), signatures: other.signatures })));
+  await expect(page.getByText('Not this transaction')).toBeVisible();
+
+  const signed = TransactionBuilder.fromXDR(received.xdr, Networks.TESTNET);
+  signed.sign(A);
+  await uploadQr(page, encodeSinglePartUR(encodeSignatureSet({ hash: signed.hash(), signatures: signed.signatures })));
+  await expect(page.getByText('Signature added').first()).toBeVisible();
+  await expect(page.getByText('Weight: 1/1')).toBeVisible();
+
+  const before = await xlmBalance(B.publicKey());
+  await page.getByRole('button', { name: 'Send Transaction to Testnet' }).click();
+  await expect(page.getByText('Transaction Submitted Successfully')).toBeVisible({ timeout: 90_000 });
+  expect(await xlmBalance(B.publicKey())).toBeCloseTo(before + 10, 5);
+  expect(blocked).toEqual([]);
+});
+
+test('air-gapped signer loads a transaction read from an animated QR', async ({ page }) => {
+  const A = Keypair.random();
+  const builder = new TransactionBuilder(new (await import('@stellar/stellar-sdk')).Account(A.publicKey(), '1'), {
+    fee: '1000',
+    networkPassphrase: Networks.TESTNET,
+  });
+  for (let i = 0; i < 10; i++) builder.addOperation(Operation.bumpSequence({ bumpTo: String(i + 2) }));
+  const tx = builder.setTimeout(0).build();
+  const blocked = await guardMainnet(page);
+  await page.addInitScript(() => localStorage.setItem('stellar-network', 'mainnet'));
+
+  await page.goto('/sign');
+  // What the scanner hands over once every frame is in: the whole transaction as one UR
+  await page.getByPlaceholder('Or paste a transaction XDR / SEP-7 URI').fill(encodeSinglePartUR(encodeEnvelope(tx.toXDR(), 'testnet')));
   await page.getByRole('button', { name: 'Load Transaction' }).click();
   await expect(page.getByText('Signing for')).toContainText('Testnet');
   await expect(page.getByText(Buffer.from(tx.hash()).toString('hex')).first()).toBeVisible();

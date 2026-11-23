@@ -5,6 +5,7 @@
 import { Networks } from '@stellar/stellar-sdk';
 import type { NetworkId } from '@/lib/xdr/parse';
 import { isValidPaymentDestination } from '@/lib/validation';
+import { readUR } from '@/lib/airgap/read';
 
 export interface TransactionPayload {
   xdr: string;
@@ -130,13 +131,23 @@ export function buildSEP7TxUri(xdr: string, network: NetworkId): string {
 }
 
 /**
- * Read a transaction from pasted or scanned text: a SEP-7 URI, or base64 XDR that may be
- * wrapped over several lines or URL-encoded.
+ * Read a transaction from pasted or scanned text: a SEP-7 URI, a `stellar-envelope` UR (what the
+ * scanner makes of an animated QR), or base64 XDR that may be wrapped over several lines or
+ * URL-encoded.
  */
 export function parseTransactionPayload(data: string): TransactionPayload | Refusal | null {
   if (!data || typeof data !== 'string') return null;
   const sep7 = parseSEP7TxUri(data);
   if (sep7) return sep7;
+
+  const ur = readUR(data);
+  if (ur) {
+    if (isRefusal(ur)) return ur;
+    if (ur.kind === 'signatures') {
+      return { refused: 'This QR code holds signatures, not a transaction. Scan it with Scan Signature in Air-gap Sync.' };
+    }
+    return { xdr: ur.xdr, network: ur.network };
+  }
 
   let text = data.replace(/\s+/g, '');
   if (/%[0-9A-Fa-f]{2}/.test(text)) {

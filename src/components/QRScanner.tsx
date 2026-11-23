@@ -6,6 +6,8 @@ import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser'
 import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 import jsQR from 'jsqr';
 import { useToast } from '@/hooks/use-toast';
+import { SIGNATURE_SET_UR_TYPE, ENVELOPE_UR_TYPE } from '@/lib/airgap/payloads';
+import { encodeSinglePartUR, isMultipartUR, URAssembler } from '@/lib/airgap/ur';
 
 /** Why a scanned code was not used. The scanner shows it and keeps scanning. */
 export interface ScanRefusal {
@@ -16,9 +18,15 @@ export interface ScanRefusal {
 interface QRScannerProps {
   isOpen: boolean;
   onClose: () => void;
-  /** The text of the code. Return a refusal to keep the scanner open; return nothing and it closes. */
+  /**
+   * The text of the code. An animated QR arrives once complete, as a single-part UR. Return a
+   * refusal to keep the scanner open; return nothing and it closes.
+   */
   onScan: (data: string) => ScanRefusal | void;
 }
+
+const receiving = (type: string) =>
+  type === ENVELOPE_UR_TYPE ? 'Receiving transaction' : type === SIGNATURE_SET_UR_TYPE ? 'Receiving signatures' : 'Receiving data';
 
 type CameraStatus = 'idle' | 'waiting' | 'scanning' | 'error';
 
@@ -31,7 +39,8 @@ const createReader = () => {
   const hints = new Map<DecodeHintType, unknown>();
   hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
   hints.set(DecodeHintType.TRY_HARDER, true);
-  return new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 75 });
+  // An animated QR changes every 250 ms: read again soon after a success, not after the default 500 ms.
+  return new BrowserMultiFormatReader(hints, { delayBetweenScanAttempts: 75, delayBetweenScanSuccess: 50 });
 };
 
 /** Best effort: a little zoom and continuous focus make small, dense QR codes readable. */
@@ -75,10 +84,14 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceIndex, setDeviceIndex] = useState(0);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [progress, setProgress] = useState<{ type: string; percent: number } | null>(null);
   const [notice, setNotice] = useState<ScanRefusal | null>(null);
   const { toast } = useToast();
+  const assembler = useRef(new URAssembler());
   // The camera reads the same code many times a second: act on each text once.
   const lastText = useRef('');
+  // An animated QR loops: once refused, it is not offered again when it completes again.
+  const refusedText = useRef('');
 
   // The camera must not restart when the parent re-renders with new callbacks.
   const callbacks = useRef({ onScan, onClose });
@@ -88,12 +101,29 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
 
   /** Handle one decoded code. True when the scan is over and the camera can stop. */
   const handle = useCallback((raw: string): boolean => {
-    const text = raw.trim();
+    let text = raw.trim();
     if (!text || text === lastText.current) return false;
     lastText.current = text;
 
+    if (isMultipartUR(text)) {
+      const state = assembler.current.receive(text);
+      if (state.status === 'collecting') {
+        // A notice stays up: the code it explains keeps looping past the camera.
+        setProgress({ type: state.type, percent: state.percent });
+        return false;
+      }
+      setProgress(null);
+      if (state.status === 'failed') {
+        setNotice({ title: 'Animated QR code not read', description: state.reason });
+        return false;
+      }
+      text = encodeSinglePartUR(state.payload);
+      if (text === refusedText.current) return false;
+    }
+
     const refusal = callbacks.current.onScan(text);
     if (refusal) {
+      refusedText.current = text;
       setNotice(refusal);
       return false;
     }
@@ -159,8 +189,11 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       done = true;
       stop();
       setStatus('idle');
-      // The next scan starts from nothing: no notice.
+      // The next scan starts from nothing: no parts of this animated QR, no notice.
+      assembler.current = new URAssembler();
       lastText.current = '';
+      refusedText.current = '';
+      setProgress(null);
       setNotice(null);
     };
   }, [isOpen, deviceIndex, handle, toast]);
@@ -206,7 +239,9 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
                 {status === 'waiting' && (
                   <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">Waiting for camera permission...</div>
                 )}
-                {status === 'scanning' && <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">Scanning...</div>}
+                {status === 'scanning' && (
+                  <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">{progress ? 'Reading animated QR...' : 'Scanning...'}</div>
+                )}
                 {status === 'error' && <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">No camera available</div>}
               </div>
             </div>
@@ -224,6 +259,26 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               </div>
             )}
           </div>
+
+          {progress && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{receiving(progress.type)}</span>
+                <span className="text-muted-foreground">{progress.percent}%</span>
+              </div>
+              <div
+                role="progressbar"
+                aria-label="Animated QR received"
+                aria-valuenow={progress.percent}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                className="h-2 rounded-full bg-muted overflow-hidden"
+              >
+                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress.percent}%` }} />
+              </div>
+              <p className="text-xs text-muted-foreground">Keep the camera on the code. Parts can be read in any order.</p>
+            </div>
+          )}
 
           {notice && (
             <div role="alert" className="flex gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">

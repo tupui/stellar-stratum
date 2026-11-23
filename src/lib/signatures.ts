@@ -147,6 +147,44 @@ export const verifiedSignerKeys = (
   return signed;
 };
 
+/** The signatures in this envelope that verify for one of these keys, as the signing device sends them back. */
+export const signaturesBy = (tx: Transaction | FeeBumpTransaction, keys: string[]): xdr.DecoratedSignature[] => {
+  const hash = tx.hash();
+  const signers = keys.map((key) => ({ key, weight: 1 }));
+  return tx.signatures.filter((sig) => verifiedSignerKeys(hash, [sig], signers).length > 0);
+};
+
+/**
+ * Add signatures that came back from another device. Only one that verifies for a signer and
+ * adds a signer not yet counted is kept: a stranger's signature would only make the
+ * transaction bigger, and the network refuses one that is not needed. Changes `tx` in place.
+ */
+export const addVerifiedSignatures = (
+  tx: Transaction | FeeBumpTransaction,
+  incoming: xdr.DecoratedSignature[],
+  signers: SignerInfo[],
+): { added: string[]; unmatched: number } => {
+  const hash = tx.hash();
+  // Pre-authorized transaction signers need no signature, so they never match one.
+  const keyed = signers.filter((signer) => !signer.key.startsWith('T'));
+  const counted = new Set(verifiedSignerKeys(hash, tx.signatures, keyed));
+  const added: string[] = [];
+  let unmatched = 0;
+  for (const sig of incoming) {
+    const keys = verifiedSignerKeys(hash, [sig], keyed);
+    if (keys.length === 0) {
+      unmatched += 1;
+      continue;
+    }
+    const fresh = keys.filter((key) => !counted.has(key));
+    if (fresh.length === 0) continue;
+    tx.addDecoratedSignature(sig);
+    fresh.forEach((key) => counted.add(key));
+    added.push(...fresh);
+  }
+  return { added, unmatched };
+};
+
 const thresholdFor = (account: AccountAuth, level: ThresholdLevel) =>
   ({ low: account.thresholds.low_threshold, med: account.thresholds.med_threshold, high: account.thresholds.high_threshold })[
     level
