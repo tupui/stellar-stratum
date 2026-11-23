@@ -1,5 +1,6 @@
 import { Address, Asset, Operation, scValToNative, type Transaction, TransactionBuilder, xdr } from '@stellar/stellar-sdk';
 import { appConfig } from '@/lib/appConfig';
+import { SOROSWAP_PROTOCOL_FEE_BPS } from './guards';
 import { passphraseFor, tryParseTransaction } from '@/lib/xdr/parse';
 import { analyzeOperations, fitsSignature, type ActivityDetails, type AnalyzedCall } from './detect';
 import { findKnownVault, PROTOCOL_LABELS, type NetworkId, type ProtocolId } from './registry';
@@ -91,14 +92,6 @@ const CLOCK_SKEW_SECONDS = 300;
 
 const PATH_PAYMENTS = ['pathPaymentStrictSend', 'pathPaymentStrictReceive'];
 
-/**
- * Soroswap's protocol fee, in basis points. The app asks for no fee of its own,
- * but the aggregator always takes this one (its `config` reads `protocol_bps: 10`):
- * out of the amount sold inside the contract on its own routes, and as a payment
- * beside the path payment on SDEX routes. That payment goes to a wallet of the
- * API's choosing, so its size is capped instead.
- */
-export const SOROSWAP_PROTOCOL_FEE_BPS = 10n;
 const BPS = 10_000n;
 
 const amountOf = (raw: string) => BigInt(raw);

@@ -19,13 +19,14 @@ import {
   checkRate,
   RATE_TOLERANCE_BPS,
   slippageFloor,
+  SOROSWAP_PROTOCOL_FEE_BPS,
   type CheckedQuote,
   type RateCheck,
   type SwapRequest,
 } from '@/lib/protocols/guards';
 import { loadAccountSequence, oraclePrice, readSoroswapPool, readTokenDecimals, type PoolState } from '@/lib/protocols/onchain';
 import { ASSUMED_DECIMALS, checkListedToken, formatUnits, parseUnits, SHARE_DECIMALS, shortenAddress } from '@/lib/protocols/tokens';
-import { SOROSWAP_PROTOCOL_FEE_BPS, verifyProtocolTransaction, withExpiry } from '@/lib/protocols/verify';
+import { verifyProtocolTransaction, withExpiry } from '@/lib/protocols/verify';
 import type { AccountData } from '@/lib/stellar';
 import {
   SupportedAssetLists,
@@ -668,6 +669,8 @@ const SwapForm = ({
   // The slippage bound that gets enforced: the app's, from the user's slippage
   const minReceived = quoted && decimalsReady && exactIn ? formatUnits(quoted.bound, outDecimals) : undefined;
   const maxSold = quoted && decimalsReady && !exactIn ? formatUnits(quoted.bound, inDecimals) : undefined;
+  // Routes that carry Soroswap's protocol fee: all but its own router
+  const charged = !!quote && quote.platform !== SupportedPlatforms.ROUTER;
   // Tokens the oracle has no price for: the quoted rate then rests on the API alone
   const unpriced = rate?.status === 'unpriced'
     ? [priceIn ? undefined : selectedIn, priceOut ? undefined : selectedOut].filter((t): t is Token => !!t)
@@ -880,7 +883,7 @@ const SwapForm = ({
             )}
             {maxSold !== undefined && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Maximum sold</span>
+                <span className="text-muted-foreground">Maximum sold{charged ? ', fee included' : ''}</span>
                 <span className="font-mono">{maxSold} {selectedIn ? tokenLabel(selectedIn) : ''}</span>
               </div>
             )}
@@ -888,7 +891,7 @@ const SwapForm = ({
               <span className="text-muted-foreground">Price impact</span>
               <span className="font-mono">{quote.priceImpactPct}%</span>
             </div>
-            {quote.platform !== SupportedPlatforms.ROUTER && (
+            {charged && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Soroswap protocol fee</span>
                 <span className="font-mono">{percent(Number(SOROSWAP_PROTOCOL_FEE_BPS))}</span>

@@ -1,5 +1,5 @@
 import { Decimal } from 'decimal.js';
-import { TradeType, type QuoteResponse } from '@soroswap/sdk';
+import { SupportedPlatforms, TradeType, type QuoteResponse } from '@soroswap/sdk';
 import { apiAmount } from './api';
 
 /**
@@ -9,6 +9,14 @@ import { apiAmount } from './api';
  */
 
 const BPS = 10_000n;
+
+/**
+ * Soroswap's protocol fee, in basis points. The app asks for no fee of its own,
+ * but the aggregator always takes this one (its `config` reads `protocol_bps: 10`):
+ * out of the amount sold inside the contract on its own routes, and as a payment
+ * beside the path payment on SDEX routes.
+ */
+export const SOROSWAP_PROTOCOL_FEE_BPS = 10n;
 
 /**
  * The slippage bound of a swap, from the quoted amount and the user's slippage:
@@ -40,7 +48,10 @@ export interface SwapRequest {
 export interface CheckedQuote {
   amountIn: bigint;
   amountOut: bigint;
-  /** Minimum received (`in`) or maximum sold (`out`), from the user's slippage. */
+  /**
+   * Minimum received (`in`) or maximum sold (`out`), from the user's slippage.
+   * The maximum sold through SDEX includes Soroswap's protocol fee on it.
+   */
   bound: bigint;
 }
 
@@ -63,15 +74,20 @@ export const checkQuote = (quote: QuoteResponse, request: SwapRequest): CheckedQ
   }
   if (amountIn <= 0n || amountOut <= 0n) throw new Error('The Soroswap quote has an empty side. Not building it.');
 
-  const bound = swapBound(request.exact, exactIn ? amountOut : amountIn, request.slippageBps);
+  const slipped = swapBound(request.exact, exactIn ? amountOut : amountIn, request.slippageBps);
   const threshold = apiAmount(quote.otherAmountThreshold);
-  if (exactIn ? threshold < bound : threshold > bound) {
+  if (exactIn ? threshold < slipped : threshold > slipped) {
     const pct = (request.slippageBps / 100).toFixed(2);
     throw new Error(
       `The Soroswap quote's ${exactIn ? 'minimum received' : 'maximum sold'} is worse than your ${pct}% slippage allows. Not building it.`,
     );
   }
-  return { amountIn, amountOut, bound };
+  // Buying through SDEX, the API pays the fee beside a path payment that may already
+  // sell the whole slippage bound, so the most sold is that bound and the fee on it
+  const sdexFee = !exactIn && quote.platform === SupportedPlatforms.SDEX
+    ? (slipped * SOROSWAP_PROTOCOL_FEE_BPS + BPS - 1n) / BPS
+    : 0n;
+  return { amountIn, amountOut, bound: slipped + sdexFee };
 };
 
 /**

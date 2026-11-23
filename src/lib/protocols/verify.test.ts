@@ -659,9 +659,9 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
     expect(check(built, { ...expected, minOut: 233_247_664_101n })).toThrow(/less than the minimum/);
   });
 
-  it('refuses an exact-out SDEX swap whose fee comes on top of the most it may sell', () => {
-    // As /quote/build returned it on mainnet: sendMax is the whole quote plus slippage, fee included,
-    // and the fee payment is added again beside it
+  it('holds an exact-out SDEX swap to a maximum that counts the fee paid beside it', () => {
+    // As /quote/build returned it on mainnet: sendMax is the whole quote plus slippage,
+    // and the fee payment comes on top, so the app's maximum sold includes 0.1% of it
     const built = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
       fee: '200',
       networkPassphrase: Networks.PUBLIC,
@@ -682,9 +682,10 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
       .setTimeout(3600)
       .build()
       .toXDR();
-    const expected: ExpectedCall = { kind: 'swap', exact: 'out', tokenIn: XLM, tokenOut: USDC, amountOut: 10_000_000n, maxIn: 73_912_671n };
-    expect(check(built, expected)).toThrow(/more than the maximum/);
-    expect(check(built, { ...expected, maxIn: 73_986_141n })).not.toThrow();
+    const expected: ExpectedCall = { kind: 'swap', exact: 'out', tokenIn: XLM, tokenOut: USDC, amountOut: 10_000_000n, maxIn: 73_986_584n };
+    expect(check(built, expected)).not.toThrow();
+    // Without the fee, the slippage bound alone is not enough
+    expect(check(built, { ...expected, maxIn: 73_912_671n })).toThrow(/more than the maximum/);
   });
 
   it('still refuses a memo on a payment to another account', () => {

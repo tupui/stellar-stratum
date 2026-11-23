@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TradeType, type QuoteResponse } from '@soroswap/sdk';
+import { SupportedPlatforms, TradeType, type QuoteResponse } from '@soroswap/sdk';
 import { checkQuote, checkRate, RATE_TOLERANCE_BPS, slippageFloor, swapBound, type SwapRequest } from './guards';
 
 const XLM = 'CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA';
@@ -48,6 +48,15 @@ describe('checkQuote', () => {
     // An API bound tighter than the user's is fine; the app's bound is still the one enforced.
     expect(checkQuote(quote({ otherAmountThreshold: '2158000' }), sell).bound).toBe(2_147_305n);
     expect(checkQuote(exactOut('10050000'), buy)).toEqual({ amountIn: 10_000_000n, amountOut: 2_158_096n, bound: 10_050_000n });
+  });
+
+  it('counts the SDEX fee paid beside a purchase in the most it may sell', () => {
+    // 10_050_000 from the slippage, and 0.1% of it, rounded up
+    const sdex = (q: QuoteResponse) => ({ ...q, platform: SupportedPlatforms.SDEX }) as QuoteResponse;
+    expect(checkQuote(sdex(exactOut('10050000')), buy).bound).toBe(10_060_050n);
+    expect(checkQuote({ ...exactOut('10050000'), platform: SupportedPlatforms.AGGREGATOR } as QuoteResponse, buy).bound).toBe(10_050_000n);
+    expect(checkQuote(sdex(quote()), sell).bound).toBe(2_147_305n);
+    expect(() => checkQuote(sdex(exactOut('10050001')), buy)).toThrow(/maximum sold is worse/);
   });
 
   it('refuses an API bound worse than the user’s slippage allows', () => {
