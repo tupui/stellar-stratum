@@ -25,10 +25,11 @@ import {
 } from '@/lib/protocols/guards';
 import { loadAccountSequence, oraclePrice, readSoroswapPool, readTokenDecimals, type PoolState } from '@/lib/protocols/onchain';
 import { ASSUMED_DECIMALS, checkListedToken, formatUnits, parseUnits, SHARE_DECIMALS, shortenAddress } from '@/lib/protocols/tokens';
-import { verifyProtocolTransaction, withExpiry } from '@/lib/protocols/verify';
+import { SOROSWAP_PROTOCOL_FEE_BPS, verifyProtocolTransaction, withExpiry } from '@/lib/protocols/verify';
 import type { AccountData } from '@/lib/stellar';
 import {
   SupportedAssetLists,
+  SupportedPlatforms,
   SupportedProtocols,
   TradeType,
   type AssetInfo,
@@ -521,7 +522,7 @@ const SwapForm = ({
           tradeType: exactIn ? TradeType.EXACT_IN : TradeType.EXACT_OUT,
           protocols,
           slippageBps: slippage,
-          // The app takes no fee, and the pre-signing check refuses a swap that pays one
+          // The app takes no fee of its own; Soroswap's protocol fee still applies on some routes
           feeBps: 0,
         },
         getSoroswapNetwork(network)
@@ -630,7 +631,7 @@ const SwapForm = ({
         network,
         accountPublicKey,
         exactIn
-          ? { kind: 'swap', exact: 'in', tokenIn: assetIn, tokenOut: assetOut, amountIn: request.amount, minOut: bounds.bound }
+          ? { kind: 'swap', exact: 'in', tokenIn: assetIn, tokenOut: assetOut, amountIn: request.amount, minOut: bounds.bound, quotedOut: bounds.amountOut }
           : { kind: 'swap', exact: 'out', tokenIn: assetIn, tokenOut: assetOut, amountOut: request.amount, maxIn: bounds.bound },
         { sequence },
       );
@@ -887,6 +888,12 @@ const SwapForm = ({
               <span className="text-muted-foreground">Price impact</span>
               <span className="font-mono">{quote.priceImpactPct}%</span>
             </div>
+            {quote.platform !== SupportedPlatforms.ROUTER && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Soroswap protocol fee</span>
+                <span className="font-mono">{percent(Number(SOROSWAP_PROTOCOL_FEE_BPS))}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Route</span>
               <span>{quote.routePlan.length} hop{quote.routePlan.length !== 1 ? 's' : ''}</span>

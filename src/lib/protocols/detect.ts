@@ -299,8 +299,21 @@ const SHAPES: Record<string, readonly string[]> = {
   invest: ['scvBool'],
   deadline: ['scvU64', 'scvU32'],
   routes: ['scvVec'],
-  // A partner takes a cut of the output the quote did not show: only a call without one is read.
-  partner: ['scvVoid'],
+  partner: ['scvVoid', 'scvMap'],
+};
+
+/**
+ * Values a positional argument must hold beyond its shape. A partner with a
+ * share takes a cut of the output the quote did not show, so only none, or a
+ * `{ id, bps: 0 }` that merely names who sent the swap, is read.
+ */
+const VALUES: Record<string, (arg: DecodedArg) => boolean> = {
+  partner: ({ type, value }) => {
+    if (type === 'scvVoid') return true;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const { bps, id, ...rest } = value as Record<string, unknown>;
+    return Object.keys(rest).length === 0 && id !== undefined && (bps === 0 || bps === '0');
+  },
 };
 
 /** Exact name, arity and argument shapes — the bar for acting on a match, not just labelling it. */
@@ -308,6 +321,8 @@ export const fitsSignature = (call: ContractCall, sig: FunctionSignature): boole
   if (call.functionName !== sig.name || call.args.length !== sig.params.length) return false;
   return sig.params.every((param, i) => {
     const allowed = SHAPES[param];
+    const holds = VALUES[param];
+    if (holds && !holds(call.args[i])) return false;
     return !allowed || allowed.includes(call.args[i].type);
   });
 };

@@ -17,7 +17,16 @@ import { findKnownVault, PROTOCOL_LABELS, type NetworkId, type ProtocolId } from
  * computed by the app from the user's slippage, never taken from the API.
  */
 export type ExpectedCall =
-  | { kind: 'swap'; exact: 'in'; tokenIn: string; tokenOut: string; amountIn: bigint; minOut: bigint }
+  | {
+      kind: 'swap';
+      exact: 'in';
+      tokenIn: string;
+      tokenOut: string;
+      amountIn: bigint;
+      minOut: bigint;
+      /** The quoted output before slippage: what a fee in the bought token is measured against. */
+      quotedOut: bigint;
+    }
   | { kind: 'swap'; exact: 'out'; tokenIn: string; tokenOut: string; amountOut: bigint; maxIn: bigint }
   | {
       kind: 'add-liquidity';
@@ -81,6 +90,15 @@ const MAX_FEE_STROOPS = 100_000_000n;
 const CLOCK_SKEW_SECONDS = 300;
 
 const PATH_PAYMENTS = ['pathPaymentStrictSend', 'pathPaymentStrictReceive'];
+
+/**
+ * Soroswap's protocol fee, in basis points. The app asks for no fee of its own,
+ * but the aggregator always takes this one: inside the contract on its own
+ * routes, and as a payment beside the path payment on SDEX routes. That payment
+ * goes to a wallet the app cannot pin, so its size is capped instead.
+ */
+export const SOROSWAP_PROTOCOL_FEE_BPS = 10n;
+const BPS = 10_000n;
 
 const amountOf = (raw: string) => BigInt(raw);
 
@@ -217,6 +235,12 @@ const pathPaymentMismatch = (
   network: NetworkId,
   account: string,
   expected: SwapCall,
+  /**
+   * Soroswap's fee in each traded token. In the sold token it is taken out of what
+   * is sold, so the two add up to the request; in the bought token it leaves out of
+   * what is bought, so the swap's bound must still hold once it is paid.
+   */
+  { feeIn, feeOut }: { feeIn: bigint; feeOut: bigint },
 ): string | null => {
   const op = tx.operations[index];
   if (op.type !== 'pathPaymentStrictSend' && op.type !== 'pathPaymentStrictReceive') return 'is not a swap';
@@ -233,8 +257,8 @@ const pathPaymentMismatch = (
     if (contractOf(sendAsset) !== expected.tokenIn || contractOf(destAsset) !== expected.tokenOut) {
       return 'swaps a different pair of tokens';
     }
-    if (BigInt(sendAmount) !== expected.amountIn) return 'sells a different amount';
-    if (BigInt(destMin) < expected.minOut) return 'guarantees less than the minimum you were quoted';
+    if (BigInt(sendAmount) + feeIn !== expected.amountIn) return 'sells a different amount';
+    if (BigInt(destMin) - feeOut < expected.minOut) return 'guarantees less than the minimum you were quoted';
     return null;
   }
   if (body.type === 'pathPaymentStrictReceive') {
@@ -243,8 +267,8 @@ const pathPaymentMismatch = (
     if (contractOf(sendAsset) !== expected.tokenIn || contractOf(destAsset) !== expected.tokenOut) {
       return 'swaps a different pair of tokens';
     }
-    if (BigInt(destAmount) !== expected.amountOut) return 'buys a different amount';
-    if (BigInt(sendMax) > expected.maxIn) return 'may sell more than the maximum you were quoted';
+    if (BigInt(destAmount) - feeOut !== expected.amountOut) return 'buys a different amount';
+    if (BigInt(sendMax) + feeIn > expected.maxIn) return 'may sell more than the maximum you were quoted';
     return null;
   }
   return 'cannot be read';
@@ -265,10 +289,44 @@ const sacOf = (asset: xdr.Asset, network: NetworkId): string | null => {
   }
 };
 
+interface FeePayment {
+  token: string | null;
+  amount: bigint;
+}
+
+/** The fee payment's token and exact amount, or null when it cannot be read. */
+const readFee = (tx: Transaction, index: number, network: NetworkId): FeePayment | null => {
+  const raw = rawOperation(tx, index);
+  if (!raw || raw.body.type !== 'payment') return null;
+  const { asset, amount } = raw.body.paymentOp;
+  return { token: sacOf(asset, network), amount: BigInt(amount) };
+};
+
+/**
+ * Why the fee payment beside an SDEX swap is not Soroswap's protocol fee, or null
+ * when it is: paid in one of the swapped tokens, and at most
+ * SOROSWAP_PROTOCOL_FEE_BPS of what the swap moves of that token at the quote,
+ * fee included. One unit over is let through for the API rounding up.
+ */
+const feeMismatch = (fee: FeePayment | null, expected: SwapCall): string | null => {
+  if (!fee) return 'cannot be read';
+  const { token, amount } = fee;
+  const exactIn = expected.exact === 'in';
+  let base: bigint;
+  if (token === expected.tokenIn) base = exactIn ? expected.amountIn : expected.maxIn;
+  else if (token === expected.tokenOut) base = (exactIn ? expected.quotedOut : expected.amountOut) + amount;
+  else return 'pays a fee in a token the swap does not trade';
+
+  if (amount <= 0n || amount * BPS > base * SOROSWAP_PROTOCOL_FEE_BPS + BPS - 1n) {
+    return `pays a fee above Soroswap's ${Number(SOROSWAP_PROTOCOL_FEE_BPS) / 100}% protocol fee`;
+  }
+  return null;
+};
+
 /**
  * Why a swap routed through SDEX is not the requested one, or null when it is: a
- * single path payment and nothing else. The API adds a payment for Soroswap's fee
- * beside it unless asked for none, and the app takes no fee, so one is refused.
+ * path payment, alone or beside one payment of Soroswap's protocol fee. The app
+ * asks for no fee of its own, so nothing above the protocol fee is let through.
  */
 const sdexMismatch = (
   tx: Transaction,
@@ -282,13 +340,19 @@ const sdexMismatch = (
   const conditions = checkConditions(tx, state, true);
   if (typeof conditions === 'string') return conditions;
   const ops = tx.operations;
-  if (ops.length !== 1) {
-    return ops.length === 2 && ops.some((op) => op.type === 'payment')
-      ? 'pays a fee beside the swap'
-      : `has ${ops.length} operations instead of one swap`;
+  const swap = ops.findIndex((op) => PATH_PAYMENTS.includes(op.type));
+  const feeAt = ops.length === 2 ? 1 - swap : null;
+  if (ops.length > 2 || (feeAt !== null && ops[feeAt].type !== 'payment')) {
+    return `has ${ops.length} operations instead of one swap and its fee`;
   }
-  if (ops[0].source && ops[0].source !== account) return `runs its operation from ${ops[0].source}`;
-  return pathPaymentMismatch(tx, 0, network, account, expected);
+  const foreign = ops.find((op) => op.source && op.source !== account);
+  if (foreign) return `runs its operation from ${foreign.source}`;
+  if (feeAt === null) return pathPaymentMismatch(tx, swap, network, account, expected, { feeIn: 0n, feeOut: 0n });
+
+  const fee = readFee(tx, feeAt, network);
+  const feeIn = fee && fee.token === expected.tokenIn ? fee.amount : 0n;
+  const feeOut = fee && fee.token === expected.tokenOut ? fee.amount : 0n;
+  return feeMismatch(fee, expected) ?? pathPaymentMismatch(tx, swap, network, account, expected, { feeIn, feeOut });
 };
 
 /** Token contract → the most the account may be asked to transfer of it. */

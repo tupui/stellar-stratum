@@ -100,8 +100,8 @@ export const KNOWN_FUNCTIONS: FunctionSignature[] = [
     role: 'Aggregator',
     name: 'swap_exact_in',
     // Per the contract's WASM spec: `(user, token_in, amount_in, token_out, min_out,
-    // routes: Vec<Route>, partner: Option<Partner>)`. A partner takes a cut of the
-    // output, so only a call without one fits (see `partner` in detect.ts).
+    // routes: Vec<Route>, partner: Option<Partner>)`. A partner with a share takes a
+    // cut of the output, so only none or one with bps 0 fits (see `partner` in detect.ts).
     params: ['from', 'token_in', 'amount_in', 'token_out', 'amount_out_min', 'routes', 'partner'],
     intent: 'swap',
     action: 'Swap',

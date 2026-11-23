@@ -137,6 +137,7 @@ const quotedSwap: ExpectedCall = {
   tokenOut: USDC,
   amountIn: 10_000_000n,
   minOut: 2_147_305n,
+  quotedOut: 2_158_095n,
 };
 
 const check = (
@@ -178,8 +179,31 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
     expect(check(routed)).toThrow(/sets to to/);
   });
 
-  it('refuses a filled trailing option (it could redirect or skim the output)', () => {
+  const partner = (entries: [string, xdr.ScVal][]) =>
+    xdr.ScVal.scvMap(entries.map(([key, val]) => new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol(key), val })));
+
+  it('accepts a partner that only names who sent the swap', () => {
+    const named = partner([
+      ['bps', xdr.ScVal.scvU32(0)],
+      ['id', xdr.ScVal.scvString('stratum')],
+    ]);
+    expect(check(swap({ partner: named }))).not.toThrow();
+  });
+
+  it('refuses a partner that takes a share, or any other trailing option (it could redirect or skim the output)', () => {
     expect(check(swap({ partner: address(OTHER) }))).toThrow(/form the app cannot check/);
+    const cut = partner([
+      ['bps', xdr.ScVal.scvU32(1)],
+      ['id', xdr.ScVal.scvString('stratum')],
+    ]);
+    expect(check(swap({ partner: cut }))).toThrow(/form the app cannot check/);
+    const extra = partner([
+      ['bps', xdr.ScVal.scvU32(0)],
+      ['id', xdr.ScVal.scvString('stratum')],
+      ['to', address(OTHER)],
+    ]);
+    expect(check(swap({ partner: extra }))).toThrow(/form the app cannot check/);
+    expect(check(swap({ partner: partner([['bps', xdr.ScVal.scvU32(0)]]) }))).toThrow(/form the app cannot check/);
   });
 
   it('refuses a minimum below the quote', () => {
@@ -498,37 +522,104 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
   const fee = (asset: Asset, amount: string, source?: string) =>
     Operation.payment({ destination: OTHER, asset, amount, source });
 
-  it("refuses Soroswap's fee payment beside the swap, in any token, order or amount", () => {
-    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0006441')] }))).toThrow(/pays a fee beside the swap/);
-    expect(check(strictSend({ sendAmount: '0.997', extraOps: [fee(Asset.native(), '0.0030000')] }))).toThrow(
-      /pays a fee beside the swap/,
-    );
-    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0000001', OTHER)] }))).toThrow(/pays a fee beside the swap/);
+  it("accepts Soroswap's 0.1% protocol fee beside the swap, in either traded token and either order", () => {
+    // 0.1% of the 1 XLM sold, taken out of it; and 0.1% of the quoted USDC, on top of the minimum
+    expect(check(strictSend({ sendAmount: '0.999', extraOps: [fee(Asset.native(), '0.0010000')] }))).not.toThrow();
+    expect(check(strictSend({ destMin: '0.2149466', extraOps: [fee(USDC_ASSET, '0.0002161')] }))).not.toThrow();
     const feeFirst = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
       fee: '200',
       networkPassphrase: Networks.PUBLIC,
     })
-      .addOperation(fee(USDC_ASSET, '0.0006441'))
+      .addOperation(fee(Asset.native(), '0.0010000'))
       .addOperation(
         Operation.pathPaymentStrictSend({
           sendAsset: Asset.native(),
-          sendAmount: '1',
+          sendAmount: '0.999',
           destination: ACCOUNT,
           destAsset: USDC_ASSET,
-          destMin: '0.2153746',
+          destMin: '0.2147305',
           path: [],
         }),
       )
       .setTimeout(3600)
       .build()
       .toXDR();
-    expect(check(feeFirst)).toThrow(/pays a fee beside the swap/);
+    expect(check(feeFirst)).not.toThrow();
+  });
+
+  it('measures a fee in the bought token against the quote, not the slippage minimum', () => {
+    // 0.1% of the quoted 0.2158095 USDC is more than 0.1% of the 0.2147305 minimum
+    expect(check(strictSend({ destMin: '0.2149466', extraOps: [fee(USDC_ASSET, '0.0002161')] }))).not.toThrow();
+    expect(check(strictSend({ destMin: '0.2149467', extraOps: [fee(USDC_ASSET, '0.0002162')] }))).toThrow(
+      /above Soroswap's 0.1% protocol fee/,
+    );
+  });
+
+  it('refuses a fee above the protocol fee, an empty one, or one in another token', () => {
+    expect(check(strictSend({ sendAmount: '0.9989999', extraOps: [fee(Asset.native(), '0.0010001')] }))).toThrow(
+      /above Soroswap's 0.1% protocol fee/,
+    );
+    expect(check(strictSend({ sendAmount: '0.997', extraOps: [fee(Asset.native(), '0.0030000')] }))).toThrow(
+      /above Soroswap's 0.1% protocol fee/,
+    );
+    expect(check(strictSend({ extraOps: [fee(EURC_ASSET, '0.0001')] }))).toThrow(/token the swap does not trade/);
+  });
+
+  it('refuses a fee in the bought token that leaves less than the quoted minimum', () => {
+    expect(check(strictSend({ extraOps: [fee(USDC_ASSET, '0.0002161')] }))).toThrow(/less than the minimum/);
+    expect(check(strictSend({ destMin: '0.2149465', extraOps: [fee(USDC_ASSET, '0.0002161')] }))).toThrow(
+      /less than the minimum/,
+    );
+    const buy = (destAmount: string) =>
+      classic(
+        Operation.pathPaymentStrictReceive({
+          sendAsset: Asset.native(),
+          sendMax: '1.0050000',
+          destination: ACCOUNT,
+          destAsset: USDC_ASSET,
+          destAmount,
+          path: [],
+        }),
+        { extraOps: [fee(USDC_ASSET, '0.0002149')] },
+      );
+    expect(check(buy('0.2149454'), quotedBuy)).not.toThrow();
+    expect(check(buy('0.2147305'), quotedBuy)).toThrow(/buys a different amount/);
+  });
+
+  it('holds an exact-out swap with a fee in the sold token to the maximum, fee included', () => {
+    const buy = (sendMax: string) =>
+      classic(
+        Operation.pathPaymentStrictReceive({
+          sendAsset: Asset.native(),
+          sendMax,
+          destination: ACCOUNT,
+          destAsset: USDC_ASSET,
+          destAmount: '0.2147305',
+          path: [],
+        }),
+        { extraOps: [fee(Asset.native(), '0.0010050')] },
+      );
+    expect(check(buy('1.0039950'), quotedBuy)).not.toThrow();
+    expect(check(buy('1.0039951'), quotedBuy)).toThrow(/more than the maximum/);
+  });
+
+  it('refuses a fee in the sold token that does not come out of the amount sold', () => {
+    expect(check(strictSend({ extraOps: [fee(Asset.native(), '0.0010000')] }))).toThrow(/sells a different amount/);
+    expect(check(strictSend({ sendAmount: '0.99', extraOps: [fee(Asset.native(), '0.0010000')] }))).toThrow(
+      /sells a different amount/,
+    );
+  });
+
+  it('refuses a fee paid from another account, or more than one fee', () => {
+    expect(check(strictSend({ sendAmount: '0.999', extraOps: [fee(Asset.native(), '0.0010000', OTHER)] }))).toThrow(
+      /runs its operation from/,
+    );
     const twice = [fee(USDC_ASSET, '0.0001'), fee(USDC_ASSET, '0.0001')];
     expect(check(strictSend({ extraOps: twice }))).toThrow(/3 operations/);
   });
 
-  it('accepts an SDEX swap in the shape /quote/build returns it without a fee', () => {
-    // The operation names the account as source, and a memo tags the build
+  it('accepts an SDEX swap in the shape /quote/build returns it', () => {
+    // Both operations name the account as source, the fee is 0.1% of the XLM sold, and a memo tags the build
     const built = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
       fee: '18070',
       networkPassphrase: Networks.PUBLIC,
@@ -536,7 +627,7 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
       .addOperation(
         Operation.pathPaymentStrictSend({
           sendAsset: Asset.native(),
-          sendAmount: '140000',
+          sendAmount: '139860',
           destination: ACCOUNT,
           destAsset: USDC_ASSET,
           destMin: '23324.7664100',
@@ -544,6 +635,7 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
           source: ACCOUNT,
         }),
       )
+      .addOperation(Operation.payment({ destination: OTHER, asset: Asset.native(), amount: '140', source: ACCOUNT }))
       .addMemo(Memo.text('SoroswapAggregator-8f9e70b99'))
       .setTimeout(3600)
       .build()
@@ -555,6 +647,7 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
       tokenOut: USDC,
       amountIn: 1_400_000_000_000n,
       minOut: 233_247_664_100n,
+      quotedOut: 234_419_763_000n,
     };
     expect(check(built, expected)).not.toThrow();
     expect(check(built, { ...expected, minOut: 233_247_664_101n })).toThrow(/less than the minimum/);
