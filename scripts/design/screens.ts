@@ -102,7 +102,7 @@ const signerFlow = (phone: boolean): Flow => {
       await shot(`airgap-empty${suffix}`, () => input.waitFor());
       await shot(`airgap-loaded${suffix}`, async () => {
         await input.fill(sep7(ctx.accounts));
-        await page.getByRole('button', { name: 'Load transaction' }).click();
+        await page.getByRole('button', { name: 'Load Transaction' }).click();
         await page.getByText('Signing for').waitFor();
         await page.waitForTimeout(1500);
       });
@@ -123,12 +123,12 @@ export const FLOWS: Flow[] = [
       await page.goto(`${base}/`);
       await shot('connect-landing', () => page.getByText('Made Simple').waitFor());
       await shot('connect-wallets', async () => {
-        await page.getByRole('button', { name: 'Connect wallet' }).click();
+        await page.getByRole('button', { name: 'Connect Wallet' }).click();
         await page.waitForTimeout(2500);
       });
       await shot('connect-manual', () => page.getByRole('button', { name: /address|Watch|manual/i }).first().click());
       await page.goto(`${base}/?address=${Keypair.random().publicKey()}&network=testnet`);
-      await shot('connect-load-failed', () => page.getByText('Failed to load account').waitFor({ timeout: 60_000 }));
+      await shot('connect-load-failed', () => page.getByText('Failed to Load Account').waitFor({ timeout: 60_000 }));
     },
   },
   {
@@ -209,7 +209,7 @@ export const FLOWS: Flow[] = [
       { name: 'review-partly-signed', page: 'review', title: 'Review · 1 of 2' },
       { name: 'review-ready', page: 'review', title: 'Review · weight reached' },
       { name: 'review-airgap-mode', page: 'review', title: 'Air-gapped mode' },
-      { name: 'review-airgap-qr', page: 'review', title: 'Air-gap sync QR', dialog: true },
+      { name: 'review-airgap-qr', page: 'review', title: 'Air-gap Sync QR', dialog: true },
       { name: 'share-sent', page: 'coordinate', title: 'Sent to Refractor', dialog: true },
       { name: 'share-link', page: 'coordinate', title: 'Share link', dialog: true },
       { name: 'submit-success', page: 'coordinate', title: 'Submitted' },
@@ -229,7 +229,7 @@ export const FLOWS: Flow[] = [
         await page.waitForTimeout(500);
       });
       await shot('review-airgap-qr', async () => {
-        await page.getByRole('button', { name: 'Air-gap sync' }).click();
+        await page.getByRole('button', { name: 'Air-gap Sync' }).click();
         await page.waitForTimeout(1500);
       });
       await closeOverlay(page);

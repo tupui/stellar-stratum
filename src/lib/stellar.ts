@@ -234,7 +234,7 @@ const RESULT_CODE_HINTS: Record<string, string> = {
   op_underfunded: 'an account does not hold enough of the asset being sent (keep the minimum XLM reserve in mind)',
   op_low_reserve: 'the operation would leave an account below its minimum XLM reserve',
   op_no_trust: 'the destination has no trustline for the asset',
-  op_not_authorized: 'the issuer has not authorised this trustline',
+  op_not_authorized: 'the issuer has not authorized this trustline',
   op_line_full: 'the destination trustline limit would be exceeded',
   op_no_destination: 'the destination account does not exist; send at least 1 XLM to create it',
   op_under_dest_min: 'the path payment would deliver less than the minimum (the price moved)',

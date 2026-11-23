@@ -332,7 +332,7 @@ const interpretMultisig = (
           detail:
             `The ${THRESHOLD_LABELS[level].name.toLowerCase()} threshold is set to ${threshold}, but the ` +
             `combined weight of every remaining key is only ${totalWeight}. No set of signatures could ever ` +
-            `authorise these operations again.`,
+            `authorize these operations again.`,
         });
       }
     }
@@ -364,7 +364,7 @@ const interpretMultisig = (
         severity: 'critical',
         title: 'No key could sign for this account',
         detail:
-          'Only pre-authorised transaction or hash(x) signers would remain. Once they are used, nobody could sign ' +
+          'Only pre-authorized transaction or hash(x) signers would remain. Once they are used, nobody could sign ' +
           'for the account again.',
       });
     }

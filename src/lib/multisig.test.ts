@@ -56,7 +56,7 @@ describe('validateConfig', () => {
       thresholds: thresholds(1, 1, 1),
     });
     expect(errors.some((e) => e.includes('At least one key'))).toBe(true);
-    expect(warnings.some((w) => w.includes('pre-authorised transaction'))).toBe(true);
+    expect(warnings.some((w) => w.includes('pre-authorized transaction'))).toBe(true);
   });
 
   it('accepts a 2-of-3 without the master key, with a warning', () => {

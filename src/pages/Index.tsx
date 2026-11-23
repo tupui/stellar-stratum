@@ -406,7 +406,7 @@ const Index = memo(() => {
                 <div className="max-w-md w-full rounded-2xl border border-destructive/40 bg-destructive/5 p-6 text-center flex flex-col items-center gap-4">
                   <div className="flex items-center gap-2 text-destructive">
                     <AlertTriangle className="w-5 h-5" />
-                    <h2 className="text-lg font-semibold">Failed to load account</h2>
+                    <h2 className="text-lg font-semibold">Failed to Load Account</h2>
                   </div>
                   <p className="text-sm text-muted-foreground break-words">{accountError}</p>
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">

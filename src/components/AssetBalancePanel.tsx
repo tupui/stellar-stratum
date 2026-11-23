@@ -233,8 +233,8 @@ export const AssetBalancePanel = ({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <DollarSign className="w-5 h-5" />
               Asset Balances
             </CardTitle>
             
@@ -261,7 +261,7 @@ export const AssetBalancePanel = ({
         <div className="mt-4 p-4 bg-primary/5 rounded-lg border border-primary/10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground/80">Total Portfolio Value</p>
+              <p className="text-sm text-muted-foreground/80">Portfolio Value</p>
               <p className="text-2xl font-bold font-amount">
                 {loading ? <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span> : <span className="text-primary">{formatValue(totalValueUSD)}</span>}
               </p>
@@ -354,11 +354,11 @@ export const AssetBalancePanel = ({
           </div>}
 
         {/* Summary */}
-        {visibleAssets.length > 0 && <>
+        {visibleAssets.length > 0 && hideSmallBalances && <>
             <Separator />
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">
-                {hideSmallBalances && <span>Filtering assets (&gt;= $1)</span>}
+                <span>Filtering assets (&gt;= $1)</span>
               </span>
             </div>
           </>}

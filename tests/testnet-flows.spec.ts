@@ -202,7 +202,7 @@ test('air-gapped signer keeps the network of a SEP-7 QR and hashes for it', asyn
 
   await page.goto('/sign');
   await page.getByPlaceholder('Or paste a transaction XDR / SEP-7 URI').fill(uri);
-  await page.getByRole('button', { name: 'Load transaction' }).click();
+  await page.getByRole('button', { name: 'Load Transaction' }).click();
   await expect(page.getByText('Signing for')).toContainText('Testnet');
   await expect(page.getByText(Buffer.from(tx.hash()).toString('hex')).first()).toBeVisible();
   expect(blocked).toEqual([]);

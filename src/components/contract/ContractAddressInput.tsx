@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, RefreshCw, X } from 'lucide-react';
+import { shortAddress } from '@/lib/xdr/describe';
 
 interface ContractAddressInputProps {
   value: string;
@@ -16,7 +17,7 @@ interface ContractAddressInputProps {
   onRemoveRecent: (id: string) => void;
 }
 
-const shorten = (id: string) => (id.length > 14 ? `${id.slice(0, 6)}…${id.slice(-6)}` : id);
+const shorten = shortAddress;
 
 export const ContractAddressInput = ({
   value,

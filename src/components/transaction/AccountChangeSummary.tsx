@@ -32,7 +32,7 @@ const WARNING_STYLE: Record<
 
 /** Hash-based signers are not addresses, so they get a label (by strkey prefix) rather than a truncated key. */
 const KEY_KINDS: Record<string, string> = {
-  T: 'Pre-authorised tx',
+  T: 'Pre-authorized transaction',
   X: 'Hash(x) signer',
   P: 'Signed payload',
 };
@@ -224,7 +224,7 @@ export const AccountChangeSummary = ({ interpretation, network, offlineMode = fa
             <span className="font-semibold tabular-nums">{resultingTotalWeight}</span>.
             {heldKeys.length < resultingSigners.length && (
               <span className="text-muted-foreground">
-                {' '}Pre-authorised and hash(x) signers are listed but not counted: each works once, or for anyone.
+                {' '}Pre-authorized and hash(x) signers are listed but not counted: each works once, or for anyone.
               </span>
             )}
           </p>

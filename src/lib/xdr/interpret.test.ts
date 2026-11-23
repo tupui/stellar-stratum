@@ -48,7 +48,7 @@ describe('interpretTransaction', () => {
     }
   });
 
-  it('warns when a pre-authorised transaction or hash(x) signer takes over', () => {
+  it('warns when a pre-authorized transaction or hash(x) signer takes over', () => {
     const preAuth = hash(Buffer.from('drain'));
     const result = interpretTransaction(
       decoded([

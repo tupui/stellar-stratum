@@ -444,9 +444,9 @@ export const authScopeIssues = (
       issues.add(`Needs an authorization signed separately by ${by}.`);
     }
     if (!entry.rootIsCall) {
-      issues.add('Authorises a different call than the one it makes.');
+      issues.add('Authorizes a different call than the one it makes.');
     } else if (!entry.root.subInvocations.every(isAllowedTransfer)) {
-      issues.add('Also authorises calls or transfers the summary above does not show.');
+      issues.add('Also authorizes calls or transfers the summary above does not show.');
     }
   }
 

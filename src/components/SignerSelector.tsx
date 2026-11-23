@@ -8,6 +8,7 @@ import { Users, CheckCircle, Circle, Plus, ChevronDown, ChevronUp, AlertTriangle
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { THRESHOLD_LABELS } from '@/lib/xdr/interpret';
 import type { SignatureRequirement, SignerInfo } from '@/lib/signatures';
+import { shortAddress } from '@/lib/xdr/describe';
 
 interface SignerSelectorProps {
   /** Signers of every account the transaction involves (weight > 0). */
@@ -20,7 +21,7 @@ interface SignerSelectorProps {
   loading?: boolean;
 }
 
-const truncateKey = (key: string) => `${key.slice(0, 8)}...${key.slice(-8)}`;
+const truncateKey = shortAddress;
 
 export const SignerSelector = ({
   signers,
@@ -111,7 +112,7 @@ export const SignerSelector = ({
                     </div>
                   </div>
                   <Badge variant="outline">
-                    Weight: <span className="font-amount">{signer.weight}</span>
+                    Weight: <span className="font-amount ml-1">{signer.weight}</span>
                   </Badge>
                 </div>
               ))
@@ -188,7 +189,7 @@ export const SignerSelector = ({
                         </div>
                       </div>
                       <Badge variant="outline">
-                        Weight: <span className="font-amount">{signer.weight}</span>
+                        Weight: <span className="font-amount ml-1">{signer.weight}</span>
                       </Badge>
                     </div>
                   ))}

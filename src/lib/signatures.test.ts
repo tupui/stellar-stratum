@@ -79,7 +79,7 @@ describe('computeSignatureStatus', () => {
     expect(status.requirements.some((r) => !r.known)).toBe(true);
   });
 
-  it('supports hash(x) and pre-authorised transaction signers', () => {
+  it('supports hash(x) and pre-authorized transaction signers', () => {
     const preimage = Buffer.from('secret');
     const hashX = StrKey.encodeSha256Hash(hash(preimage));
     const withHashX = new Map([[A.publicKey(), account(A, [[A.publicKey(), 0], [hashX, 1]], [1, 1, 1])]]);

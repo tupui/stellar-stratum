@@ -192,7 +192,7 @@ describe('authorization tree decoding', () => {
 });
 
 describe('verified status follows the authorization scope', () => {
-  it('keeps a swap verified when it only authorises itself and the sold amount', () => {
+  it('keeps a swap verified when it only authorizes itself and the sold amount', () => {
     const [decoded] = analyzeOperations(swapOps([legitTransfer()]), 'mainnet', ACCOUNT);
     expect(decoded.match?.confidence).toBe('verified');
     expect(decoded.authIssues).toEqual([]);
@@ -201,7 +201,7 @@ describe('verified status follows the authorization scope', () => {
   it('drops verified for an extra transfer to another recipient', () => {
     const [decoded] = analyzeOperations(swapOps([legitTransfer(), transfer(XLM, ACCOUNT, OTHER, 1n)]), 'mainnet', ACCOUNT);
     expect(decoded.match?.confidence).toBe('unsafe');
-    expect(decoded.authIssues).toEqual(['Also authorises calls or transfers the summary above does not show.']);
+    expect(decoded.authIssues).toEqual(['Also authorizes calls or transfers the summary above does not show.']);
   });
 
   it('drops verified for a transfer of another token, even nested under a hop', () => {
@@ -219,7 +219,7 @@ describe('verified status follows the authorization scope', () => {
       ACCOUNT,
     );
     expect(rooted.match?.confidence).toBe('unsafe');
-    expect(rooted.authIssues).toContain('Authorises a different call than the one it makes.');
+    expect(rooted.authIssues).toContain('Authorizes a different call than the one it makes.');
 
     const args = swapArgs();
     const [separate] = analyzeOperations(

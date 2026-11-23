@@ -40,7 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="w-5 h-5" />
-                Something went wrong
+                Something Went Wrong
               </CardTitle>
               <CardDescription>
                 An unexpected error occurred. Please refresh the page or try again.

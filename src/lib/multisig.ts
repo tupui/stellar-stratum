@@ -144,7 +144,7 @@ export const validateConfig = (account: string, next: MultisigConfig): { errors:
     }
   }
   if (weighted.some((s) => s.key.startsWith('T'))) {
-    warnings.push('A pre-authorised transaction signer lets that one transaction run without any other signature.');
+    warnings.push('A pre-authorized transaction signer lets that one transaction run without any other signature.');
   }
   if (weighted.some((s) => s.key.startsWith('X'))) {
     warnings.push('A hash(x) signer lets anyone who knows its secret sign, and the secret is public once used.');

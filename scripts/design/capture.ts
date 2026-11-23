@@ -3,6 +3,7 @@
  *
  *   node scripts/design/capture.ts                 every screen
  *   node scripts/design/capture.ts sign dash-balances   only these flows or boards
+ *   node scripts/design/capture.ts --shots         and a screenshot of each, in design-out/shots/
  *
  * Starts the app with Vite, opens it in Chromium with every mainnet host blocked, funds throwaway
  * accounts with friendbot, and walks the flows of `screens.ts`. Each screen is saved, cleaned, as
@@ -52,7 +53,10 @@ const cleanBody = () => {
   };
 };
 
-const only = process.argv.slice(2);
+const args = process.argv.slice(2);
+/** `--shots`: also save a full-page screenshot of each screen, in `design-out/shots/`. */
+const shots = args.includes('--shots');
+const only = args.filter((a) => a !== '--shots');
 const flows = only.length
   ? FLOWS.filter((f) => only.includes(f.name) || f.boards.some((b) => only.includes(b.name)))
   : FLOWS;
@@ -60,6 +64,7 @@ const wanted = (board: string, flow: string) => !only.length || only.includes(bo
 if (!flows.length) throw new Error(`no flow or board named ${only.join(', ')}`);
 
 mkdirSync(OUT, { recursive: true });
+if (shots) mkdirSync('design-out/shots', { recursive: true });
 const heightsFile = `${OUT}/heights.json`;
 const heights: Record<string, number> = existsSync(heightsFile) ? JSON.parse(readFileSync(heightsFile, 'utf8')) : {};
 
@@ -82,10 +87,16 @@ try {
     const shot: Ctx['shot'] = async (name, ready) => {
       try {
         await ready();
+        // The splash of index.html stays at least 1.5 s, then fades
+        await page.waitForFunction(() => {
+          const loader = document.getElementById('app-loader');
+          return !loader || getComputedStyle(loader).visibility === 'hidden';
+        }, null, { timeout: 15_000 });
         if (!wanted(name, flow.name)) return;
         await page.waitForTimeout(600);
         const { html, height } = await page.evaluate(cleanBody);
         writeFileSync(`${OUT}/${name}.html`, html);
+        if (shots) await page.screenshot({ path: `design-out/shots/${name}.png`, fullPage: true });
         heights[name] = height;
         console.log(`captured ${name} (${height} px)`);
       } catch (error) {

@@ -36,7 +36,7 @@ export const ProtocolBadge = ({
         size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs',
         className,
       )}
-      title={unsafe ? 'Signing authorises more than this call shows' : undefined}
+      title={unsafe ? 'Signing authorizes more than this call shows' : undefined}
     >
       <Icon className={cn(size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5', style.accent)} />
       <span className={style.accent}>{PROTOCOL_LABELS[protocol]}</span>
@@ -48,7 +48,7 @@ export const ProtocolBadge = ({
         <ShieldAlert className="w-3 h-3 text-warning" aria-label="Interface matches, address unrecognized" />
       )}
       {unsafe && (
-        <ShieldX className="w-3 h-3 text-destructive" aria-label="Signing authorises more than this call shows" />
+        <ShieldX className="w-3 h-3 text-destructive" aria-label="Signing authorizes more than this call shows" />
       )}
     </span>
   );

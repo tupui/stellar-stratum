@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { updateUrlParams } from '@/lib/urlState';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, FileCode, ArrowLeftRight, Landmark, Blocks, Coins } from 'lucide-react';
+import { Send, FileCode, ArrowLeft, ArrowLeftRight, Landmark, Blocks, Coins } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { pullFromRefractor, createHorizonServer, type AccountData } from '@/lib/stellar';
 import { parseTransactionPayload } from '@/lib/sep7';
@@ -295,12 +295,16 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <Button 
-            onClick={onBack}
-            className="self-start bg-success hover:bg-success/90 text-success-foreground"
-          >
-            {accountPublicKey ? 'Back to Wallet' : 'Connect Wallet'}
-          </Button>
+          {accountPublicKey ? (
+            <Button onClick={onBack} variant="outline" className="self-start gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Wallet
+            </Button>
+          ) : (
+            <Button onClick={onBack} className="self-start bg-success hover:bg-success/90 text-success-foreground">
+              Connect Wallet
+            </Button>
+          )}
           <div className="flex-1 min-w-0">
             <h1 className="text-lg sm:text-xl md:text-2xl font-bold whitespace-nowrap">Transaction Builder</h1>
             <p className="text-muted-foreground text-sm">Create and prepare transactions for multisig</p>

@@ -205,7 +205,7 @@ export const describeOperation = (operation: unknown, network: NetworkId): Opera
     }
     case 'allowTrust': {
       const level = Number(op.authorize);
-      const verb = level === 1 ? 'Authorise' : level === 2 ? 'Authorise (liabilities only)' : 'Revoke authorisation of';
+      const verb = level === 1 ? 'Authorize' : level === 2 ? 'Authorize (liabilities only)' : 'Revoke authorization of';
       summary = `${verb} ${shortAddress(String(op.trustor))} for ${String(op.assetCode)}`;
       addParty('Trustor', op.trustor);
       break;
@@ -213,8 +213,8 @@ export const describeOperation = (operation: unknown, network: NetworkId): Opera
     case 'setTrustLineFlags': {
       const flags = (op.flags ?? {}) as Record<string, boolean | undefined>;
       const names: Record<string, string> = {
-        authorized: 'authorised',
-        authorizedToMaintainLiabilities: 'authorised to keep liabilities',
+        authorized: 'authorized',
+        authorizedToMaintainLiabilities: 'authorized to keep liabilities',
         clawbackEnabled: 'clawback enabled',
       };
       const changes = Object.entries(flags)
@@ -396,7 +396,7 @@ const xlm = (stroops: bigint): string => new Decimal(stroops.toString()).div(1e7
 /** Same ceiling verify.ts applies to API-built transactions. */
 const HIGH_FEE_STROOPS = 100_000_000n;
 
-const time = (seconds: bigint): string => new Date(Number(seconds) * 1000).toLocaleString();
+const time = (seconds: bigint): string => new Date(Number(seconds) * 1000).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 
 const memoView = (memo: Transaction['memo'], notices: Notice[]): MemoView | undefined => {
   if (!memo || memo.type === 'none') return undefined;

@@ -34,6 +34,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { TransactionChart } from './TransactionChart';
 import { useTransactionGrouping } from '@/hooks/useTransactionGrouping';
 import { GroupedTransactionItem } from './GroupedTransactionItem';
+import { shortAddress } from '@/lib/xdr/describe';
 
 interface TransactionHistoryPanelProps {
   accountPublicKey: string;
@@ -116,7 +117,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
     options.push({ code: 'XLM', label: 'XLM' });
     balances.forEach((b) => {
       if (b.asset_type !== 'native' && b.asset_code && b.asset_issuer) {
-        const label = `${b.asset_code} (${b.asset_issuer.slice(0, 4)}...${b.asset_issuer.slice(-4)})`;
+        const label = `${b.asset_code} (${b.asset_issuer.slice(0, 4)}…${b.asset_issuer.slice(-4)})`;
         options.push({ code: b.asset_code, issuer: b.asset_issuer, label });
       }
     });
@@ -335,8 +336,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
 
   const truncateAddress = (address?: string | null) => {
     if (!address || typeof address !== 'string') return '—';
-    if (address.length <= 12) return address;
-    return `${address.slice(0, 6)}...${address.slice(-6)}`;
+    return shortAddress(address);
   };
 
 
@@ -626,7 +626,7 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
               {selectedAsset.code === 'PORTFOLIO' ? (
                 <>
                   <p className="text-sm text-muted-foreground/80">Portfolio Value</p>
-                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">{formatFiat(currentPortfolioFiat)}</p>
+                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">{currentPortfolioFiat > 0 ? formatFiat(currentPortfolioFiat) : 'N/A'}</p>
                 </>
               ) : (
                 <>

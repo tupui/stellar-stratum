@@ -32,6 +32,10 @@ read; the app shows Reflector prices there. The app has one theme, dark.
 - New UI is drawn first, by hand, on the Ideas page, and the owner agrees to it before code is
   written. Once it is built, add its screen to `scripts/design/screens.ts` and draw its board on its
   journey page in place of the old one.
+- Titles, tabs and buttons are in Title Case ("Connect Wallet", "Air-gap Sync"); field labels,
+  descriptions, notices and toasts are in sentence case. The spelling is American ("authorize").
+  Addresses are shortened with `shortAddress` (`GABCDEFG…UVWXYZ12`), operation and signer kinds
+  read through `lib/labels.ts`, never as `set_options` or `ed25519_public_key`.
 - Once the change is committed, write that commit's hash on the Main board and in the readme note.
   To find drift: `git diff --stat <that hash>..HEAD -- src tests`, then the table below.
 - Without the Artifact tool, name the boards that need the change in your summary.
@@ -40,7 +44,8 @@ To redraw boards (everything lands in `design-out/`, which is not committed):
 
 1. `npm run design:capture -- <board or flow> ...` (no name: every screen). It starts the app, funds
    throwaway testnet accounts with friendbot, blocks every mainnet host, walks the flows of
-   `screens.ts` and saves each screen with its height.
+   `screens.ts` and saves each screen with its height. With `--shots` it also saves a screenshot of
+   each in `design-out/shots/`, to look at the screens when auditing them.
 2. Read `project/canvas.json` from the canvas, then
    `npm run design:boards -- --index <that file> <board> ...`. It writes the boards and an updated
    index: sizes and titles change, the owner's placement and everything else is kept.
@@ -54,7 +59,7 @@ A class that is not in the uploaded stylesheet does not render on the canvas. `n
 design:stylesheet` builds it into `design-out/uploads/`: upload it, put its url in `uploads.json` as
 `stylesheet`, and redraw every board so they link it.
 
-Drawn from `cc8563b`: the main state of each journey of `USER_FLOWS.md` at 1280 px, and the air-gapped
+Drawn from the commit named on the Main board: the main state of each journey of `USER_FLOWS.md` at 1280 px, and the air-gapped
 signer at 390 px too. Not drawn yet: cross-asset and merge payments, the review warnings (look-alike
 assets, lockout, sequence number), the activity filters, a Refractor link (`?r=`) opening, the QR
 scanner, the wallet list with browser extensions installed, the Soroswap and DeFindex forms (mainnet
@@ -68,15 +73,15 @@ widths outside `/sign`. A board for one of these is drawn when its code next cha
 | Connect | `connect-wallets`, `connect-manual` | `components/WalletConnect.tsx`, `contexts/WalletKitContext.tsx`, `components/icons/TrezorLogo.tsx` | `lib/validation.test.ts` |
 | Connect | `connect-load-failed` | the account error in `pages/Index.tsx` | |
 | Dashboard | `dash-balances` | `components/AccountOverview.tsx`, `AssetBalancePanel.tsx`, `AssetIcon.tsx`, `contexts/FiatCurrencyContext.tsx` | `lib/reflector.test.ts`, `lib/reflector-client.test.ts` |
-| Dashboard | `dash-activity` | `components/history/` | |
-| Dashboard | `dash-multisig`, `multisig-confirm` | the multisig tab of `components/AccountOverview.tsx`, `ThresholdInfoTooltip.tsx` | |
+| Dashboard | `dash-activity` | `components/history/` | `lib/labels.test.ts` |
+| Dashboard | `dash-multisig`, `multisig-confirm` | the multisig tab of `components/AccountOverview.tsx`, `ThresholdInfoTooltip.tsx` | `lib/labels.test.ts` |
 | Dashboard | `dash-endpoints` | `components/HorizonSettingsDialog.tsx`, `lib/horizonSettings.ts` | |
 | Dashboard | `multisig-edit` | `components/MultisigConfigBuilder.tsx` | `lib/multisig.test.ts`, `lib/validation.test.ts` |
 | Build | `build-payment`, `build-payment-filled`, `build-payment-bundled` | `components/TransactionBuilder.tsx`, `components/payment/`, `SwapInterface.tsx`, `AddressAutocomplete.tsx`, `SourceAccountSelector.tsx` | `lib/payments.test.ts`, `lib/validation.test.ts`, `hooks/useAddressBook.test.ts`, `tests/testnet-flows.spec.ts` |
 | Build | `build-contract`, `build-contract-filled` | `components/contract/`, `lib/contract/` | |
 | Build | `build-defi` | the DeFi tab of `components/TransactionBuilder.tsx`, `components/soroswap/`, `components/defindex/` | `lib/protocols/guards.test.ts`, `lib/protocols/verify.test.ts`, `lib/protocols/onchain.test.ts`, `lib/protocols/tokens.test.ts` |
 | Build | `build-import` | `components/ImportTab.tsx`, `QRScanner.tsx`, `DeepLinkHandler.tsx` | `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |
-| Review and sign | `review-unsigned`, `review-partly-signed`, `review-ready` | `components/XdrDetails.tsx`, `components/transaction/`, `SignerSelector.tsx` | `lib/xdr/describe.test.ts`, `lib/xdr/interpret.test.ts`, `lib/signatures.test.ts`, `lib/protocols/auth.test.ts`, `lib/protocols/tokens.test.ts`, `lib/protocols/enrich.test.ts`, `tests/testnet-flows.spec.ts` |
+| Review and sign | `review-unsigned`, `review-partly-signed`, `review-ready` | `components/XdrDetails.tsx`, `components/transaction/`, `SignerSelector.tsx` | `lib/xdr/describe.test.ts`, `lib/xdr/interpret.test.ts`, `lib/signatures.test.ts`, `lib/protocols/auth.test.ts`, `lib/protocols/tokens.test.ts`, `lib/protocols/enrich.test.ts`, `lib/labels.test.ts`, `tests/testnet-flows.spec.ts` |
 | Review and sign | `review-airgap-mode`, `review-airgap-qr` | `components/transaction/TransactionSubmitter.tsx`, `SuccessModal.tsx` (offline) | `lib/sep7.test.ts` |
 | Coordinate and submit | `share-sent`, `share-link` | `components/transaction/TransactionSigningPanel.tsx`, `SuccessModal.tsx` (Refractor), `ImportTab.tsx`, `ShareModal.tsx` | `tests/testnet-flows.spec.ts` |
 | Coordinate and submit | `submit-success` | `SuccessModal.tsx` (network), `components/transaction/SubmissionTerminal.tsx` | `tests/testnet-flows.spec.ts` |

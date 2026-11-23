@@ -46,7 +46,7 @@ export const TransactionSubmitter = ({
     return (
       <Button className="w-full" size="lg" onClick={onShowOfflineModal}>
         <Send className="w-4 h-4 mr-2" />
-        Air-gap sync
+        Air-gap Sync
       </Button>
     );
   }
@@ -100,7 +100,7 @@ export const TransactionSubmitter = ({
         disabled={isSubmittingToRefractor}
       >
         <Send className="w-4 h-4 mr-2" />
-        {isSubmittingToRefractor ? 'Sending...' : isAirgappedMode ? 'Air-gap sync' : 'Send for Signature'}
+        {isSubmittingToRefractor ? 'Sending...' : isAirgappedMode ? 'Air-gap Sync' : 'Send for Signature'}
       </Button>
       {showTerminal && <SubmissionTerminal active={isSubmittingToNetwork} network={network} onClose={submitLog.clear} />}
     </div>

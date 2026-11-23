@@ -185,7 +185,7 @@ const EntryItem = ({ entry, ...rest }: { entry: AuthEntry } & Omit<NodeProps, 'n
       <span className="min-w-0 break-words">
         {entry.credential === 'source' ? (
           <>
-            Authorised by signing this transaction
+            Authorized by signing this transaction
             {rest.source && (
               <>
                 , as <Address value={rest.source} />
@@ -229,13 +229,13 @@ export const CriticalNotice = ({ title, children }: { title: string; children: R
 export const AuthorizationWarning = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }) => {
   if (call.match && call.authIssues.length) {
     return (
-      <CriticalNotice title="Signing authorises more than this summary shows">
+      <CriticalNotice title="Signing authorizes more than this summary shows">
         <ul className="list-disc pl-4 space-y-0.5">
           {call.authIssues.map((issue) => (
             <li key={issue}>{issue}</li>
           ))}
         </ul>
-        <p>Do not sign unless you expect every call listed under Authorisations.</p>
+        <p>Do not sign unless you expect every call listed under Authorizations.</p>
       </CriticalNotice>
     );
   }
@@ -286,7 +286,7 @@ export const AuthorizationTree = ({ call, meta, network, defaultOpen = false }: 
       <CollapsibleTrigger className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors text-left">
         <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
         <span>
-          Authorisations: {calls} call{calls === 1 ? '' : 's'}
+          Authorizations: {calls} call{calls === 1 ? '' : 's'}
           {moves > 0 && (
             <span className={critical ? 'text-destructive font-medium' : 'text-warning font-medium'}>
               {' '}
@@ -315,7 +315,7 @@ export const InvocationAuthorization = ({ call, network }: { call: AnalyzedCall;
   const meta = useProtocolMetadata(calls, network);
   return (
     <div className="rounded-md border p-3 space-y-3">
-      <p className="text-xs text-muted-foreground">What signing this call authorises</p>
+      <p className="text-xs text-muted-foreground">What signing this call authorizes</p>
       <AuthorizationWarning call={call} meta={meta} />
       {call.auth.length ? (
         <AuthorizationTree call={call} meta={meta} network={network} defaultOpen />

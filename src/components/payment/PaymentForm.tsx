@@ -681,7 +681,7 @@ export const PaymentForm = ({
                 {willCloseAccount && (
                   <div className="text-center">
                     <Button variant="ghost" size="sm" onClick={handleCancelMerge} className="h-8 px-4 text-sm">
-                      Cancel merge
+                      Cancel Merge
                     </Button>
                   </div>
                 )}
@@ -704,7 +704,7 @@ export const PaymentForm = ({
               <div className="flex gap-2">
                 <select
                   aria-label="Memo type"
-                  className="h-10 rounded-md border border-border/60 bg-background px-2 text-xs"
+                  className="h-10 rounded-md border border-border/60 bg-background px-2 text-sm"
                   value={memo.type}
                   onChange={(e) => setMemo({ ...memo, type: e.target.value as TransactionMemo['type'] })}
                 >

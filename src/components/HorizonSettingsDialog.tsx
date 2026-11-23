@@ -67,7 +67,7 @@ export const HorizonSettingsDialog = ({ className }: { className?: string }) => 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Server className="w-4 h-4" />
-            Horizon endpoints · {network === 'testnet' ? 'Testnet' : 'Mainnet'}
+            Horizon Endpoints · {network === 'testnet' ? 'Testnet' : 'Mainnet'}
           </DialogTitle>
           <DialogDescription>
             Account data is read from the first enabled endpoint. Transaction submissions try each enabled endpoint in
@@ -122,7 +122,7 @@ export const HorizonSettingsDialog = ({ className }: { className?: string }) => 
         </div>
 
         <div className="space-y-2 pt-2 border-t">
-          <p className="text-sm font-medium">Add a custom Horizon</p>
+          <p className="text-sm font-medium">Add a Custom Horizon</p>
           <div className="flex gap-2">
             <Input
               value={newUrl}
@@ -148,7 +148,7 @@ export const HorizonSettingsDialog = ({ className }: { className?: string }) => 
 
         <div className="flex justify-end pt-1">
           <Button variant="ghost" size="sm" onClick={() => { horizonSettings.reset(network); setChecks({}); }} className="text-xs">
-            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset to defaults
+            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset to Defaults
           </Button>
         </div>
       </DialogContent>

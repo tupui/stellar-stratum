@@ -16,6 +16,7 @@ import { tryParseTransaction, getInnerTransaction, getTransactionHash } from '@/
 import { baseAccountId } from '@/lib/signatures';
 import { openExternal } from '@/lib/utils';
 import { Operation, StrKey } from '@stellar/stellar-sdk';
+import { operationLabel } from '@/lib/labels';
 
 type SetOptionsOp = Operation & {
   signer?: {
@@ -190,7 +191,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                 <AlertTriangle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
                 <p className="text-sm text-foreground">
                   {foreignOps.length} operation{foreignOps.length > 1 ? 's act' : ' acts'} on another account than the
-                  transaction source (see "Acts on" below). Signing may authorise moving that account's funds.
+                  transaction source (see "Acts on" below). Signing may authorize moving that account's funds.
                 </p>
               </div>
             )}
@@ -252,7 +253,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium">Source Account:</span>
@@ -316,7 +317,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                     return (
                       <div key={index} className="px-3 py-1.5 bg-secondary/30 rounded text-sm space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className="text-xs">{op.type}</Badge>
+                          <Badge variant="outline" className="text-xs">{operationLabel(op.type)}</Badge>
                           <span className="text-xs break-words min-w-0">{view.summary}</span>
                           {foreignSource(op) && (
                             <Badge variant="outline" className="text-xs border-warning/60 text-warning">
@@ -350,7 +351,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                       <div className="flex items-center justify-between">
                         <div className="flex-1 space-y-2 min-w-0">
                           <Badge variant="outline">
-                            {op.type}
+                            {operationLabel(op.type)}
                           </Badge>
                           <p className="text-sm font-medium break-words">{views[index].summary}</p>
                           {foreignSource(op) && (
@@ -371,7 +372,7 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                               (signer?.preAuthTx ? StrKey.encodePreAuthTx(Buffer.from(signer.preAuthTx)) : undefined) ??
                               (signer?.sha256Hash ? StrKey.encodeSha256Hash(Buffer.from(signer.sha256Hash)) : undefined);
                             const signerLabel = signer?.preAuthTx
-                              ? 'Pre-authorised transaction'
+                              ? 'Pre-authorized transaction'
                               : signer?.sha256Hash
                                 ? 'Hash(x) signer'
                                 : signer?.ed25519SignedPayload

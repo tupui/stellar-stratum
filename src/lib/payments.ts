@@ -189,7 +189,7 @@ export async function buildPaymentTransaction(
       throw new Error(`${short(account.accountId())} has no trustline for ${assetName(asset)} (${short(asset.getIssuer())}), so it cannot receive it.`);
     }
     if ('is_authorized' in line && line.is_authorized === false) {
-      throw new Error(`The issuer has not authorised ${short(account.accountId())} to hold ${assetName(asset)}.`);
+      throw new Error(`The issuer has not authorized ${short(account.accountId())} to hold ${assetName(asset)}.`);
     }
     if (amount && new Decimal(line.limit).minus(line.balance).lt(amount)) {
       throw new Error(`${short(account.accountId())} would exceed its ${assetName(asset)} trustline limit.`);

@@ -233,7 +233,7 @@ export const MultisigConfigBuilder = ({
       <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
         <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
         <div className="flex-1">
-          <p className="text-sm font-medium text-red-500 mb-1">Operating</p>
+          <p className="text-sm font-medium text-red-500 mb-1">Lockout risk</p>
           <p className="text-sm text-red-500">
             Changing multisig configuration can lock you out of your account. 
             Ensure thresholds don't exceed available signer weights and that you maintain access to sufficient signers.
@@ -365,7 +365,7 @@ export const MultisigConfigBuilder = ({
                             <Badge variant="outline">Current Account (master key)</Badge>
                           )}
                           {signer.key[0] !== 'G' && (
-                            <Badge variant="outline">{{ T: 'Pre-authorised tx', X: 'Hash(x)', P: 'Signed payload' }[signer.key[0]] ?? 'Signer'}</Badge>
+                            <Badge variant="outline">{{ T: 'Pre-authorized transaction', X: 'Hash(x)', P: 'Signed payload' }[signer.key[0]] ?? 'Signer'}</Badge>
                           )}
                           {signer.isNew && (
                             <Badge variant="outline" className="bg-green-500/20 text-green-700 dark:text-green-300 border-green-500/30">New</Badge>

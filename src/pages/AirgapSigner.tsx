@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { parseTransactionPayload, type TransactionPayload } from '@/lib/sep7';
 import { verifiedSignerKeys } from '@/lib/signatures';
 import { getInnerTransaction, getTransactionHash, tryParseTransaction } from '@/lib/xdr/parse';
+import { shortAddress } from '@/lib/xdr/describe';
 
 const networkName = (network: 'mainnet' | 'testnet') => (network === 'mainnet' ? 'Mainnet' : 'Testnet');
 
@@ -139,7 +140,7 @@ const AirgapSigner = () => {
       setSignedBy((prev) => (prev.includes(address) ? prev : [...prev, address]));
       toast({
         title: 'Transaction Signed',
-        description: `Signature added from ${address.slice(0, 8)}...${address.slice(-8)}`,
+        description: `Signature added from ${shortAddress(address)}`,
       });
     } catch (error) {
       toast({
@@ -206,7 +207,7 @@ const AirgapSigner = () => {
             else toast({ title: 'Invalid Transaction', description: 'This is not a transaction XDR or SEP-7 URI.', variant: 'destructive' });
           }}
         >
-          Load transaction
+          Load Transaction
         </Button>
       </div>
     </div>

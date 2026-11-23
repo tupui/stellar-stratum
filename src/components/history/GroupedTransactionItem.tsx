@@ -21,6 +21,7 @@ import { formatAmount } from '@/lib/balance-utils';
 import { krakenSymbolFor } from '@/lib/kraken';
 import { LoadingPill } from '@/components/ui/loading-pill';
 import { useToast } from '@/hooks/use-toast';
+import { operationLabel } from '@/lib/labels';
 
 interface GroupedTransactionItemProps {
   groupedTx: GroupedTransaction;
@@ -141,7 +142,7 @@ export const GroupedTransactionItem = ({
               <span className="font-medium text-sm">Config change</span>
             )}
             <Badge variant="secondary" className="text-xs shrink-0 hidden sm:inline-flex">
-              {tx.type}
+              {operationLabel(tx.type)}
             </Badge>
           </div>
         </div>
@@ -278,7 +279,7 @@ export const GroupedTransactionItem = ({
                         )}
                         {tx.category !== 'transfer' && tx.category !== 'swap' && (
                           <span className="font-medium">
-                            {tx.type}
+                            {operationLabel(tx.type)}
                           </span>
                         )}
                       </div>

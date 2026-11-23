@@ -24,6 +24,8 @@ import { useToast } from '@/hooks/use-toast';
 
 import type { AccountData } from '@/lib/stellar';
 import { buildAccountUrl, readUrlParam, updateUrlParams } from '@/lib/urlState';
+import { signerTypeLabel } from '@/lib/labels';
+import { shortAddress } from '@/lib/xdr/describe';
 
 const DASHBOARD_TABS = ['balances', 'activity', 'multisig'];
 const initialTabFromUrl = () => {
@@ -53,9 +55,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
   useRefreshOnNewTransaction(multisigConfigXdr ?? '', currentNetwork, onRefreshBalances);
   
   
-  const truncateKey = (key: string) => {
-    return `${key.slice(0, 8)}...${key.slice(-8)}`;
-  };
+  const truncateKey = shortAddress;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -66,7 +66,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
     navigator.clipboard.writeText(buildAccountUrl(accountData.publicKey, currentNetwork));
     toast({
       title: 'Account link copied',
-      description: `Opening it loads ${accountData.publicKey.slice(0, 8)}...${accountData.publicKey.slice(-8)} directly`,
+      description: `Opening it loads ${shortAddress(accountData.publicKey)} directly`,
       duration: 3000,
     });
   };
@@ -267,7 +267,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                       <div className="flex items-center gap-2 whitespace-nowrap text-base sm:text-lg">
-                        <AlertTriangle className="w-6 h-6 text-red-500" />
+                        <Shield className="w-5 h-5" />
                         Operation Thresholds
                       </div>
                       <ThresholdInfoTooltip />
@@ -334,7 +334,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
                                     <p className="font-address text-xs break-all">{signer.key}</p>
                                   </TooltipContent>
                                 </Tooltip>
-                                <p className="text-xs text-muted-foreground capitalize">{signer.type}</p>
+                                <p className="text-xs text-muted-foreground">{signerTypeLabel(signer.type)}</p>
                               </div>
                               <Button
                                 variant="ghost"
@@ -346,7 +346,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
                               </Button>
                             </div>
                             <Badge variant="outline">
-                              Weight: <span className="font-amount">{signer.weight}</span>
+                              Weight: <span className="font-amount ml-1">{signer.weight}</span>
                             </Badge>
                           </div>
                         ))}
@@ -425,7 +425,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
         {multisigConfigXdr && (
           <>
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <h2 className="text-base sm:text-lg font-semibold">Configuration change</h2>
+              <h2 className="text-base sm:text-lg font-semibold">Configuration Change</h2>
               <Button
                 variant="outline"
                 size="sm"

@@ -65,8 +65,8 @@ The review screen shows, before any signature:
   account it acts on when that is not the source; look-alike assets (a "USDC" that is not Circle's,
   a token called "XLM") are flagged;
 - what a configuration change does to signers and thresholds, with lockout warnings, including
-  signers that are not keys (pre-authorised transactions, hash(x));
-- for contract calls, everything the signature authorises, including nested token transfers;
+  signers that are not keys (pre-authorized transactions, hash(x));
+- for contract calls, everything the signature authorizes, including nested token transfers;
 - the fee in XLM, when the transaction can land (time and ledger bounds, minimum sequence number,
   extra signers) and whether its sequence number fits the account;
 - memos with invisible or direction-changing characters made visible;

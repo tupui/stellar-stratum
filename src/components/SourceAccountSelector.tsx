@@ -8,6 +8,7 @@ import { RefreshCw, AlertCircle, User, Copy, Share2, ExternalLink } from 'lucide
 import { accountIdOf, isValidPublicKey } from '@/lib/validation';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { shortAddress } from '@/lib/xdr/describe';
 
 interface SourceAccountSelectorProps {
   sourceAccount: string;
@@ -75,10 +76,7 @@ export const SourceAccountSelector = ({
     }
   };
 
-  const truncateKey = (key: string) => {
-    if (key.length <= 16) return key;
-    return `${key.slice(0, 8)}...${key.slice(-8)}`;
-  };
+  const truncateKey = shortAddress;
 
 
   const isValidAccount = isValidPublicKey(sourceAccount);
