@@ -71,7 +71,8 @@ const heights: Record<string, number> = existsSync(heightsFile) ? JSON.parse(rea
 const server = await createServer({ server: { port: 5191, strictPort: false, forwardConsole: false }, logLevel: 'error' });
 await server.listen();
 const base = server.resolvedUrls!.local[0].replace(/\/$/, '');
-const browser = await chromium.launch();
+// A fake camera, so the QR scanner shows its scanning state instead of a camera error.
+const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
 const failed: string[] = [];
 const blocked = new Set<string>();
 
@@ -80,7 +81,7 @@ try {
   for (const flow of flows) {
     const context = await browser.newContext({
       viewport: flow.phone ? { width: 390, height: 844 } : { width: 1280, height: 900 },
-      permissions: ['clipboard-read', 'clipboard-write'],
+      permissions: ['clipboard-read', 'clipboard-write', 'camera'],
     });
     (await guardMainnet(context)).forEach((h) => blocked.add(h));
     const page = await context.newPage();

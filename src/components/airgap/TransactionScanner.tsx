@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { QrCode, X } from 'lucide-react';
-import { QRScanner } from '@/components/QRScanner';
+import { QRScanner, type ScanRefusal } from '@/components/QRScanner';
 import { isRefusal, parseTransactionPayload, type TransactionPayload } from '@/lib/sep7';
-import { useToast } from '@/hooks/use-toast';
 
 interface TransactionScannerProps {
   onTransaction: (payload: TransactionPayload) => void;
@@ -12,22 +11,11 @@ interface TransactionScannerProps {
 /** Scan a transaction QR code (SEP-7 URI or base64 XDR) with the camera. */
 export const TransactionScanner = ({ onTransaction }: TransactionScannerProps) => {
   const [isScanning, setIsScanning] = useState(false);
-  const { toast } = useToast();
 
-  const handleQRScan = (data: string) => {
+  const handleQRScan = (data: string): ScanRefusal | void => {
     const payload = parseTransactionPayload(data);
-    if (isRefusal(payload)) {
-      toast({ title: 'Transaction refused', description: payload.refused, variant: 'destructive' });
-      return;
-    }
-    if (!payload) {
-      toast({
-        title: 'Invalid QR Code',
-        description: 'Expected a SEP-7 transaction URI or base64 XDR. Got: ' + (data.length > 50 ? data.substring(0, 50) + '...' : data),
-        variant: 'destructive',
-      });
-      return;
-    }
+    if (isRefusal(payload)) return { title: 'Transaction refused', description: payload.refused };
+    if (!payload) return { title: 'Unrecognized QR code', description: 'Expected a transaction: a SEP-7 QR or XDR.' };
     onTransaction(payload);
     setIsScanning(false);
   };

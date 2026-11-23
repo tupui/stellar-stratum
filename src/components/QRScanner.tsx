@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Camera, Upload, X, RotateCcw } from 'lucide-react';
+import { AlertCircle, Camera, Upload, X, RotateCcw } from 'lucide-react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 import jsQR from 'jsqr';
 import { useToast } from '@/hooks/use-toast';
 
+/** Why a scanned code was not used. The scanner shows it and keeps scanning. */
+export interface ScanRefusal {
+  title: string;
+  description: string;
+}
+
 interface QRScannerProps {
   isOpen: boolean;
   onClose: () => void;
-  onScan: (data: string) => void;
+  /** The text of the code. Return a refusal to keep the scanner open; return nothing and it closes. */
+  onScan: (data: string) => ScanRefusal | void;
 }
 
 type CameraStatus = 'idle' | 'waiting' | 'scanning' | 'error';
@@ -68,7 +75,10 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceIndex, setDeviceIndex] = useState(0);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [notice, setNotice] = useState<ScanRefusal | null>(null);
   const { toast } = useToast();
+  // The camera reads the same code many times a second: act on each text once.
+  const lastText = useRef('');
 
   // The camera must not restart when the parent re-renders with new callbacks.
   const callbacks = useRef({ onScan, onClose });
@@ -76,11 +86,21 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     callbacks.current = { onScan, onClose };
   });
 
-  const deliver = useCallback((text: string) => {
-    callbacks.current.onScan(text);
+  /** Handle one decoded code. True when the scan is over and the camera can stop. */
+  const handle = useCallback((raw: string): boolean => {
+    const text = raw.trim();
+    if (!text || text === lastText.current) return false;
+    lastText.current = text;
+
+    const refusal = callbacks.current.onScan(text);
+    if (refusal) {
+      setNotice(refusal);
+      return false;
+    }
+    // No toast of our own: the toaster shows one at a time, and the caller says what the code did.
     callbacks.current.onClose();
-    toast({ title: 'QR Code Scanned', description: 'Successfully scanned QR code' });
-  }, [toast]);
+    return true;
+  }, []);
 
   // One camera session per open dialog (and per selected camera). Every exit path stops the
   // stream, including a close that happens while the permission prompt is still showing.
@@ -112,9 +132,10 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         };
         const started = await createReader().decodeFromConstraints(constraints, videoRef.current!, (result) => {
           if (!result || done) return;
-          done = true;
-          stop();
-          deliver(result.getText());
+          if (handle(result.getText())) {
+            done = true;
+            stop();
+          }
         });
         controls = started;
         if (done) {
@@ -138,8 +159,11 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       done = true;
       stop();
       setStatus('idle');
+      // The next scan starts from nothing: no notice.
+      lastText.current = '';
+      setNotice(null);
     };
-  }, [isOpen, deviceIndex, deliver, toast]);
+  }, [isOpen, deviceIndex, handle, toast]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -151,7 +175,8 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
     fileReader.onload = async () => {
       const text = typeof fileReader.result === 'string' ? await decodeImage(fileReader.result) : null;
       setIsProcessingImage(false);
-      if (text) deliver(text);
+      lastText.current = '';
+      if (text) handle(text);
       else toast({ title: 'Scan Failed', description: 'No valid QR code found in the uploaded image', variant: 'destructive' });
     };
     fileReader.onerror = () => {
@@ -199,6 +224,16 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
               </div>
             )}
           </div>
+
+          {notice && (
+            <div role="alert" className="flex gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />
+              <div className="space-y-1">
+                <p className="font-medium text-destructive">{notice.title}</p>
+                <p className="text-foreground/80">{notice.description}</p>
+              </div>
+            </div>
+          )}
 
           <div className="text-center">
             <p className="text-sm text-muted-foreground mb-2">Or upload an image containing a QR code</p>

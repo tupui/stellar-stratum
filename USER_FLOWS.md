@@ -103,6 +103,8 @@ flowchart TD
   protection that counts is the device being offline. It reads the network from the SEP-7 QR,
   shows it, and lets the signer switch it for raw XDR. Large transactions that do not fit one QR
   code can be copied as XDR instead.
+- A QR code the scanner cannot use (another network, another format) is explained in the scanner,
+  which keeps scanning.
 
 ## Submit
 

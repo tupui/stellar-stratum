@@ -19,7 +19,7 @@ import { SwapInterface } from '../SwapInterface';
 import { AssetIcon } from '../AssetIcon';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { AddressAutocomplete } from '../AddressAutocomplete';
-import { QRScanner } from '../QRScanner';
+import { QRScanner, type ScanRefusal } from '../QRScanner';
 import { isRefusal, parseSEP7PayUri } from '@/lib/sep7';
 
 export interface PaymentDraft {
@@ -414,29 +414,21 @@ export const PaymentForm = ({
   };
 
   /** SEP-7 payment request (web+stellar:pay) or a plain address. */
-  const handleQRScan = (data: string) => {
+  const handleQRScan = (data: string): ScanRefusal | void => {
     const text = data.trim();
     if (isValidPaymentDestination(text)) {
       onPaymentDataChange({ ...paymentData, destination: text });
       return;
     }
     const request = parseSEP7PayUri(text);
-    if (!request) {
-      toast({ title: 'Unrecognized QR code', description: 'Expected a Stellar address or a payment request.', variant: 'destructive' });
-      return;
-    }
-    if (isRefusal(request)) {
-      toast({ title: 'Payment request refused', description: request.refused, variant: 'destructive' });
-      return;
-    }
+    if (!request) return { title: 'Unrecognized QR code', description: 'Expected a Stellar address or a payment request.' };
+    if (isRefusal(request)) return { title: 'Payment request refused', description: request.refused };
     if (request.network !== network) {
       // Never fill in a payment for the other network, and never switch networks from a QR code.
-      toast({
+      return {
         title: 'Wrong network',
         description: `This payment request is for ${networkLabel(request.network)}, and this account is on ${networkLabel(network)}.`,
-        variant: 'destructive',
-      });
-      return;
+      };
     }
 
     const { destination, asset, amount } = request;

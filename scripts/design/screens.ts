@@ -4,6 +4,7 @@
  */
 import type { Page } from '@playwright/test';
 import { Account, Asset, Keypair, Networks, Operation, TransactionBuilder } from '@stellar/stellar-sdk';
+import QRCode from 'qrcode';
 import { sign, type Accounts } from './testnet.ts';
 
 export type Board = {
@@ -83,6 +84,13 @@ const sep7 = (accounts: Accounts) => {
     .setTimeout(0)
     .build();
   return `web+stellar:tx?xdr=${encodeURIComponent(tx.toXDR())}&network_passphrase=${encodeURIComponent(Networks.TESTNET)}`;
+};
+
+/** Show a QR code to the open scanner through its image upload: the capture has no real camera. */
+const uploadQr = async (page: Page, text: string) => {
+  const buffer = await QRCode.toBuffer(text, { margin: 2, scale: 6 });
+  await page.locator('input[type=file][accept^="image/"]').setInputFiles({ name: 'qr.png', mimeType: 'image/png', buffer });
+  await page.waitForTimeout(500);
 };
 
 const signerFlow = (phone: boolean): Flow => {
@@ -178,6 +186,7 @@ export const FLOWS: Flow[] = [
       { name: 'build-contract-filled', page: 'build', title: 'Contract · loaded' },
       { name: 'build-defi', page: 'build', title: 'DeFi' },
       { name: 'build-import', page: 'build', title: 'Import' },
+      { name: 'build-import-scan-refused', page: 'build', title: 'Import · QR code not used', dialog: true },
     ],
     run: async (ctx) => {
       const { page, shot } = ctx;
@@ -193,6 +202,13 @@ export const FLOWS: Flow[] = [
         await page.waitForTimeout(1500);
       });
       await shot('build-import', () => page.getByRole('tab', { name: 'Import' }).click());
+      await shot('build-import-scan-refused', async () => {
+        await page.getByPlaceholder('Enter Refractor transaction ID').locator('xpath=following-sibling::button[1]').click();
+        await uploadQr(page, 'Hello from another app');
+        await page.getByText('Unrecognized QR code').waitFor();
+      });
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
       await shot('build-contract', () => page.getByRole('tab', { name: 'Contract' }).click());
       await shot('build-contract-filled', async () => {
         await page.getByPlaceholder('C…').fill(Asset.native().contractId(Networks.TESTNET));

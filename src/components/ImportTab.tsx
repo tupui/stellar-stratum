@@ -9,7 +9,7 @@ import { Download, Upload, Copy, CheckCircle, Share2, QrCode, FileCode } from 'l
 import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useToast } from '@/hooks/use-toast';
 import { ShareModal } from './ShareModal';
-import { QRScanner } from './QRScanner';
+import { QRScanner, type ScanRefusal } from './QRScanner';
 import { isRefusal, parseTransactionPayload } from '@/lib/sep7';
 
 interface ImportTabProps {
@@ -73,13 +73,10 @@ export const ImportTab = ({
 
   // Transactions arrive as SEP-7 URIs (including this app's air-gap QR) or raw XDR; share links
   // and Refractor IDs point at a transaction stored on Refractor.
-  const handleQRScan = (data: string) => {
+  const handleQRScan = (data: string): ScanRefusal | void => {
     const text = data.trim();
     const payload = parseTransactionPayload(text);
-    if (isRefusal(payload)) {
-      toast({ title: "Transaction refused", description: payload.refused, variant: "destructive" });
-      return;
-    }
+    if (isRefusal(payload)) return { title: "Transaction refused", description: payload.refused };
     if (payload) {
       onXdrInputChange(text);
       toast({ title: "Transaction Imported", description: "Transaction loaded from the QR code", duration: 3000 });
@@ -98,11 +95,10 @@ export const ImportTab = ({
       setRefractorId(text);
       return;
     }
-    toast({
+    return {
       title: "Unrecognized QR code",
       description: "Expected a transaction (SEP-7 or XDR), a share link or a Refractor ID.",
-      variant: "destructive",
-    });
+    };
   };
 
   const openRefractor = () => {
