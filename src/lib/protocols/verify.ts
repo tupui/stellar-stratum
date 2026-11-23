@@ -93,9 +93,10 @@ const PATH_PAYMENTS = ['pathPaymentStrictSend', 'pathPaymentStrictReceive'];
 
 /**
  * Soroswap's protocol fee, in basis points. The app asks for no fee of its own,
- * but the aggregator always takes this one: inside the contract on its own
- * routes, and as a payment beside the path payment on SDEX routes. That payment
- * goes to a wallet the app cannot pin, so its size is capped instead.
+ * but the aggregator always takes this one (its `config` reads `protocol_bps: 10`):
+ * out of the amount sold inside the contract on its own routes, and as a payment
+ * beside the path payment on SDEX routes. That payment goes to a wallet of the
+ * API's choosing, so its size is capped instead.
  */
 export const SOROSWAP_PROTOCOL_FEE_BPS = 10n;
 const BPS = 10_000n;

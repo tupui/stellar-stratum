@@ -182,10 +182,11 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
   const partner = (entries: [string, xdr.ScVal][]) =>
     xdr.ScVal.scvMap(entries.map(([key, val]) => new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol(key), val })));
 
+  // As the API builds it since the aggregator's November release: `Partner { bps: u32, id: Symbol }`
   it('accepts a partner that only names who sent the swap', () => {
     const named = partner([
       ['bps', xdr.ScVal.scvU32(0)],
-      ['id', xdr.ScVal.scvString('stratum')],
+      ['id', xdr.ScVal.scvSymbol('8f9e70b99')],
     ]);
     expect(check(swap({ partner: named }))).not.toThrow();
   });
@@ -194,16 +195,21 @@ describe('verifyProtocolTransaction — Soroswap swap', () => {
     expect(check(swap({ partner: address(OTHER) }))).toThrow(/form the app cannot check/);
     const cut = partner([
       ['bps', xdr.ScVal.scvU32(1)],
-      ['id', xdr.ScVal.scvString('stratum')],
+      ['id', xdr.ScVal.scvSymbol('8f9e70b99')],
     ]);
     expect(check(swap({ partner: cut }))).toThrow(/form the app cannot check/);
     const extra = partner([
       ['bps', xdr.ScVal.scvU32(0)],
-      ['id', xdr.ScVal.scvString('stratum')],
+      ['id', xdr.ScVal.scvSymbol('8f9e70b99')],
       ['to', address(OTHER)],
     ]);
     expect(check(swap({ partner: extra }))).toThrow(/form the app cannot check/);
     expect(check(swap({ partner: partner([['bps', xdr.ScVal.scvU32(0)]]) }))).toThrow(/form the app cannot check/);
+    const bigBps = partner([
+      ['bps', xdr.ScVal.scvU64(xdr.Uint64.fromString('0'))],
+      ['id', xdr.ScVal.scvSymbol('8f9e70b99')],
+    ]);
+    expect(check(swap({ partner: bigBps }))).toThrow(/form the app cannot check/);
   });
 
   it('refuses a minimum below the quote', () => {
@@ -651,6 +657,34 @@ describe('verifyProtocolTransaction — SDEX path payment', () => {
     };
     expect(check(built, expected)).not.toThrow();
     expect(check(built, { ...expected, minOut: 233_247_664_101n })).toThrow(/less than the minimum/);
+  });
+
+  it('refuses an exact-out SDEX swap whose fee comes on top of the most it may sell', () => {
+    // As /quote/build returned it on mainnet: sendMax is the whole quote plus slippage, fee included,
+    // and the fee payment is added again beside it
+    const built = new TransactionBuilder(new Account(ACCOUNT, SEQUENCE.toString()), {
+      fee: '200',
+      networkPassphrase: Networks.PUBLIC,
+    })
+      .addOperation(
+        Operation.pathPaymentStrictReceive({
+          sendAsset: Asset.native(),
+          sendMax: '7.3912670',
+          destination: ACCOUNT,
+          destAsset: USDC_ASSET,
+          destAmount: '1',
+          path: [],
+          source: ACCOUNT,
+        }),
+      )
+      .addOperation(Operation.payment({ destination: OTHER, asset: Asset.native(), amount: '0.0073471', source: ACCOUNT }))
+      .addMemo(Memo.text('SoroswapAggregator-8f9e70b99'))
+      .setTimeout(3600)
+      .build()
+      .toXDR();
+    const expected: ExpectedCall = { kind: 'swap', exact: 'out', tokenIn: XLM, tokenOut: USDC, amountOut: 10_000_000n, maxIn: 73_912_671n };
+    expect(check(built, expected)).toThrow(/more than the maximum/);
+    expect(check(built, { ...expected, maxIn: 73_986_141n })).not.toThrow();
   });
 
   it('still refuses a memo on a payment to another account', () => {

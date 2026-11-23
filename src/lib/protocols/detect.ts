@@ -303,16 +303,17 @@ const SHAPES: Record<string, readonly string[]> = {
 };
 
 /**
- * Values a positional argument must hold beyond its shape. A partner with a
- * share takes a cut of the output the quote did not show, so only none, or a
- * `{ id, bps: 0 }` that merely names who sent the swap, is read.
+ * Values a positional argument must hold beyond its shape. The aggregator's
+ * `Partner { bps: u32, id: Symbol }` with a share takes a cut of the output the
+ * quote did not show, so only none, or `bps: 0`, which merely names who sent the
+ * swap (the API tags its builds this way), is read.
  */
 const VALUES: Record<string, (arg: DecodedArg) => boolean> = {
   partner: ({ type, value }) => {
     if (type === 'scvVoid') return true;
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const { bps, id, ...rest } = value as Record<string, unknown>;
-    return Object.keys(rest).length === 0 && id !== undefined && (bps === 0 || bps === '0');
+    return Object.keys(rest).length === 0 && typeof id === 'string' && id !== '' && bps === 0;
   },
 };
 
