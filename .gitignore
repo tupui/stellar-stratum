@@ -29,3 +29,6 @@ test-results
 
 # the worktree of the pages branch, see `make pages-init`
 /pages
+
+# screens, boards and uploads of the design canvas, see scripts/design
+/design-out

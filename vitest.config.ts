@@ -6,7 +6,7 @@ export default defineConfig({
     alias: [{ find: "@", replacement: path.resolve(import.meta.dirname, "./src") }],
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.ts"],
     environment: "node",
   },
 });

@@ -29,6 +29,7 @@ npm run typecheck
 npm run lint
 npm test           # unit tests (Vitest)
 npm run test:e2e   # end-to-end tests on Stellar testnet (Playwright)
+npm run design:capture   # capture the screens for the design canvas, on testnet (see AGENTS.md)
 ```
 
 The end-to-end tests only use testnet accounts funded by friendbot, and fail if the app sends any

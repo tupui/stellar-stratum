@@ -1,0 +1,15 @@
+{
+  "stylesheet": "/_blob/54b3c4163856547725b69bd5b1d72bce",
+  "fonts": {
+    "inter": "/_blob/4f1c7368f908bf450ac2afe872e92fe2",
+    "mono": "/_blob/0f1153e5569f9f1651d7acdb30162a27"
+  },
+  "images": {
+    "/xlm-logo.png": "/_blob/076dea6bb96b4157f6783084dcc450d3",
+    "/ledger-logo.png": "/_blob/71dae41f16d7167150bc827eeab60b70",
+    "/src/assets/refractor-favicon.ico": "/_blob/371262c418bf40afe1eba9ac108201c9"
+  },
+  "data": {
+    "9712a75efa": "/_blob/111eea26ce5855ef43e7fd958f2ac070"
+  }
+}

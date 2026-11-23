@@ -11,6 +11,9 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "design:capture": "node scripts/design/capture.ts",
+    "design:boards": "node scripts/design/boards.ts",
+    "design:stylesheet": "node scripts/design/stylesheet.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
