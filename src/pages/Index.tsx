@@ -210,7 +210,7 @@ const Index = memo(() => {
     });
   }, [appState, sourceAccount, publicKey, network]);
 
-  // Detect when the user switches the active account in their wallet (e.g. Freighter)
+  // Detect when the user switches the active account in their wallet (e.g. Varial)
   // after connecting. Only wallets that report their address without a prompt are polled.
   useEffect(() => {
     if (!kitConnectedWallet || !publicKey) {

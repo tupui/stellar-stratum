@@ -146,7 +146,7 @@ const Privacy = () => (
       </Entries>
       <Entries title="Wallets">
         <Entry name="Browser extensions" where="Your browser">
-          Freighter, LOBSTR, Rabet, Hana, Klever, OneKey, Bitget, Fordefi and Cactus Link receive your address and each
+          Varial (formerly Freighter), LOBSTR, Rabet, Hana, Klever, OneKey, Bitget, Fordefi and Cactus Link receive your address and each
           transaction you ask them to sign.
         </Entry>
         <Entry name="Web wallets" where="Their websites">

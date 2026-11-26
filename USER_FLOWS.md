@@ -9,7 +9,7 @@ chosen when connecting and carried by share links and QR codes.
 flowchart TD
   Landing[Landing page] --> Connect[Connect wallet]
   Connect --> Network{Mainnet or Testnet}
-  Network --> Wallet[Wallet: Freighter, xBull, Albedo, Lobstr, Ledger, Trezor, ...]
+  Network --> Wallet[Wallet: Varial, xBull, Albedo, Lobstr, Ledger, Trezor, ...]
   Network --> Manual[Enter an address: watch-only]
   Wallet --> Dashboard
   Manual --> Dashboard

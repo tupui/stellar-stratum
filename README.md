@@ -10,7 +10,7 @@ https://stellar-stratum.xyz
 - **Multisig**: configure signers, weights and thresholds, with checks that prevent locking an account
 - **Clear review before signing**: every operation, asset issuers, configuration changes explained, and the transaction hash for the network being signed
 - **Signature collection**: signatures are verified against the transaction for every account involved; share through Refractor links or air-gapped QR codes
-- **Wallets**: Freighter, xBull, Albedo, Lobstr, Ghostsig, Ledger, Trezor and more, or any address watch-only
+- **Wallets**: Varial (formerly Freighter), xBull, Albedo, Lobstr, Ghostsig, Ledger, Trezor and more, or any address watch-only
 - **Payments**: several operations in one transaction, cross-asset path payments, account creation and account merge
 - **Contract calls**: any Soroban contract, including Stellar Asset Contracts
 - **DeFi**: Soroswap swaps and liquidity, DeFindex vaults, with the API-built transactions checked before signing
