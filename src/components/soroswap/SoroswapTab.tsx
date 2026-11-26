@@ -394,6 +394,7 @@ const ROUTING_PROTOCOLS: Array<{ id: SupportedProtocols; label: string }> = [
   { id: SupportedProtocols.AQUA, label: 'Aqua' },
   { id: SupportedProtocols.PHOENIX, label: 'Phoenix' },
   { id: SupportedProtocols.SUSHI, label: 'Sushi' },
+  { id: SupportedProtocols.CURVE, label: 'Curve' },
   { id: SupportedProtocols.SDEX, label: 'SDEX' },
 ];
 
@@ -450,6 +451,8 @@ const SwapForm = ({
   const [protocols, setProtocols] = useState<SupportedProtocols[]>([
     SupportedProtocols.SOROSWAP,
     SupportedProtocols.AQUA,
+    SupportedProtocols.SUSHI,
+    SupportedProtocols.CURVE,
   ]);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quotedAt, setQuotedAt] = useState(0);
