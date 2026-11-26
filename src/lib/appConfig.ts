@@ -27,6 +27,7 @@ export const appConfig = {
   
   // API endpoints
   REFRACTOR_API_BASE: 'https://api.refractor.space/tx',
+  STRATUM_URL: 'https://stellar-stratum.xyz',
   
   // Oracle contract (FX - Foreign Exchange Rates)
   ORACLE_CONTRACT: 'CBKGPWGKSKZF52CFHMTRR23TBWTPMRDIYZ4O2P5VS65BMHYH4DXMCJZC',
