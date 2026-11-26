@@ -1,17 +1,22 @@
-import { Address, Operation, StrKey, TransactionBuilder, contract, hash, type rpc } from '@stellar/stellar-sdk';
+import { Address, Keypair, Operation, StrKey, TransactionBuilder, contract, hash, type rpc } from '@stellar/stellar-sdk';
 import { appConfig } from '../appConfig';
 import { classifyParams, type FormValues } from '../contract/form-values';
 import { argsToScVals, buildInvocationXdr } from '../contract/invoke';
 import { loadContractSpec } from '../contract/spec';
 import { sorobanServer } from '../payments';
 import { submitToRefractor } from '../refractor';
+import { computeSignatureStatus, type SignatureRequirement } from '../signatures';
+import { fetchAccountData } from '../stellar';
 import { getTransactionHashFromXdr, passphraseFor, type NetworkId } from '../xdr/parse';
 
 // Refractor answers 500 to request bodies over 100 KiB.
 const MAX_XDR_LENGTH = 100_000;
 
-/** The account that deploys is only named here, it never signs. Values are written as in the app's contract form. */
-export type ProposeRequest = { sourceAccount: string; network: NetworkId } & (
+/**
+ * The account that deploys. With a `signingKey` (the secret key of one of its signers) the transaction is
+ * signed with it, so the other signers only add what is still missing. Values are written as in the app's contract form.
+ */
+export type ProposeRequest = { sourceAccount: string; network: NetworkId; signingKey?: string } & (
   | { kind: 'upload'; wasm: Uint8Array }
   | { kind: 'deploy'; wasm: Uint8Array; constructorArgs?: FormValues }
   | { kind: 'call'; contractId: string; method: string; args?: FormValues }
@@ -22,6 +27,8 @@ export interface Proposal {
   xdr: string;
   /** False when the transaction is too large for Refractor and has to be imported in Stratum. */
   stored: boolean;
+  /** Set when the transaction carries the signing key's signature: its weight and what the account needs. */
+  signed?: { weight: number; threshold: number };
 }
 
 type WasmRequest = Extract<ProposeRequest, { wasm: Uint8Array }>;
@@ -60,6 +67,26 @@ const buildCallXdr = async ({ sourceAccount, network, contractId, method, args =
   return buildInvocationXdr({ loaded, functionName: method, params, values: args, publicKey: sourceAccount });
 };
 
+/** The signing key must be a signer, yet must not reach the threshold alone, so someone else always signs too. */
+export const checkSecondSignatureNeeded = ({ signedBy, weight, threshold }: SignatureRequirement, signer: string) => {
+  if (!signedBy.includes(signer)) throw new Error('The signing key is not a signer of the source account.');
+  if (weight >= threshold) {
+    throw new Error('The signing key alone reaches the threshold, so no second signature would be needed.');
+  }
+};
+
+const signWithKey = async (xdr: string, request: ProposeRequest, secret: string) => {
+  const keypair = Keypair.fromSecret(secret);
+  const transaction = TransactionBuilder.fromXDR(xdr, passphraseFor(request.network));
+  transaction.sign(keypair);
+
+  const account = await fetchAccountData(request.sourceAccount, request.network);
+  const accounts = new Map([[request.sourceAccount, account]]);
+  const [requirement] = computeSignatureStatus(transaction, accounts).requirements;
+  checkSecondSignatureNeeded(requirement, keypair.publicKey());
+  return { xdr: transaction.toXDR(), signed: { weight: requirement.weight, threshold: requirement.threshold } };
+};
+
 /**
  * Builds an unsigned Soroban transaction for a multisig account (an upload, a deploy or a contract
  * call such as an upgrade), simulates it, and stores it on Refractor for the signers to open in Stratum.
@@ -67,11 +94,14 @@ const buildCallXdr = async ({ sourceAccount, network, contractId, method, args =
 export const proposeSigning = async (request: ProposeRequest): Promise<Proposal> => {
   if (!StrKey.isValidEd25519PublicKey(request.sourceAccount)) throw new Error('The source account is not a public key.');
 
-  const xdr =
+  const built =
     request.kind === 'call' ? await buildCallXdr(request) : await buildWasmXdr(request, sorobanServer(request.network));
+  const { xdr, signed } = request.signingKey
+    ? await signWithKey(built, request, request.signingKey)
+    : { xdr: built, signed: undefined };
   const stored = xdr.length < MAX_XDR_LENGTH;
   if (stored) await submitToRefractor(xdr, request.network);
-  return { hash: getTransactionHashFromXdr(xdr, request.network), xdr, stored };
+  return { hash: getTransactionHashFromXdr(xdr, request.network), xdr, stored, signed };
 };
 
 export const stratumLink = (proposal: Proposal) =>

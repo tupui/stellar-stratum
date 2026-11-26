@@ -1,5 +1,5 @@
 name: Stratum signing request
-description: Build an unsigned Soroban transaction for a multisig account, store it on Refractor and link to Stellar Stratum so the signers can review and sign it. The action never sees a secret key.
+description: Build a Soroban transaction for a multisig account, store it on Refractor and link to Stellar Stratum so the signers can review and sign it. It needs only the account's public key, and can optionally hold one signer key that cannot deploy alone.
 branding:
   icon: key
   color: blue
@@ -25,6 +25,9 @@ inputs:
     default: ''
   args:
     description: 'JSON object of argument values by name, written as in the contract form of the app, for a deploy with constructor arguments or a call. Example: {"new_wasm_hash": "d5fa..."}.'
+    default: ''
+  signing-key:
+    description: Secret key (S...) of one signer of the account, from a GitHub secret. The transaction is signed with it, so a human only adds the remaining signature. The action refuses a key that is not a signer or that reaches the threshold alone.
     default: ''
   comment:
     description: Where to post the link, pr, commit or none. The job summary is always written.

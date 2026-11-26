@@ -21,7 +21,11 @@ const required = (env: NodeJS.ProcessEnv, name: string): string => {
 const argsOf = (input: Input): FormValues | undefined => (input('args') ? JSON.parse(input('args')) : undefined);
 
 export const readRequest = (input: Input): ProposeRequest => {
-  const shared = { sourceAccount: input('source-account'), network: choice(input, 'network', ['testnet', 'mainnet']) };
+  const shared = {
+    sourceAccount: input('source-account'),
+    network: choice(input, 'network', ['testnet', 'mainnet']),
+    signingKey: input('signing-key') || undefined,
+  };
   const operation = choice(input, 'operation', ['upload', 'deploy', 'call']);
   if (operation === 'call') {
     return { ...shared, kind: operation, contractId: input('contract'), method: input('method'), args: argsOf(input) };
@@ -32,7 +36,12 @@ export const readRequest = (input: Input): ProposeRequest => {
 
 export const messageOf = (request: ProposeRequest, proposal: Proposal) => {
   const where = `Transaction for \`${request.sourceAccount}\` on ${request.network}`;
-  if (proposal.stored) return `${where} is waiting for signatures: [Review and sign in Stratum](${stratumLink(proposal)}).`;
+  if (proposal.stored) {
+    const status = proposal.signed
+      ? `is signed by the CI (${proposal.signed.weight} of ${proposal.signed.threshold}) and waits for the human signature`
+      : 'is waiting for signatures';
+    return `${where} ${status}: [Review and sign in Stratum](${stratumLink(proposal)}).`;
+  }
   return (
     `${where} is too large for Refractor. Download the artifact from this run, open ` +
     `[Stratum](${stratumLink(proposal)}), choose Import in the transaction builder and paste the XDR. ` +
@@ -67,6 +76,7 @@ const postComment = async (target: 'pr' | 'commit', token: string, body: string,
 /** Runs the GitHub Action: reads its inputs from the environment and reports the result back. */
 export const runAction = async (env: NodeJS.ProcessEnv) => {
   const input: Input = (name) => (env[`INPUT_${name.toUpperCase()}`] ?? '').trim();
+  if (input('signing-key')) console.log(`::add-mask::${input('signing-key')}`);
   const comment = choice(input, 'comment', ['none', 'pr', 'commit']);
   const token = input('github-token');
   if (comment !== 'none' && !token) throw new Error('A github-token is needed to comment.');

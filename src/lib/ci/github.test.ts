@@ -29,6 +29,11 @@ describe('messageOf', () => {
     expect(message).toContain('[Review and sign in Stratum](https://stellar-stratum.xyz/?r=abc)');
   });
 
+  it('says that the CI has signed and a human signature is still missing', () => {
+    const message = messageOf(request, { hash: 'abc', xdr: '', stored: true, signed: { weight: 1, threshold: 2 } });
+    expect(message).toContain('is signed by the CI (1 of 2) and waits for the human signature');
+  });
+
   it('sends the signers to the Import tab when the transaction is too large for Refractor', () => {
     const message = messageOf(request, { hash: 'abc', xdr: '', stored: false });
     expect(message).toContain('choose Import');

@@ -1,8 +1,8 @@
 # Sign contract deploys in Stratum from CI
 
-The action builds an unsigned Soroban transaction for your multisig account, stores it on Refractor and
-links to it in Stratum, where the signers review and sign it. The workflow only has the account's public
-key, so no signing key is kept in GitHub secrets. The logic lives in [`src/lib/ci`](../src/lib/ci), which
+The action builds a Soroban transaction for your multisig account, stores it on Refractor and
+links to it in Stratum, where the signers review and sign it. By default the workflow only has the account's
+public key, so no signing key is kept in GitHub secrets. The logic lives in [`src/lib/ci`](../src/lib/ci), which
 other tools can call as well. Inputs and outputs are in [`action.yml`](action.yml).
 
 Use a release tag, for example `tupui/stellar-stratum/action@action-v1`. A release builds the bundle and
@@ -23,6 +23,21 @@ values by name, written as in the app's contract form.
 Upload the new code the same way, then run the contract's upgrade function with `operation: call`. The
 example assumes an `upgrade` function that takes the new WASM hash. See
 [`examples/upgrade.yml`](examples/upgrade.yml).
+
+## Let the CI sign its half
+
+Add a `signing-key` (the secret key of one signer, kept in a GitHub secret) and the transaction is already
+signed by the CI when the signers open it, so a human only adds the second signature. The recommended
+setup is a CI key with weight 1, a human with weight 1 and the account's medium and high thresholds at 2, so
+the CI can never deploy alone. The action reads the account's signers and thresholds first and refuses a key
+that is not a signer, or that reaches the threshold alone, before it stores anything.
+See [`examples/deploy-signed-by-ci.yml`](examples/deploy-signed-by-ci.yml).
+
+The human then, in Stratum:
+
+1. Opens the link from the job summary or the comment. The wallet that holds the signer's key must be set to the same network as the transaction, and it may ask once to allow the site.
+2. Under Sign Transaction, picks their key in "Select a signer to sign with" and their wallet in "Select wallet to sign", and clicks Sign.
+3. Clicks "Send Transaction to Testnet" (or Mainnet), which appears once the weight reaches the threshold. The CI signature is already on the transaction. "Send for Signature" is only needed when more signatures are still missing.
 
 ## Limits
 

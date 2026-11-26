@@ -1,0 +1,16 @@
+name: Deploy contract, signed by the CI and a human
+
+on: workflow_dispatch
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup target add wasm32v1-none && cargo build --release --target wasm32v1-none
+      - uses: tupui/stellar-stratum/action@action-v1
+        with:
+          source-account: ${{ vars.DEPLOYER_ACCOUNT }}
+          network: testnet
+          wasm: target/wasm32v1-none/release/my_contract.wasm
+          signing-key: ${{ secrets.CI_SIGNING_KEY }}
