@@ -41,7 +41,7 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
         window.dispatchEvent(new CustomEvent('deeplink:xdr-loaded', { detail: { refractorId, sourceAccount } }));
 
         toast({
-          title: 'Transaction Loaded',
+          title: 'Transaction loaded',
           description: `Transaction imported from Refractor (${network === 'testnet' ? 'Testnet' : 'Mainnet'}). Loading account data...`,
           duration: 5000,
         });
@@ -49,7 +49,7 @@ export const DeepLinkHandler = ({ onDeepLinkLoaded }: DeepLinkHandlerProps) => {
         onDeepLinkLoaded?.(sourceAccount, network);
       } catch (error) {
         toast({
-          title: 'Failed to Load Transaction',
+          title: 'Failed to load transaction',
           description: error instanceof Error ? error.message : 'Could not import transaction from Refractor',
           variant: 'destructive',
           duration: 5000,

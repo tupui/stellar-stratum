@@ -5,28 +5,28 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  // Square, 48 px, Chivo 600. One primary per screen: acid with a ledge under it. Disabled buttons
+  // all look the same: an ink well with muted text.
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-none border text-[15px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:border-line-2 disabled:bg-ink-3 disabled:text-muted-foreground disabled:shadow-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        glow: "bg-primary text-primary-foreground hover:bg-primary/90 glow-on-hover transition-all duration-300",
-        "glow-purple": "bg-success text-success-foreground hover:bg-success/90 glow-purple-on-hover transition-all duration-300",
+        default:
+          "border-primary bg-primary text-primary-foreground shadow-[0_4px_0_hsl(var(--acid-deep))] hover:bg-primary-glow active:translate-y-1 active:shadow-none",
+        // A click that removes something: red outline, never filled
+        destructive: "border-destructive bg-transparent text-destructive hover:bg-destructive/10",
+        warn: "border-warning bg-transparent text-warning hover:bg-warning/10",
+        outline: "border-input bg-transparent text-foreground hover:border-foreground",
+        secondary: "border-input bg-ink-3 text-foreground hover:border-foreground",
+        ghost: "border-transparent bg-transparent text-muted-foreground hover:text-foreground",
+        link: "border-transparent text-foreground underline decoration-line-2 underline-offset-4 hover:decoration-current",
       },
       size: {
-        default: "h-10 px-4 py-2 md:h-10 md:px-4 md:py-2",
-        sm: "h-9 rounded-md px-3 md:h-9 md:px-3",
-        lg: "h-12 rounded-md px-6 md:h-11 md:px-8",
-        icon: "h-10 w-10 md:h-10 md:w-10",
-        mobile: "h-12 rounded-md px-4 text-base md:h-11 md:px-8",
+        default: "h-12 px-4",
+        sm: "h-11 px-3.5 text-sm",
+        lg: "h-12 px-6",
+        icon: "h-11 w-11",
+        mobile: "h-12 px-4",
       },
     },
     defaultVariants: {

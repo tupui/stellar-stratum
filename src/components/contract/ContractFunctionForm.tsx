@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Play, Hammer, Loader2 } from 'lucide-react';
+import { Play, Hammer } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
+import { Dock } from '@/components/brand/Shell';
 import { ContractValueInput } from './ContractValueInput';
 import {
   classifyParam,
@@ -20,6 +21,8 @@ import { InvocationAuthorization } from '@/components/transaction/AuthorizationT
 interface ContractFunctionFormProps {
   loaded: LoadedContract;
   functionName: string;
+  /** The Function select: it heads the left column on desktop, above the function's doc. */
+  picker?: ReactNode;
   publicKey: string;
   onBuild: (xdr: string) => void;
   isBuilding: boolean;
@@ -45,6 +48,7 @@ const parseFunction = (loaded: LoadedContract, name: string): ParsedFunction => 
 export const ContractFunctionForm = ({
   loaded,
   functionName,
+  picker,
   publicKey,
   onBuild,
   isBuilding,
@@ -116,21 +120,28 @@ export const ContractFunctionForm = ({
   const disabled = isBuilding || isTransactionBuilt || busy !== null;
 
   return (
-    <div className="space-y-4">
-      {parsed.doc && (
-        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{parsed.doc}</p>
-      )}
+    // Desktop: the function and its doc at left, its arguments and the actions at right
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:gap-8 lg:border-t lg:border-line lg:pt-4">
+      <div className="flex min-w-0 flex-col gap-4">
+        {picker}
+        {/* The contract's own doc text, as source: its line breaks kept */}
+        {parsed.doc && (
+          <div className="well whitespace-pre-wrap font-mono text-[13px] leading-[1.55] text-muted-foreground [overflow-wrap:anywhere]">
+            {parsed.doc}
+          </div>
+        )}
+      </div>
 
-      {parsed.params.length === 0 && (
-        <p className="text-sm text-muted-foreground italic">This function takes no arguments.</p>
-      )}
+      <div className="flex min-w-0 flex-col gap-4">
+        {parsed.params.length === 0 && (
+          <p className="text-[13px] text-muted-foreground">This function takes no arguments.</p>
+        )}
 
-      <div className="space-y-3">
         {parsed.params.map((param) => (
-          <div key={param.name} className="space-y-1.5">
+          <div key={param.name} className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between gap-2">
-              <Label className="font-mono text-sm">{param.name}</Label>
-              <span className="text-xs text-muted-foreground font-mono">{param.typeLabel}</span>
+              <span className="font-mono text-[13px] font-medium text-foreground">{param.name}</span>
+              <span className="font-mono text-xs text-muted-foreground">{param.typeLabel}</span>
             </div>
             <ContractValueInput
               shape={param}
@@ -139,37 +150,38 @@ export const ContractFunctionForm = ({
             />
           </div>
         ))}
-      </div>
 
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Returns</span>
-        <span className="font-mono">{parsed.returnLabel}</span>
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription className="text-sm break-all whitespace-pre-wrap">{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {simResult !== null && (
-        <div className="rounded-md border bg-muted/40 p-3">
-          <p className="text-xs text-muted-foreground mb-1">Simulation result</p>
-          <pre className="text-xs font-mono whitespace-pre-wrap break-all">{simResult}</pre>
+        <div className="flex items-baseline justify-between">
+          <span className="text-[13px] text-muted-foreground">Returns</span>
+          <span className="font-mono text-xs text-muted-foreground">{parsed.returnLabel}</span>
         </div>
-      )}
 
-      {authCall && <InvocationAuthorization call={authCall} network={loaded.network} />}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription className="text-sm break-all whitespace-pre-wrap">{error}</AlertDescription>
+          </Alert>
+        )}
 
-      <div className="flex gap-2">
-        <Button variant="outline" className="flex-1" onClick={handleSimulate} disabled={disabled}>
-          {busy === 'sim' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-          Simulate
-        </Button>
-        <Button className="flex-1" onClick={handleBuild} disabled={disabled}>
-          {busy === 'build' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Hammer className="w-4 h-4 mr-2" />}
-          Build
-        </Button>
+        {simResult !== null && (
+          <div className="well">
+            <p className="mb-1 text-[13px] text-muted-foreground">Simulation result</p>
+            <pre className="whitespace-pre-wrap break-all font-mono text-xs">{simResult}</pre>
+          </div>
+        )}
+
+        {authCall && <InvocationAuthorization call={authCall} network={loaded.network} />}
+
+        {/* Simulate, then the primary: in the dock on the phone, the column's width on desktop */}
+        <Dock className="sm:[&>*]:flex-1">
+          <Button variant="outline" onClick={handleSimulate} disabled={disabled}>
+            {busy === 'sim' ? <Spinner /> : <Play />}
+            Simulate
+          </Button>
+          <Button onClick={handleBuild} disabled={disabled}>
+            {busy === 'build' ? <Spinner /> : <Hammer />}
+            Build
+          </Button>
+        </Dock>
       </div>
     </div>
   );

@@ -23,19 +23,20 @@ export const TransactionScanner = ({ onTransaction }: TransactionScannerProps) =
   if (!isScanning) {
     return (
       <Button className="w-full" onClick={() => setIsScanning(true)}>
-        <QrCode className="w-4 h-4 mr-2" />
+        <QrCode aria-hidden="true" />
         Start Scanning
       </Button>
     );
   }
 
+  // The scanner is a sheet of its own; in the page, Start Scanning turns into the way to stop.
   return (
-    <div className="space-y-4">
+    <>
       <QRScanner isOpen={isScanning} onScan={handleQRScan} onClose={() => setIsScanning(false)} />
       <Button variant="outline" className="w-full" onClick={() => setIsScanning(false)}>
-        <X className="w-4 h-4 mr-2" />
+        <X aria-hidden="true" />
         Cancel Scan
       </Button>
-    </div>
+    </>
   );
 };

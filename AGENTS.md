@@ -26,6 +26,14 @@ render. They link the app's compiled stylesheet, an upload named in `scripts/des
 their classes are the Tailwind classes in `src/`. Fiat values read N/A because mainnet prices are not
 read; the app shows Reflector prices there. The app has one theme, dark.
 
+The look is "acid", drawn on the canvas page Acid redesign, whose System board is the reference:
+black, white and one acid yellow. Acid marks only the action to take (one primary per screen, the
+last button when side by side), a signature given, the Portfolio Value, and the logo with its
+mountain. Red is an error or a click that removes something, amber a warning (both as in ghostsig).
+Jersey 15 sets titles and figures, Chivo the interface, Chivo Mono addresses, hashes and amounts;
+square corners; motion stepped, once, and off under reduced motion. The logo (the CRT edelweiss and
+the app icon) is settled: never redraw it. Nothing on a screen explains the concept.
+
 - A UI change redraws its board in the same commit, then republishes the canvas (below).
 - A board edit, or a comment on one, is a brief: change the code and its tests to match.
 - Where a board and the code disagree, say which one is stale and fix it.
@@ -56,21 +64,24 @@ To redraw boards (everything lands in `design-out/`, which is not committed):
    Publish the boards, and the index only when a size or title changed.
 
 A class that is not in the uploaded stylesheet does not render on the canvas. `npm run
-design:stylesheet` builds it into `design-out/uploads/`: upload it, put its url in `uploads.json` as
-`stylesheet`, and redraw every board so they link it.
+design:stylesheet` builds it into `design-out/uploads/`, with the bundled font files: upload them,
+put their urls in `uploads.json` (`stylesheet`, and each font under `fonts`), and redraw every board
+so they link them. An image the app serves from `public/` (such as `/brand/summit-phone.svg`) is
+uploaded once and named under `images`.
 
 Drawn from the commit named on the Main board: the main state of each journey of `USER_FLOWS.md` at 1280 px, and the air-gapped
 signer at 390 px too. Not drawn yet: cross-asset and merge payments, the review warnings (look-alike
 assets, lockout, sequence number), the activity filters, a Refractor link (`?r=`) opening, the
 Signature QR of `/sign` (it needs a wallet there: its board, `airgap-signature-qr-phone`, is drawn by
 hand), the wallet list with browser extensions installed, the Soroswap and DeFindex forms (mainnet
-only; the DeFi board shows the testnet notice), Privacy and Terms (laid out as Impressum), and phone
-widths outside `/sign`. A board for one of these is drawn when its code next changes.
+only; the DeFi board shows the testnet notice), Privacy and Terms (laid out as Impressum), the sending
+sheet and its failed and not-in-a-ledger states (drawn by hand on the Acid redesign page, `acid-send-*`),
+and phone widths outside `/sign` (the Acid redesign page draws every screen at 390 px). A board for one of these is drawn when its code next changes.
 
 | Page | Board | Code (under `src/`) | Test |
 |---|---|---|---|
 | Map | Main | the journeys, this section | |
-| Connect | `connect-landing` | `components/LandingPage.tsx`, `components/Footer.tsx` (on every page) | |
+| Connect | `connect-landing` | `components/LandingPage.tsx`, `components/Footer.tsx` (on every page), `components/brand/`, `public/brand/`, `src/index.css` (the system, on every page) | |
 | Connect | `connect-wallets`, `connect-manual` | `components/WalletConnect.tsx`, `contexts/WalletKitContext.tsx`, `components/icons/TrezorLogo.tsx` | `lib/validation.test.ts` |
 | Connect | `connect-load-failed` | the account error in `pages/Index.tsx` | |
 | Dashboard | `dash-balances` | `components/AccountOverview.tsx`, `AssetBalancePanel.tsx`, `AssetIcon.tsx`, `contexts/FiatCurrencyContext.tsx` | `lib/reflector.test.ts`, `lib/reflector-client.test.ts` |
@@ -83,7 +94,7 @@ widths outside `/sign`. A board for one of these is drawn when its code next cha
 | Build | `build-defi` | the DeFi tab of `components/TransactionBuilder.tsx`, `components/soroswap/`, `components/defindex/` | `lib/protocols/guards.test.ts`, `lib/protocols/verify.test.ts`, `lib/protocols/onchain.test.ts`, `lib/protocols/tokens.test.ts` |
 | Build | `build-import`, `build-import-scan-refused` | `components/ImportTab.tsx`, `QRScanner.tsx`, `DeepLinkHandler.tsx` | `lib/sep7.test.ts`, `lib/airgap/ur.test.ts`, `tests/testnet-flows.spec.ts` |
 | Review and sign | `review-unsigned`, `review-partly-signed`, `review-ready` | `components/XdrDetails.tsx`, `components/transaction/`, `SignerSelector.tsx` | `lib/xdr/describe.test.ts`, `lib/xdr/interpret.test.ts`, `lib/signatures.test.ts`, `lib/protocols/auth.test.ts`, `lib/protocols/tokens.test.ts`, `lib/protocols/enrich.test.ts`, `lib/labels.test.ts`, `tests/testnet-flows.spec.ts` |
-| Review and sign | `review-airgap-mode`, `review-airgap-qr`, `review-airgap-qr-animated` | `components/transaction/TransactionSubmitter.tsx`, `TransactionSigningPanel.tsx`, `components/airgap/AirgapSyncModal.tsx`, `AirgapQRCode.tsx`, `components/GlassModal.tsx`, `HashField.tsx`, `lib/airgap/` | `lib/airgap/cbor.test.ts`, `lib/airgap/ur.test.ts`, `lib/airgap/payloads.test.ts`, `lib/signatures.test.ts`, `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |
+| Review and sign | `review-airgap-mode`, `review-airgap-qr`, `review-airgap-qr-animated` | `components/transaction/TransactionSubmitter.tsx`, `TransactionSigningPanel.tsx`, `components/airgap/AirgapSyncModal.tsx`, `AirgapQRCode.tsx`, `HashField.tsx`, `lib/airgap/` | `lib/airgap/cbor.test.ts`, `lib/airgap/ur.test.ts`, `lib/airgap/payloads.test.ts`, `lib/signatures.test.ts`, `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |
 | Coordinate and submit | `share-sent`, `share-link` | `components/transaction/TransactionSigningPanel.tsx`, `SuccessModal.tsx` (Refractor), `ImportTab.tsx`, `ShareModal.tsx` | `tests/testnet-flows.spec.ts` |
 | Coordinate and submit | `submit-success` | `SuccessModal.tsx` (network), `components/transaction/SubmissionTerminal.tsx` | `tests/testnet-flows.spec.ts` |
 | Air-gapped signer | `airgap-empty`, `airgap-scanning`, `airgap-loaded` and their `-phone` boards, `airgap-signature-qr-phone` | `pages/AirgapSigner.tsx`, `components/airgap/`, `QRScanner.tsx` | `lib/airgap/payloads.test.ts`, `lib/signatures.test.ts`, `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts`, `tests/airgap-camera.spec.ts` |

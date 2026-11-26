@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Wifi, WifiOff, Send } from 'lucide-react';
-import { SubmissionTerminal } from './SubmissionTerminal';
-import { submitLog, useSubmitLog } from '@/lib/submitLog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { QrCode, Send, Wifi, WifiOff } from 'lucide-react';
+import { Dock } from '@/components/brand/Shell';
+import { Spinner } from '@/components/brand/Mark';
 
 interface TransactionSubmitterProps {
   xdr: string;
@@ -20,6 +20,18 @@ interface TransactionSubmitterProps {
   offlineOnly?: boolean;
 }
 
+/**
+ * The primary: from sm up a full-width button under the panels; on the phone in the bottom bar.
+ * The bar is drawn at the end of the page so it sticks to the bottom of the screen from the top of
+ * the page, whatever box the panels sit in. Only one of the two is ever displayed.
+ */
+const PrimaryDock = ({ children }: { children: ReactNode }) => (
+  <>
+    <Dock className="hidden sm:flex sm:justify-stretch sm:pt-0 sm:[&>*]:flex-1">{children}</Dock>
+    {createPortal(<Dock className="sm:hidden">{children}</Dock>, document.body)}
+  </>
+);
+
 export const TransactionSubmitter = ({
   xdr,
   network,
@@ -32,20 +44,15 @@ export const TransactionSubmitter = ({
   offlineOnly = false,
 }: TransactionSubmitterProps) => {
   const [isAirgappedMode, setIsAirgappedMode] = useState(false);
-  const submitEntries = useSubmitLog();
-  const showTerminal = !offlineOnly && (isSubmittingToNetwork || submitEntries.length > 0);
   const networkName = network === 'mainnet' ? 'Mainnet' : 'Testnet';
 
-  if (!xdr) {
-    // Nothing to sign or send; keep the last submission log visible so it can be read
-    if (!showTerminal) return null;
-    return <SubmissionTerminal active={isSubmittingToNetwork} network={network} onClose={submitLog.clear} />;
-  }
+  // Nothing to sign or send. (The submission and its log are followed in the SendSheet.)
+  if (!xdr) return null;
 
   if (offlineOnly) {
     return (
-      <Button className="w-full" size="lg" onClick={onShowOfflineModal}>
-        <Send className="w-4 h-4 mr-2" />
+      <Button variant="outline" className="w-full" onClick={onShowOfflineModal}>
+        <QrCode />
         Air-gap Sync
       </Button>
     );
@@ -53,56 +60,48 @@ export const TransactionSubmitter = ({
 
   if (ready) {
     return (
-      <div className="space-y-6">
-        {/* While transmitting, the button turns into a live terminal; afterwards the log stays below it */}
-        {!isSubmittingToNetwork && (
-          <Button onClick={onSubmitToNetwork} className="w-full" size="lg">
-            <Send className="w-4 h-4 mr-2" />
-            {`Send Transaction to ${networkName}`}
-          </Button>
-        )}
-        {showTerminal && <SubmissionTerminal active={isSubmittingToNetwork} network={network} onClose={submitLog.clear} />}
-      </div>
+      <PrimaryDock>
+        <Button onClick={onSubmitToNetwork} disabled={isSubmittingToNetwork}>
+          {isSubmittingToNetwork ? <Spinner mono /> : <Send />}
+          {`Send Transaction to ${networkName}`}
+        </Button>
+      </PrimaryDock>
     );
   }
 
   // Not enough signatures yet: hand the transaction to the other signers
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base sm:text-lg">Coordination Mode</CardTitle>
-          <CardDescription>Choose how to coordinate transaction signatures</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ToggleGroup
-            type="single"
-            value={isAirgappedMode ? 'offline' : 'online'}
-            onValueChange={(value) => setIsAirgappedMode(value === 'offline')}
-            className="grid w-full grid-cols-2"
-          >
-            <ToggleGroupItem value="online" className="flex items-center gap-2">
-              <Wifi className="w-4 h-4" />
-              Refractor (Online)
-            </ToggleGroupItem>
-            <ToggleGroupItem value="offline" className="flex items-center gap-2">
-              <WifiOff className="w-4 h-4" />
-              Air-gapped (Offline)
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </CardContent>
-      </Card>
-
-      <Button
-        className="w-full"
-        size="lg"
-        onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor}
-        disabled={isSubmittingToRefractor}
+    <>
+      <section
+        aria-labelledby="coordination-title"
+        className="flex flex-col gap-4 border-t border-line p-4 sm:border sm:bg-ink-2"
       >
-        <Send className="w-4 h-4 mr-2" />
-        {isSubmittingToRefractor ? 'Sending...' : isAirgappedMode ? 'Air-gap Sync' : 'Send for Signature'}
-      </Button>
-      {showTerminal && <SubmissionTerminal active={isSubmittingToNetwork} network={network} onClose={submitLog.clear} />}
-    </div>
+        <div>
+          <h2 id="coordination-title" className="sec">
+            Coordination Mode
+          </h2>
+          <p className="mt-2 text-muted-foreground">Choose how to coordinate transaction signatures</p>
+        </div>
+        <Tabs value={isAirgappedMode ? 'offline' : 'online'} onValueChange={(value) => setIsAirgappedMode(value === 'offline')}>
+          <TabsList aria-label="Coordination Mode">
+            <TabsTrigger value="online" className="min-w-0 px-2">
+              <Wifi />
+              Refractor (Online)
+            </TabsTrigger>
+            <TabsTrigger value="offline" className="min-w-0 px-2">
+              <WifiOff />
+              Air-gapped (Offline)
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </section>
+
+      <PrimaryDock>
+        <Button onClick={isAirgappedMode ? onShowOfflineModal : onSubmitToRefractor} disabled={isSubmittingToRefractor}>
+          {isSubmittingToRefractor ? <Spinner mono /> : isAirgappedMode ? <QrCode /> : <Send />}
+          {isSubmittingToRefractor ? 'Sending...' : isAirgappedMode ? 'Air-gap Sync' : 'Send for Signature'}
+        </Button>
+      </PrimaryDock>
+    </>
   );
 };

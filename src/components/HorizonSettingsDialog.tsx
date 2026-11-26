@@ -4,7 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Server, Trash2, RotateCcw, Loader2, Check, AlertTriangle } from 'lucide-react';
+import { Server, Trash2, RotateCcw, Check, AlertTriangle } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
+import { cn } from '@/lib/utils';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 import { horizonSettings, probeHorizon, useHorizonEndpoints, type HorizonProbe } from '@/lib/horizonSettings';
@@ -18,7 +20,7 @@ const hostOf = (url: string) => {
 };
 
 /**
- * Gear button + dialog to choose which Horizon endpoints are used (and in what
+ * Endpoints button + sheet to choose which Horizon endpoints are used (and in what
  * order) for the current network. Custom endpoints are probed before being added.
  */
 export const HorizonSettingsDialog = ({ className }: { className?: string }) => {
@@ -58,17 +60,20 @@ export const HorizonSettingsDialog = ({ className }: { className?: string }) => 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className={className} title="Horizon endpoints">
-          <Server className="w-4 h-4" />
-          <span className="ml-2 hidden sm:inline">Endpoints</span>
+        <Button
+          variant="outline"
+          size="icon"
+          className={cn('md:w-auto md:px-4', className)}
+          title="Horizon endpoints"
+          aria-label="Endpoints"
+        >
+          <Server className="!size-[18px] md:!size-4" />
+          <span className="hidden md:inline">Endpoints</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Server className="w-4 h-4" />
-            Horizon Endpoints · {network === 'testnet' ? 'Testnet' : 'Mainnet'}
-          </DialogTitle>
+          <DialogTitle>Horizon Endpoints · {network === 'testnet' ? 'Testnet' : 'Mainnet'}</DialogTitle>
           <DialogDescription>
             Account data is read from the first enabled endpoint. Transaction submissions try each enabled endpoint in
             order and move on when one does not answer in time. Custom endpoints are tried first.
@@ -79,76 +84,84 @@ export const HorizonSettingsDialog = ({ className }: { className?: string }) => 
           {endpoints.map((endpoint, index) => {
             const check = checks[endpoint.url];
             return (
-              <div key={endpoint.url} className="flex items-center gap-3 rounded-lg border bg-secondary/40 px-3 py-2">
+              <div key={endpoint.url} className="well flex min-h-[68px] items-center gap-3">
                 <Switch
                   checked={endpoint.enabled}
                   onCheckedChange={(checked) => horizonSettings.setEnabled(network, endpoint.url, checked)}
                   aria-label={`Enable ${endpoint.url}`}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className={`font-mono text-xs sm:text-sm truncate ${endpoint.enabled ? '' : 'text-muted-foreground line-through'}`} title={endpoint.url}>
+                  <p className={cn('truncate font-mono text-xs', !endpoint.enabled && 'text-muted-foreground line-through')} title={endpoint.url}>
                     {hostOf(endpoint.url)}
                   </p>
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
                     {endpoint.enabled && index === endpoints.findIndex((e) => e.enabled) && (
-                      <Badge variant="outline" className="text-[10px] h-4 px-1">primary</Badge>
+                      <Badge>primary</Badge>
                     )}
-                    {!endpoint.builtIn && <Badge variant="outline" className="text-[10px] h-4 px-1">custom</Badge>}
-                    {check === 'pending' && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                    {!endpoint.builtIn && <Badge>custom</Badge>}
+                    {check === 'pending' && <Spinner size={12} />}
                     {check && check !== 'pending' && (
-                      <span className={`text-[11px] flex items-center gap-1 ${check.ok ? 'text-success' : 'text-destructive'}`}>
-                        {check.ok ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                      <span className={cn('flex items-center gap-1 text-xs', check.ok ? 'text-muted-foreground' : 'text-destructive')}>
+                        {check.ok ? <Check className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
                         {check.ok ? `v${check.version} · ledger ${check.latestLedger} · ${check.latencyMs}ms` : check.error}
                       </span>
                     )}
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleCheck(endpoint.url)} disabled={check === 'pending'}>
+                <Button variant="outline" size="sm" onClick={() => handleCheck(endpoint.url)} disabled={check === 'pending'}>
                   Test
                 </Button>
                 {!endpoint.builtIn && (
-                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => horizonSettings.removeCustom(network, endpoint.url)} title="Remove custom endpoint">
-                    <Trash2 className="w-3.5 h-3.5" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => horizonSettings.removeCustom(network, endpoint.url)}
+                    title="Remove custom endpoint"
+                    aria-label="Remove custom endpoint"
+                  >
+                    <Trash2 />
                   </Button>
                 )}
               </div>
             );
           })}
           {enabledCount === 0 && (
-            <p className="text-xs text-warning flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" /> No endpoint enabled: the built-in primary will be used.
+            <p className="flex items-center gap-1 text-[13px] text-warning">
+              <AlertTriangle className="h-4 w-4" /> No endpoint enabled: the built-in primary will be used.
             </p>
           )}
         </div>
 
-        <div className="space-y-2 pt-2 border-t">
-          <p className="text-sm font-medium">Add a Custom Horizon</p>
+        <div className="flex flex-col gap-2 border-t border-line pt-4">
+          <label htmlFor="custom-horizon" className="field-label">Add a custom Horizon</label>
           <div className="flex gap-2">
             <Input
+              id="custom-horizon"
               value={newUrl}
               onChange={(e) => { setNewUrl(e.target.value); setProbe(null); }}
               onKeyDown={(e) => { if (e.key === 'Enter') void handleAdd(); }}
               placeholder="https://horizon.example.com"
-              className="font-mono text-xs sm:text-sm"
+              className="font-mono text-[13px]"
               spellCheck={false}
             />
             <Button onClick={handleAdd} disabled={probing || !newUrl.trim()} className="shrink-0">
-              {probing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
+              {probing ? <Spinner mono /> : 'Add'}
             </Button>
           </div>
           {probe && !probe.ok && (
-            <p className="text-xs text-destructive flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" /> {probe.error}
+            <p className="flex items-center gap-1 text-[13px] text-destructive">
+              <AlertTriangle className="h-4 w-4" /> {probe.error}
             </p>
           )}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[13px] text-muted-foreground">
             The URL is checked before it is added: it must answer as a Horizon for {network} and allow browser (CORS) requests.
           </p>
         </div>
 
-        <div className="flex justify-end pt-1">
-          <Button variant="ghost" size="sm" onClick={() => { horizonSettings.reset(network); setChecks({}); }} className="text-xs">
-            <RotateCcw className="w-3.5 h-3.5 mr-1" /> Reset to Defaults
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={() => { horizonSettings.reset(network); setChecks({}); }}>
+            <RotateCcw /> Reset to Defaults
           </Button>
         </div>
       </DialogContent>

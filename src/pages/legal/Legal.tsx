@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { AppHeader, Wrap } from '@/components/brand/Shell';
 import { Footer } from '@/components/Footer';
 import { LEGAL_PAGES } from '@/lib/legal';
 import { cn } from '@/lib/utils';
@@ -18,38 +19,33 @@ const Legal = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border/50 bg-background/80 backdrop-blur-sm">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          <Link to="/" className="inline-flex min-h-14 items-center text-2xl font-bold text-stellar-yellow text-glow-yellow">
-            Stratum
-          </Link>
-        </div>
-      </header>
+      <AppHeader />
 
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-10 space-y-8">
-        <nav aria-label="Legal pages" className="grid grid-cols-3 gap-2 sm:flex">
-          {LEGAL_PAGES.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                cn(
-                  'flex h-11 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'border-stellar-yellow/40 bg-stellar-yellow/10 text-foreground'
-                    : 'border-border text-muted-foreground hover:text-foreground',
-                )
-              }
-            >
-              <Icon className="hidden sm:block w-4 h-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <article className="space-y-8">
-          <Outlet />
-        </article>
-      </main>
+      <Wrap className="flex-1 pb-8 pt-4 sm:pb-12 sm:pt-8">
+        <main className="flex max-w-3xl flex-col gap-6">
+          <nav aria-label="Legal pages" className="flex border-b border-line">
+            {LEGAL_PAGES.map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  cn(
+                    'inline-flex min-h-12 items-center px-[18px] text-sm font-semibold no-underline transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                    isActive
+                      ? 'text-foreground shadow-[inset_0_-2px_0_hsl(var(--foreground))]'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )
+                }
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+          <article className="space-y-6">
+            <Outlet />
+          </article>
+        </main>
+      </Wrap>
 
       <Footer />
     </div>

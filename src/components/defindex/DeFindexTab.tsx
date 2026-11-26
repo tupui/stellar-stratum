@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Info, Landmark, ArrowDownToLine, ArrowUpFromLine, Loader2 } from 'lucide-react';
+import { Landmark, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
+import { Notice } from '@/components/brand/Shell';
 import { defindexSDK } from '@/lib/defindex-client';
 import { SupportedNetworks, VaultInfoResponse, VaultBalanceResponse } from '@defindex/sdk';
 import { appConfig } from '@/lib/appConfig';
@@ -65,19 +67,7 @@ export const DeFindexTab = (props: DeFindexTabProps) =>
   props.network === 'testnet' ? <MainnetOnly /> : <DeFindexVault {...props} />;
 
 const MainnetOnly = () => (
-  <Card className="border-dashed">
-    <CardContent className="pt-6">
-      <div className="flex items-start gap-3 text-muted-foreground">
-        <Info className="w-5 h-5 mt-0.5 shrink-0" />
-        <div>
-          <p className="font-medium text-foreground">Mainnet Only</p>
-          <p className="text-sm mt-1">
-            DeFindex vaults are only available on Mainnet. Switch to Mainnet to access vault operations.
-          </p>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
+  <Notice title="Mainnet only">DeFindex vaults are only available on Mainnet. Switch to Mainnet to access vault operations.</Notice>
 );
 
 const DeFindexVault = ({
@@ -228,14 +218,14 @@ const DeFindexVault = ({
         <CardContent className="pt-4 pb-4">
           {isLoadingInfo ? (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Spinner />
               <span className="text-sm">Loading vault info...</span>
             </div>
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Landmark className="w-4 h-4 text-primary" />
+                  <Landmark className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium">{appConfig.DEFINDEX_VAULT_NAME}</span>
                 </div>
                 {vaultInfo?.apy !== undefined && (
@@ -252,7 +242,7 @@ const DeFindexVault = ({
                 </div>
                 <div>
                   <p className="text-muted-foreground">Deposited (USDC)</p>
-                  <p className="font-mono font-semibold text-primary">
+                  <p className="font-mono font-semibold text-foreground">
                     {vaultBalance ? formatShort(depositedUsdc) : '—'}
                   </p>
                 </div>
@@ -326,7 +316,7 @@ const DeFindexVault = ({
         onClick={handleBuild}
         disabled={loading || !raw || isTransactionBuilt}
       >
-        {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+        {loading && <Spinner />}
         {mode === 'deposit' ? 'Build Deposit' : 'Build Withdraw'}
       </Button>
     </div>

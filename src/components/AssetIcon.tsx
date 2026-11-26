@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { fetchAssetInfo, getAssetColor } from '@/lib/assets';
+import { fetchAssetInfo } from '@/lib/assets';
+import { cn } from '@/lib/utils';
 import { useNetwork } from '@/contexts/NetworkContext';
 
 interface AssetIconProps {
@@ -49,48 +50,34 @@ export const AssetIcon = ({ assetCode, assetIssuer, size = 32, className = "" }:
     setImageError(true);
   };
 
-  // Generate unique color for this asset
-  const { hue, saturation, lightness } = getAssetColor(assetCode || 'XLM', assetIssuer);
-  
-  // Show gradient fallback if no image or image failed to load
+  // One square well for every asset: the logo when there is one, else the code's first letter.
+  const code = assetCode || 'XLM';
+  const wellStyle = { width: size, height: size };
   if (!assetInfo?.image || imageError) {
     return (
-      <div 
-        className={`rounded-full flex items-center justify-center shadow-lg ${className}`}
-        style={{ 
-          width: size, 
-          height: size,
-          background: `linear-gradient(135deg, hsl(${hue}, ${saturation}%, ${lightness}%), hsl(${(hue + 30) % 360}, ${saturation}%, ${lightness + 10}%))`,
-          border: `2px solid hsl(${hue}, ${saturation}%, ${lightness - 10}%, 0.3)`
-        }}
+      <div
+        className={cn('coin font-pix leading-none text-foreground', className)}
+        style={{ ...wellStyle, fontSize: Math.round(size * 0.56) }}
         role="img"
-        aria-label={`${assetCode || 'XLM'} asset icon`}
+        aria-label={`${code} asset icon`}
       >
-        <span 
-          className="font-bold select-none"
-          style={{ 
-            fontSize: size * 0.3,
-            color: `hsl(${hue}, ${saturation}%, ${lightness > 60 ? 20 : 95}%)`
-          }}
-          aria-hidden="true"
-        >
-          {(assetCode || 'XLM').slice(0, 3).toUpperCase()}
-        </span>
+        <span className="select-none" aria-hidden="true">{code.slice(0, 1).toUpperCase()}</span>
       </div>
     );
   }
 
   return (
     <div
-      className={`rounded-full bg-white overflow-hidden shadow-sm border border-border/20 p-0.5 ${className}`}
-      style={{ width: size, height: size }}
+      className={cn('coin p-0.5', className)}
+      style={wellStyle}
       role="img"
       aria-label={`${assetInfo.name || assetCode || 'Asset'} logo`}
     >
       <img
         src={assetInfo.image}
         alt=""
-        className="w-full h-full object-cover"
+        // the Stellar logo is black on transparent: drawn white on the dark well
+        className={cn('h-full w-full object-contain', code === 'XLM' && !assetIssuer && 'invert')}
         onError={handleImageError}
         referrerPolicy="no-referrer"
         aria-hidden="true"

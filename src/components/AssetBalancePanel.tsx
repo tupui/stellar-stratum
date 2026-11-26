@@ -1,17 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { LoadingPill } from '@/components/ui/loading-pill';
-import { RefreshCw, DollarSign, TrendingUp, Filter, Eye, EyeOff, Clock, ExternalLink, Landmark, Wallet } from 'lucide-react';
+import { RotateCw, ExternalLink } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
+import { Notice } from '@/components/brand/Shell';
 import { AssetIcon } from './AssetIcon';
 import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { getLastFetchTimestamp } from '@/lib/reflector';
 import { getFxRate } from '@/lib/fiat-currencies';
-import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { FiatSelect, useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useToast } from '@/hooks/use-toast';
 interface AssetBalance {
@@ -24,6 +22,9 @@ interface AssetBalance {
   sourceName?: string;
   sourceAddress?: string;
 }
+/** A row action without a frame: a 32 px glyph area inside a 44 px hit area. */
+const inlineIcon =
+  'box-content inline-grid size-8 shrink-0 place-items-center -m-1.5 p-1.5 text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring [&_svg]:size-4';
 // Classic liquidity pool shares have no code, issuer or explorer asset page, and are not priced
 const isPoolShare = (asset: AssetBalance): boolean => asset.asset_type === 'liquidity_pool_shares';
 interface AssetBalancePanelProps {
@@ -179,189 +180,138 @@ export const AssetBalancePanel = ({
   };
 
   const renderAssetRow = (asset: (typeof assetsWithPrices)[number], index: number) => (
-    <div key={index} className="p-4 border border-border/60 rounded-lg hover:bg-secondary/30 hover:border-border transition-smooth">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <AssetIcon assetCode={isPoolShare(asset) ? 'LP' : asset.asset_code} assetIssuer={asset.asset_type !== 'native' ? asset.asset_issuer : undefined} size={40} className="flex-shrink-0" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              {isPoolShare(asset) ? <span className="font-semibold text-foreground truncate">{asset.symbol}</span> : <a
-                href={asset.source === 'defindex' && asset.sourceAddress
-                  ? getContractExplorerUrl(asset.sourceAddress)
-                  : getAssetExplorerUrl(asset.symbol, asset.asset_type !== 'native' ? asset.asset_issuer : undefined)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-foreground hover:text-primary transition-colors inline-flex items-center gap-1 truncate"
-              >
-                <span className="truncate">{asset.symbol}</span>
-                <ExternalLink className="w-3 h-3 flex-shrink-0" />
-              </a>}
-              {asset.asset_type === 'native' && <Badge variant="outline" className="text-xs border-primary/30 text-primary flex-shrink-0">Native</Badge>}
-              {asset.source === 'defindex' && (
-                <Badge variant="secondary" className="text-xs flex-shrink-0 inline-flex items-center gap-1">
-                  <Landmark className="w-3 h-3" />
-                  DeFindex
-                </Badge>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground/80 truncate">
-              {asset.source === 'defindex'
-                ? `Deposited in ${asset.sourceName || 'DeFindex vault'}`
-                : asset.asset_type === 'native' ? 'Stellar Lumens' : isPoolShare(asset) ? 'Liquidity pool' : asset.asset_code}
-            </p>
-            {asset.priceUSD === -1 ? <LoadingPill size="sm" className="mt-1" /> : asset.priceUSD > 0 ? <p className="text-xs text-muted-foreground/70 font-amount truncate max-w-[160px] sm:max-w-none">
-                {formatPrice(asset.priceUSD)} per {asset.symbol}
-              </p> : <p className="text-xs text-muted-foreground/70">
-                {isPoolShare(asset) ? 'Not priced' : 'Price unavailable'}
-              </p>}
-          </div>
+    <li key={index} className="flex items-center gap-3 border-t border-line px-4 py-3">
+      <AssetIcon assetCode={isPoolShare(asset) ? 'LP' : asset.asset_code} assetIssuer={asset.asset_type !== 'native' ? asset.asset_issuer : undefined} size={32} />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-semibold">{asset.symbol}</span>
+          {!isPoolShare(asset) && (
+            <a
+              href={asset.source === 'defindex' && asset.sourceAddress
+                ? getContractExplorerUrl(asset.sourceAddress)
+                : getAssetExplorerUrl(asset.symbol, asset.asset_type !== 'native' ? asset.asset_issuer : undefined)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={inlineIcon}
+              aria-label={`${asset.symbol} in explorer`}
+            >
+              <ExternalLink />
+            </a>
+          )}
+          {asset.asset_type === 'native' && <Badge className="shrink-0">Native</Badge>}
+          {asset.source === 'defindex' && <Badge className="shrink-0">DeFindex</Badge>}
         </div>
-
-        <div className="text-right flex-shrink-0 min-w-0">
-          <p className="font-amount font-semibold text-foreground tabular-nums truncate max-w-[100px] sm:max-w-[180px]">
-            {formatBalance(asset.balance)}
-          </p>
-          <div className="text-sm font-medium text-primary flex justify-end font-amount truncate max-w-[100px] sm:max-w-[180px]">
-            {asset.priceUSD === -1 ? <LoadingPill size="sm" /> : formatValue(asset.valueUSD)}
-          </div>
+        <p className="truncate text-[13px] text-muted-foreground">
+          {asset.source === 'defindex'
+            ? `Deposited in ${asset.sourceName || 'DeFindex vault'}`
+            : asset.asset_type === 'native' ? 'Stellar Lumens' : isPoolShare(asset) ? 'Liquidity pool' : asset.asset_code}
+        </p>
+        {asset.priceUSD === -1
+          ? <Spinner size={12} className="mt-1" />
+          : <p className="truncate text-xs text-muted-foreground">
+              {asset.priceUSD > 0 ? formatPrice(asset.priceUSD) : isPoolShare(asset) ? 'Not priced' : 'Price unavailable'}
+            </p>}
+      </div>
+      <div className="min-w-0 shrink-0 text-right">
+        <p className="max-w-[120px] truncate font-amount text-[15px] tabular-nums sm:max-w-[200px]">
+          {formatBalance(asset.balance)}
+        </p>
+        <div className="flex max-w-[120px] justify-end truncate font-amount text-[13px] text-muted-foreground tabular-nums sm:max-w-[200px]">
+          {asset.priceUSD === -1 ? <Spinner size={12} /> : formatValue(asset.valueUSD)}
         </div>
       </div>
-    </div>
+    </li>
   );
 
-  return <Card className="shadow-card">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <DollarSign className="w-5 h-5" />
-              Asset Balances
-            </CardTitle>
-            
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={loading || refreshingBalances} className="h-8 px-2">
-              <RefreshCw className={`w-4 h-4 ${loading || refreshingBalances ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
-        </div>
-        
-        {/* Price Update Info */}
-        {lastUpdateTime && <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-2">
-            <Clock className="w-3 h-3" />
-            <span>Prices updated {formatLastUpdate(lastUpdateTime)}</span>
-            <span className="text-muted-foreground/60">• </span>
-            <a href="https://reflector.network/" target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 transition-colors inline-flex items-center gap-1">
-              via Reflector
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>}
+  // A group of DeFindex deposits or wallet assets, under its own heading when both are held
+  const groupHeading = (label: string, totalUSD: number) => (
+    <li className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
+      <span className="sub">{label}</span>
+      <span className="font-amount text-[15px] tabular-nums">{formatSubTotal(totalUSD)}</span>
+    </li>
+  );
 
-        {/* Total Value Display */}
-        <div className="mt-4 p-4 bg-primary/5 rounded-lg border border-primary/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground/80">Portfolio Value</p>
-              <p className="text-2xl font-bold font-amount">
-                {loading ? <span className="bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent">Loading...</span> : <span className="text-primary">{formatValue(totalValueUSD)}</span>}
-              </p>
-              {fxRateUnavailable && <p className="text-xs text-muted-foreground mt-1">
-                  {quoteCurrency} rate unavailable, values shown in USD
-                </p>}
-            </div>
-            <div className="text-sm text-muted-foreground"></div>
+  const refreshing = loading || refreshingBalances;
+
+  return (
+    <section aria-labelledby="asset-balances" className="border-t border-line md:border md:bg-ink-2">
+      <div className="p-4">
+        <div className="flex min-h-11 items-center justify-between gap-3">
+          <h2 id="asset-balances" className="sec">Asset Balances</h2>
+          <Button variant="outline" size="icon" onClick={handleRefresh} disabled={refreshing} aria-label="Refresh balances">
+            {refreshing ? <Spinner size={18} /> : <RotateCw className="!size-[18px]" />}
+          </Button>
+        </div>
+
+        {/* Total value */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="field-label">Portfolio Value</span>
+            <FiatSelect />
           </div>
+          <div className="mt-2 min-h-[58px]">
+            {loading
+              ? <Spinner size={23} className="mt-4" />
+              : <span className="figure">{formatValue(totalValueUSD)}</span>}
+          </div>
+          {fxRateUnavailable && <p className="mt-2 text-[13px] text-muted-foreground">
+              {quoteCurrency} rate unavailable, values shown in USD
+            </p>}
+          {lastUpdateTime && <p className="mt-2 text-xs text-muted-foreground">
+              Prices updated {formatLastUpdate(lastUpdateTime)} via{' '}
+              <a href="https://reflector.network/" target="_blank" rel="noopener noreferrer" className="text-muted-foreground underline decoration-line-2 underline-offset-[3px] hover:decoration-current">
+                Reflector
+              </a>
+            </p>}
 
           {/* Breakdown: DeFindex deposits vs assets available in the wallet */}
           {!loading && hasDefindexPositions && (
-            <div className="mt-3 pt-3 border-t border-primary/10 grid grid-cols-2 gap-3 text-sm">
+            <div className="well mt-4 grid grid-cols-2 gap-3">
               <div>
-                <p className="text-muted-foreground/80 flex items-center gap-1.5">
-                  <Landmark className="w-3.5 h-3.5" />
-                  Deposited in DeFindex
-                </p>
-                <p className="font-amount font-semibold">{formatSubTotal(defindexTotalUSD)}</p>
+                <p className="field-label">Deposited in DeFindex</p>
+                <p className="font-amount text-[15px] tabular-nums">{formatSubTotal(defindexTotalUSD)}</p>
               </div>
               <div>
-                <p className="text-muted-foreground/80 flex items-center gap-1.5">
-                  <Wallet className="w-3.5 h-3.5" />
-                  Available in Wallet
-                </p>
-                <p className="font-amount font-semibold">{formatSubTotal(walletTotalUSD)}</p>
+                <p className="field-label">Available in Wallet</p>
+                <p className="font-amount text-[15px] tabular-nums">{formatSubTotal(walletTotalUSD)}</p>
               </div>
             </div>
           )}
         </div>
-      </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Controls */}
-        <div className="flex items-center justify-start gap-4 p-3 bg-secondary/20 rounded-lg border border-border/50">
-          <div className="flex items-center space-x-3">
+        <div className="mt-2">
+          <label htmlFor="hide-small" className="inline-flex min-h-11 items-center gap-3">
             <Switch id="hide-small" checked={hideSmallBalances} onCheckedChange={setHideSmallBalances} />
-            <Label htmlFor="hide-small" className="text-sm font-medium">Hide &lt; $1</Label>
-          </div>
+            Hide &lt; $1
+          </label>
         </div>
 
-        {/* Error Display */}
-        {error && <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-            <p className="text-sm text-destructive">{error}</p>
-          </div>}
+        {error && <Notice level="error" className="mt-4">{error}</Notice>}
+      </div>
 
-        {/* Assets List */}
-        {loading && visibleAssets.length === 0 ? <div className="flex items-center justify-center py-8">
-            <div className="flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-success" />
-              <span className="text-success bg-gradient-to-r from-success/60 via-success-glow to-success/60 bg-[length:200%_100%] animate-[glow-sweep_1.5s_ease-in-out_infinite] bg-clip-text text-transparent font-medium">Loading prices...</span>
-            </div>
-          </div> : visibleAssets.length === 0 ? <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Filter className="w-8 h-8 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">
-              {hideSmallBalances ? 'No assets above $1' : 'No assets found'}
-            </p>
-          </div> : <div className="space-y-5">
-            {/* DeFindex deposits section */}
-            {defindexAssets.length > 0 && <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <Landmark className="w-4 h-4 text-primary" />
-                    <span>Deposited in DeFindex</span>
-                  </div>
-                  <span className="text-sm font-amount font-medium text-primary">
-                    {formatSubTotal(defindexTotalUSD)}
-                  </span>
-                </div>
-                {defindexAssets.map(renderAssetRow)}
-              </div>}
+      {/* Assets */}
+      {loading && visibleAssets.length === 0 ? <div className="flex items-center justify-center gap-2 border-t border-line py-8 text-muted-foreground">
+          <Spinner />
+          <span>Loading prices...</span>
+        </div> : visibleAssets.length === 0 ? <p className="border-t border-line py-8 text-center text-[13px] text-muted-foreground">
+          {hideSmallBalances ? 'No assets above $1' : 'No assets found'}
+        </p> : <ul aria-label="Assets">
+          {defindexAssets.length > 0 && <>
+              {groupHeading('Deposited in DeFindex', defindexTotalUSD)}
+              {defindexAssets.map(renderAssetRow)}
+              {groupHeading('Available in Wallet', walletTotalUSD)}
+            </>}
+          {walletAssets.length > 0
+            ? walletAssets.map(renderAssetRow)
+            : <li className="border-t border-line px-4 py-3 text-[13px] text-muted-foreground">
+                {hideSmallBalances ? 'No wallet assets above $1' : 'No wallet assets'}
+              </li>}
+        </ul>}
 
-            {/* Wallet assets section */}
-            <div className="space-y-3">
-              {defindexAssets.length > 0 && <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <Wallet className="w-4 h-4 text-primary" />
-                    <span>Available in Wallet</span>
-                  </div>
-                  <span className="text-sm font-amount font-medium text-primary">
-                    {formatSubTotal(walletTotalUSD)}
-                  </span>
-                </div>}
-              {walletAssets.length > 0
-                ? walletAssets.map(renderAssetRow)
-                : <p className="text-sm text-muted-foreground py-2">
-                    {hideSmallBalances ? 'No wallet assets above $1' : 'No wallet assets'}
-                  </p>}
-            </div>
-          </div>}
-
-        {/* Summary */}
-        {visibleAssets.length > 0 && hideSmallBalances && <>
-            <Separator />
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">
-                <span>Filtering assets (&gt;= $1)</span>
-              </span>
-            </div>
-          </>}
-      </CardContent>
-    </Card>;
+      {/* Summary */}
+      {visibleAssets.length > 0 && hideSmallBalances && <p className="border-t border-line px-4 py-3 text-[13px] text-muted-foreground">
+          Filtering assets (&gt;= $1)
+        </p>}
+    </section>
+  );
 };

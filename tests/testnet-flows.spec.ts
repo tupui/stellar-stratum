@@ -79,6 +79,9 @@ const buildPayment = async (page: Page, destination: string, amount: string) => 
 };
 
 const importXdr = async (page: Page, xdr: string) => {
+  // While a transaction is reviewed the builder is folded to one row: open it first.
+  const expand = page.getByRole('button', { name: 'Expand Transaction Builder' });
+  if (await expand.isVisible()) await expand.click();
   await page.getByRole('tab', { name: 'Import' }).click();
   await page.getByPlaceholder('Paste transaction XDR here...').fill(xdr);
 };
@@ -154,15 +157,15 @@ test('2-of-2 multisig: one signature is not enough, two are', async ({ page }) =
 
   await openAccount(page, A.publicKey());
   const xdr = await buildPayment(page, C.publicKey(), '3');
-  await expect(page.getByText('Weight: 0/2')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Weight 0 of 2' })).toBeVisible();
 
   await importXdr(page, sign(xdr, A));
-  await expect(page.getByText('Weight: 1/2')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Weight 1 of 2' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send for Signature' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send Transaction to Testnet' })).toHaveCount(0);
 
   await importXdr(page, sign(xdr, A, B));
-  await expect(page.getByText('Weight: 2/2')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Weight 2 of 2' })).toBeVisible();
   await page.getByRole('button', { name: 'Send Transaction to Testnet' }).click();
   await expect(page.getByText('Transaction Submitted Successfully')).toBeVisible({ timeout: 90_000 });
   expect(blocked).toEqual([]);
@@ -251,7 +254,7 @@ test('air-gap: an animated QR out, a Signature QR back', async ({ page }) => {
   await openAccount(page, A.publicKey());
   await page.getByRole('button', { name: /Initiate Multisig Transaction/ }).click();
   await importXdr(page, tx.toXDR());
-  await expect(page.getByText('Weight: 0/1')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('img', { name: 'Weight 0 of 1' })).toBeVisible({ timeout: 30_000 });
   await page.getByText('Air-gapped (Offline)').click();
   await page.getByRole('button', { name: 'Air-gap Sync' }).click();
   await expect(page.getByText(/\d parts, read in any order/)).toBeVisible();
@@ -272,7 +275,7 @@ test('air-gap: an animated QR out, a Signature QR back', async ({ page }) => {
   signed.sign(A);
   await uploadQr(page, encodeSinglePartUR(encodeSignatureSet({ hash: signed.hash(), signatures: signed.signatures })));
   await expect(page.getByText('Signature added').first()).toBeVisible();
-  await expect(page.getByText('Weight: 1/1')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Weight 1 of 1' })).toBeVisible();
 
   const before = await xlmBalance(B.publicKey());
   await page.getByRole('button', { name: 'Send Transaction to Testnet' }).click();

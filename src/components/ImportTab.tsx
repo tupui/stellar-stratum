@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Download, Upload, Copy, CheckCircle, Share2, QrCode, FileCode } from 'lucide-react';
+import { Download, Copy, CheckCircle, Share2, QrCode } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
 import refractorLogo from '@/assets/refractor-favicon.ico';
 import { useToast } from '@/hooks/use-toast';
 import { ShareModal } from './ShareModal';
@@ -79,7 +77,7 @@ export const ImportTab = ({
     if (isRefusal(payload)) return { title: "Transaction refused", description: payload.refused };
     if (payload) {
       onXdrInputChange(text);
-      toast({ title: "Transaction Imported", description: "Transaction loaded from the QR code", duration: 3000 });
+      toast({ title: "Transaction imported", description: "Transaction loaded from the QR code", duration: 3000 });
       return;
     }
     try {
@@ -107,117 +105,119 @@ export const ImportTab = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4">
       {/* XDR Input Section */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <FileCode className="w-4 h-4" />
-          <Label htmlFor="xdr-input" className="text-base font-medium">Transaction XDR</Label>
-        </div>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="xdr-input" className="text-[13px] text-muted-foreground">Transaction XDR</label>
+        {/* four whole 18 px lines: no line is cut in half */}
         <Textarea
           id="xdr-input"
           placeholder="Paste transaction XDR here..."
-          className="min-h-32 font-address text-sm"
+          className="h-[98px] min-h-0 resize-none break-all font-address text-xs leading-[18px]"
+          spellCheck={false}
           value={xdrInput}
           onChange={(e) => onXdrInputChange(e.target.value)}
         />
-        {xdrError && <p className="text-sm text-destructive">{xdrError}</p>}
+        {xdrError && <p className="text-[13px] text-destructive">{xdrError}</p>}
       </div>
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">Or Import From Refractor</span>
-        </div>
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-line" aria-hidden="true" />
+        <span className="text-[13px] text-muted-foreground">Or import from Refractor</span>
+        <span className="h-px flex-1 bg-line" aria-hidden="true" />
       </div>
-      
+
       {/* Last Submitted Transaction */}
       {lastRefractorId && (
-        <>
-          <div className="p-3 bg-secondary/50 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Upload className="w-4 h-4" />
-                <span className="text-sm font-medium">Last Submitted</span>
-              </div>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="sm" onClick={copyRefractorId}>
-                  {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setShowShareModal(true)}>
-                  <Share2 className="w-4 h-4" />
-                </Button>
-              </div>
+        <div className="well flex flex-col gap-2 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="sub">Last Submitted</h3>
+            <div className="-mr-2 flex">
+              <button
+                type="button"
+                onClick={copyRefractorId}
+                aria-label="Copy Refractor ID"
+                className="grid size-11 place-items-center text-muted-foreground hover:text-foreground"
+              >
+                {copied ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowShareModal(true)}
+                aria-label="Share"
+                className="grid size-11 place-items-center text-muted-foreground hover:text-foreground"
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
             </div>
-            <p className="font-address text-sm text-muted-foreground">
-              ID: {lastRefractorId}
-            </p>
-            <Button variant="outline" size="sm" className="mt-2 inline-flex items-center gap-2" onClick={openRefractor}>
-              <img src={refractorLogo} alt="Refractor" className="w-4 h-4" />
-              <span>View on Refractor</span>
-            </Button>
           </div>
-          <Separator />
-        </>
+          <p className="break-all font-address text-[13px] text-muted-foreground">ID: {lastRefractorId}</p>
+          <Button variant="outline" size="sm" className="self-start" onClick={openRefractor}>
+            <img src={refractorLogo} alt="" className="h-4 w-4" />
+            <span>View on Refractor</span>
+          </Button>
+        </div>
       )}
 
       {/* Import from Refractor */}
-      <div className="space-y-3">
-        <div className="space-y-2">
-          <Label htmlFor="refractor-id">Refractor Transaction ID</Label>
-          <div className="flex gap-2">
-            <Input 
-              id="refractor-id" 
-              placeholder="Enter Refractor transaction ID" 
-              value={refractorId} 
-              onChange={e => setRefractorId(e.target.value)} 
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  handlePullTransaction();
-                }
-              }} 
-            />
-            <Button variant="outline" size="icon" onClick={() => setShowQRScanner(true)}>
-              <QrCode className="w-4 h-4" />
-            </Button>
-            <Button 
-              onClick={handlePullTransaction} 
-              disabled={isPulling || !refractorId.trim()} 
-              size="sm" 
-              className="inline-flex items-center gap-2"
-            >
-              {isPulling ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Pulling...
-                </div>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  Pull
-                </>
-              )}
-            </Button>
-          </div>
+      <div className="flex flex-col gap-2">
+        <label htmlFor="refractor-id" className="text-[13px] text-muted-foreground">Refractor transaction ID</label>
+        <div className="flex gap-2">
+          <Input
+            id="refractor-id"
+            placeholder="Enter Refractor transaction ID"
+            className="font-address text-[13px]"
+            value={refractorId}
+            onChange={e => setRefractorId(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                handlePullTransaction();
+              }
+            }}
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-12 shrink-0"
+            onClick={() => setShowQRScanner(true)}
+            aria-label="Scan QR code"
+          >
+            <QrCode className="!size-5" />
+          </Button>
         </div>
+        <Button
+          onClick={handlePullTransaction}
+          disabled={isPulling || !refractorId.trim()}
+          className="mt-1 w-full"
+        >
+          {isPulling ? (
+            <>
+              <Spinner />
+              Pulling...
+            </>
+          ) : (
+            <>
+              <Download />
+              Pull
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Modals */}
       {lastRefractorId && (
-        <ShareModal 
-          isOpen={showShareModal} 
-          onClose={() => setShowShareModal(false)} 
-          refractorId={lastRefractorId} 
-          network={network} 
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          refractorId={lastRefractorId}
+          network={network}
         />
       )}
-      
-      <QRScanner 
-        isOpen={showQRScanner} 
-        onClose={() => setShowQRScanner(false)} 
-        onScan={handleQRScan} 
+
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScan={handleQRScan}
       />
     </div>
   );

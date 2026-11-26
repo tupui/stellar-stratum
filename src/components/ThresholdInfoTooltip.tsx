@@ -7,8 +7,8 @@ export const ThresholdInfoTooltip = () => {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="sm" className="shrink-0">
-            <Info className="w-4 h-4" />
+          <Button variant="outline" size="icon" className="shrink-0" aria-label="About thresholds">
+            <Info className="!size-5" />
           </Button>
         </TooltipTrigger>
         <TooltipContent className="max-w-sm">

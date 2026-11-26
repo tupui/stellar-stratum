@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, Plus, Smartphone } from 'lucide-react';
+import { Pen, QrCode, Wifi, WifiOff } from 'lucide-react';
 import { TransactionScanner } from '@/components/airgap/TransactionScanner';
 import { XdrDetails } from '@/components/XdrDetails';
-import { TransactionSubmitter } from '@/components/transaction/TransactionSubmitter';
 import { AirgapSyncModal } from '@/components/airgap/AirgapSyncModal';
 import { Footer } from '@/components/Footer';
+import { Mark, Spinner } from '@/components/brand/Mark';
+import { AppHeader, BackButton, Dock, SignerCell, Wrap } from '@/components/brand/Shell';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,48 @@ import { getInnerTransaction, getTransactionHash, tryParseTransaction } from '@/
 import { shortAddress } from '@/lib/xdr/describe';
 
 const networkName = (network: 'mainnet' | 'testnet') => (network === 'mainnet' ? 'Mainnet' : 'Testnet');
+
+// From sm up the actions sit in the page; below it, the main one is in the Dock at the bottom.
+const WIDE = '(min-width: 640px)';
+const subscribeWide = (onChange: () => void) => {
+  const query = window.matchMedia(WIDE);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
+const useWide = () =>
+  useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE).matches,
+    () => true,
+  );
+
+/** A row of the guide: a bare leading glyph or number, then the text. */
+const GuideRow = ({ lead, children }: { lead: ReactNode; children: ReactNode }) => (
+  <li className="flex items-start gap-3 border-t border-line py-3 text-[15px] leading-normal">
+    <span className="inline-flex w-6 flex-none justify-center">
+      <span className="inline-flex h-[22px] items-center text-muted-foreground">{lead}</span>
+    </span>
+    <span className="min-w-0 flex-1">{children}</span>
+  </li>
+);
+
+const GuideSection = ({ title, ordered, children }: { title: string; ordered?: boolean; children: ReactNode }) => {
+  const List = ordered ? 'ol' : 'ul';
+  return (
+    <section>
+      <h2 className="sub mb-2">{title}</h2>
+      <List className="border-b border-line">{children}</List>
+    </section>
+  );
+};
+
+const StepNumber = ({ n }: { n: number }) => (
+  <span className="font-pix text-[24px] leading-[22px] text-foreground" aria-hidden="true">
+    {n}
+  </span>
+);
+
+const Bullet = () => <i className="h-1 w-1 bg-muted-foreground" aria-hidden="true" />;
 
 const AirgapSigner = () => {
   const { network, setNetwork } = useNetwork();
@@ -31,6 +73,7 @@ const AirgapSigner = () => {
   const [selectedWalletId, setSelectedWalletId] = useState('');
   const [isSigning, setIsSigning] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const wide = useWide();
 
   // The app itself makes no requests from this page: block the ways scripts can reach the
   // network, so nothing loaded here can send the transaction anywhere. This is a second line of
@@ -78,7 +121,7 @@ const AirgapSigner = () => {
     const target = payload.network ?? network;
     if (!tryParseTransaction(payload.xdr, target)) {
       toast({
-        title: 'Invalid Transaction',
+        title: 'Invalid transaction',
         description: "Invalid transaction payload. Ensure it's a SEP-7 tx QR or base64 XDR.",
         variant: 'destructive',
       });
@@ -89,7 +132,7 @@ const AirgapSigner = () => {
     setSignedBy([]);
     setPasted('');
     toast({
-      title: 'Transaction Received',
+      title: 'Transaction received',
       description: `Ready for review and signing on ${networkName(target)}`,
     });
   };
@@ -111,7 +154,7 @@ const AirgapSigner = () => {
       loadTransaction({ xdr: payload.xdr, network: payload.network ?? requested });
     } else {
       toast({
-        title: 'Invalid URL Parameter',
+        title: 'Invalid URL parameter',
         description: 'The XDR in the URL is not a valid transaction.',
         variant: 'destructive',
       });
@@ -136,17 +179,17 @@ const AirgapSigner = () => {
         throw new Error(`${walletName} did not return a valid signature for ${networkName(network)}.`);
       }
       if (signatures.length <= before.length && signedBy.includes(address)) {
-        throw new Error(`${address.slice(0, 8)}… has already signed this transaction.`);
+        throw new Error(`${shortAddress(address)} has already signed this transaction.`);
       }
       setXdr(signedXdr);
       setSignedBy((prev) => (prev.includes(address) ? prev : [...prev, address]));
       toast({
-        title: 'Transaction Signed',
+        title: 'Transaction signed',
         description: `Signature added from ${shortAddress(address)}`,
       });
     } catch (error) {
       toast({
-        title: 'Signing Failed',
+        title: 'Signing failed',
         description: error instanceof Error ? error.message : 'Failed to sign transaction',
         variant: 'destructive',
       });
@@ -155,183 +198,212 @@ const AirgapSigner = () => {
     }
   };
 
+
   const parsed = xdr ? tryParseTransaction(xdr, network) : null;
   const signatureCount = parsed
     ? (parsed.isFeeBump ? parsed.tx.signatures.length : 0) + getInnerTransaction(parsed.tx).signatures.length
     : 0;
+  // Once a signature is added here, handing it back by QR is the next step and takes the primary.
+  const signedHere = signedBy.length > 0;
+
+  const loadPasted = () => {
+    const payload = parseTransactionPayload(pasted);
+    if (isRefusal(payload)) toast({ title: 'Transaction refused', description: payload.refused, variant: 'destructive' });
+    else if (payload) loadTransaction(payload);
+    else toast({ title: 'Invalid transaction', description: 'This is not a transaction XDR or SEP-7 URI.', variant: 'destructive' });
+  };
 
   const renderScanStep = () => (
-    <div className="space-y-6">
-      <div className="space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          <span className="text-foreground font-medium">Air‑gapped signing</span> lets you approve transactions on an offline device. Open this page, then disconnect the device from every network before loading a transaction. The page itself sends nothing.
+    <Wrap className="grid gap-4 py-4 sm:gap-6 sm:py-8 lg:grid-cols-[7fr_5fr] lg:items-start">
+      <div className="flex flex-col gap-4 sm:gap-6">
+        <p className="lede">
+          <b className="font-semibold text-foreground">Air‑gapped signing</b> lets you approve transactions on an offline device. Open this page, then disconnect the device from every network before loading a transaction. The page itself sends nothing.
         </p>
-        <div className="grid gap-1">
-          <p className="text-foreground font-medium">What you need</p>
-          <ul className="list-disc pl-5 text-muted-foreground">
-            <li>Device A (online): build the transaction and display its QR</li>
-            <li>Device B (offline): this page to scan and sign</li>
-          </ul>
-        </div>
-        <div className="grid gap-1">
-          <p className="text-foreground font-medium">Steps</p>
-          <ol className="list-decimal pl-5 text-muted-foreground">
-            <li>Scan the transaction QR below (or paste its XDR).</li>
-            <li>Check the network and the hash, review the details and add signatures on this device.</li>
-            <li>Show the Signature QR back to Device A to merge and submit.</li>
-          </ol>
-        </div>
-        <div className="grid gap-1">
-          <p className="text-foreground font-medium">Safety tips</p>
-          <ul className="list-disc pl-5 text-muted-foreground">
-            <li>Compare the transaction hash on both devices before signing.</li>
-            <li>Keep this device offline for the entire flow.</li>
-          </ul>
-        </div>
+        <GuideSection title="What You Need">
+          <GuideRow lead={<Wifi className="h-[18px] w-[18px]" strokeWidth={1.5} role="img" aria-label="Online" />}>
+            Device A (online): build the transaction and display its QR
+          </GuideRow>
+          <GuideRow lead={<WifiOff className="h-[18px] w-[18px]" strokeWidth={1.5} role="img" aria-label="Offline" />}>
+            Device B (offline): this page to scan and sign
+          </GuideRow>
+        </GuideSection>
+        <GuideSection title="Steps" ordered>
+          <GuideRow lead={<StepNumber n={1} />}>Scan the transaction QR below (or paste its XDR).</GuideRow>
+          <GuideRow lead={<StepNumber n={2} />}>
+            Check the network and the hash, review the details and add signatures on this device.
+          </GuideRow>
+          <GuideRow lead={<StepNumber n={3} />}>Show the Signature QR back to Device A to merge and submit.</GuideRow>
+        </GuideSection>
+        <GuideSection title="Safety Tips">
+          <GuideRow lead={<Bullet />}>Compare the transaction hash on both devices before signing.</GuideRow>
+          <GuideRow lead={<Bullet />}>Keep this device offline for the entire flow.</GuideRow>
+        </GuideSection>
       </div>
 
-      <TransactionScanner onTransaction={loadTransaction} />
-
-      <div className="space-y-2">
+      <section aria-label="Load a transaction" className="flex flex-col gap-3 lg:border lg:border-line lg:bg-ink-2 lg:p-4">
+        <TransactionScanner onTransaction={loadTransaction} />
         <Textarea
+          aria-label="Transaction XDR or SEP-7 URI"
           placeholder="Or paste a transaction XDR / SEP-7 URI"
-          className="min-h-24 font-address text-xs"
+          className="min-h-24 resize-none font-address text-xs leading-[18px]"
           value={pasted}
           onChange={(e) => setPasted(e.target.value)}
         />
-        <Button
-          variant="outline"
-          className="w-full"
-          disabled={!pasted.trim()}
-          onClick={() => {
-            const payload = parseTransactionPayload(pasted);
-            if (isRefusal(payload)) toast({ title: 'Transaction refused', description: payload.refused, variant: 'destructive' });
-            else if (payload) loadTransaction(payload);
-            else toast({ title: 'Invalid Transaction', description: 'This is not a transaction XDR or SEP-7 URI.', variant: 'destructive' });
-          }}
-        >
+        <Button variant="outline" className="w-full" disabled={!pasted.trim()} onClick={loadPasted}>
           Load Transaction
         </Button>
-      </div>
+      </section>
+    </Wrap>
+  );
+
+  // The pieces of the loaded state, placed differently on the phone and from sm up.
+
+  /* The XDR does not say which network it is for; the signature is only valid on this one */
+  const networkRow = (
+    <div className="flex items-center justify-between gap-3 text-[15px]">
+      <span>
+        Signing for <b className="font-semibold">{networkName(network)}</b>
+      </span>
+      <Select value={network} onValueChange={(value) => setNetwork(value as 'mainnet' | 'testnet')}>
+        <SelectTrigger aria-label="Network" className="w-[140px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="testnet">Testnet</SelectItem>
+          <SelectItem value="mainnet">Mainnet</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   );
 
-  const renderLoadedStep = () => (
-    <div className="space-y-6">
-      {/* The XDR does not say which network it is for; the signature is only valid on this one */}
-      <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-secondary/40">
-        <span className="text-sm">
-          Signing for <span className="font-semibold">{networkName(network)}</span>
-        </span>
-        <Select value={network} onValueChange={(value) => setNetwork(value as 'mainnet' | 'testnet')}>
-          <SelectTrigger className="w-32 h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="mainnet">Mainnet</SelectItem>
-            <SelectItem value="testnet">Testnet</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <XdrDetails xdr={xdr} defaultExpanded={true} networkType={network} offlineMode={true} />
-
-      <Card className="shadow-card">
-        <CardHeader>
-          <CardTitle className="text-base sm:text-lg">Sign with Wallet</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {signatureCount} signature{signatureCount === 1 ? '' : 's'} attached. The online device checks which ones are
-            valid; those added here are listed below.
-          </p>
+  const signIntro = (
+    <>
+      <h2 id="sign-with-wallet" className="sec">
+        Sign with Wallet
+      </h2>
+      <p className="text-[15px] text-muted-foreground">
+        {signatureCount} signature{signatureCount === 1 ? '' : 's'} attached. The online device checks which ones are
+        valid; those added here are listed below.
+      </p>
+      {signedHere && (
+        <ul className="border-b border-line">
           {signedBy.map((address) => (
-            <div key={address} className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              <p className="font-address text-sm">{address.slice(0, 8)}...{address.slice(-8)}</p>
-            </div>
+            <li key={address} className="flex items-center gap-3 border-t border-line py-3">
+              <SignerCell signed />
+              <span className="min-w-0 flex-1 font-address text-[13px]">{shortAddress(address)}</span>
+            </li>
           ))}
-          <div className="flex flex-col gap-2">
-            <Select value={selectedWalletId} onValueChange={setSelectedWalletId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select wallet to sign with" />
-              </SelectTrigger>
-              <SelectContent>
-                {wallets.map((w) => (
-                  <SelectItem key={w.id} value={w.id}>
-                    {w.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleSign} disabled={!selectedWalletId || isSigning} className="w-full">
-              {isSigning ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Signing...
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
-                  Sign with Wallet
-                </div>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        </ul>
+      )}
+    </>
+  );
 
-      <TransactionSubmitter
-        xdr={xdr}
-        network={network}
-        ready={false}
-        isSubmittingToNetwork={false}
-        isSubmittingToRefractor={false}
-        onSubmitToNetwork={async () => {}}
-        onSubmitToRefractor={async () => {}}
-        onShowOfflineModal={() => setShowOfflineModal(true)}
-        offlineOnly={true}
-      />
+  const walletControls = (primary: boolean) => (
+    <div className="flex flex-col gap-3">
+      <Select value={selectedWalletId} onValueChange={setSelectedWalletId}>
+        <SelectTrigger aria-label="Wallet">
+          <SelectValue placeholder="Select wallet to sign with" />
+        </SelectTrigger>
+        <SelectContent>
+          {wallets.map((w) => (
+            <SelectItem key={w.id} value={w.id}>
+              {w.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        variant={primary ? 'default' : 'outline'}
+        onClick={handleSign}
+        disabled={!selectedWalletId || isSigning}
+        className="w-full"
+      >
+        {isSigning ? (
+          <>
+            <Spinner />
+            Signing...
+          </>
+        ) : (
+          <>
+            <Pen aria-hidden="true" />
+            Sign with Wallet
+          </>
+        )}
+      </Button>
     </div>
+  );
+
+  const syncButton = (primary: boolean) => (
+    <Button variant={primary ? 'default' : 'outline'} className="w-full" onClick={() => setShowOfflineModal(true)}>
+      <QrCode aria-hidden="true" />
+      Air-gap Sync
+    </Button>
+  );
+
+  const verification = <XdrDetails xdr={xdr} defaultExpanded={true} networkType={network} offlineMode={true} />;
+
+  const renderLoadedPhone = () => (
+    <div>
+      <section aria-label="Network" className="p-4">
+        {networkRow}
+      </section>
+      <div className="border-t border-line">{verification}</div>
+      {!signedHere && (
+        <section aria-label="Air-gap Sync" className="border-t border-line p-4">
+          {syncButton(false)}
+        </section>
+      )}
+      <section aria-labelledby="sign-with-wallet" className="flex flex-col gap-3 border-t border-line p-4">
+        {signIntro}
+        {signedHere && walletControls(false)}
+      </section>
+    </div>
+  );
+
+  const renderLoadedWide = () => (
+    <Wrap className="grid gap-6 pb-8 pt-6 lg:grid-cols-[7fr_5fr] lg:items-start">
+      <div className="min-w-0">{verification}</div>
+      {/* Below lg the column is single: the network still comes first, above the verification */}
+      <aside className="flex flex-col gap-4 max-lg:contents lg:sticky lg:top-6">
+        <section aria-label="Network" className="border border-line bg-ink-2 p-4 max-lg:order-first">
+          {networkRow}
+        </section>
+        <section aria-labelledby="sign-with-wallet" className="flex flex-col gap-3 border border-line bg-ink-2 p-4">
+          {signIntro}
+          {walletControls(!signedHere)}
+        </section>
+        {syncButton(signedHere)}
+      </aside>
+    </Wrap>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background/50 to-stellar-yellow/5 relative overflow-hidden">
-      <div className="relative z-10 min-h-screen flex flex-col">
-        <header className="p-4 md:p-6 border-b border-border/50 bg-background/80 backdrop-blur-sm">
-          <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-stellar-yellow/10 rounded-xl">
-                <Smartphone className="w-6 h-6 text-stellar-yellow" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Air-Gapped Signer</h1>
-              </div>
-              {xdr && (
-                <Button
-                  onClick={() => {
-                    setXdr('');
-                    setSignedBy([]);
-                  }}
-                  size="sm"
-                  className="self-start bg-success hover:bg-success/90 text-success-foreground"
-                >
-                  Back to Scanner
-                </Button>
-              )}
-            </div>
-          </div>
-        </header>
+    <div className="flex min-h-screen flex-col bg-ink">
+      <AppHeader
+        brand={
+          <span className="inline-flex items-center gap-2 text-foreground">
+            <Mark label="Stratum" />
+            <h1 className="whitespace-nowrap font-pix text-[20px] font-normal leading-none tracking-[0.02em] sm:text-[24px]">
+              Air-gapped Signer
+            </h1>
+          </span>
+        }
+        right={
+          xdr ? (
+            <BackButton
+              label="Back to Scanner"
+              onClick={() => {
+                setXdr('');
+                setSignedBy([]);
+              }}
+            />
+          ) : undefined
+        }
+      />
 
-        <main className="flex-1 p-4 md:p-6">
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-background/80 backdrop-blur-sm border border-border/50 rounded-2xl shadow-xl">
-              <div className="p-4 md:p-6">{xdr ? renderLoadedStep() : renderScanStep()}</div>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </div>
+      <main className="flex-1">{xdr ? (wide ? renderLoadedWide() : renderLoadedPhone()) : renderScanStep()}</main>
+      <Footer />
+      {xdr && !wide && <Dock>{signedHere ? syncButton(true) : walletControls(true)}</Dock>}
 
       {showOfflineModal && parsed && (
         <AirgapSyncModal mode="response" xdr={xdr} network={network} signedBy={signedBy} onClose={() => setShowOfflineModal(false)} />

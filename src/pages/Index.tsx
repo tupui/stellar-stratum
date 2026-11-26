@@ -1,10 +1,13 @@
+import { cn } from '@/lib/utils';
 import { useState, Suspense, lazy, memo, useCallback, useEffect, useRef } from "react";
 import { LandingPage } from "@/components/LandingPage";
-import { LoadingPill } from "@/components/ui/loading-pill";
 import { Footer } from "@/components/Footer";
 import { DeepLinkHandler } from "@/components/DeepLinkHandler";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RotateCw } from "lucide-react";
+import { Spinner } from "@/components/brand/Mark";
+import { AppHeader, Wrap } from "@/components/brand/Shell";
+import { shortAddress } from "@/lib/xdr/describe";
 
 // Lazy load heavy components to improve TTI
 const AccountOverview = lazy(() => import("@/components/AccountOverview"));
@@ -327,27 +330,33 @@ const Index = memo(() => {
   return (
     <FiatCurrencyProvider>
       <DeepLinkHandler onDeepLinkLoaded={handleDeepLinkLoaded} />
-      <div className="min-h-screen bg-background flex flex-col">
+      <div
+        className={cn(
+          'flex min-h-dvh flex-col bg-background',
+          // the dashboard's bottom tab bar (60 px) follows the footer on the phone
+          appState === 'dashboard' && 'max-md:min-h-[calc(100dvh-61px)]',
+        )}
+      >
         <div className="flex-1 flex flex-col">
           {/* Wallet active-account changed warning */}
           {appState !== "connecting" && walletAccountChanged && (
-            <div className="sticky top-0 z-50 bg-warning/10 border-b border-warning/40">
-              <div className="max-w-4xl mx-auto px-3 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                <div className="flex items-start gap-2 flex-1 min-w-0">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-warning" />
+            <div className="notice amber sticky top-0 z-50 items-center border-x-0 border-t-0 px-0 py-0">
+              <Wrap className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
                   <p className="text-sm text-foreground">
                     Your wallet's active account changed to{" "}
-                    <span className="font-address">{liveWalletAddress?.slice(0, 8)}...{liveWalletAddress?.slice(-8)}</span>,
+                    <span className="font-address text-[13px]">{liveWalletAddress ? shortAddress(liveWalletAddress) : ""}</span>,
                     which differs from the connected account{" "}
-                    <span className="font-address">{publicKey.slice(0, 8)}...{publicKey.slice(-8)}</span>.
+                    <span className="font-address text-[13px]">{shortAddress(publicKey)}</span>.
                     Reconnect to use the active account.
                   </p>
                 </div>
-                <Button size="sm" onClick={handleDisconnect} className="shrink-0 gap-2">
-                  <RefreshCw className="w-4 h-4" />
+                <Button variant="warn" size="sm" onClick={handleDisconnect} className="shrink-0">
+                  <RotateCw />
                   Reconnect
                 </Button>
-              </div>
+              </Wrap>
             </div>
           )}
 
@@ -358,10 +367,10 @@ const Index = memo(() => {
           {appState === "transaction" && (
             <Suspense
               fallback={
-                <div className="min-h-screen flex items-center justify-center">
+                <div className="flex flex-1 items-center justify-center p-4">
                   <div className="flex flex-col items-center gap-4">
-                    <LoadingPill size="lg" glowColor="primary" />
-                    <span className="text-muted-foreground">Loading transaction builder...</span>
+                    <Spinner size={46} />
+                    <span className="text-[15px] text-muted-foreground">Loading transaction builder...</span>
                   </div>
                 </div>
               }
@@ -383,10 +392,10 @@ const Index = memo(() => {
           {appState === "dashboard" && publicKey && accountData && (
             <Suspense
               fallback={
-                <div className="min-h-screen flex items-center justify-center">
+                <div className="flex flex-1 items-center justify-center p-4">
                   <div className="flex flex-col items-center gap-4">
-                    <LoadingPill size="lg" glowColor="primary" />
-                    <span className="text-muted-foreground">Loading dashboard...</span>
+                    <Spinner size={46} />
+                    <span className="text-[15px] text-muted-foreground">Loading dashboard...</span>
                   </div>
                 </div>
               }
@@ -401,31 +410,40 @@ const Index = memo(() => {
           )}
 
           {appState === "dashboard" && publicKey && !accountData && (
-            <div className="min-h-screen flex items-center justify-center p-4">
-              {accountError ? (
-                <div className="max-w-md w-full rounded-2xl border border-destructive/40 bg-destructive/5 p-6 text-center flex flex-col items-center gap-4">
-                  <div className="flex items-center gap-2 text-destructive">
-                    <AlertTriangle className="w-5 h-5" />
-                    <h2 className="text-lg font-semibold">Failed to Load Account</h2>
-                  </div>
-                  <p className="text-sm text-muted-foreground break-words">{accountError}</p>
-                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                    <Button onClick={handleRetryLoadAccount} disabled={loading} className="gap-2">
-                      <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                      {loading ? "Retrying..." : "Retry"}
-                    </Button>
-                    <Button variant="outline" onClick={handleDisconnect} disabled={loading}>
-                      Disconnect
-                    </Button>
-                  </div>
-                </div>
-              ) : (
+            accountError ? (
+              <>
+                <AppHeader />
+                <Wrap className="flex flex-1 items-center py-8">
+                  <section
+                    role="alert"
+                    aria-labelledby="account-load-failed"
+                    className="notice red mx-auto w-full max-w-md flex-col gap-3 p-4"
+                  >
+                    <h1 id="account-load-failed" className="sec flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" aria-hidden="true" />
+                      Failed to Load Account
+                    </h1>
+                    <p className="break-words text-[15px]">{accountError}</p>
+                    <div className="mt-1 flex flex-col gap-3">
+                      <Button onClick={handleRetryLoadAccount} disabled={loading} className="w-full">
+                        {loading ? <Spinner /> : <RotateCw />}
+                        {loading ? "Retrying..." : "Retry"}
+                      </Button>
+                      <Button variant="outline" onClick={handleDisconnect} disabled={loading} className="w-full">
+                        Disconnect
+                      </Button>
+                    </div>
+                  </section>
+                </Wrap>
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center p-4">
                 <div className="flex flex-col items-center gap-4">
-                  <LoadingPill size="lg" glowColor="primary" />
-                  <span className="text-muted-foreground">Loading dashboard...</span>
+                  <Spinner size={46} />
+                  <span className="text-[15px] text-muted-foreground">Loading dashboard...</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )
           )}
         </div>
 

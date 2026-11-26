@@ -5,7 +5,7 @@ import { withoutFontFaces } from './stylesheet.ts';
 
 const uploads: Uploads = {
   stylesheet: '/_blob/css',
-  fonts: { inter: '/_blob/inter', mono: '/_blob/mono' },
+  fonts: { chivo400: '/_blob/c4', chivo600: '/_blob/c6', mono400: '/_blob/m4', mono500: '/_blob/m5', jersey: '/_blob/j' },
   images: { '/xlm-logo.png': '/_blob/xlm' },
   data: {},
 };
@@ -44,7 +44,7 @@ describe('artboard', () => {
     const html = artboard(board('dash-balances'), '<p>Balances</p>', 961, uploads);
     expect(html).toContain('<script src="./support.js"></script>');
     expect(html).toContain('<link rel="stylesheet" href="/_blob/css">');
-    expect(html).toContain('url(/_blob/inter)');
+    expect(html).toContain('url(/_blob/c4)');
     expect(html).toContain('style="min-height: 961px"');
     expect(html).toContain('"$preview":{"width":1280,"height":961}');
   });

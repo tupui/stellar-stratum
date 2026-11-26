@@ -19,7 +19,7 @@ export const ContractValueInput = ({ shape, value, onChange }: ContractValueInpu
   switch (shape.kind) {
     case 'bool':
       return (
-        <div className="flex items-center gap-2 h-10">
+        <div className="flex h-12 items-center gap-2">
           <Switch checked={Boolean(value)} onCheckedChange={onChange} />
           <span className="text-sm text-muted-foreground">{value ? 'true' : 'false'}</span>
         </div>
@@ -31,7 +31,7 @@ export const ContractValueInput = ({ shape, value, onChange }: ContractValueInpu
           value={String(value ?? '')}
           onChange={(e) => onChange(e.target.value)}
           placeholder={shape.type.type === 'scSpecTypeMuxedAddress' ? 'G…, M… or C…' : 'G… or C…'}
-          className="font-mono text-xs"
+          className="font-mono text-[13px]"
         />
       );
 
@@ -79,12 +79,12 @@ export const ContractValueInput = ({ shape, value, onChange }: ContractValueInpu
           value={String(value ?? '')}
           onChange={(e) => onChange(e.target.value)}
           placeholder={shape.kind === 'bytesN' ? `hex, ${shape.bytesLen} bytes` : 'hex bytes (e.g. deadbeef)'}
-          className="font-mono text-xs"
+          className="font-mono text-[13px]"
         />
       );
 
     case 'void':
-      return <div className="text-sm text-muted-foreground italic h-10 flex items-center">void — no value</div>;
+      return <div className="flex h-12 items-center text-sm text-muted-foreground">void — no value</div>;
 
     case 'option': {
       const wrapper = (value ?? {}) as { provided?: boolean; value?: unknown };
@@ -118,9 +118,9 @@ export const ContractValueInput = ({ shape, value, onChange }: ContractValueInpu
             value={String(value ?? '')}
             onChange={(e) => onChange(e.target.value)}
             placeholder={shape.example ?? `${shape.typeLabel} — JSON`}
-            className="font-mono text-xs min-h-[80px]"
+            className="min-h-[80px] font-mono text-xs"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[13px] text-muted-foreground">
             JSON. Bytes as hex strings, large integers as strings, maps as objects, enums by case name.
           </p>
         </div>

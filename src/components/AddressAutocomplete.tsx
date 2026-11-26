@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Clock, Users, QrCode, BookOpen } from 'lucide-react';
+import { QrCode, BookOpen } from 'lucide-react';
 import { useAddressBook, type AddressBookEntry } from '@/hooks/useAddressBook';
 import { isValidPaymentDestination } from '@/lib/validation';
 import { cn } from '@/lib/utils';
 
 interface AddressAutocompleteProps {
+  id?: string;
   value: string;
+  /** Draw the field in red: the address is not valid. */
+  invalid?: boolean;
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
@@ -19,7 +21,9 @@ interface AddressAutocompleteProps {
 }
 
 export const AddressAutocomplete = ({
+  id,
   value,
+  invalid = false,
   onChange,
   placeholder = "Enter address",
   className,
@@ -30,7 +34,7 @@ export const AddressAutocomplete = ({
   onBlur,
 }: AddressAutocompleteProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const { entries, searchAddresses, syncAddressBook, isLoading: isAddressBookLoading, needsSync } = useAddressBook(accountPublicKey, network);
@@ -101,26 +105,39 @@ export const AddressAutocomplete = ({
 
   return (
     <div className="relative">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Input
-            ref={inputRef}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            placeholder={placeholder}
-            className={cn("font-address", className)}
-          />
-        </div>
+      {/* On the phone the field holds the whole key on two lines; from sm up, one line */}
+      <div className="flex items-start gap-2">
+        <textarea
+          ref={inputRef}
+          id={id}
+          rows={2}
+          value={value}
+          // a one-line value, as the input it replaces: a pasted line break is dropped
+          onChange={(e) => onChange(e.target.value.replace(/[\r\n]+/g, ''))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.preventDefault();
+          }}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="off"
+          className={cn(
+            'block h-[62px] min-w-0 flex-1 resize-none overflow-hidden break-all rounded-none border border-input bg-ink-3 px-3 py-3 font-address text-[13px] leading-[18px] text-foreground placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:h-12 sm:py-[14px]',
+            invalid && 'border-destructive',
+            className,
+          )}
+        />
         <Button
           type="button"
           variant="outline"
           size="icon"
           onClick={toggleAddressBook}
           aria-label="Toggle address book"
+          className="size-12 shrink-0"
         >
-          <BookOpen className="w-4 h-4" />
+          <BookOpen className="!size-5" />
         </Button>
         {onQRScan && (
           <Button
@@ -129,71 +146,50 @@ export const AddressAutocomplete = ({
             size="icon"
             onClick={onQRScan}
             aria-label="Scan QR"
+            className="size-12 shrink-0"
           >
-            <QrCode className="w-4 h-4" />
+            <QrCode className="!size-5" />
           </Button>
         )}
       </div>
 
-
       {/* Validation status for addresses */}
       {value && !isValidPaymentDestination(value.trim()) && (
-        <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg">
-          <span className="text-sm text-destructive">
-            Invalid Stellar address format
-          </span>
-        </div>
+        <p className="mt-2 text-[13px] text-destructive">Invalid Stellar address format</p>
       )}
 
       {/* Dropdown with suggestions */}
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
+          className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto border border-line-2 bg-ink-2"
         >
           {suggestions.length > 0 ? (
             <>
-              <div className="p-2 border-b border-border">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="w-3 h-3" />
-                  {value.trim() ? 'Search results' : 'Recent recipients'}
-                </div>
+              <div className="border-b border-line px-4 py-2 text-[13px] text-muted-foreground">
+                {value.trim() ? 'Search results' : 'Recent recipients'}
               </div>
               {suggestions.map((entry) => (
                 <div
                   key={entry.address}
-                  className="p-3 hover:bg-accent cursor-pointer border-b border-border last:border-b-0"
+                  className="cursor-pointer border-b border-line px-4 py-3 last:border-b-0 hover:bg-ink-3"
                   onClick={() => handleSelect(entry)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-address text-sm truncate">
-                          {formatAddress(entry.address)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                        <div className="flex items-center gap-1">
-                          <Users className="w-3 h-3" />
-                          {entry.transactionCount} tx
-                        </div>
-                        <span className="font-amount">{formatAmount(entry.totalAmount)}</span>
-                        <span>{entry.lastUsed.toLocaleDateString()}</span>
-                      </div>
-                    </div>
+                  <div className="truncate font-address text-[13px]">{formatAddress(entry.address)}</div>
+                  <div className="mt-1 flex items-center gap-4 text-xs text-muted-foreground">
+                    <span>{entry.transactionCount} tx</span>
+                    <span className="font-amount">{formatAmount(entry.totalAmount)}</span>
+                    <span>{entry.lastUsed.toLocaleDateString()}</span>
                   </div>
                 </div>
               ))}
             </>
           ) : (
             <div className="p-4 text-center text-muted-foreground">
-              <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p className="text-sm">
                 {value.trim() ? 'No matching addresses found' : 'No addresses in your address book yet'}
               </p>
-              <p className="text-xs mt-1 opacity-75">
-                Addresses are automatically added from your transaction history
-              </p>
+              <p className="mt-1 text-xs">Addresses are automatically added from your transaction history</p>
             </div>
           )}
         </div>

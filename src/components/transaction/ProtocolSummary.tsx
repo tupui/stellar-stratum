@@ -26,7 +26,6 @@ import { PROTOCOL_LABELS, type NetworkId } from '@/lib/protocols/registry';
 import { useProtocolMetadata, type ProtocolMetadata } from '@/hooks/useProtocolMetadata';
 import { Address, ArgValue, AuthorizationTree, AuthorizationWarning } from './AuthorizationTree';
 import { ProtocolBadge, UnknownContractBadge } from './ProtocolBadge';
-import { PROTOCOL_STYLE } from './protocolStyle';
 
 /** "exactly 10" / "at least 1.81" — the guarantee the contract actually gives. */
 const BOUND_LABEL: Record<TokenAmount['bound'], string> = {
@@ -42,27 +41,19 @@ const TokenChip = ({ contract, meta }: { contract: string; meta: ProtocolMetadat
   const [imageFailed, setImageFailed] = useState(false);
 
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-2">
       {info?.icon && !imageFailed ? (
-        <img
-          src={info.icon}
-          alt=""
-          width={18}
-          height={18}
-          loading="lazy"
-          className="rounded-full shrink-0"
-          onError={() => setImageFailed(true)}
-        />
+        <span className="coin sm">
+          <img src={info.icon} alt="" width={18} height={18} loading="lazy" onError={() => setImageFailed(true)} />
+        </span>
       ) : (
         // Offline (and before the token list loads) there is no logo to show —
         // a colour swatch still makes the two sides of a swap easy to tell apart.
-        <span
-          className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-inset ring-white/20"
-          style={{ background: `hsl(${hue} ${saturation}% ${lightness}%)` }}
-          aria-hidden
-        />
+        <span className="coin sm" aria-hidden>
+          <span className="h-2 w-2" style={{ background: `hsl(${hue} ${saturation}% ${lightness}%)` }} />
+        </span>
       )}
-      <span className={cn('font-semibold', !info && 'font-mono text-xs')}>{code}</span>
+      <span className={cn('font-semibold', !info && 'font-address text-[13px] font-normal')}>{code}</span>
     </span>
   );
 };
@@ -78,17 +69,17 @@ const AmountLeg = ({
   meta: ProtocolMetadata;
 }) => (
   <div className="min-w-0 space-y-1">
-    <p className="text-xs text-muted-foreground">
-      {label} <span className="opacity-70">({BOUND_LABEL[amount.bound]})</span>
+    <p className="field-label">
+      {label} ({BOUND_LABEL[amount.bound]})
     </p>
     <div className="flex items-baseline gap-2 flex-wrap">
-      <span className="text-xl sm:text-2xl font-bold tabular-nums break-all">
+      <span className="break-all text-[22px] font-semibold tabular-nums">
         {meta.amount(amount.raw, amount.contract)}
       </span>
       <TokenChip contract={amount.contract} meta={meta} />
     </div>
     {meta.isAssumed(amount.contract) && (
-      <p className="text-[11px] text-warning/90" title={amount.contract}>
+      <p className="text-xs text-warning" title={amount.contract}>
         Decimals not confirmed — shown at 7 dp
       </p>
     )}
@@ -105,7 +96,7 @@ const Fact = ({
   children: React.ReactNode;
 }) => (
   <div className="flex items-start gap-2 text-sm min-w-0">
-    <Icon className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />
+    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
     <span className="text-muted-foreground shrink-0">{label}</span>
     <span className="min-w-0 break-words">{children}</span>
   </div>
@@ -158,7 +149,7 @@ const ArgumentList = ({ args }: { args: DecodedArg[] }) => (
   <dl className="grid gap-2 text-sm">
     {args.map((arg, i) => (
       <div key={i} className="grid grid-cols-[minmax(0,9rem)_1fr] gap-3 items-start">
-        <dt className="font-mono text-xs text-muted-foreground pt-0.5 break-all">{arg.name}</dt>
+        <dt className="break-all pt-0.5 font-mono text-xs text-muted-foreground">{arg.name}</dt>
         <dd className="min-w-0">
           <ArgValue value={arg.value} />
         </dd>
@@ -262,7 +253,7 @@ const DeployBody = ({ deploy }: { deploy: DeployInfo }) => {
       </div>
       {deploy.constructorArgs.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Constructor arguments</p>
+          <p className="field-label">Constructor arguments</p>
           <ArgumentList args={deploy.constructorArgs} />
         </div>
       )}
@@ -296,7 +287,7 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
             <ArrowRight className="w-5 h-5 text-muted-foreground justify-self-center rotate-90 sm:rotate-0" />
             <AmountLeg label="You receive" amount={details.buy} meta={meta} />
           </div>
-          <div className="grid gap-2 pt-3 border-t border-border/60">
+          <div className="grid gap-2 border-t border-line pt-3">
             <RouteFact details={details} meta={meta} />
             {details.from && <AccountFact label="From" value={details.from} source={call.source} />}
             {details.to && <AccountFact label="Sent to" value={details.to} source={call.source} />}
@@ -316,7 +307,7 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
             <AmountLeg label="Deposit" amount={details.desiredA} meta={meta} />
             <AmountLeg label="Deposit" amount={details.desiredB} meta={meta} />
           </div>
-          <div className="grid gap-2 pt-3 border-t border-border/60">
+          <div className="grid gap-2 border-t border-line pt-3">
             <Fact icon={Droplets} label="Slippage floor">
               {meta.amount(details.minA.raw, details.minA.contract)} {meta.symbol(details.minA.contract)}
               {' + '}
@@ -336,13 +327,13 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
       return (
         <div className="space-y-4">
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Burn pool shares</p>
-            <p className="text-xl sm:text-2xl font-bold tabular-nums break-all">
+            <p className="field-label">Burn pool shares</p>
+            <p className="break-all text-[22px] font-semibold tabular-nums">
               {formatTokenAmount(details.liquidity, SHARE_DECIMALS)}{' '}
-              <span className="text-base font-semibold text-muted-foreground">LP</span>
+              <span className="text-[15px] font-semibold text-muted-foreground">LP</span>
             </p>
           </div>
-          <div className="grid gap-2 pt-3 border-t border-border/60">
+          <div className="grid gap-2 border-t border-line pt-3">
             <Fact icon={Droplets} label="Receive at least">
               {meta.amount(details.minA.raw, details.minA.contract)} {meta.symbol(details.minA.contract)}
               {' + '}
@@ -380,7 +371,7 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
               />
             ))}
           </div>
-          <div className="grid gap-2 pt-3 border-t border-border/60">
+          <div className="grid gap-2 border-t border-line pt-3">
             {hasFloor && !isExact && (
               <Fact icon={ArrowDownToLine} label="At least">
                 {details.minAmounts
@@ -410,15 +401,15 @@ const CallBody = ({ call, meta }: { call: AnalyzedCall; meta: ProtocolMetadata }
       return (
         <div className="space-y-4">
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Redeem vault shares</p>
-            <p className="text-xl sm:text-2xl font-bold tabular-nums break-all">
+            <p className="field-label">Redeem vault shares</p>
+            <p className="break-all text-[22px] font-semibold tabular-nums">
               {formatTokenAmount(details.shares, SHARE_DECIMALS)}{' '}
-              <span className="text-base font-semibold text-muted-foreground">
+              <span className="text-[15px] font-semibold text-muted-foreground">
                 {vault?.symbol ?? 'shares'}
               </span>
             </p>
           </div>
-          <div className="grid gap-2 pt-3 border-t border-border/60">
+          <div className="grid gap-2 border-t border-line pt-3">
             <Fact icon={Layers} label="From vault">
               {vault?.name ?? <Address value={details.vault} />}
             </Fact>
@@ -461,7 +452,6 @@ const CallCard = ({
   showIndex: boolean;
 }) => {
   const { match, deploy } = call;
-  const style = match ? PROTOCOL_STYLE[match.protocol] : null;
   const title = deploy
     ? deploy.kind === 'upload-wasm'
       ? 'Upload contract code'
@@ -479,37 +469,20 @@ const CallCard = ({
   return (
     <div
       className={cn(
-        'rounded-xl border p-4 sm:p-5 space-y-4',
-        critical
-          ? 'border-destructive/50 bg-destructive/5'
-          : match
-            ? 'border-border/60 bg-secondary/20'
-            : 'border-warning/40 bg-warning/5',
+        'well space-y-4 border',
+        critical ? 'border-destructive' : match ? 'border-transparent' : 'border-warning',
       )}
     >
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3 min-w-0">
-          <div
-            className={cn(
-              'w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ring-1',
-              style ? `${style.tint} ${style.ring}` : 'bg-warning/10 ring-warning/30',
-            )}
-          >
-            <Icon className={cn('w-4 h-4', style ? style.accent : 'text-warning')} />
-          </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Icon className={cn('h-[18px] w-[18px] shrink-0', match ? 'text-muted-foreground' : 'text-warning')} aria-hidden />
           <div className="min-w-0">
             <p className="font-semibold leading-tight">{title}</p>
-            <p className="font-mono text-[11px] text-muted-foreground break-all">
-              {call.functionName}
-            </p>
+            <p className="break-all font-mono text-xs text-muted-foreground">{call.functionName}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {showIndex && (
-            <Badge variant="outline" className="text-[11px]">
-              Op #{call.opIndex + 1}
-            </Badge>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          {showIndex && <Badge>Op #{call.opIndex + 1}</Badge>}
           {match ? (
             <ProtocolBadge
               protocol={match.protocol}
@@ -526,8 +499,8 @@ const CallCard = ({
       <AuthorizationWarning call={call} meta={meta} />
 
       {match?.confidence === 'likely' && (
-        <p className="text-xs text-warning flex items-start gap-2">
-          <TriangleAlert className="w-3.5 h-3.5 mt-px shrink-0" />
+        <p className="flex items-start gap-2 text-[13px]">
+          <TriangleAlert className="mt-px h-4 w-4 shrink-0 text-warning" aria-hidden />
           {match.networkMismatch ? (
             <span>
               This is the <strong>{match.networkMismatch}</strong> {PROTOCOL_LABELS[match.protocol]}{' '}
@@ -544,8 +517,8 @@ const CallCard = ({
       )}
 
       {!match && (
-        <p className="text-xs text-warning flex items-start gap-2">
-          <TriangleAlert className="w-3.5 h-3.5 mt-px shrink-0" />
+        <p className="flex items-start gap-2 text-[13px]">
+          <TriangleAlert className="mt-px h-4 w-4 shrink-0 text-warning" aria-hidden />
           {deploy?.kind === 'create-contract' ? (
             <span>
               Deploys a new contract. The app cannot read what its code does, and its constructor runs
@@ -571,8 +544,8 @@ const CallCard = ({
 
       {!deploy && (
         <Collapsible>
-          <CollapsibleTrigger className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            <ChevronDown className="w-3.5 h-3.5 transition-transform group-data-[state=open]:rotate-180" />
+          <CollapsibleTrigger className="group -my-3 flex min-h-11 items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground">
+            <ChevronDown className="h-4 w-4 group-data-[state=open]:rotate-180" />
             Contract &amp; arguments
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-3 space-y-3">
@@ -614,7 +587,7 @@ export const ProtocolSummary = ({ calls, network, offlineMode = false }: Protoco
         />
       ))}
       {meta.resolving && (
-        <p className="text-xs text-muted-foreground">Resolving token names…</p>
+        <p className="text-[13px] text-muted-foreground">Resolving token names…</p>
       )}
     </div>
   );

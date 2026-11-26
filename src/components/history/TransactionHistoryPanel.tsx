@@ -1,23 +1,10 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import {
-  RefreshCw,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Calendar,
-  Filter,
-  TrendingUp,
-  Hash,
-  Settings,
-  Replace,
-  Code2,
-  Loader2
-} from 'lucide-react';
+import { RotateCw, Calendar, Filter } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -26,11 +13,10 @@ import { useAccountHistory } from '@/hooks/useAccountHistory';
 import { getUsdDailyRates, primeUsdRatesForAsset, getFxDailyRates, primeHistoricalFxRates, krakenSymbolFor } from '@/lib/kraken';
 import { convertFromUSD, formatFiatAmount } from '@/lib/fiat-currencies';
 import { getAssetPrice } from '@/lib/reflector';
-import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
+import { FiatSelect, useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { assetKey, getBalanceDeltas } from '@/lib/horizon-utils';
 import type { NormalizedTransaction } from '@/lib/horizon-utils';
 import { useNetwork } from '@/contexts/NetworkContext';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { TransactionChart } from './TransactionChart';
 import { useTransactionGrouping } from '@/hooks/useTransactionGrouping';
 import { GroupedTransactionItem } from './GroupedTransactionItem';
@@ -69,7 +55,6 @@ const valuationLegs = (tx: NormalizedTransaction) => tx.category === 'swap'
 
 export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortfolioValueUSD = 0, active = true }: TransactionHistoryPanelProps) => {
   const { network } = useNetwork();
-  const isMobile = useIsMobile();
 
   const {
     transactions,
@@ -380,49 +365,54 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
   // loaded history stays and the error is shown inline.
   if (error && transactions.length === 0) {
     return (
-      <Card className="shadow-card">
-        <CardContent className="pt-6">
-          <div className="text-center text-muted-foreground">
-            <p>Failed to load transaction history</p>
-            <p className="text-sm mt-1">{error}</p>
-            <Button onClick={refresh} variant="outline" size="sm" className="mt-2">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Retry
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <section aria-labelledby="activity-history" className="border-t border-line md:border md:bg-ink-2">
+        <div className="flex flex-col items-center gap-2 p-8 text-center">
+          <h2 id="activity-history" className="sub">Failed to load transaction history</h2>
+          <p className="text-[13px] text-muted-foreground">{error}</p>
+          <Button onClick={refresh} variant="outline" size="sm" className="mt-2">
+            <RotateCw />
+            Retry
+          </Button>
+        </div>
+      </section>
     );
   }
 
+  const categoryOptions = [
+    { value: 'in', label: 'Incoming' },
+    { value: 'out', label: 'Outgoing' },
+    { value: 'swap', label: 'Swaps' },
+    { value: 'contract', label: 'Contracts' },
+    { value: 'config', label: 'Config' },
+  ];
+
   return (
-    <Card className="shadow-card">
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <section aria-labelledby="activity-history" className="border-t border-line md:border md:bg-ink-2">
+      <div className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <TrendingUp className="w-5 h-5" />
-              Activity History
-            </CardTitle>
-            <CardDescription>
-              {lastSync && (
-                <>Last updated {formatDistanceToNow(lastSync, { addSuffix: true })} • {filteredTransactions.length} transactions</>
-              )}
-              {error && (
-                <span className="block text-destructive">Couldn't check for new transactions: {error}</span>
-              )}
-            </CardDescription>
+            <h2 id="activity-history" className="sec">Activity History</h2>
+            {(lastSync || error) && (
+              <p className="mt-2 text-[13px] text-muted-foreground">
+                {lastSync && (
+                  <>Last updated {formatDistanceToNow(lastSync, { addSuffix: true })} • {filteredTransactions.length} transactions</>
+                )}
+                {error && (
+                  <span className="block text-destructive">Couldn't check for new transactions: {error}</span>
+                )}
+              </p>
+            )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-2">
             {/* Asset selector */}
-            <Select 
+            <Select
               value={`${selectedAsset.code}:${selectedAsset.issuer || ''}`}
               onValueChange={(val) => {
                 const [code, issuer] = val.split(':');
                 setSelectedAsset({ code, issuer: issuer || undefined });
               }}
             >
-              <SelectTrigger className="h-8 w-48">
+              <SelectTrigger className="md:w-[200px]" aria-label="Asset">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -433,216 +423,158 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
                 ))}
               </SelectContent>
             </Select>
-            
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className={cn(showFilters && "bg-secondary")}
-            >
-              <Filter className="w-4 h-4" />
-              {!isMobile && <span className="ml-2">Filters</span>}
-            </Button>
-            <Button
-              onClick={refresh}
-              variant="ghost"
-              size="sm"
-              disabled={isLoading}
-              className="shrink-0"
-            >
-              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-              {!isMobile && <span className="ml-2">Refresh</span>}
-            </Button>
+
+            <div className="flex gap-2 [&>*]:flex-1 md:[&>*]:flex-none">
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                aria-pressed={showFilters}
+                className={cn(showFilters && 'border-foreground')}
+              >
+                <Filter />
+                Filters
+              </Button>
+              <Button onClick={refresh} variant="outline" disabled={isLoading}>
+                {isLoading ? <Spinner /> : <RotateCw />}
+                Refresh
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* Attribution (CoinGecko) - Keep near the bottom */}
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        {/* Enhanced Filter Panel */}
+        {/* Filters */}
         {showFilters && (
-          <div className="border rounded-lg bg-card/50 backdrop-blur-sm">
-            <div className="p-4 border-b border-border/50">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">Filters</h3>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={clearFilters}
-                  className="h-auto px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Reset
-                </Button>
+          <div className="well flex flex-col gap-4 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="sub">Filters</h3>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Reset
+              </Button>
+            </div>
+
+            <fieldset className="flex flex-col gap-2">
+              <legend className="field-label mb-2">Categories</legend>
+              <div className="grid grid-cols-2 gap-x-3 md:grid-cols-3">
+                {categoryOptions.map((category) => (
+                  <label key={category.value} htmlFor={category.value} className="flex min-h-11 cursor-pointer items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      id={category.value}
+                      checked={filters.categories.includes(category.value)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFilters(prev => ({
+                            ...prev,
+                            categories: [...prev.categories, category.value]
+                          }));
+                        } else {
+                          setFilters(prev => ({
+                            ...prev,
+                            categories: prev.categories.filter(c => c !== category.value)
+                          }));
+                        }
+                      }}
+                      className="size-4 rounded-none accent-foreground"
+                    />
+                    {category.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div className="flex flex-col gap-2">
+              <span className="field-label">Amount Range</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="filter-min-amount" className="field-label font-normal">Minimum</Label>
+                  <Input
+                    id="filter-min-amount"
+                    placeholder="0.00"
+                    type="number"
+                    step="0.01"
+                    value={filters.minAmount}
+                    onChange={(e) => setFilters(prev => ({ ...prev, minAmount: e.target.value }))}
+                    className="font-mono"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="filter-max-amount" className="field-label font-normal">Maximum</Label>
+                  <Input
+                    id="filter-max-amount"
+                    placeholder="∞"
+                    type="number"
+                    step="0.01"
+                    value={filters.maxAmount}
+                    onChange={(e) => setFilters(prev => ({ ...prev, maxAmount: e.target.value }))}
+                    className="font-mono"
+                  />
+                </div>
               </div>
             </div>
-            
-            <div className="p-4 space-y-6">
-              {/* Categories Section */}
-              <div className="space-y-3">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Categories</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {[
-                    { value: 'in', label: 'Incoming', icon: ArrowDownLeft },
-                    { value: 'out', label: 'Outgoing', icon: ArrowUpRight },
-                    { value: 'swap', label: 'Swaps', icon: Replace },
-                    { value: 'contract', label: 'Contracts', icon: Code2 },
-                    { value: 'config', label: 'Config', icon: Settings }
-                  ].map((category) => (
-                    <div key={category.value} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={category.value}
-                        checked={filters.categories.includes(category.value)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFilters(prev => ({ 
-                              ...prev, 
-                              categories: [...prev.categories, category.value] 
-                            }));
-                          } else {
-                            setFilters(prev => ({ 
-                              ...prev, 
-                              categories: prev.categories.filter(c => c !== category.value) 
-                            }));
-                          }
-                        }}
-                        className="rounded border-border"
-                      />
-                      <Label htmlFor={category.value} className="text-xs flex items-center gap-1 cursor-pointer">
-                        <category.icon className="w-3 h-3" />
-                        {category.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Row 2: Amount Range */}
-              <div className="space-y-3">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount Range</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Minimum</Label>
-                    <Input
-                      placeholder="0.00"
-                      type="number"
-                      step="0.01"
-                      value={filters.minAmount}
-                      onChange={(e) => setFilters(prev => ({ ...prev, minAmount: e.target.value }))}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Maximum</Label>
-                    <Input
-                      placeholder="∞"
-                      type="number"
-                      step="0.01"
-                      value={filters.maxAmount}
-                      onChange={(e) => setFilters(prev => ({ ...prev, maxAmount: e.target.value }))}
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Date Range */}
-              <div className="space-y-3">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Range</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">From</Label>
+            <div className="flex flex-col gap-2">
+              <span className="field-label">Date Range</span>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {([['From', 'dateFrom'], ['To', 'dateTo']] as const).map(([label, key]) => (
+                  <div key={key} className="flex flex-col gap-1">
+                    <span className="field-label">{label}</span>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           className={cn(
-                            "h-9 w-full justify-start text-left font-normal text-sm",
-                            !filters.dateFrom && "text-muted-foreground"
+                            "w-full justify-start text-left font-normal",
+                            !filters[key] && "text-muted-foreground"
                           )}
                         >
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {filters.dateFrom ? format(filters.dateFrom, "MMM dd, yyyy") : "Pick date"}
+                          <Calendar />
+                          {filters[key] ? format(filters[key]!, "MMM dd, yyyy") : "Pick date"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <CalendarComponent
                           mode="single"
-                          selected={filters.dateFrom}
-                          onSelect={(date) => setFilters(prev => ({ ...prev, dateFrom: date }))}
+                          selected={filters[key]}
+                          onSelect={(date) => setFilters(prev => ({ ...prev, [key]: date }))}
                           className="p-3 pointer-events-auto"
                         />
                       </PopoverContent>
                     </Popover>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">To</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "h-9 w-full justify-start text-left font-normal text-sm",
-                            !filters.dateTo && "text-muted-foreground"
-                          )}
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {filters.dateTo ? format(filters.dateTo, "MMM dd, yyyy") : "Pick date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={filters.dateTo}
-                          onSelect={(date) => setFilters(prev => ({ ...prev, dateTo: date }))}
-                          className="p-3 pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
+                ))}
               </div>
+            </div>
 
-              {/* Address Filter */}
-              <div className="space-y-3">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Address Filter</Label>
-                <Input
-                  placeholder="Search by address..."
-                  value={filters.addressFilter}
-                  onChange={(e) => setFilters(prev => ({ ...prev, addressFilter: e.target.value }))}
-                  className="h-8 text-sm"
-                />
-              </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="filter-address" className="field-label font-normal">Address Filter</Label>
+              <Input
+                id="filter-address"
+                placeholder="Search by address..."
+                value={filters.addressFilter}
+                onChange={(e) => setFilters(prev => ({ ...prev, addressFilter: e.target.value }))}
+                className="font-address text-[13px]"
+              />
             </div>
           </div>
         )}
 
-        {/* Value Card */}
-        <div className="mt-1 p-4 bg-primary/5 rounded-lg border border-primary/10">
-          <div className="flex items-center justify-between">
-            <div>
-              {selectedAsset.code === 'PORTFOLIO' ? (
-                <>
-                  <p className="text-sm text-muted-foreground/80">Portfolio Value</p>
-                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">{currentPortfolioFiat > 0 ? formatFiat(currentPortfolioFiat) : 'N/A'}</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground/80">
-                    {selectedAsset.code} Balance Value
-                  </p>
-                  <p className="text-2xl font-bold text-primary font-amount tabular-nums">
-                    {selectedAsset.code === 'XLM' ? formatFiat(currentXLMFiat) : formatFiat(currentAssetFiat)}
-                  </p>
-                </>
-              )}
-            </div>
+        {/* Value */}
+        <div className="mt-2 md:mt-0">
+          <div className="flex items-center justify-between gap-3">
+            <span className="field-label">
+              {selectedAsset.code === 'PORTFOLIO' ? 'Portfolio Value' : `${selectedAsset.code} Balance Value`}
+            </span>
+            <FiatSelect />
+          </div>
+          <div className="mt-2">
+            <span className="figure tabular-nums">
+              {selectedAsset.code === 'PORTFOLIO'
+                ? (currentPortfolioFiat > 0 ? formatFiat(currentPortfolioFiat) : 'N/A')
+                : selectedAsset.code === 'XLM' ? formatFiat(currentXLMFiat) : formatFiat(currentAssetFiat)}
+            </span>
           </div>
         </div>
 
-        {/* Enhanced Chart with Controls */}
         <TransactionChart
           transactions={transactions}
           getDelta={chartDelta}
@@ -652,67 +584,65 @@ export const TransactionHistoryPanel = ({ accountPublicKey, balances, totalPortf
           fiatMode={selectedAsset.code === 'PORTFOLIO'}
           fiatSymbol={getCurrentCurrency().symbol}
         />
+      </div>
 
-        <Separator />
+      {/* Transactions */}
+      {transactions.length === 0 && (isLoading || !lastSync) ? (
+        <div className="flex flex-col items-center gap-2 border-t border-line py-8 text-muted-foreground">
+          <Spinner size={23} />
+          <p>Loading transaction history...</p>
+        </div>
+      ) : groupedTransactions.length === 0 ? (
+        <div className="border-t border-line px-4 py-8 text-center text-muted-foreground">
+          <p>No transactions found</p>
+          <p className="mt-1 text-[13px]">
+            {transactions.length > 0
+              ? 'Try adjusting your filters'
+              : hasMore ? 'None in the most recent activity' : 'This account has no activity yet'}
+          </p>
+        </div>
+      ) : (
+        <ul aria-label="Transactions">
+          {groupedTransactions.map((groupedTx) => (
+            <GroupedTransactionItem
+              key={groupedTx.id}
+              groupedTx={groupedTx}
+              fiatAmounts={fiatAmounts}
+              rateInfo={rateInfo}
+              fiatLoading={fiatLoading}
+              formatFiatAmount={formatFiat}
+              truncateAddress={truncateAddress}
+              paidCounterparties={paidCounterparties}
+              network={network}
+              currencySymbol={getCurrentCurrency().symbol}
+            />
+          ))}
+        </ul>
+      )}
 
-        {/* Transaction List */}
-        <div className="space-y-2">
-          {transactions.length === 0 && (isLoading || !lastSync) ? (
-            <div className="text-center py-8">
-              <RefreshCw className="w-6 h-6 mx-auto animate-spin text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">Loading transaction history...</p>
-            </div>
-          ) : groupedTransactions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Hash className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No transactions found</p>
-              <p className="text-sm mt-1">
-                {transactions.length > 0
-                  ? 'Try adjusting your filters'
-                  : hasMore ? 'None in the most recent activity' : 'This account has no activity yet'}
-              </p>
-            </div>
+      {/* Older pages stay reachable even when nothing loaded so far matches */}
+      {loadMoreError && (
+        <p className="border-t border-line px-4 pt-3 text-center text-[13px] text-muted-foreground">
+          Couldn't load older transactions: {loadMoreError}
+        </p>
+      )}
+      {hasMore && lastSync && (
+        <div className={cn('flex justify-center p-4', !loadMoreError && 'border-t border-line')}>
+          {isLoadingMore ? (
+            <Spinner size={18} />
           ) : (
-            groupedTransactions.map((groupedTx) => (
-              <GroupedTransactionItem
-                key={groupedTx.id}
-                groupedTx={groupedTx}
-                fiatAmounts={fiatAmounts}
-                rateInfo={rateInfo}
-                fiatLoading={fiatLoading}
-                formatFiatAmount={formatFiat}
-                truncateAddress={truncateAddress}
-                paidCounterparties={paidCounterparties}
-                network={network}
-                currencySymbol={getCurrentCurrency().symbol}
-              />
-            ))
-          )}
-
-          {/* Older pages stay reachable even when nothing loaded so far matches */}
-          {loadMoreError && (
-            <p className="text-center text-sm text-muted-foreground pt-2">
-              Couldn't load older transactions: {loadMoreError}
-            </p>
-          )}
-          {hasMore && lastSync && (
-            <div className="flex justify-center py-4">
-              {isLoadingMore ? (
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              ) : (
-                <Button variant="ghost" size="sm" onClick={() => loadMore()}>
-                  {loadMoreError ? 'Retry' : 'Load older transactions'}
-                </Button>
-              )}
-            </div>
-          )}
-          {transactions.length > 0 && (
-            <div className="text-[11px] text-muted-foreground/80 mt-4 select-none text-center">
-              Historical price data from <a href="https://docs.kraken.com/api/docs/rest-api/get-ohlc-data" target="_blank" rel="noreferrer" className="underline hover:text-foreground">Kraken</a>
-            </div>
+            <Button variant="outline" size="sm" onClick={() => loadMore()}>
+              {loadMoreError ? 'Retry' : 'Load older transactions'}
+            </Button>
           )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+      {transactions.length > 0 && (
+        <p className="select-none border-t border-line p-4 text-center text-xs text-muted-foreground">
+          Historical price data from{' '}
+          <a href="https://docs.kraken.com/api/docs/rest-api/get-ohlc-data" target="_blank" rel="noreferrer" className="text-muted-foreground underline decoration-line-2 underline-offset-[3px] hover:decoration-current">Kraken</a>
+        </p>
+      )}
+    </section>
   );
 };

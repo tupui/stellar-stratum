@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getAvailableFiatCurrencies, type FiatCurrency } from '@/lib/fiat-currencies';
 import { safeStorage } from '@/lib/storage';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const QUOTE_CURRENCY_STORAGE_KEY = 'stellar-quote-currency';
 const USD_ONLY: FiatCurrency[] = [{ code: 'USD', symbol: '$', name: 'US Dollar' }];
@@ -65,5 +66,25 @@ export const FiatCurrencyProvider = ({ children }: FiatCurrencyProviderProps) =>
     >
       {children}
     </FiatCurrencyContext.Provider>
+  );
+};
+
+/** The quote currency picker, beside the Portfolio Value on Balances and Activity. */
+export const FiatSelect = () => {
+  const { quoteCurrency, setQuoteCurrency, availableCurrencies } = useFiatCurrency();
+  return (
+    <label className="inline-flex items-center gap-2">
+      <span className="field-label">Fiat</span>
+      <Select value={quoteCurrency} onValueChange={setQuoteCurrency}>
+        <SelectTrigger className="w-auto min-w-24 gap-3" aria-label="Fiat currency">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {availableCurrencies.map((c) => (
+            <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
   );
 };

@@ -43,7 +43,7 @@ export const PAGES = [
 
 const openAccount = async ({ page, base, accounts }: Ctx) => {
   await page.goto(`${base}/?address=${accounts.A.publicKey()}&network=testnet`);
-  await page.getByText('Account Information').waitFor({ timeout: 60_000 });
+  await page.getByText('Public key').waitFor({ timeout: 60_000 });
   await page.waitForTimeout(2500);
 };
 
@@ -285,7 +285,7 @@ export const FLOWS: Flow[] = [
       const paste = page.getByPlaceholder('Paste transaction XDR here...');
       await shot('review-partly-signed', async () => {
         await paste.fill(sign(xdr, accounts.A));
-        await page.getByText('Weight: 1/2').waitFor({ timeout: 30_000 });
+        await page.getByRole('img', { name: 'Weight 1 of 2' }).waitFor({ timeout: 30_000 });
         await page.waitForTimeout(1500);
       });
       await shot('share-sent', async () => {
@@ -301,7 +301,7 @@ export const FLOWS: Flow[] = [
       await closeOverlay(page);
       await shot('review-ready', async () => {
         await paste.fill(sign(xdr, accounts.A, accounts.B));
-        await page.getByText('Weight: 2/2').waitFor({ timeout: 30_000 });
+        await page.getByRole('img', { name: 'Weight 2 of 2' }).waitFor({ timeout: 30_000 });
         await page.waitForTimeout(1500);
       });
       await shot('submit-success', async () => {

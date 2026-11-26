@@ -3,7 +3,7 @@ import { submitLog } from './submitLog';
 import { getHorizonUrls } from './horizonSettings';
 import { getTransactionHash } from './xdr/parse';
 
-import { AccountRequiresMemoError, Horizon, Transaction, TransactionBuilder, type FeeBumpTransaction } from '@stellar/stellar-sdk';
+import { AccountRequiresMemoError, Horizon, Transaction, TransactionBuilder, xdr, type FeeBumpTransaction } from '@stellar/stellar-sdk';
 
 // Network configuration using centralized config. The Horizon URL honours the user's
 // endpoint settings (custom endpoints and disabled mirrors), see horizonSettings.ts.
@@ -245,12 +245,73 @@ const RESULT_CODE_HINTS: Record<string, string> = {
   op_bad_auth: 'an operation does not have enough signature weight for its source account',
 };
 
-type ResultCodes = { transaction?: string; operations?: string[] };
+export type ResultCodes = { transaction?: string; operations?: string[] };
 
-const describeResultCodes = (codes: ResultCodes): string => {
+/** The result codes that say something, and their plain-language reasons. */
+export const readResultCodes = (codes: ResultCodes): { codes: string[]; hints: string[] } => {
   const all = [codes.transaction, ...(codes.operations || [])].filter((c): c is string => Boolean(c) && c !== 'op_success');
-  const hints = [...new Set(all.map((c) => RESULT_CODE_HINTS[c]).filter(Boolean))];
+  return { codes: all, hints: [...new Set(all.map((c) => RESULT_CODE_HINTS[c]).filter(Boolean))] };
+};
+
+export const describeResultCodes = (codes: ResultCodes): string => {
+  const { codes: all, hints } = readResultCodes(codes);
   return `${all.join(', ')}${hints.length ? `: ${hints.join('; ')}` : ''}`;
+};
+
+/**
+ * How a submission ended without landing:
+ * - rejected: a Horizon refused it before any ledger (no fee charged);
+ * - failed: it is in a ledger but failed (the fee was charged);
+ * - memo: the destination requires a memo, so it was never sent;
+ * - not-in-ledger: sent, but not in a ledger before the app stopped waiting (it may still land);
+ * - other: anything else.
+ */
+export type SubmitErrorKind = 'rejected' | 'failed' | 'memo' | 'not-in-ledger' | 'other';
+
+export class SubmitError extends Error {
+  readonly kind: SubmitErrorKind;
+  /** Result codes of a rejection. */
+  readonly codes?: ResultCodes;
+  /** The Horizon that answered. */
+  readonly host?: string;
+  /** The ledger a failed transaction is in. */
+  readonly ledger?: number;
+  /** How long the app waited, for a transaction not in a ledger yet. */
+  readonly waitedMs?: number;
+
+  constructor(
+    kind: SubmitErrorKind,
+    message: string,
+    details: { codes?: ResultCodes; host?: string; ledger?: number; waitedMs?: number; cause?: unknown } = {},
+  ) {
+    super(message, details.cause === undefined ? undefined : { cause: details.cause });
+    this.name = 'SubmitError';
+    this.kind = kind;
+    this.codes = details.codes;
+    this.host = details.host;
+    this.ledger = details.ledger;
+    this.waitedMs = details.waitedMs;
+  }
+}
+
+/** The fee a landed transaction paid, in stroops: from the response, or decoded from result_xdr. */
+export const feeChargedOf = (result: { fee_charged?: string | number; result_xdr?: string }): bigint | null => {
+  if (result.fee_charged !== undefined && result.fee_charged !== null && `${result.fee_charged}` !== '') {
+    try {
+      return BigInt(result.fee_charged);
+    } catch {
+      // fall through to the result XDR
+    }
+  }
+  if (!result.result_xdr) return null;
+  try {
+    const decoded = xdr.TransactionResult.fromXDR(result.result_xdr, 'base64');
+    // An accessor in older SDKs, a plain field in newer ones.
+    const fee = (decoded as unknown as { feeCharged: unknown }).feeCharged;
+    return BigInt(String(typeof fee === 'function' ? fee.call(decoded) : fee));
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -269,6 +330,8 @@ export const submitTransaction = async (
 ): Promise<Horizon.HorizonApi.SubmitTransactionResponse> => {
   const startedAt = performance.now();
   const elapsed = () => `${Math.round(performance.now() - startedAt)}ms`;
+  // The Horizon that refused the transaction, for the error.
+  let rejectedBy: string | undefined;
   try {
     const config = getNetworkConfig(network);
     const urls = getHorizonUrls(network);
@@ -299,14 +362,18 @@ export const submitTransaction = async (
     try {
       const market = await fetchInclusionFeeMarket(network, resourceFee > 0);
       const lane = resourceFee > 0 ? 'soroban' : 'classic';
-      submitLog.info(`${lane} inclusion fee market (last ${market.ledgerCount} ledgers): min ${market.min}, p50 ${market.p50}, p90 ${market.p90}, max ${market.max} stroops; this tx offers ${inclusionFeePerOp}`);
+      submitLog.info(
+        `${lane} inclusion fee market (last ${market.ledgerCount} ledgers): min ${market.min}, p50 ${market.p50}, p90 ${market.p90}, max ${market.max} stroops; this tx offers ${inclusionFeePerOp}`,
+        undefined,
+        { step: 'fee' },
+      );
       if (inclusionFeePerOp < market.p50) {
         submitLog.wait(`inclusion fee ${inclusionFeePerOp} is below the market p50 ${market.p50}: when the ${lane} lane is full, core drops the lowest-fee transactions from its queue, so this may never land. Rebuild with a higher fee (or fee-bump it).`);
       } else if (inclusionFeePerOp < market.p90) {
         submitLog.wait(`inclusion fee ${inclusionFeePerOp} is below the market p90 ${market.p90}: may wait for a less busy ledger`);
       }
     } catch (feeError) {
-      submitLog.info('could not fetch fee stats', feeError);
+      submitLog.info('could not fetch fee stats', feeError, { step: 'fee' });
     }
 
     const alreadyIncluded = ({ record: found, host, primary }: Sighting) => {
@@ -314,27 +381,38 @@ export const submitTransaction = async (
         if (!primary) {
           // A third-party mirror alone cannot prove a failure: rebuilding on its word could pay twice.
           submitLog.error(`${host} reports the transaction FAILED in ledger ${found.ledger_attr}; the primary Horizon has not confirmed it`, { hash });
-          throw new Error(
+          throw new SubmitError(
+            'other',
             `${host} reports that the transaction failed, but your Horizon has not confirmed it. ` +
               `Check hash ${hash} on an explorer before building it again.`,
+            { host },
           );
         }
         // Included in a ledger but failed: the fee and sequence number are spent, nothing else happened.
         submitLog.error(`transaction is in ledger ${found.ledger_attr} but FAILED`, { hash: found.hash, result_xdr: found.result_xdr });
-        throw new Error(`The transaction was included in ledger ${found.ledger_attr} but failed, so nothing was transferred (the fee was charged).`);
+        throw new SubmitError(
+          'failed',
+          `The transaction was included in ledger ${found.ledger_attr} but failed, so nothing was transferred (the fee was charged).`,
+          { host, ledger: found.ledger_attr },
+        );
       }
       submitLog.ok(
         primary
           ? `transaction is in ledger ${found.ledger_attr} after ${elapsed()}`
           : `${host} reports the transaction in ledger ${found.ledger_attr} after ${elapsed()} (not confirmed by the primary Horizon: check the hash on an explorer)`,
         { hash: found.hash },
+        { step: 'ledger', host, ledger: found.ledger_attr },
       );
       return found as unknown as Horizon.HorizonApi.SubmitTransactionResponse;
     };
 
     for (const [index, url] of urls.entries()) {
       const host = hostOf(url);
-      submitLog.wait(`[${index + 1}/${urls.length}] POST ${host}/transactions — waiting up to ${appConfig.HORIZON_SUBMIT_ATTEMPT_MS / 1000}s`);
+      submitLog.wait(
+        `[${index + 1}/${urls.length}] POST ${host}/transactions — waiting up to ${appConfig.HORIZON_SUBMIT_ATTEMPT_MS / 1000}s`,
+        undefined,
+        { step: 'sent', host },
+      );
       const attemptStart = performance.now();
       const attemptElapsed = () => `${Math.round(performance.now() - attemptStart)}ms`;
       try {
@@ -345,12 +423,17 @@ export const submitTransaction = async (
           }),
         ]);
         if (result.hash !== hash) throw new Error(`${host} answered for another transaction (${result.hash})`);
-        submitLog.ok(`${host} accepted the transaction after ${attemptElapsed()} (total ${elapsed()})`, { hash: result.hash, ledger: result.ledger, successful: result.successful });
+        submitLog.ok(
+          `${host} accepted the transaction after ${attemptElapsed()} (total ${elapsed()})`,
+          { hash: result.hash, ledger: result.ledger, successful: result.successful },
+          { step: 'ledger', host, ledger: result.ledger },
+        );
         return result;
       } catch (attemptError) {
         // The SDK checks SEP-29 before posting: the destination (usually an exchange) needs a memo.
         if (attemptError instanceof AccountRequiresMemoError) {
-          throw new Error(
+          throw new SubmitError(
+            'memo',
             `${attemptError.accountId} requires a memo (it is probably an exchange deposit address). ` +
               'Add the memo they gave you and rebuild the transaction.',
             { cause: attemptError },
@@ -363,8 +446,9 @@ export const submitTransaction = async (
         const isRejection = status === 400 && codes !== undefined && codes.transaction !== 'tx_timeout';
 
         if (isRejection) {
-          // tx_bad_seq can mean an earlier attempt already got it into a ledger.
-          if (codes.transaction === 'tx_bad_seq') {
+          // tx_bad_seq can mean an earlier attempt already got it into a ledger; tx_failed can mean
+          // it is in a ledger and failed there, with the fee charged.
+          if (codes.transaction === 'tx_bad_seq' || codes.transaction === 'tx_failed' || codes.transaction === 'tx_fee_bump_inner_failed') {
             const found = await findTransactionAnywhere(hash, urls);
             if (found) return alreadyIncluded(found);
           }
@@ -375,6 +459,7 @@ export const submitTransaction = async (
             result_codes: codes,
             result_xdr: horizonError.response?.data?.extras?.result_xdr,
           });
+          rejectedBy = host;
           throw attemptError;
         }
 
@@ -398,10 +483,12 @@ export const submitTransaction = async (
       if (found) return alreadyIncluded(found);
       submitLog.wait(`not in a ledger yet (${elapsed()})`);
     }
-    throw new Error(
+    throw new SubmitError(
+      'not-in-ledger',
       `No Horizon confirmed the transaction and it has not appeared in a ledger after ${elapsed()}. ` +
         `It may still be included later; check hash ${hash} before resubmitting. ` +
         `If it never lands, the fee is likely too low for current surge pricing.`,
+      { waitedMs: Math.round(performance.now() - startedAt) },
     );
   } catch (error) {
     const horizonError = asHorizonError(error);
@@ -417,9 +504,16 @@ export const submitTransaction = async (
       result_xdr: horizonError.response?.data?.extras?.result_xdr,
       raw: error,
     });
+    if (error instanceof SubmitError) throw error;
     const codes = horizonError.response?.data?.extras?.result_codes;
-    if (codes) throw new Error(`The network rejected the transaction (${describeResultCodes(codes)}).`, { cause: error });
-    throw new Error(error instanceof Error ? error.message : 'Failed to submit transaction', { cause: error });
+    if (codes) {
+      throw new SubmitError('rejected', `The network rejected the transaction (${describeResultCodes(codes)}).`, {
+        codes,
+        host: rejectedBy,
+        cause: error,
+      });
+    }
+    throw new SubmitError('other', error instanceof Error ? error.message : 'Failed to submit transaction', { cause: error });
   }
 };
 

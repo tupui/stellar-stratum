@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ArrowUpDown, ArrowDown, Merge, AlertTriangle } from 'lucide-react';
+import { ArrowUpDown, ArrowDown, ArrowRight, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AssetIcon } from '@/components/AssetIcon';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { formatBalance, formatBalanceAligned, formatAmount, calculateBalancePercentage, validateAndCapAmount, priceKey } from '@/lib/balance-utils';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
@@ -275,164 +274,199 @@ export const SwapInterface = ({
     return `https://stellar.expert/explorer/${networkPath}/asset/${assetCode}-${assetIssuer}`;
   };
 
-  return <div className={cn("max-w-lg mx-auto", className)}>
-      {/* From Section */}
-      <div className={cn(
-        "border rounded-2xl p-6 mb-2",
-        willCloseAccount 
-          ? "bg-destructive/5 border-destructive/50" 
-          : "bg-card border-border"
-      )}>
-        <div className="flex justify-between items-center mb-4">
+  const sanitizeAmount = (raw: string) => {
+    let sanitized = raw.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
+    const parts = sanitized.split('.');
+    if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
+    if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
+    return sanitized;
+  };
+
+  // a 4 px track and a square 16 px white thumb
+  const squareSlider =
+    'h-1 rounded-none [&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:rounded-none [&::-webkit-slider-thumb]:border-0 [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow-none [&::-webkit-slider-thumb]:hover:scale-100 [&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-none [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-foreground';
+  // the builder's amount: pixel 40, white; muted while nothing is entered
+  const figure = 'min-w-0 break-all text-right font-pix text-[40px] leading-none';
+  const amountInput = 'h-12 border-line-2 bg-ink px-2 text-right font-pix text-[40px] leading-none';
+  const assetTrigger = 'h-12 w-auto min-w-32 max-w-48 shrink-0 gap-2 px-3 [&>span]:min-w-0';
+
+  const assetOption = (code: string, issuer: string | undefined, balance: string, link: boolean) => (
+    <div className="flex w-full items-center justify-between">
+      <div className="flex items-center gap-3">
+        <AssetIcon assetCode={code} assetIssuer={issuer} size={24} />
+        {link ? (
+          <a
+            href={getAssetExplorerUrl(code, issuer)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {code}
+            {issuer && <span className="ml-1 font-address text-xs text-muted-foreground">{issuer.slice(0, 4)}…{issuer.slice(-4)}</span>}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">{code}</span>
+        )}
+      </div>
+      <span className="ml-4 w-40 shrink-0 whitespace-nowrap text-right font-amount tabular-nums tracking-normal text-muted-foreground">
+        {formatBalanceAligned(balance)}
+      </span>
+    </div>
+  );
+
+  const selected = (code: string, issuer?: string) => (
+    <div className="flex min-w-0 items-center gap-2">
+      <AssetIcon assetCode={code} assetIssuer={issuer} size={24} className="shrink-0" />
+      <span className="truncate font-semibold">{code}</span>
+    </div>
+  );
+
+  const editableFigure = (value: string, placeholder: string, onClick: () => void) => (
+    <div
+      className={cn(figure, 'flex min-h-11 cursor-pointer items-center justify-end', !value && 'text-muted-foreground')}
+      onClick={onClick}
+    >
+      {value || placeholder}
+    </div>
+  );
+
+  const receiveInput = (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={editReceiveValue}
+      onChange={(e) => setEditReceiveValue(sanitizeAmount(e.target.value))}
+      onBlur={handleReceiveAmountSubmit}
+      onKeyDown={handleReceiveAmountKeyDown}
+      onFocus={(e) => e.currentTarget.select()}
+      className={amountInput}
+      placeholder="0.0"
+      autoFocus
+    />
+  );
+
+  return <div className={cn("grid items-start lg:grid-cols-[minmax(0,1fr)_40px_minmax(0,1fr)] lg:gap-4", className)}>
+      {/* You send */}
+      <div className={cn('well p-4', willCloseAccount && 'border border-destructive')}>
+        <div className="flex min-h-11 items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
+            <span className="text-[13px] text-muted-foreground">
               {isPathPayment && exactOut ? 'You pay (max)' : 'You send'}
             </span>
             {willCloseAccount && (
-              <Badge variant="destructive" className="text-[10px] px-2 py-1 font-medium">
-                <Merge className="h-3 w-3 mr-1" />
+              <Badge variant="destructive">
                 Account Closure
               </Badge>
             )}
           </div>
           <div className="flex items-center gap-2">
             {isPathPayment && onExactOutChange && (
-              <div className="flex items-center rounded-full border border-border/60 overflow-hidden text-xs">
-                <button
-                  type="button"
-                  onClick={() => onExactOutChange(false)}
-                  className={`px-3 py-1 transition-colors ${!exactOut ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  Exact In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onExactOutChange(true)}
-                  className={`px-3 py-1 transition-colors ${exactOut ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  Exact Out
-                </button>
+              <div className="flex border border-line-2 text-sm font-semibold" role="group" aria-label="Amount fixed on">
+                {([false, true] as const).map((out) => (
+                  <button
+                    key={String(out)}
+                    type="button"
+                    aria-pressed={exactOut === out}
+                    onClick={() => onExactOutChange(out)}
+                    className={cn(
+                      'min-h-11 px-3 first:border-r first:border-line-2',
+                      exactOut === out ? 'bg-foreground text-ink' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {out ? 'Exact Out' : 'Exact In'}
+                  </button>
+                ))}
               </div>
             )}
             {!exactOut && (
-              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs bg-success/10 text-success hover:bg-success/20 hover:text-success border border-success/20" onClick={handleMaxClick}>
+              <Button variant="outline" size="sm" onClick={handleMaxClick}>
                 MAX
               </Button>
             )}
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4">
+        <div className="mt-3 flex items-center gap-3">
           <Select value={assetKey(fromAsset, fromAssetIssuer)} onValueChange={value => {
           const selectedAsset = availableAssets.find(asset => assetKey(asset.code, asset.issuer) === value);
           if (selectedAsset) onFromAssetChange(selectedAsset.code, selectedAsset.issuer);
         }}>
-            <SelectTrigger className="min-w-32 max-w-48 h-12 rounded-full">
-              <SelectValue>
-                <div className="flex items-center gap-2 min-w-0">
-                  <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={32} className="shrink-0" />
-                  <span className="font-medium truncate">{fromAsset}</span>
-                </div>
-              </SelectValue>
+            <SelectTrigger className={assetTrigger} aria-label="Asset to send">
+              <SelectValue>{selected(fromAsset, fromAssetIssuer)}</SelectValue>
             </SelectTrigger>
-            <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
+            <SelectContent className="z-50 min-w-[280px]">
               {availableAssets.map(asset => (
                 <SelectItem key={assetKey(asset.code, asset.issuer)} value={assetKey(asset.code, asset.issuer)} className="px-3 py-3" hideIndicator>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-3">
-                      <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-                      <a 
-                        href={getAssetExplorerUrl(asset.code, asset.issuer)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium hover:text-primary transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {asset.code}
-                        {asset.issuer && <span className="ml-1 text-xs text-muted-foreground font-address">{asset.issuer.slice(0, 4)}…{asset.issuer.slice(-4)}</span>}
-                      </a>
-                    </div>
-                    <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
-                      {formatBalanceAligned(asset.balance)}
-                    </span>
-                  </div>
+                  {assetOption(asset.code, asset.issuer, asset.balance, true)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          <div className="flex-1 sm:min-w-0">
+          <div className="min-w-0 flex-1 text-right">
             {isPathPayment && exactOut ? (
-              <div className="text-right sm:text-right text-xl font-amount text-muted-foreground w-full p-2">
+              <div className={cn(figure, 'text-muted-foreground')}>
                 {displaySendMax !== '0' ? `≤ ${formatAmount(displaySendMax)}` : '—'}
               </div>
             ) : isEditingAmount ? (
-              <Input type="text" inputMode="decimal" value={editValue} onChange={e => {
-                let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
-                const parts = sanitized.split('.');
-                if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-                if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
-                setEditValue(sanitized);
-              }} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full" placeholder="0.0" aria-label="Amount to send" autoFocus />
+              <Input type="text" inputMode="decimal" value={editValue} onChange={e => setEditValue(sanitizeAmount(e.target.value))} onBlur={handleAmountSubmit} onKeyDown={handleAmountKeyDown} onFocus={e => e.currentTarget.select()} className={amountInput} placeholder="0.0" aria-label="Amount to send" autoFocus />
             ) : (
-              <div role="button" tabIndex={0} aria-label="Edit amount to send" className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors w-full" onClick={() => setIsEditingAmount(true)} onKeyDown={e => { if (e.key === 'Enter') setIsEditingAmount(true); }}>
+              <div role="button" tabIndex={0} aria-label="Edit amount to send" className={cn(figure, 'flex min-h-11 cursor-pointer items-center justify-end focus-visible:outline-2 focus-visible:outline-ring', !amount && 'text-muted-foreground')} onClick={() => setIsEditingAmount(true)} onKeyDown={e => { if (e.key === 'Enter') setIsEditingAmount(true); }}>
                 {amount ? formatAmount(amount) : '0.0'}
               </div>
             )}
-            {fiatValue && !exactOut && <div className="text-sm text-muted-foreground mt-1 text-right font-amount">
+            {fiatValue && !exactOut && <div className="mt-1 text-[13px] text-muted-foreground">
                 ≈ {getCurrentCurrency().symbol}{fiatValue.replace(/[$€£¥₹]/g, '').replace(/\s[A-Z]{3}$/, '')}
               </div>}
           </div>
         </div>
 
-        {/* Golden Slider — hidden in exact-out mode since receive is the primary input */}
+        {/* Slider: hidden in exact-out mode, where the amount received is the one entered */}
         {!(isPathPayment && exactOut) && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="mt-4">
+            <div className="flex justify-between text-[13px] text-muted-foreground">
               <span>Amount</span>
-              <span className="font-amount">{Math.round(currentPercentage)}%</span>
+              <span className="tabular-nums">{Math.round(currentPercentage)}%</span>
             </div>
-            <input type="range" min="0" max="100" step="1" value={sliderValue[0]} onChange={e => handleSliderChange([parseInt(e.target.value)])} className="stellar-slider w-full" style={{
-            '--slider-progress': `${sliderValue[0]}%`
+            <input type="range" min="0" max="100" step="1" value={sliderValue[0]} onChange={e => handleSliderChange([parseInt(e.target.value)])} aria-label="Amount" className={cn('stellar-slider mt-2 w-full', squareSlider)} style={{
+            '--slider-progress': `${sliderValue[0]}%`,
+            '--muted': 'var(--line-2)',
           } as React.CSSProperties} />
-            <div className="flex justify-between items-center text-xs text-muted-foreground">
-              <span className="font-amount">Available: {formatBalance(availableAmount)} {fromAsset}</span>
+            <div className="mt-1 text-[13px] tabular-nums text-muted-foreground">
+              Available: {formatBalance(availableAmount)} {fromAsset}
             </div>
           </div>
         )}
       </div>
 
-      {/* Swap Direction Button */}
-      <div className="flex justify-center relative z-10 -my-4">
-        <div className="relative">
-          {/* Bending effect - inset shadow on cards */}
-          <div className="absolute -top-2 -bottom-2 left-1/2 transform -translate-x-1/2 w-16 h-16 rounded-full shadow-[inset_0_0_20px_rgba(0,0,0,0.1)] pointer-events-none"></div>
-          
-          {!onSwapDirection ? <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 shadow-[0_8px_25px_-5px_rgba(147,51,234,0.4),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] flex items-center justify-center relative">
-              <ArrowDown className="h-5 w-5 text-white drop-shadow-sm" />
-            </div> : <Button onClick={onSwapDirection} className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-[0_8px_25px_-5px_rgba(147,51,234,0.4),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] transition-all duration-200 hover:shadow-[0_12px_30px_-5px_rgba(147,51,234,0.5),0_0_0_6px_hsl(var(--background)),inset_0_2px_4px_rgba(255,255,255,0.2)] relative" size="sm">
-              <div className="flex items-center justify-center">
-                <div className="relative">
-                  <ArrowDown className="h-3 w-3 text-white absolute -top-1 drop-shadow-sm" />
-                  <ArrowDown className="h-3 w-3 text-white absolute top-1 rotate-180 drop-shadow-sm" />
-                </div>
-              </div>
-            </Button>}
-        </div>
+      {/* Between the two: down on the phone, right on desktop */}
+      <div className="relative z-10 -my-2 grid place-items-center lg:my-0 lg:self-center" aria-hidden="true">
+        {!onSwapDirection ? (
+          <span className="grid size-10 place-items-center border border-line-2 bg-ink">
+            <ArrowDown className="h-4 w-4 lg:hidden" />
+            <ArrowRight className="hidden h-4 w-4 lg:block" />
+          </span>
+        ) : (
+          <Button onClick={onSwapDirection} variant="outline" size="icon" className="bg-ink">
+            <ArrowUpDown />
+          </Button>
+        )}
       </div>
 
-      {/* To Section */}
-      <div className="bg-card/60 border border-border/60 rounded-2xl p-6 mt-2">
-        <div className="flex justify-between items-center mb-4">
-          <span className="text-sm text-muted-foreground">
+      {/* They receive */}
+      <div className="flex flex-col gap-4">
+      <div className="well p-4">
+        <div className="flex min-h-11 items-center justify-between gap-2">
+          <span className="text-[13px] text-muted-foreground">
             {isPathPayment && exactOut ? 'They receive (exact)' : 'They receive'}
           </span>
-          {recipientAssets.length > 0 && <div className="text-sm text-muted-foreground truncate min-w-0">
-              Current: <span className="font-amount">{formatBalance(toAssetBalance)}</span>
+          {recipientAssets.length > 0 && <div className="min-w-0 truncate text-[13px] text-muted-foreground">
+              Current <span className="tabular-nums text-foreground">{formatBalance(toAssetBalance)}</span>
             </div>}
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+        <div className="mt-3 flex items-center gap-3">
           <Select 
             value={willCloseAccount ? "XLM" : (toAsset && !(toAsset === fromAsset && (toAssetIssuer || '') === (fromAssetIssuer || '')) ? assetKey(toAsset, toAssetIssuer) : "same")} 
             onValueChange={value => {
@@ -446,130 +480,55 @@ export const SwapInterface = ({
             }}
             disabled={willCloseAccount}
           >
-            <SelectTrigger className={cn(
-              "min-w-32 max-w-48 h-12 rounded-full",
-              willCloseAccount && "cursor-not-allowed opacity-60"
-            )}>
+            <SelectTrigger className={cn(assetTrigger, willCloseAccount && "cursor-not-allowed opacity-60")} aria-label="Asset they receive">
               <SelectValue>
-                <div className="flex items-center gap-2 min-w-0">
-                  <AssetIcon assetCode={willCloseAccount ? "XLM" : (toAsset || fromAsset)} assetIssuer={willCloseAccount ? "" : (toAssetIssuer || fromAssetIssuer)} size={32} className="shrink-0" />
-                  <span className="font-medium truncate">{willCloseAccount ? "XLM" : (toAsset || fromAsset)}</span>
-                </div>
+                {selected(willCloseAccount ? "XLM" : (toAsset || fromAsset), willCloseAccount ? "" : (toAssetIssuer || fromAssetIssuer))}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent className="bg-card border border-border shadow-lg z-50 min-w-[280px]">
+            <SelectContent className="z-50 min-w-[280px]">
               {/* Only show "same asset" option if recipient has trustline for it */}
               {recipientHasFromAsset && (
                 <SelectItem value="same" className="px-3 py-3" hideIndicator>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-3">
-                      <AssetIcon assetCode={fromAsset} assetIssuer={fromAssetIssuer} size={24} />
-                      <span className="text-muted-foreground">{fromAsset}</span>
-                    </div>
-                    <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
-                      {formatBalanceAligned(toAssetBalance)}
-                    </span>
-                  </div>
+                  {assetOption(fromAsset, fromAssetIssuer, toAssetBalance, false)}
                 </SelectItem>
               )}
               {recipientAssets.filter(asset => !sameAsset(asset, fromAsset, fromAssetIssuer)).map(asset => (
                 <SelectItem key={assetKey(asset.code, asset.issuer)} value={assetKey(asset.code, asset.issuer)} className="px-3 py-3" hideIndicator>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-3">
-                      <AssetIcon assetCode={asset.code} assetIssuer={asset.issuer} size={24} />
-                      <a 
-                        href={getAssetExplorerUrl(asset.code, asset.issuer)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium hover:text-primary transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {asset.code}
-                        {asset.issuer && <span className="ml-1 text-xs text-muted-foreground font-address">{asset.issuer.slice(0, 4)}…{asset.issuer.slice(-4)}</span>}
-                      </a>
-                    </div>
-                    <span className="ml-4 w-40 shrink-0 text-right font-amount tabular-nums text-muted-foreground whitespace-nowrap tracking-normal">
-                      {formatBalanceAligned(asset.balance)}
-                    </span>
-                  </div>
+                  {assetOption(asset.code, asset.issuer, asset.balance, true)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          <div className="flex-1 sm:min-w-0">
+          <div className="min-w-0 flex-1 text-right">
             {isPathPayment && exactOut ? (
               // Exact Out: receive amount is the primary editable input
               <div>
-                {isEditingReceiveAmount ? (
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    value={editReceiveValue}
-                    onChange={(e) => {
-                      let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
-                      const parts = sanitized.split('.');
-                      if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-                      if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
-                      setEditReceiveValue(sanitized);
-                    }}
-                    onBlur={handleReceiveAmountSubmit}
-                    onKeyDown={handleReceiveAmountKeyDown}
-                    onFocus={e => e.currentTarget.select()}
-                    className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full"
-                    placeholder="0.0"
-                    autoFocus
-                  />
-                ) : (
-                  <div
-                    className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors text-white w-full"
-                    onClick={() => {
-                      setEditReceiveValue(receiveAmount || manualReceiveAmount || '');
-                      setIsEditingReceiveAmount(true);
-                    }}
-                  >
-                    {receiveAmount || manualReceiveAmount ? formatAmount(receiveAmount || manualReceiveAmount) : <span className="text-muted-foreground">0.0</span>}
-                  </div>
+                {isEditingReceiveAmount ? receiveInput : editableFigure(
+                  receiveAmount || manualReceiveAmount ? formatAmount(receiveAmount || manualReceiveAmount) : '',
+                  '0.0',
+                  () => {
+                    setEditReceiveValue(receiveAmount || manualReceiveAmount || '');
+                    setIsEditingReceiveAmount(true);
+                  },
                 )}
-                <div className="text-xs text-muted-foreground mt-1 text-right">Exact amount</div>
+                <div className="mt-1 text-[13px] text-muted-foreground">Exact amount</div>
               </div>
             ) : isPathPayment && isManualInput ? (
               // Exact In, manual input (no prices available)
               <div>
-                {isEditingReceiveAmount ? (
-                  <Input
-                    type="text"
-                    inputMode="decimal"
-                    value={editReceiveValue}
-                    onChange={(e) => {
-                      let sanitized = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
-                      const parts = sanitized.split('.');
-                      if (parts.length > 2) sanitized = `${parts[0]}.${parts.slice(1).join('')}`;
-                      if (parts[1] && parts[1].length > 7) sanitized = `${parts[0]}.${parts[1].substring(0, 7)}`;
-                      setEditReceiveValue(sanitized);
-                    }}
-                    onBlur={handleReceiveAmountSubmit}
-                    onKeyDown={handleReceiveAmountKeyDown}
-                    onFocus={e => e.currentTarget.select()}
-                    className="text-right text-xl font-amount border-none bg-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-0 w-full"
-                    placeholder="0.0"
-                    autoFocus
-                  />
-                ) : (
-                  <div
-                    className="text-right sm:text-right text-xl font-amount cursor-pointer p-2 rounded hover:bg-muted/30 transition-colors text-white w-full"
-                    onClick={() => {
-                      setEditReceiveValue(displayReceiveAmount);
-                      setIsEditingReceiveAmount(true);
-                    }}
-                  >
-                    Min {manualReceiveAmount ? formatAmount(manualReceiveAmount) : '0.0'}
-                  </div>
+                {isEditingReceiveAmount ? receiveInput : editableFigure(
+                  `Min ${manualReceiveAmount ? formatAmount(manualReceiveAmount) : '0.0'}`,
+                  '',
+                  () => {
+                    setEditReceiveValue(displayReceiveAmount);
+                    setIsEditingReceiveAmount(true);
+                  },
                 )}
-                <div className="text-xs text-muted-foreground mt-1 text-right">Manual input</div>
+                <div className="mt-1 text-[13px] text-muted-foreground">Manual input</div>
               </div>
             ) : (
-              <div className="text-right sm:text-right text-xl font-amount text-white w-full">
+              <div className={cn(figure, !isPathPayment && !amount && 'text-muted-foreground')}>
                 {isPathPayment ? `Min ${displayReceiveAmount ? formatAmount(displayReceiveAmount) : '0.0'}` : amount ? formatAmount(amount) : '0.0'}
               </div>
             )}
@@ -578,21 +537,19 @@ export const SwapInterface = ({
 
         {/* Price Error Warning */}
         {isPathPayment && priceError && (
-          <Alert className="mt-4 border-warning/50 bg-warning/5">
-            <AlertTriangle className="h-4 w-4" style={{ color: 'hsl(var(--warning))' }} />
-            <AlertDescription className="text-warning">
-              {priceError}
-            </AlertDescription>
-          </Alert>
+          <div className="notice amber mt-4">
+            <AlertTriangle className="mt-0.5 h-4 w-4" aria-hidden="true" />
+            <p>{priceError}</p>
+          </div>
         )}
       </div>
 
-      {/* Slippage Tolerance — separate section below the two cards */}
+      {/* Slippage tolerance, under the two cards */}
       {isPathPayment && !priceError && onSlippageToleranceChange && (
-        <div className="bg-card/40 border border-border/40 rounded-2xl px-6 py-4 mt-2 space-y-2">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Slippage Tolerance</span>
-            <span className="font-amount tabular-nums">{slippageTolerance.toFixed(1)}%</span>
+        <div className="well p-4">
+          <div className="flex justify-between text-[13px] text-muted-foreground">
+            <span>Slippage tolerance</span>
+            <span className="tabular-nums">{slippageTolerance.toFixed(1)}%</span>
           </div>
           <input
             type="range"
@@ -601,13 +558,21 @@ export const SwapInterface = ({
             step="0.1"
             value={slippageTolerance}
             onChange={e => onSlippageToleranceChange(parseFloat(e.target.value))}
-            className="stellar-slider stellar-slider-purple w-full"
-            style={{ '--slider-progress': `${(slippageTolerance - 0.1) / 4.9 * 100}%` } as React.CSSProperties}
+            aria-label="Slippage tolerance"
+            className={cn('stellar-slider mt-2 w-full', squareSlider)}
+            // white fill: acid is kept for the amount being sent
+            style={{
+              '--slider-progress': `${(slippageTolerance - 0.1) / 4.9 * 100}%`,
+              '--muted': 'var(--line-2)',
+              '--primary': 'var(--foreground)',
+              '--primary-glow': 'var(--foreground)',
+            } as React.CSSProperties}
           />
           {isManualInput && (
-            <div className="text-xs text-info">Adjusted for manual input</div>
+            <div className="mt-1 text-[13px] text-muted-foreground">Adjusted for manual input</div>
           )}
         </div>
       )}
+      </div>
     </div>;
 };

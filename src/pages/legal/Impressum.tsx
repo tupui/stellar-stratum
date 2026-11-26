@@ -1,22 +1,13 @@
-import type { ReactNode } from 'react';
-import { Building2 } from 'lucide-react';
-import { LegalHeader } from '@/components/legal';
+import { LegalHeader, Row as Pair, Rows } from '@/components/legal';
 import { LEGAL_EMAIL, TEXT_LINK } from '@/lib/legal';
-
-const Pair = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="grid gap-1 px-4 py-3 sm:grid-cols-[14rem_minmax(0,1fr)] sm:gap-4">
-    <dt className="text-sm text-muted-foreground">{label}</dt>
-    <dd className="break-words hyphens-auto">{children}</dd>
-  </div>
-);
 
 /** The notice Austrian law asks of the operator, in its own language. */
 const Impressum = () => (
-  <div lang="de" className="space-y-8">
-    <LegalHeader icon={Building2} title="Impressum">
+  <div lang="de" className="space-y-6">
+    <LegalHeader title="Impressum">
       Angaben gemäß §5 ECG, §14 UGB und §25 MedienG.
     </LegalHeader>
-    <dl className="divide-y divide-border rounded-xl border border-border bg-card">
+    <Rows>
       <Pair label="Medieninhaber und Diensteanbieter">
         Consulting Manao GmbH
         <br />
@@ -52,7 +43,7 @@ const Impressum = () => (
       <Pair label="Grundlegende Richtung">
         Eine Anwendung zur Verwaltung von Multisig-Konten im Stellar-Netzwerk.
       </Pair>
-    </dl>
+    </Rows>
   </div>
 );
 

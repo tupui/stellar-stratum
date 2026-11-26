@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ContractAddressInput } from './ContractAddressInput';
 import { ContractFunctionForm } from './ContractFunctionForm';
@@ -97,7 +95,7 @@ export const ContractCallTab = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <ContractAddressInput
         value={address}
         onChange={handleAddressChange}
@@ -123,40 +121,40 @@ export const ContractCallTab = ({
         </Alert>
       )}
 
-      {loaded && loaded.functions.length > 0 && (
-        <Card>
-          <CardContent className="pt-4 space-y-4">
-            <div className="space-y-1.5">
-              <Label>Function</Label>
-              <Select value={selectedFn} onValueChange={handleSelectFunction}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select function" />
-                </SelectTrigger>
-                <SelectContent>
-                  {loaded.functions.map((name) => (
-                    <SelectItem key={name} value={name} className="font-mono text-sm">
-                      {name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedFn && (
-              <ContractFunctionForm
-                key={`${loaded.contractId}:${selectedFn}`}
-                loaded={loaded}
-                functionName={selectedFn}
-                publicKey={accountPublicKey}
-                onBuild={onBuild}
-                isBuilding={isBuilding}
-                isTransactionBuilt={isTransactionBuilt}
-                onClearTransaction={onClearTransaction}
-              />
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {loaded && loaded.functions.length > 0 && (() => {
+        const picker = (
+          <div className="flex flex-col gap-2">
+            <span id="contract-function" className="text-[13px] text-muted-foreground">Function</span>
+            <Select value={selectedFn} onValueChange={handleSelectFunction}>
+              <SelectTrigger aria-labelledby="contract-function">
+                <SelectValue placeholder="Select function" />
+              </SelectTrigger>
+              <SelectContent>
+                {loaded.functions.map((name) => (
+                  <SelectItem key={name} value={name} className="font-mono text-sm">
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        );
+        return selectedFn ? (
+          <ContractFunctionForm
+            key={`${loaded.contractId}:${selectedFn}`}
+            loaded={loaded}
+            functionName={selectedFn}
+            picker={picker}
+            publicKey={accountPublicKey}
+            onBuild={onBuild}
+            isBuilding={isBuilding}
+            isTransactionBuilt={isTransactionBuilt}
+            onClearTransaction={onClearTransaction}
+          />
+        ) : (
+          picker
+        );
+      })()}
     </div>
   );
 };

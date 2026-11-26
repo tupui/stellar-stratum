@@ -99,7 +99,7 @@ const ContractLabel = ({ contractId, meta, network }: { contractId: string; meta
   const known = findKnownContract(contractId, network);
   const name = meta.token(contractId)?.code ?? (known ? `${PROTOCOL_LABELS[known.protocol]} ${known.role}` : null);
   return (
-    <span className="inline-flex items-baseline gap-1.5 flex-wrap min-w-0">
+    <span className="inline-flex min-w-0 flex-wrap items-baseline gap-2">
       {name && <span className="font-semibold">{name}</span>}
       <span className="font-mono text-xs text-muted-foreground break-all">{shortenAddress(contractId, 6, 6)}</span>
     </span>
@@ -117,15 +117,11 @@ interface NodeProps {
 }
 
 const NodeItem = ({ node, meta, network, source, critical, isCall = false }: NodeProps) => (
-  <li className="space-y-1.5 min-w-0">
+  <li className="min-w-0 space-y-2">
     <div
       className={cn(
-        'rounded-md px-3 py-2 space-y-1.5 text-sm',
-        node.movement || node.deploy
-          ? critical || node.deploy
-            ? 'bg-destructive/10 ring-1 ring-destructive/40'
-            : 'bg-warning/10 ring-1 ring-warning/30'
-          : 'bg-secondary/40',
+        'space-y-2 border bg-ink-2 px-3 py-2 text-sm',
+        node.movement || node.deploy ? (critical || node.deploy ? 'border-destructive' : 'border-warning') : 'border-line',
       )}
     >
       <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap min-w-0">
@@ -138,8 +134,8 @@ const NodeItem = ({ node, meta, network, source, critical, isCall = false }: Nod
         {isCall && <span className="text-xs text-muted-foreground">this operation&apos;s call</span>}
       </div>
       {node.movement && (
-        <p className={cn('flex items-start gap-1.5', critical ? 'text-destructive' : 'text-foreground')}>
-          <TriangleAlert className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', !critical && 'text-warning')} />
+        <p className={cn('flex items-start gap-2', critical ? 'text-destructive' : 'text-foreground')}>
+          <TriangleAlert className={cn('mt-0.5 h-4 w-4 shrink-0', !critical && 'text-warning')} />
           <span className="min-w-0 break-words">
             <Movement movement={node.movement} meta={meta} source={source} />
           </span>
@@ -165,7 +161,7 @@ const NodeItem = ({ node, meta, network, source, critical, isCall = false }: Nod
       )}
     </div>
     {node.subInvocations.length > 0 && (
-      <ul className="ml-2 pl-3 border-l border-border/60 space-y-1.5">
+      <ul className="ml-2 space-y-2 border-l border-line-2 pl-3">
         {node.subInvocations.map((child, i) => (
           <NodeItem key={i} node={child} meta={meta} network={network} source={source} critical={critical} />
         ))}
@@ -175,12 +171,12 @@ const NodeItem = ({ node, meta, network, source, critical, isCall = false }: Nod
 );
 
 const EntryItem = ({ entry, ...rest }: { entry: AuthEntry } & Omit<NodeProps, 'node'>) => (
-  <li className="space-y-1.5">
-    <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+  <li className="space-y-2">
+    <p className="flex items-start gap-2 text-xs text-muted-foreground">
       {entry.credential === 'source' ? (
-        <PenLine className="w-3.5 h-3.5 mt-px shrink-0" />
+        <PenLine className="mt-px h-4 w-4 shrink-0" />
       ) : (
-        <KeyRound className="w-3.5 h-3.5 mt-px shrink-0 text-warning" />
+        <KeyRound className="mt-px h-4 w-4 shrink-0 text-warning" />
       )}
       <span className="min-w-0 break-words">
         {entry.credential === 'source' ? (
@@ -212,12 +208,12 @@ const EntryItem = ({ entry, ...rest }: { entry: AuthEntry } & Omit<NodeProps, 'n
 
 /** A clear stop before signing. */
 export const CriticalNotice = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 space-y-1.5">
-    <p className="text-sm font-semibold text-destructive flex items-start gap-2">
-      <TriangleAlert className="w-4 h-4 mt-px shrink-0" />
-      {title}
-    </p>
-    <div className="text-xs text-foreground pl-6 space-y-1 break-words">{children}</div>
+  <div role="alert" className="notice red">
+    <TriangleAlert className="mt-0.5 h-4 w-4" aria-hidden />
+    <div className="min-w-0 space-y-1 break-words">
+      <p className="font-semibold">{title}</p>
+      <div className="space-y-1 text-[13px]">{children}</div>
+    </div>
   </div>
 );
 
@@ -283,8 +279,8 @@ export const AuthorizationTree = ({ call, meta, network, defaultOpen = false }: 
 
   return (
     <Collapsible defaultOpen={defaultOpen}>
-      <CollapsibleTrigger className="group flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors text-left">
-        <ChevronDown className="w-3.5 h-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+      <CollapsibleTrigger className="group -my-3 flex min-h-11 items-center gap-2 text-left text-[13px] text-muted-foreground hover:text-foreground">
+        <ChevronDown className="h-4 w-4 shrink-0 group-data-[state=open]:rotate-180" />
         <span>
           Authorizations: {calls} call{calls === 1 ? '' : 's'}
           {moves > 0 && (
@@ -314,7 +310,7 @@ export const InvocationAuthorization = ({ call, network }: { call: AnalyzedCall;
   const calls = useMemo(() => [call], [call]);
   const meta = useProtocolMetadata(calls, network);
   return (
-    <div className="rounded-md border p-3 space-y-3">
+    <div className="space-y-3 border border-line p-3">
       <p className="text-xs text-muted-foreground">What signing this call authorizes</p>
       <AuthorizationWarning call={call} meta={meta} />
       {call.auth.length ? (

@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SignerSelector } from '@/components/SignerSelector';
 import { SuccessModal } from '@/components/SuccessModal';
+import { SendSheet, type SendState } from './SendSheet';
 import { AirgapSyncModal, type ReturnedSignatures } from '@/components/airgap/AirgapSyncModal';
 import type { ScanRefusal } from '@/components/QRScanner';
 import { TransactionSubmitter } from './TransactionSubmitter';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
 import { useSignatureStatus } from '@/hooks/useSignatureStatus';
-import { submitTransaction, submitToRefractor, type AccountData } from '@/lib/stellar';
+import { feeChargedOf, SubmitError, submitTransaction, submitToRefractor, type AccountData } from '@/lib/stellar';
 import { submitLog } from '@/lib/submitLog';
 import { addVerifiedSignatures, verifiedSignerKeys } from '@/lib/signatures';
 import { shortAddress } from '@/lib/xdr/describe';
@@ -28,8 +28,6 @@ interface TransactionSigningPanelProps {
   /** The user closed the confirmation of a submitted transaction. */
   onDone: () => void;
 }
-
-type SuccessData = { type: 'network' | 'refractor'; hash: string };
 
 /**
  * Collect signatures on a transaction, then submit it or hand it to the other signers
@@ -51,7 +49,8 @@ export const TransactionSigningPanel = ({
   const [isSigning, setIsSigning] = useState(false);
   const [isSubmittingToNetwork, setIsSubmittingToNetwork] = useState(false);
   const [isSubmittingToRefractor, setIsSubmittingToRefractor] = useState(false);
-  const [successData, setSuccessData] = useState<SuccessData | null>(null);
+  const [refractorId, setRefractorId] = useState<string | null>(null);
+  const [send, setSend] = useState<SendState | null>(null);
   const [showAirgap, setShowAirgap] = useState(false);
 
   const handleSignWithSigner = async (signerKey: string, walletId: string) => {
@@ -90,28 +89,33 @@ export const TransactionSigningPanel = ({
     }
   };
 
-  const handleSubmitToNetwork = async () => {
-    if (!xdr || isSubmittingToNetwork) return;
+  /** Send to the network; the sheet follows each step, then shows how it ended. */
+  const handleSubmitToNetwork = async (envelope: string = xdr) => {
+    if (!envelope || isSubmittingToNetwork) return;
     setIsSubmittingToNetwork(true);
+    setSend({ phase: 'sending', xdr: envelope });
     submitLog.clear();
     submitLog.info('send button pressed', { network });
     try {
-      const result = await submitTransaction(xdr, network);
-      setSuccessData({ type: 'network', hash: result.hash });
+      const result = await submitTransaction(envelope, network);
       submitLog.wait('refreshing account data from horizon');
       try {
         await onSubmitted();
-        submitLog.ok('account data refreshed');
+        submitLog.ok('account data refreshed', undefined, { step: 'account' });
       } catch (refreshError) {
         // The transaction is in; only the follow-up read failed.
         submitLog.info('could not refresh account data', refreshError);
       }
-    } catch (error) {
-      toast({
-        title: 'Submission failed',
-        description: error instanceof Error ? error.message : 'Failed to submit transaction',
-        variant: 'destructive',
+      setSend({
+        phase: 'success',
+        xdr: envelope,
+        hash: result.hash,
+        ledger: result.ledger,
+        feeCharged: feeChargedOf(result as typeof result & { fee_charged?: string }),
       });
+    } catch (error) {
+      const failure = error instanceof SubmitError ? error : new SubmitError('other', error instanceof Error ? error.message : 'Failed to submit transaction');
+      setSend({ phase: failure.kind === 'not-in-ledger' ? 'pending' : 'failed', xdr: envelope, error: failure });
     } finally {
       setIsSubmittingToNetwork(false);
     }
@@ -123,7 +127,7 @@ export const TransactionSigningPanel = ({
     try {
       const id = await submitToRefractor(xdr, network);
       onRefractorSubmitted?.(id);
-      setSuccessData({ type: 'refractor', hash: id });
+      setRefractorId(id);
     } catch (error) {
       toast({
         title: 'Refractor submission failed',
@@ -162,25 +166,33 @@ export const TransactionSigningPanel = ({
     });
   };
 
+  const hasContent = Boolean(xdr && status) || showAirgap || Boolean(refractorId) || Boolean(send);
+  if (!hasContent) return null;
+
   return (
-    <>
+    // One column from sm up (the sign panel, Coordination Mode, the primary); on the phone the
+    // sections sit in the page itself, so the primary's bar sticks to the bottom of the page.
+    <div className="contents sm:flex sm:flex-col sm:gap-6">
       {xdr && status && (
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg">Sign Transaction</CardTitle>
-            <CardDescription>Connect your wallet to add signatures to this transaction</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SignerSelector
-              signers={signers}
-              requirements={status.requirements}
-              currentAccountKey={account?.publicKey ?? ''}
-              onSignWithSigner={handleSignWithSigner}
-              isSigning={isSigning}
-              loading={loading}
-            />
-          </CardContent>
-        </Card>
+        <section
+          aria-labelledby="sign-transaction-title"
+          className="flex flex-col border-t border-line sm:gap-4 sm:border sm:bg-ink-2 sm:p-4"
+        >
+          <div className="px-4 pb-2 pt-4 sm:p-0">
+            <h2 id="sign-transaction-title" className="sec">
+              Sign Transaction
+            </h2>
+            <p className="mt-2 text-muted-foreground">Connect your wallet to add signatures to this transaction</p>
+          </div>
+          <SignerSelector
+            signers={signers}
+            requirements={status.requirements}
+            currentAccountKey={account?.publicKey ?? ''}
+            onSignWithSigner={handleSignWithSigner}
+            isSigning={isSigning}
+            loading={loading}
+          />
+        </section>
       )}
 
       <TransactionSubmitter
@@ -189,7 +201,7 @@ export const TransactionSigningPanel = ({
         ready={Boolean(status?.ready) && !loading}
         isSubmittingToNetwork={isSubmittingToNetwork}
         isSubmittingToRefractor={isSubmittingToRefractor}
-        onSubmitToNetwork={handleSubmitToNetwork}
+        onSubmitToNetwork={() => handleSubmitToNetwork()}
         onSubmitToRefractor={handleSubmitToRefractor}
         onShowOfflineModal={handleShowOfflineModal}
       />
@@ -204,16 +216,20 @@ export const TransactionSigningPanel = ({
         />
       )}
 
-      {successData && (
-        <SuccessModal
-          type={successData.type}
-          hash={successData.type === 'refractor' ? undefined : successData.hash}
-          refractorId={successData.type === 'refractor' ? successData.hash : undefined}
+      {refractorId && <SuccessModal refractorId={refractorId} onClose={() => setRefractorId(null)} />}
+
+      {send && (
+        <SendSheet
+          state={send}
           network={network}
-          onClose={() => setSuccessData(null)}
-          onNavigateToDashboard={onDone}
+          onDone={() => {
+            setSend(null);
+            onDone();
+          }}
+          onBack={() => setSend(null)}
+          onRetry={() => handleSubmitToNetwork(send.xdr)}
         />
       )}
-    </>
+    </div>
   );
 };

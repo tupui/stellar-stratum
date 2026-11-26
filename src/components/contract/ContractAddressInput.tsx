@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { StrKey } from '@stellar/stellar-sdk';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Loader2, RefreshCw, X } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 import { shortAddress } from '@/lib/xdr/describe';
+import { Spinner } from '@/components/brand/Mark';
+import { cn } from '@/lib/utils';
 
 interface ContractAddressInputProps {
   value: string;
@@ -34,39 +34,63 @@ export const ContractAddressInput = ({
   const invalid = touched && trimmed.length > 0 && !StrKey.isValidContract(trimmed);
 
   return (
-    <div className="space-y-2">
-      <Label>Contract address</Label>
-      <div className="flex gap-2">
-        <Input
+    <div className="flex flex-col gap-2">
+      <label htmlFor="contract-address" className="text-[13px] text-muted-foreground">Contract address</label>
+      {/* The whole address on two lines on the phone, Load and Reload under it; one row from sm up */}
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <textarea
+          id="contract-address"
+          rows={2}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value.replace(/[\r\n]+/g, ''))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.preventDefault();
+          }}
           onBlur={() => setTouched(true)}
           placeholder="C…"
-          className="font-mono text-xs"
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="off"
           disabled={isLoading}
+          className={cn(
+            'block h-[62px] min-w-0 flex-1 resize-none overflow-hidden break-all rounded-none border border-input bg-ink-3 px-3 py-3 font-address text-[13px] leading-[18px] text-foreground placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60 sm:h-12 sm:py-[14px]',
+            invalid && 'border-destructive',
+          )}
         />
-        <Button onClick={() => onLoad(false)} disabled={isLoading || !StrKey.isValidContract(trimmed)}>
-          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Load'}
-        </Button>
-        {isLoaded && (
-          <Button variant="outline" size="icon" onClick={() => onLoad(true)} disabled={isLoading} title="Reload spec">
-            <RefreshCw className="w-4 h-4" />
+        <div className="flex gap-2">
+          <Button
+            variant={isLoaded ? 'outline' : 'default'}
+            className="min-w-24"
+            onClick={() => onLoad(false)}
+            disabled={isLoading || !StrKey.isValidContract(trimmed)}
+          >
+            {isLoading ? <Spinner /> : 'Load'}
           </Button>
-        )}
+          {isLoaded && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-12 shrink-0"
+              onClick={() => onLoad(true)}
+              disabled={isLoading}
+              title="Reload spec"
+              aria-label="Reload spec"
+            >
+              <RefreshCw className="!size-5" />
+            </Button>
+          )}
+        </div>
       </div>
-      {invalid && <p className="text-xs text-destructive">Not a valid contract address.</p>}
+      {invalid && <p className="text-[13px] text-destructive">Not a valid contract address.</p>}
 
       {recents.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-1">
+        <div className="mt-1 flex flex-wrap gap-2">
           {recents.map((id) => (
-            <div
-              key={id}
-              className="group flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs bg-muted/50 hover:bg-muted transition-colors"
-            >
+            <span key={id} className="inline-flex h-11 items-center border border-line-2">
               <button
                 type="button"
                 onClick={() => onSelectRecent(id)}
-                className="font-mono"
+                className="h-full pl-3 pr-1 font-address text-[13px] hover:text-foreground"
                 title={id}
               >
                 {shorten(id)}
@@ -74,12 +98,12 @@ export const ContractAddressInput = ({
               <button
                 type="button"
                 onClick={() => onRemoveRecent(id)}
-                className="opacity-40 hover:opacity-100 hover:text-destructive"
+                className="grid h-full w-11 place-items-center text-muted-foreground hover:text-destructive"
                 aria-label="Remove"
               >
-                <X className="w-3 h-3" />
+                <X className="h-4 w-4" />
               </button>
-            </div>
+            </span>
           ))}
         </div>
       )}

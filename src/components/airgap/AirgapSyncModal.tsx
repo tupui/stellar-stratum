@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ScanLine } from 'lucide-react';
 import type { xdr } from '@stellar/stellar-sdk';
 import { Button } from '@/components/ui/button';
-import { GlassModal } from '@/components/GlassModal';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { HashField } from '@/components/HashField';
+import { SignerCell } from '@/components/brand/Shell';
 import { QRScanner, type ScanRefusal } from '@/components/QRScanner';
 import { AirgapQRCode } from './AirgapQRCode';
 import { encodeEnvelope, encodeSignatureSet } from '@/lib/airgap/payloads';
@@ -45,6 +46,19 @@ const SIGNATURES_FOR_ANOTHER_TX: ScanRefusal = {
   title: 'Not this transaction',
   description: 'This QR code holds signatures for another transaction or network.',
 };
+
+/** A bottom sheet on the phone, a dialog from sm up. */
+const Sheet = ({ title, description, onClose, children }: { title: string; description: string; onClose: () => void; children: ReactNode }) => (
+  <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <DialogContent className="gap-4">
+      <DialogHeader>
+        <DialogTitle className="[text-wrap:balance]">{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+      {children}
+    </DialogContent>
+  </Dialog>
+);
 
 /** Air-gap Sync: QR codes between the online device and the air-gapped signer (/sign). */
 export const AirgapSyncModal = (props: AirgapSyncModalProps) => {
@@ -92,26 +106,27 @@ export const AirgapSyncModal = (props: AirgapSyncModalProps) => {
 
   if (props.mode === 'response' && signaturePlan && !showFullTransaction) {
     return (
-      <GlassModal
+      <Sheet
         title="Signature QR"
         description="Scan this QR code with the online device. It adds the signature to the transaction it has open."
         onClose={onClose}
       >
         <AirgapQRCode plan={signaturePlan} label="Signature QR code" />
-        <div className="flex flex-wrap items-center justify-center gap-x-2 text-xs text-muted-foreground">
-          <span>Signed by</span>
+        <p className="flex flex-wrap items-center justify-center gap-x-2 text-[13px]">
+          <SignerCell signed />
+          <span className="text-muted-foreground">Signed by</span>
           {signedBy.map((key) => (
-            <span key={key} className="font-address text-foreground">
+            <span key={key} className="font-address">
               {shortAddress(key)}
             </span>
           ))}
-        </div>
-        <HashField label="Transaction Hash" value={hash} />
+        </p>
+        <HashField label="Transaction hash" value={hash} />
         <Button variant="outline" className="w-full" onClick={() => setShowFullTransaction(true)}>
           Show Full Transaction
         </Button>
-        <p className="text-xs text-muted-foreground text-center">For an online device that no longer has the transaction open.</p>
-      </GlassModal>
+        <p className="text-center text-[13px] text-muted-foreground">For an online device that no longer has the transaction open.</p>
+      </Sheet>
     );
   }
 
@@ -124,12 +139,12 @@ export const AirgapSyncModal = (props: AirgapSyncModalProps) => {
         : 'Scan this QR code with your air-gapped signing device';
 
   return (
-    <GlassModal title={props.mode === 'response' ? 'Signed Transaction' : 'Send for Signature'} description={description} onClose={onClose}>
+    <Sheet title={props.mode === 'response' ? 'Signed Transaction' : 'Send for Signature'} description={description} onClose={onClose}>
       <AirgapQRCode plan={transactionPlan} label="QR code of the transaction" />
-      <HashField label="Transaction Hash" value={hash} />
+      <HashField label="Transaction hash" value={hash} />
       {props.mode === 'request' && (
-        <Button variant="outline" className="w-full" onClick={() => setScanning(true)}>
-          <ScanLine className="w-4 h-4 mr-2" />
+        <Button className="w-full" onClick={() => setScanning(true)}>
+          <ScanLine />
           Scan Signature
         </Button>
       )}
@@ -138,6 +153,6 @@ export const AirgapSyncModal = (props: AirgapSyncModalProps) => {
           Show Signature QR
         </Button>
       )}
-    </GlassModal>
+    </Sheet>
   );
 };

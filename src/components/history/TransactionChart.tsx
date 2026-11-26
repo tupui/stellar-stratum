@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   LineChart, 
@@ -12,17 +11,15 @@ import {
   ResponsiveContainer,
   ReferenceLine 
 } from 'recharts';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Calendar,
-  TrendingUp
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { format, subDays, startOfDay, endOfDay, startOfMonth } from 'date-fns';
 import { NormalizedTransaction } from '@/lib/horizon-utils';
 
 // SVG text attributes cannot read CSS variables, so the stack is spelled out (same as --font-mono).
-const MONO_FONT = "'JetBrains Mono Variable', ui-monospace, SFMono-Regular, monospace";
+const MONO_FONT = "'Chivo Mono', ui-monospace, SFMono-Regular, monospace";
+const WHITE = 'hsl(var(--foreground))';
+const MUTED = 'hsl(var(--muted-foreground))';
+const LINE = 'hsl(var(--line))';
 
 interface TransactionChartProps {
   transactions: NormalizedTransaction[];
@@ -119,157 +116,160 @@ export const TransactionChart = ({
   const canNavigatePrev = selectedRange !== 'all';
 
   return (
-    <Card className="shadow-card">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingUp className="w-5 h-5" />
-            Balance Trend
-          </CardTitle>
-          
-          <div className="flex items-center gap-2">
-            {/* Time Range Selector */}
-            <Select value={selectedRange} onValueChange={handleRangeChange}>
-              <SelectTrigger className="w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7d">7D</SelectItem>
-                <SelectItem value="30d">30D</SelectItem>
-                <SelectItem value="90d">90D</SelectItem>
-                <SelectItem value="1y">1Y</SelectItem>
-                <SelectItem value="all">All</SelectItem>
-              </SelectContent>
-            </Select>
+    <section aria-labelledby="balance-trend" className="well p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 id="balance-trend" className="sub">Balance Trend</h3>
 
-            {/* Navigation Controls */}
-            {selectedRange !== 'all' && (
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleNavigation('prev')}
-                  disabled={!canNavigatePrev}
-                  className="h-8 w-8 p-0"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleNavigation('next')}
-                  disabled={!canNavigateNext}
-                  className="h-8 w-8 p-0"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* Date Range Display */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="w-4 h-4" />
-          <span>
-            {format(dateRange.start, 'MMM dd, yyyy')} - {format(dateRange.end, 'MMM dd, yyyy')}
-          </span>
-          <span>•</span>
-          <span>{aggregatedData.length} data points</span>
-        </div>
-      </CardHeader>
-
-      <CardContent>
-        <div className="h-64 w-full font-amount tabular-nums">
-          {aggregatedData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={256} debounce={100}>
-              <LineChart data={aggregatedData}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis 
-                  dataKey="date"
-                  tick={{ fontSize: 10, fontFamily: MONO_FONT }}
-                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                  tickFormatter={(value, index) => {
-                    // Smart tick formatting to avoid overlap and show meaningful dates
-                    const totalTicks = aggregatedData.length;
-                    const maxTicks = {
-                      '7d': 7,    // Show up to 7 ticks for weekly view
-                      '30d': 6,   // Show up to 6 ticks for monthly view
-                      '90d': 5,   // Show up to 5 ticks for quarterly view
-                      '1y': 4,    // Show up to 4 ticks for yearly view
-                      'all': 4    // Show up to 4 ticks for full history
-                    };
-                    
-                    const maxTicksForRange = maxTicks[selectedRange] || 5;
-                    const tickInterval = Math.max(1, Math.ceil(totalTicks / maxTicksForRange));
-                    
-                    // Always show first and last tick
-                    if (index === 0 || index === totalTicks - 1) {
-                      return value;
-                    }
-                    
-                    // Show every nth tick based on data density
-                    if (index % tickInterval === 0) {
-                      return value;
-                    }
-                    
-                    return '';
-                  }}
-                />
-                <YAxis 
-                  tick={{ fontSize: 10, fontFamily: MONO_FONT }}
-                  tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
-                  tickFormatter={(value) => `${Number(value).toFixed(1)}`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--popover))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                  }}
-                  wrapperStyle={{ fontFamily: MONO_FONT }}
-                  formatter={(value: number | string) => [
-                    fiatMode ? `${Number(value).toFixed(2)} ${fiatSymbol}` : `${Number(value).toFixed(7)} ${assetSymbol}`,
-                    'Balance'
-                  ]}
-                  labelFormatter={(label, payload) => {
-                    const timestamp = payload?.[0]?.payload?.timestamp;
-                    return `Date: ${timestamp ? format(timestamp, 'MMM dd, yyyy') : label}`;
-                  }}
-                />
-                
-                {/* Zero line reference */}
-                <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="2 2" />
-                
-                <Line
-                  type="monotone"
-                  dataKey="balance"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ r: 2, fill: 'hsl(var(--primary))' }}
-                  activeDot={{ 
-                    r: 4, 
-                    stroke: 'hsl(var(--primary-glow))',
-                    fill: 'hsl(var(--primary))'
-                  }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              <div className="text-center">
-                <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No data for selected period</p>
-                <p className="text-sm mt-1">Try a different time range</p>
-              </div>
-            </div>
+        <div className="flex items-center gap-2">
+          {/* Navigation Controls */}
+          {selectedRange !== 'all' && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleNavigation('prev')}
+                disabled={!canNavigatePrev}
+                aria-label="Earlier period"
+                className="disabled:border-transparent disabled:bg-transparent"
+              >
+                <ChevronLeft />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleNavigation('next')}
+                disabled={!canNavigateNext}
+                aria-label="Later period"
+                className="disabled:border-transparent disabled:bg-transparent"
+              >
+                <ChevronRight />
+              </Button>
+            </>
           )}
+
+          {/* Time Range Selector */}
+          <Select value={selectedRange} onValueChange={handleRangeChange}>
+            <SelectTrigger className="w-24" aria-label="Time range">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">7D</SelectItem>
+              <SelectItem value="30d">30D</SelectItem>
+              <SelectItem value="90d">90D</SelectItem>
+              <SelectItem value="1y">1Y</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Date Range Display */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+        <Calendar className="h-4 w-4" aria-hidden="true" />
+        <span>
+          {format(dateRange.start, 'MMM dd, yyyy')} - {format(dateRange.end, 'MMM dd, yyyy')}
+        </span>
+        <span>•</span>
+        <span>{aggregatedData.length} data points</span>
+      </div>
+
+      <div className="mt-4 h-64 w-full font-amount tabular-nums">
+        {aggregatedData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={256} debounce={100}>
+            <LineChart data={aggregatedData} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
+              <CartesianGrid stroke={LINE} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fontFamily: MONO_FONT, fill: MUTED }}
+                stroke={LINE}
+                tickLine={{ stroke: LINE }}
+                tickFormatter={(value, index) => {
+                  // Smart tick formatting to avoid overlap and show meaningful dates
+                  const totalTicks = aggregatedData.length;
+                  const maxTicks = {
+                    '7d': 7,    // Show up to 7 ticks for weekly view
+                    '30d': 6,   // Show up to 6 ticks for monthly view
+                    '90d': 5,   // Show up to 5 ticks for quarterly view
+                    '1y': 4,    // Show up to 4 ticks for yearly view
+                    'all': 4    // Show up to 4 ticks for full history
+                  };
+
+                  const maxTicksForRange = maxTicks[selectedRange] || 5;
+                  const tickInterval = Math.max(1, Math.ceil(totalTicks / maxTicksForRange));
+
+                  // Always show first and last tick
+                  if (index === 0 || index === totalTicks - 1) {
+                    return value;
+                  }
+
+                  // Show every nth tick based on data density
+                  if (index % tickInterval === 0) {
+                    return value;
+                  }
+
+                  return '';
+                }}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fontFamily: MONO_FONT, fill: MUTED }}
+                stroke={LINE}
+                tickLine={{ stroke: LINE }}
+                tickFormatter={(value) => `${Number(value).toFixed(1)}`}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--ink-2))',
+                  border: '1px solid hsl(var(--line-2))',
+                  borderRadius: 0,
+                  fontSize: '12px',
+                  color: WHITE,
+                }}
+                itemStyle={{ color: WHITE }}
+                labelStyle={{ color: MUTED }}
+                cursor={{ stroke: 'hsl(var(--line-2))' }}
+                wrapperStyle={{ fontFamily: MONO_FONT }}
+                formatter={(value: number | string) => [
+                  fiatMode ? `${Number(value).toFixed(2)} ${fiatSymbol}` : `${Number(value).toFixed(7)} ${assetSymbol}`,
+                  'Balance'
+                ]}
+                labelFormatter={(label, payload) => {
+                  const timestamp = payload?.[0]?.payload?.timestamp;
+                  return `Date: ${timestamp ? format(timestamp, 'MMM dd, yyyy') : label}`;
+                }}
+              />
+
+              {/* Zero line reference */}
+              <ReferenceLine y={0} stroke="hsl(var(--line-2))" />
+
+              <Line
+                type="linear"
+                dataKey="balance"
+                stroke={WHITE}
+                strokeWidth={2}
+                isAnimationActive={false}
+                dot={SquareDot}
+                activeDot={{ r: 4, stroke: WHITE, fill: WHITE }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center text-center text-muted-foreground">
+            <div>
+              <p>No data for selected period</p>
+              <p className="mt-1 text-[13px]">Try a different time range</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 };
+
+// A data point: a small white square, like a pixel of the curve
+const SquareDot = ({ cx, cy, index }: { cx?: number; cy?: number; index?: number }) =>
+  cx === undefined || cy === undefined
+    ? <g key={index} />
+    : <rect key={index} x={cx - 2.5} y={cy - 2.5} width={5} height={5} fill={WHITE} />;
 
 // Helper functions
 const RANGE_DAYS: Record<Exclude<TimeRange, 'all'>, number> = { '7d': 7, '30d': 30, '90d': 90, '1y': 365 };

@@ -10,21 +10,22 @@ export const Footer = () => {
   const onLegalPage = useLocation().pathname.startsWith('/legal');
 
   return (
-    <footer className="border-t border-border bg-background/80 backdrop-blur-sm">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-2 flex flex-col-reverse gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-        <p className="pb-2 sm:pb-0 text-center sm:text-left text-xs sm:text-sm text-muted-foreground">
+    <footer className="border-t border-line bg-ink">
+      {/* the operator line, then the legal links: on the phone and on desktop alike */}
+      <div className="mx-auto flex w-full max-w-[1120px] flex-col gap-2.5 px-4 pb-7 pt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:px-8 sm:py-5">
+        <p className="text-xs leading-relaxed text-muted-foreground">
           Stellar Stratum is operated by{' '}
           <a
             href="https://consulting-manao.com/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-stellar-yellow font-medium hover:underline"
+            className="text-muted-foreground underline decoration-line-2 underline-offset-[3px] hover:decoration-current"
           >
             Consulting Manao GmbH
           </a>
           . The Stellar Development Foundation does not operate it.
         </p>
-        <nav aria-label="Legal" className="grid grid-cols-3 shrink-0 sm:flex sm:gap-1">
+        <nav aria-label="Legal" className="-mx-2 flex shrink-0 gap-2">
           {LEGAL_PAGES.map(({ to, label }) => (
             <NavLink
               key={to}
@@ -32,8 +33,8 @@ export const Footer = () => {
               target={onLegalPage ? undefined : '_blank'}
               className={({ isActive }) =>
                 cn(
-                  'flex min-h-11 items-center justify-center px-2 text-sm transition-colors hover:text-foreground',
-                  isActive ? 'font-medium text-foreground' : 'text-muted-foreground',
+                  'flex min-h-11 items-center px-2 text-xs underline decoration-line-2 underline-offset-[3px] hover:decoration-current',
+                  isActive ? 'text-foreground' : 'text-muted-foreground',
                 )
               }
             >

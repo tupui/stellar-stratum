@@ -20,8 +20,14 @@ if (import.meta.main) {
   if (css.length !== 1) throw new Error(`expected one stylesheet in ${assets}, found ${css.length}`);
   mkdirSync('design-out/uploads', { recursive: true });
   writeFileSync('design-out/uploads/stratum.css', withoutFontFaces(readFileSync(`${assets}/${css[0]}`, 'utf8')));
-  const fonts = 'node_modules/@fontsource-variable';
-  copyFileSync(`${fonts}/inter/files/inter-latin-wght-normal.woff2`, 'design-out/uploads/inter.woff2');
-  copyFileSync(`${fonts}/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2`, 'design-out/uploads/jetbrains-mono.woff2');
+  // the fonts the app bundles, one file per weight: upload each and name it in uploads.json `fonts`
+  const fonts: Record<string, string> = {
+    'chivo-400.woff2': 'node_modules/@fontsource/chivo/files/chivo-latin-400-normal.woff2',
+    'chivo-600.woff2': 'node_modules/@fontsource/chivo/files/chivo-latin-600-normal.woff2',
+    'chivo-mono-400.woff2': 'node_modules/@fontsource/chivo-mono/files/chivo-mono-latin-400-normal.woff2',
+    'chivo-mono-500.woff2': 'node_modules/@fontsource/chivo-mono/files/chivo-mono-latin-500-normal.woff2',
+    'jersey-15.woff2': 'node_modules/@fontsource/jersey-15/files/jersey-15-latin-400-normal.woff2',
+  };
+  for (const [name, from] of Object.entries(fonts)) copyFileSync(from, `design-out/uploads/${name}`);
   console.log('wrote design-out/uploads/stratum.css and the fonts');
 }

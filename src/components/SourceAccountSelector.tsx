@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Input } from '@/components/ui/input';
 import { buildAccountUrl } from '@/lib/urlState';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import { RefreshCw, AlertCircle, User, Copy, Share2, ExternalLink } from 'lucide-react';
+import { AlertCircle, Copy, Share2, ExternalLink } from 'lucide-react';
 import { accountIdOf, isValidPublicKey } from '@/lib/validation';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -64,7 +62,7 @@ export const SourceAccountSelector = ({
     return () => clearTimeout(timer);
   }, [inputValue, validate]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
   };
 
@@ -98,78 +96,83 @@ export const SourceAccountSelector = ({
   const explorerUrl = `https://stellar.expert/explorer/${network === 'testnet' ? 'testnet' : 'public'}/account/${sourceAccount}`;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label htmlFor="source-account" className="text-sm font-medium flex items-center gap-2">
-          <User className="w-4 h-4" />
-          Source Account
-        </Label>
-        <div className="flex items-center gap-2">
-          {isDifferent && (
-            <Badge variant="outline" className="text-xs border-yellow-500/50 text-yellow-600 dark:text-yellow-400">
-              Different from wallet
-            </Badge>
-          )}
-          {isValidAccount && (
-            <div className="flex items-center">
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleCopy} title="Copy address">
-                <Copy className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleShare} title="Copy shareable link to this account">
-                <Share2 className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild title="View on Stellar Expert">
-                <a href={explorerUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Input
+    <div className="flex flex-col gap-2">
+      {/* A bare block on the phone (the key wraps); a panel with the actions at right on desktop */}
+      <div
+        role="group"
+        aria-label="Source account"
+        className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 sm:border sm:border-line sm:bg-ink-2 sm:p-4"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="source-account" className="text-[13px] text-muted-foreground">
+              Source account
+            </label>
+            {isDifferent && <Badge variant="outline">Different from wallet</Badge>}
+          </div>
+          {/* Still a field: another account can be typed or pasted in */}
+          <textarea
             id="source-account"
+            rows={2}
             value={inputValue}
             onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.preventDefault();
+            }}
             placeholder="Enter source account address"
+            spellCheck={false}
+            autoCapitalize="off"
+            autoComplete="off"
             className={cn(
-              "font-address text-sm",
-              validationError && "border-destructive"
+              'mt-2 block h-9 w-full resize-none overflow-hidden break-all border-0 bg-transparent p-0 font-address text-[13px] leading-[18px] text-foreground placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-60 sm:mt-1 sm:h-[18px]',
+              validationError && 'text-destructive',
             )}
             disabled={disabled}
           />
         </div>
-        
-        {isDifferent && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleResetToConnected}
-            disabled={disabled}
-            className="shrink-0"
-          >
-            <RefreshCw className="w-4 h-4 mr-1" />
-            Reset
-          </Button>
+
+        {(isValidAccount || isDifferent) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {isValidAccount && (
+              <>
+                <Button variant="outline" size="icon" onClick={handleCopy} title="Copy address" aria-label="Copy address">
+                  <Copy className="!size-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleShare}
+                  title="Copy shareable link to this account"
+                  aria-label="Copy shareable link to this account"
+                >
+                  <Share2 className="!size-5" />
+                </Button>
+                <Button variant="outline" size="icon" asChild title="View on Stellar Expert">
+                  <a href={explorerUrl} target="_blank" rel="noopener noreferrer" aria-label="View on Stellar Expert">
+                    <ExternalLink className="!size-5" />
+                  </a>
+                </Button>
+              </>
+            )}
+            {isDifferent && (
+              <Button type="button" variant="outline" size="sm" onClick={handleResetToConnected} disabled={disabled}>
+                Reset
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
-
-      {/* Validation error */}
       {validationError && (
-        <div className="flex items-center gap-2 p-2 bg-destructive/10 border border-destructive/20 rounded-lg">
-          <AlertCircle className="w-4 h-4 text-destructive" />
-          <span className="text-sm text-destructive">{validationError}</span>
+        <div role="alert" className="notice red">
+          <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
+          <span>{validationError}</span>
         </div>
       )}
 
       {/* Connected wallet info when different */}
       {isDifferent && connectedWalletKey && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           Connected wallet: <span className="font-address">{truncateKey(connectedWalletKey)}</span>
         </p>
       )}

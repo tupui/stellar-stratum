@@ -1,4 +1,3 @@
-import { EyeOff, Globe, KeyRound, Lock, Server } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Code, Entries, Entry, LegalHeader, Section, Summary } from '@/components/legal';
 import { LEGAL_EMAIL, TEXT_LINK } from '@/lib/legal';
@@ -11,28 +10,24 @@ const CONTACT = (
 
 const Privacy = () => (
   <>
-    <LegalHeader icon={Lock} title="Privacy policy">
+    <LegalHeader title="Privacy policy">
       What Stellar Stratum processes, why, and what you can do about it.
     </LegalHeader>
     <Summary
       points={[
         {
-          icon: KeyRound,
           title: 'Your keys stay in your wallet',
           text: 'Stellar Stratum never sees a secret key. Your wallet signs and hands back the signed transaction.',
         },
         {
-          icon: Server,
           title: 'No server of ours',
           text: 'The app runs in your browser and talks to the Stellar network and the services below directly.',
         },
         {
-          icon: EyeOff,
           title: 'No tracking',
           text: 'No account, no cookies, no analytics, no advertising.',
         },
         {
-          icon: Globe,
           title: 'Public and permanent',
           text: 'Accounts, transactions and signatures on the Stellar network are public, and nobody can erase them.',
         },

@@ -5,15 +5,12 @@ import { cn } from "@/lib/utils"
 
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,
-  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root> & {
-    glowColor?: 'primary' | 'purple';
-  }
->(({ className, glowColor = 'primary', ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
+>(({ className, ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
-      "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 ring-1 ring-border data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted/60",
-      glowColor === 'primary' && "toggle-glow",
-      glowColor === 'purple' && "toggle-purple-glow data-[state=checked]:bg-success",
+      // square, 40 x 22, with a 44 px hit area; on is white: a state, not an action
+      "peer relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer items-center rounded-none border border-line-2 bg-ink-3 p-[2px] transition-colors before:absolute before:-inset-x-1 before:-inset-y-[11px] before:content-[''] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-foreground data-[state=checked]:bg-foreground",
       className
     )}
     {...props}
@@ -21,7 +18,7 @@ const Switch = React.forwardRef<
   >
   <SwitchPrimitives.Thumb
       className={cn(
-        "pointer-events-none block h-5 w-5 rounded-full bg-foreground shadow-lg ring-0 transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0"
+        "pointer-events-none block h-4 w-4 rounded-none bg-muted-foreground transition-transform data-[state=checked]:translate-x-[18px] data-[state=checked]:bg-ink data-[state=unchecked]:translate-x-0"
       )}
     />
   </SwitchPrimitives.Root>

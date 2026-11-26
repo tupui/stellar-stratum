@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Copy, Share2, Mail, MessageCircle, QrCode, CheckCircle } from 'lucide-react';
+import { Check, Copy, Mail, MessageCircle, Send, Share2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import QRCode from 'qrcode';
-import { openExternal } from '@/lib/utils';
+import { QrCode } from '@/components/airgap/AirgapQRCode';
+import { cn, openExternal } from '@/lib/utils';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -15,34 +14,20 @@ interface ShareModalProps {
   network: 'mainnet' | 'testnet';
 }
 
-export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModalProps) => {
+export const ShareModal = ({ isOpen, onClose, refractorId }: ShareModalProps) => {
   const [copied, setCopied] = useState(false);
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const { toast } = useToast();
 
   const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}?r=${refractorId}`;
-
-  useEffect(() => {
-    if (isOpen && refractorId) {
-      // Generate QR code
-      QRCode.toDataURL(shareUrl, {
-        width: 256,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff',
-        },
-      }).then(setQrCodeDataUrl);
-    }
-  }, [isOpen, refractorId, shareUrl]);
+  const canShare = typeof navigator !== 'undefined' && Boolean(navigator.share);
 
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast({
-      title: "Copied to clipboard",
-      description: "Share link has been copied",
+      title: 'Copied to clipboard',
+      description: 'Share link has been copied',
       duration: 3000,
     });
   };
@@ -55,8 +40,7 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
           text: `Please sign this transaction: ${refractorId}`,
           url: shareUrl,
         });
-      } catch (error) {
-        // User cancelled or share failed
+      } catch {
         // Share cancelled or failed
       }
     } else {
@@ -83,104 +67,70 @@ export const ShareModal = ({ isOpen, onClose, refractorId, network }: ShareModal
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="gap-4">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Share2 className="w-5 h-5" />
-            Share Transaction for Signature
-          </DialogTitle>
-          <DialogDescription>
-            Share this link with other signers to collect signatures via Refractor
-          </DialogDescription>
+          <DialogTitle className="[text-wrap:balance]">Share Transaction for Signature</DialogTitle>
+          <DialogDescription>Share this link with other signers to collect signatures via Refractor</DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-4">
-          {/* Transaction ID */}
-          <div className="space-y-2">
-            <Label>Refractor Transaction ID</Label>
-            <div className="p-3 bg-secondary/50 rounded-lg">
-              <p className="font-address text-sm text-muted-foreground break-all">
-                {refractorId}
-              </p>
-            </div>
-          </div>
 
-          {/* Share URL */}
-          <div className="space-y-2">
-            <Label>Share Link</Label>
-            <div className="flex gap-2">
-              <Input
-                value={shareUrl}
-                readOnly
-                className="font-address text-sm"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={copyToClipboard}
-              >
-                {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              </Button>
-            </div>
-          </div>
-
-          {/* QR Code */}
-          {qrCodeDataUrl && (
-            <div className="space-y-2">
-              <Label>QR Code</Label>
-              <div className="flex justify-center p-4 bg-white rounded-lg">
-                <img src={qrCodeDataUrl} alt="QR Code" className="w-48 h-48" />
-              </div>
+        <div className="flex flex-col gap-3">
+          {isOpen && refractorId && (
+            <div className="flex flex-col gap-2">
+              <span className="field-label">QR code</span>
+              <QrCode text={shareUrl} label="QR code" />
             </div>
           )}
 
-          {/* Share Options */}
-          <div className="space-y-2">
-            <Label>Share Options</Label>
-            <div className="grid grid-cols-2 gap-3">
-              {navigator.share && (
-                <Button
-                  variant="outline"
-                  onClick={handleWebShare}
-                  className="flex items-center gap-3 px-4 py-3"
-                >
-                  <Share2 className="w-5 h-5" />
+          <div className="flex flex-col gap-2">
+            <span className="field-label">Refractor transaction ID</span>
+            <p className="break-all border border-line bg-ink-3 px-3 py-2 font-address text-[13px] leading-[1.55] text-muted-foreground">
+              {refractorId}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label htmlFor="share-link" className="field-label">
+              Share link
+            </label>
+            <div className="flex gap-2">
+              <Input id="share-link" value={shareUrl} readOnly className="min-w-0 font-address text-[13px]" />
+              <Button size="icon" className="h-12 w-12 shrink-0" aria-label="Copy share link" onClick={copyToClipboard}>
+                {copied ? <Check /> : <Copy />}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="field-label">Share options</span>
+            <div className={cn('grid gap-2', canShare ? 'grid-cols-2' : 'grid-cols-3')}>
+              {canShare && (
+                <Button variant="outline" size="sm" className="px-2" onClick={handleWebShare}>
+                  <Share2 />
                   Share
                 </Button>
               )}
-              <Button
-                variant="outline"
-                onClick={openEmailClient}
-                className="flex items-center gap-3 px-4 py-3"
-              >
-                <Mail className="w-5 h-5" />
+              <Button variant="outline" size="sm" className="px-2" onClick={openEmailClient}>
+                <Mail />
                 Email
               </Button>
-              <Button
-                variant="outline"
-                onClick={openWhatsApp}
-                className="flex items-center gap-3 px-4 py-3"
-              >
-                <MessageCircle className="w-5 h-5" />
+              <Button variant="outline" size="sm" className="px-2" onClick={openWhatsApp}>
+                <MessageCircle />
                 WhatsApp
               </Button>
-              <Button
-                variant="outline"
-                onClick={openTelegram}
-                className="flex items-center gap-3 px-4 py-3"
-              >
-                <MessageCircle className="w-5 h-5" />
+              <Button variant="outline" size="sm" className="px-2" onClick={openTelegram}>
+                <Send />
                 Telegram
               </Button>
             </div>
           </div>
 
-          <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
-            <p className="text-sm text-primary">
-              <strong>How it works:</strong> Other signers can use this link to load the transaction directly, 
-              sign it, and submit back to the network when enough signatures are collected.
-            </p>
-          </div>
+          <p className="notice block leading-relaxed">
+            <b className="font-semibold">How it works:</b>{' '}
+            <span className="text-muted-foreground">
+              Other signers can use this link to load the transaction directly, sign it, and submit back to the network when
+              enough signatures are collected.
+            </span>
+          </p>
         </div>
       </DialogContent>
     </Dialog>

@@ -3,7 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ArrowRight, RefreshCw, AlertCircle, Usb, KeyRound, Plus, ChevronDown } from 'lucide-react';
+import { ArrowRight, AlertCircle, Usb, Key, Plus, ChevronDown } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
+import { cn } from '@/lib/utils';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useWalletKit } from '@/contexts/WalletKitContext';
 import { useToast } from '@/hooks/use-toast';
@@ -38,10 +40,10 @@ const WalletIcon = ({ wallet }: { wallet: ISupportedWallet }) => {
   }
   if (id.includes('trezor')) return <TrezorLogo className="w-7 h-7 text-foreground" />;
   if (wallet.icon) {
-    return <img src={wallet.icon} alt={wallet.name} className="w-7 h-7 rounded object-contain" onError={showFallbackIcon} />;
+    return <img src={wallet.icon} alt={wallet.name} className="w-7 h-7 object-contain" onError={showFallbackIcon} />;
   }
   return (
-    <div className="w-7 h-7 bg-gradient-primary rounded flex items-center justify-center text-sm font-bold text-primary-foreground">
+    <div className="w-7 h-7 border border-line-2 bg-ink-3 flex items-center justify-center text-sm font-bold text-foreground">
       {wallet.name.charAt(0)}
     </div>
   );
@@ -65,37 +67,40 @@ interface WalletButtonProps {
   onConnect: (wallet: ISupportedWallet) => void;
 }
 
+/** A row of the wallet list: a 32 px glyph, the name, and an arrow. */
+const ROW =
+  'flex min-h-[60px] w-full items-center gap-3 px-4 text-left text-[15px] font-semibold text-foreground transition-colors hover:bg-ink-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:text-muted-foreground';
+const ROW_FRAME = 'border border-line-2 bg-ink';
+
 const WalletButton = ({ wallet, connecting, onConnect }: WalletButtonProps) => (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="outline"
-          className="w-full justify-between h-14 md:h-16 border-border hover:border-primary/50 hover:bg-secondary/50 transition-smooth"
-          onClick={() => onConnect(wallet)}
-          disabled={connecting !== null || !wallet.isAvailable}
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 flex items-center justify-center">
+  <div className={ROW_FRAME}>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className={ROW}
+            onClick={() => onConnect(wallet)}
+            disabled={connecting !== null || !wallet.isAvailable}
+          >
+            <span className="inline-grid h-8 w-8 shrink-0 place-items-center">
               <WalletIcon wallet={wallet} />
-              <Usb className="w-8 h-8 text-primary hidden" />
-            </div>
-            <div className="text-left">
-              <div className="font-medium">{wallet.name}</div>
-              {!wallet.isAvailable && <div className="text-sm text-muted-foreground">Not available in this browser</div>}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {connecting === wallet.id && <RefreshCw className="w-4 h-4 animate-spin" />}
-            <ArrowRight className="w-4 h-4" />
-          </div>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{walletTooltip(wallet)}</p>
-      </TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
+              <Usb className="w-7 h-7 text-foreground hidden" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block">{wallet.name}</span>
+              {!wallet.isAvailable && <span className="block text-[13px] font-normal text-muted-foreground">Not available in this browser</span>}
+            </span>
+            {connecting === wallet.id && <Spinner />}
+            <ArrowRight className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{walletTooltip(wallet)}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  </div>
 );
 
 /** Wallets shown before "See more wallets". */
@@ -170,104 +175,115 @@ export const WalletConnect = ({ onConnect, onModalControl }: WalletConnectProps)
     }
   };
 
-  const networkButton = (value: 'mainnet' | 'testnet', label: string) => (
-    <button
-      onClick={() => setSelectedNetwork(value)}
-      className={`px-6 py-2.5 text-sm font-medium rounded-full transition-all ${
-        selectedNetwork === value
-          ? 'bg-success text-success-foreground shadow-lg shadow-success/20'
-          : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const networkButton = (value: 'mainnet' | 'testnet', label: string) => {
+    const selected = selectedNetwork === value;
+    return (
+      <button
+        type="button"
+        role="radio"
+        aria-checked={selected}
+        onClick={() => setSelectedNetwork(value)}
+        className={cn(
+          'min-h-11 flex-1 border-l border-line-2 text-sm font-semibold transition-colors first:border-l-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+          selected ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        {label}
+      </button>
+    );
+  };
 
   return (
-    <div className="space-y-3">
-      <div className="py-6 flex justify-center">
-        <div className="relative bg-muted/50 backdrop-blur-sm rounded-full p-1 flex border border-border/50">
-          {networkButton('mainnet', 'Mainnet')}
-          {networkButton('testnet', 'Testnet')}
-        </div>
+    <div>
+      <div role="radiogroup" aria-label="Network" className="mb-4 flex border border-line-2">
+        {networkButton('mainnet', 'Mainnet')}
+        {networkButton('testnet', 'Testnet')}
       </div>
 
-      {/* Watch-only access works even when no wallet is installed */}
-      <div className="border border-border rounded-lg bg-card hover:bg-secondary/50 transition-smooth">
-        <Button variant="ghost" className="w-full justify-between h-14 md:h-16 p-4" onClick={() => setShowManualInput(!showManualInput)}>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-primary rounded flex items-center justify-center">
-              <KeyRound className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <div className="text-left">
-              <div className="font-medium">Enter address manually</div>
-            </div>
-          </div>
-          <ArrowRight className="w-4 h-4" />
-        </Button>
+      <div className="flex flex-col gap-3">
+        {/* Watch-only access works even when no wallet is installed */}
+        <div className={ROW_FRAME}>
+          <button
+            type="button"
+            className={ROW}
+            aria-expanded={showManualInput}
+            onClick={() => setShowManualInput(!showManualInput)}
+          >
+            <span className="inline-grid h-8 w-8 shrink-0 place-items-center">
+              <Key className="h-[22px] w-[22px] text-foreground" aria-hidden="true" />
+            </span>
+            <span className="flex-1">Enter Address Manually</span>
+            <ArrowRight className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+          </button>
 
-        {showManualInput && (
-          <div className="px-4 pb-4 space-y-3 border-t border-border">
-            <div className="pt-3">
-              <p className="text-xs text-muted-foreground">Enter a Stellar address to view account details (no signing required)</p>
+          {showManualInput && (
+            <div className="flex flex-col gap-4 border-t border-line px-4 pb-4 pt-3">
+              <p className="text-[13px] text-muted-foreground">Enter a Stellar address to view account details (no signing required)</p>
+              <div className="flex gap-2">
+                <Input
+                  id="manual-address"
+                  aria-label="Stellar address"
+                  placeholder="GABC...XYZ"
+                  value={manualAddress}
+                  onChange={(e) => setManualAddress(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && manualAddress.trim()) handleManualConnect();
+                  }}
+                  className="min-w-0 flex-1 font-address text-[13px]"
+                />
+                <Button onClick={handleManualConnect} disabled={!manualAddress.trim()}>
+                  <Plus />
+                  Connect
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Input
-                id="manual-address"
-                placeholder="GABC...XYZ"
-                value={manualAddress}
-                onChange={(e) => setManualAddress(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && manualAddress.trim()) handleManualConnect();
-                }}
-                className="font-address text-sm"
-              />
-              <Button onClick={handleManualConnect} disabled={!manualAddress.trim()} size="sm">
-                <Plus className="w-4 h-4 mr-1" />
-                Connect
-              </Button>
+          )}
+        </div>
+
+        {loading && wallets.length === 0 ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Spinner />
+              <span className="text-[15px]">Loading wallets...</span>
             </div>
           </div>
+        ) : wallets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <AlertCircle className="w-5 h-5 text-muted-foreground mb-2" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">No wallets found</p>
+            <Button variant="outline" size="sm" onClick={refreshWallets} className="mt-2">
+              Try Again
+            </Button>
+          </div>
+        ) : (
+          <>
+            {primaryWallets.map((wallet) => (
+              <WalletButton key={wallet.id} wallet={wallet} connecting={connecting} onConnect={handleConnect} />
+            ))}
+            {secondaryWallets.length > 0 && (
+              <Collapsible open={showMoreWallets} onOpenChange={setShowMoreWallets}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-12 items-center gap-2 text-[15px] font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    See More Wallets ({secondaryWallets.length})
+                    <ChevronDown
+                      className={cn('h-[18px] w-[18px] transition-transform', showMoreWallets && 'rotate-180')}
+                      aria-hidden="true"
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-1 flex flex-col gap-3">
+                  {secondaryWallets.map((wallet) => (
+                    <WalletButton key={wallet.id} wallet={wallet} connecting={connecting} onConnect={handleConnect} />
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+          </>
         )}
       </div>
-
-      {loading && wallets.length === 0 ? (
-        <div className="flex items-center justify-center py-8">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            <span>Loading wallets...</span>
-          </div>
-        </div>
-      ) : wallets.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center">
-          <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">No wallets found</p>
-          <Button variant="outline" size="sm" onClick={refreshWallets} className="mt-2">
-            Try Again
-          </Button>
-        </div>
-      ) : (
-        <>
-          {primaryWallets.map((wallet) => (
-            <WalletButton key={wallet.id} wallet={wallet} connecting={connecting} onConnect={handleConnect} />
-          ))}
-          {secondaryWallets.length > 0 && (
-            <Collapsible open={showMoreWallets} onOpenChange={setShowMoreWallets}>
-              <CollapsibleTrigger asChild>
-                <Button variant="link" className="justify-start px-0 text-sm">
-                  <span>See more wallets ({secondaryWallets.length})</span>
-                  <ChevronDown className={`w-4 h-4 ml-1 transition-transform ${showMoreWallets ? 'rotate-180' : ''}`} />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3 mt-3">
-                {secondaryWallets.map((wallet) => (
-                  <WalletButton key={wallet.id} wallet={wallet} connecting={connecting} onConnect={handleConnect} />
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-        </>
-      )}
     </div>
   );
 };

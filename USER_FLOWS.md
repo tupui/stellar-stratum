@@ -27,7 +27,13 @@ network and current view, so any screen can be reloaded or shared.
   Circle's testnet USDC are shown at their Mainnet price.
 - **Activity**: payments, swaps, contract transfers and configuration changes, with filters and a
   balance chart. New transactions are picked up on refresh.
-- **Multisig**: signers, weights and thresholds, and **Edit configuration**.
+- **Multisig**: signers, weights and thresholds, and **Edit Configuration**, which asks first
+  (Proceed with Caution) because a wrong change can lock the account. The Multisig tab stays selected
+  while editing; it is also the way back.
+
+On a phone the tabs are a bar at the bottom, with **Create** beside them to open the transaction
+builder; Endpoints and Disconnect are icons in the header. On a computer the tabs sit under the
+account and **Initiate Multisig Transaction** is in the header.
 
 ## Build a transaction
 
@@ -61,9 +67,13 @@ flowchart TD
   (`replace`) is refused.
 - **Transactions are valid for 24 hours**, so co-signers have time to sign.
 
+Once a transaction is built or imported, the page goes to its review, which comes first; the builder
+folds to one row below it and opens again with its chevron. On a phone the screen's main action sits in
+a bar at the bottom, and dialogs open from the bottom.
+
 ## Review and sign
 
-The review screen shows, before any signature:
+The review screen shows, before any signature, and above the signing panel:
 
 - each operation in plain words, with its counterparty, amounts, prices, asset issuers and the
   account it acts on when that is not the source; look-alike assets (a "USDC" that is not Circle's,
@@ -112,7 +122,23 @@ flowchart TD
 
 ## Submit
 
+```mermaid
+flowchart TD
+  Send[Send Transaction to the network] --> Sending[Sending: each step lights as it completes]
+  Sending --> Success[Transaction Submitted Successfully]
+  Sending --> Failed[Transaction Failed: why, and whether the fee was charged]
+  Sending --> Pending[Not in a Ledger Yet: it may still land]
+  Failed --> Review[Back to Review]
+  Pending --> Retry[Try Again]
+  Pending --> Review
+  Success --> Wallet[Back to Wallet, or View on Stellar Expert]
+```
+
 Submission tries the configured Horizon endpoints in turn and checks whether the transaction
 already landed before retrying. A result only a third-party mirror reports is labelled as such.
-Failures are explained in plain language (expired, sequence already used, not enough signatures,
-memo required, and so on).
+While it runs, a sheet shows the steps the app takes (fee checked, sent to the Horizon, waiting for
+a ledger, in the ledger, account updated), with the full log under Details. It ends on the summit:
+what happened, the ledger and the fee charged; or on why it failed, in plain language (expired,
+sequence already used, not enough signatures, memo required, and so on) and whether a fee was
+charged; or, when every Horizon accepted it but it has not landed in time, on a warning that it may
+still land, with Try Again.

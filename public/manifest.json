@@ -4,8 +4,8 @@
   "description": "Stellar's threshold-based authorization system for multi-signature transactions",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#eab308",
+  "background_color": "#0D0D10",
+  "theme_color": "#0D0D10",
   "orientation": "portrait-primary",
   "icons": [
     {
@@ -31,5 +31,9 @@
       "purpose": "maskable any"
     }
   ],
-  "categories": ["finance", "productivity", "business"]
+  "categories": [
+    "finance",
+    "productivity",
+    "business"
+  ]
 }

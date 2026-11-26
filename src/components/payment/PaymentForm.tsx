@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Decimal } from 'decimal.js';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Plus, ArrowRight, ArrowDown, Merge, Edit2, X, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Plus, ArrowDown, ChevronDown, Merge, Pencil, X, ExternalLink } from 'lucide-react';
+import { Dock } from '@/components/brand/Shell';
+import { Spinner } from '@/components/brand/Mark';
+import { cn } from '@/lib/utils';
 import { convertFromUSD } from '@/lib/fiat-currencies';
 import { useFiatCurrency } from '@/contexts/FiatCurrencyContext';
 import { isContractAddress, isMuxedAddress, isValidPaymentDestination } from '@/lib/validation';
@@ -469,17 +470,20 @@ export const PaymentForm = ({
   const destinationInvalid = Boolean(paymentData.destination) && !isValidPaymentDestination(paymentData.destination.trim());
 
   const renderAsset = (code: string, issuer?: string) => (
-    <a
-      href={getAssetExplorerUrl(code, issuer)}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-muted-foreground font-medium hover:text-primary transition-colors inline-flex items-center gap-1"
-      title={issuer ? `${code} issued by ${issuer}` : code}
-    >
-      {code}
-      {issuer && <span className="font-address text-[10px]">{issuer.slice(0, 4)}…{issuer.slice(-4)}</span>}
-      <ExternalLink className="w-3 h-3" />
-    </a>
+    <span className="inline-flex min-w-0 items-center gap-1">
+      <span className="truncate font-semibold text-foreground">{code}</span>
+      {issuer && <span className="font-address text-xs text-muted-foreground">{issuer.slice(0, 4)}…{issuer.slice(-4)}</span>}
+      <a
+        href={getAssetExplorerUrl(code, issuer)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="-m-3 inline-grid size-11 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
+        title={issuer ? `${code} issued by ${issuer}` : code}
+        aria-label={`${code} in explorer`}
+      >
+        <ExternalLink className="h-4 w-4" />
+      </a>
+    </span>
   );
 
   const renderAmounts = (payment: PaymentOperation) => {
@@ -489,14 +493,18 @@ export const PaymentForm = ({
     return { send, receive };
   };
 
+  const operationNumber = editingPaymentId
+    ? compactPayments.findIndex((p) => p.id === editingPaymentId) + 1
+    : compactPayments.length + 1;
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4">
       {/* Operations bundled so far */}
       {compactPayments.length > 0 && (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-muted-foreground">List of Operations</h3>
-            <Badge variant="secondary" className="text-xs">
+            <span className="text-[13px] text-muted-foreground">List of operations</span>
+            <Badge variant="secondary">
               {compactPayments.length} operation{compactPayments.length > 1 ? 's' : ''}
             </Badge>
           </div>
@@ -506,80 +514,70 @@ export const PaymentForm = ({
             const { send, receive } = renderAmounts(payment);
             const toCode = payment.receiveAsset || payment.asset;
             const toIssuer = payment.receiveAsset ? payment.receiveAssetIssuer : payment.assetIssuer;
+            const sent = closesAccount ? 'all remaining' : send;
             return (
-              <Card
+              <article
                 key={payment.id}
-                className={`p-4 md:p-6 rounded-2xl border border-border/60 ${closesAccount ? 'bg-destructive/5 border-destructive/30' : 'bg-card/60'} hover:bg-card transition-colors shadow-sm`}
+                aria-label={`Operation ${index + 1}`}
+                className={cn('well flex flex-col gap-3 p-4', closesAccount && 'border border-destructive')}
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-foreground">
-                      <span className="sm:hidden">Op #{index + 1}</span>
-                      <span className="hidden sm:inline">Operation #{index + 1}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {compactPaymentFiatValues[payment.id] && (
-                        <span className="text-sm font-semibold text-primary font-amount">≈ {compactPaymentFiatValues[payment.id]}</span>
-                      )}
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => editCompactPayment(payment)}
-                          className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary"
-                          title="Edit operation"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeCompactPayment(payment.id)}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive/80 hover:bg-destructive/10"
-                          title="Remove operation"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {closesAccount && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                        <p className="text-destructive font-semibold text-sm">
-                          Account Closure: this closes your source account, removes its trustlines and sends all remaining XLM
-                          to the destination. This cannot be undone.
-                        </p>
-                      </div>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <h3 className="sub flex-1">
+                    <span className="sm:hidden">Op #{index + 1}</span>
+                    <span className="hidden sm:inline">Operation #{index + 1}</span>
+                  </h3>
+                  {compactPaymentFiatValues[payment.id] && (
+                    <span className="mr-1 text-[13px] text-muted-foreground">≈ {compactPaymentFiatValues[payment.id]}</span>
                   )}
-
-                  <div className="bg-background/50 rounded-lg p-2 w-fit mx-auto">
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={32} />
-                        {renderAsset(payment.asset, payment.assetIssuer)}
-                        <span className="font-semibold font-amount">{closesAccount ? 'all remaining' : send}</span>
-                      </div>
-                      <ArrowRight className="hidden sm:block w-4 h-4 text-muted-foreground mx-1" />
-                      <ArrowDown className="sm:hidden w-4 h-4 text-muted-foreground" />
-                      <div className="flex items-center gap-2">
-                        <AssetIcon assetCode={toCode} assetIssuer={toIssuer} size={32} />
-                        {renderAsset(toCode, toIssuer)}
-                        {receive && <span className="font-semibold font-amount">{receive}</span>}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-xs">
-                    <span className="text-muted-foreground font-medium">Destination:</span>
-                    <div className="font-address text-foreground mt-1 break-all">{payment.destination}</div>
-                    {payment.memoRequired && <p className="mt-1 text-warning">This destination requires a memo.</p>}
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => editCompactPayment(payment)}
+                    title="Edit operation"
+                    aria-label="Edit operation"
+                  >
+                    <Pencil className="!size-5" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => removeCompactPayment(payment.id)}
+                    title="Remove operation"
+                    aria-label="Remove operation"
+                  >
+                    <X className="!size-5" />
+                  </Button>
                 </div>
-              </Card>
+
+                {closesAccount && (
+                  <div className="notice red">
+                    <AlertTriangle className="mt-0.5 h-4 w-4" aria-hidden="true" />
+                    <p className="font-semibold">
+                      Account closure: this closes your source account, removes its trustlines and sends all remaining XLM
+                      to the destination. This cannot be undone.
+                    </p>
+                  </div>
+                )}
+
+                {/* What leaves, then what arrives: logo, code, amount; the arrow sits in the logo column */}
+                <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+                  <AssetIcon assetCode={payment.asset} assetIssuer={payment.assetIssuer} size={24} />
+                  {renderAsset(payment.asset, payment.assetIssuer)}
+                  <span className="text-right font-amount text-[15px]">{sent}</span>
+                  <ArrowDown className="mx-auto h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <span />
+                  <span />
+                  <AssetIcon assetCode={toCode} assetIssuer={toIssuer} size={24} />
+                  {renderAsset(toCode, toIssuer)}
+                  <span className="text-right font-amount text-[15px]">{receive ?? sent}</span>
+                </div>
+
+                <div>
+                  <div className="text-[13px] text-muted-foreground">Destination</div>
+                  <div className="mt-1 break-all font-address text-[13px] text-foreground">{payment.destination}</div>
+                  {payment.memoRequired && <p className="mt-1 text-[13px] text-warning">This destination requires a memo.</p>}
+                </div>
+              </article>
             );
           })}
         </div>
@@ -587,32 +585,29 @@ export const PaymentForm = ({
 
       {/* Current operation */}
       {(!isTransactionBuilt || editingPaymentId) && (
-        <div className="space-y-4">
+        <>
           {!hasActiveForm && (
             <>
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold">
-                  Operation #{editingPaymentId ? compactPayments.findIndex((p) => p.id === editingPaymentId) + 1 : compactPayments.length + 1}
-                </h3>
-              </div>
+              <h3 className="sub">Operation #{operationNumber}</h3>
 
-              <div className="space-y-2">
-                <Label htmlFor="destination" className="text-sm font-medium">
-                  {willCloseAccount ? 'Send All Funds To' : 'Destination Address'}
-                </Label>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="destination" className="text-[13px] text-muted-foreground">
+                  {willCloseAccount ? 'Send all funds to' : 'Destination address'}
+                </label>
                 <AddressAutocomplete
+                  id="destination"
                   value={paymentData.destination}
                   onChange={(value) => onPaymentDataChange({ ...paymentData, destination: value })}
                   accountPublicKey={accountPublicKey}
                   network={network}
                   onQRScan={() => setShowQRScanner(true)}
-                  className={`text-xs font-address bg-background focus:border-primary ${destinationInvalid ? 'border-destructive' : 'border-border/60'}`}
+                  invalid={destinationInvalid}
                 />
-                {destinationInvalid && <p className="text-xs text-destructive">Please enter a valid Stellar address</p>}
+                {destinationInvalid && <p className="text-[13px] text-destructive">Please enter a valid Stellar address</p>}
               </div>
 
-              <div className="space-y-6">
-                <Label className="text-sm font-medium">Amount & Assets</Label>
+              <div className="flex flex-col gap-2">
+                <span className="text-[13px] text-muted-foreground">Amount &amp; assets</span>
                 <SwapInterface
                   fromAsset={paymentData.asset}
                   fromAssetIssuer={paymentData.assetIssuer}
@@ -657,64 +652,57 @@ export const PaymentForm = ({
                   assetPrices={assetPrices}
                   onFetchAssetPrice={onFetchAssetPrice}
                 />
-
-                {paymentData.asset === 'XLM' &&
-                  !isPathPayment(paymentData) &&
-                  !willCloseAccount &&
-                  canCloseAccount() &&
-                  isValidPaymentDestination(paymentData.destination.trim()) &&
-                  baseAccountId(paymentData.destination.trim()) !== accountPublicKey &&
-                  destination.status === 'exists' && (
-                    <div className="text-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleMergeAccount}
-                        className="h-8 px-4 text-sm border-primary/30 hover:border-primary hover:bg-primary/10"
-                      >
-                        <Merge className="h-4 w-4 mr-2" />
-                        Merge Account
-                      </Button>
-                    </div>
-                  )}
-                {willCloseAccount && (
-                  <div className="text-center">
-                    <Button variant="ghost" size="sm" onClick={handleCancelMerge} className="h-8 px-4 text-sm">
-                      Cancel Merge
-                    </Button>
-                  </div>
-                )}
               </div>
+
+              {paymentData.asset === 'XLM' &&
+                !isPathPayment(paymentData) &&
+                !willCloseAccount &&
+                canCloseAccount() &&
+                isValidPaymentDestination(paymentData.destination.trim()) &&
+                baseAccountId(paymentData.destination.trim()) !== accountPublicKey &&
+                destination.status === 'exists' && (
+                  <Button variant="outline" size="sm" onClick={handleMergeAccount} className="self-center">
+                    <Merge />
+                    Merge Account
+                  </Button>
+                )}
+              {willCloseAccount && (
+                <Button variant="ghost" size="sm" onClick={handleCancelMerge} className="self-center">
+                  Cancel Merge
+                </Button>
+              )}
 
               {paymentData.destination && (
                 <DestinationAccountInfo destination={paymentData.destination.trim()} lookup={destination} network={network} />
               )}
 
               {formError && destination.status !== 'loading' && destination.status !== 'error' && (
-                <p className="text-xs text-muted-foreground">{formError}</p>
+                <p className="text-[13px] text-muted-foreground">{formError}</p>
               )}
             </>
           )}
 
           {/* One memo for the whole transaction */}
           {(compactPayments.length > 0 || !hasActiveForm) && (
-            <div className="space-y-2">
-              <Label htmlFor="memo" className="text-sm font-medium">Transaction memo (optional)</Label>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="memo" className="text-[13px] text-muted-foreground">Transaction memo (optional)</label>
               <div className="flex gap-2">
-                <select
-                  aria-label="Memo type"
-                  className="h-10 rounded-md border border-border/60 bg-background px-2 text-sm"
-                  value={memo.type}
-                  onChange={(e) => setMemo({ ...memo, type: e.target.value as TransactionMemo['type'] })}
-                >
-                  <option value="text">Text</option>
-                  <option value="id">ID</option>
-                </select>
+                <div className="relative shrink-0">
+                  <select
+                    aria-label="Memo type"
+                    className="h-12 appearance-none rounded-none border border-input bg-ink-3 pl-3 pr-10 text-[15px] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    value={memo.type}
+                    onChange={(e) => setMemo({ ...memo, type: e.target.value as TransactionMemo['type'] })}
+                  >
+                    <option value="text">Text</option>
+                    <option value="id">ID</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" aria-hidden="true" />
+                </div>
                 <Input
                   id="memo"
                   placeholder={memo.type === 'id' ? 'Numeric memo, e.g. 123456' : 'Up to 28 bytes'}
                   inputMode={memo.type === 'id' ? 'numeric' : 'text'}
-                  className="font-address text-xs bg-background border-border/60 focus:border-primary"
                   value={memo.value}
                   onChange={(e) => {
                     setMemo({ ...memo, value: e.target.value });
@@ -722,11 +710,11 @@ export const PaymentForm = ({
                   }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">A transaction has a single memo, shared by all its operations.</p>
-              {currentMemoError && <p className="text-xs text-destructive">{currentMemoError}</p>}
-              {needsMemo && <p className="text-xs text-destructive">A destination in this transaction requires a memo.</p>}
+              <p className="text-[13px] text-muted-foreground">A transaction has a single memo, shared by all its operations.</p>
+              {currentMemoError && <p className="text-[13px] text-destructive">{currentMemoError}</p>}
+              {needsMemo && <p className="text-[13px] text-destructive">A destination in this transaction requires a memo.</p>}
               {memoConflict && (
-                <p className="text-xs text-destructive">
+                <p className="text-[13px] text-destructive">
                   Several destinations here require their own memo, but a transaction has only one. Send them as separate
                   transactions.
                 </p>
@@ -734,31 +722,26 @@ export const PaymentForm = ({
             </div>
           )}
 
-          <div className="flex gap-3 px-1">
+          {/* The main action: in the dock on the phone, right-aligned on desktop; the primary last */}
+          <Dock className="sm:[&>*]:min-w-48">
             {hasActiveForm && (
               <>
                 {!hasMerge && (
-                  <Button
-                    onClick={addPayment}
-                    variant="outline"
-                    size="lg"
-                    className="flex-1 min-w-0 border-dashed border-primary hover:border-primary hover:bg-primary/5 text-primary hover:text-primary transition-colors hover:animate-[glow-pulse_1s_ease-in-out] active:animate-[glow-expand_0.3s_ease-out]"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
+                  <Button onClick={addPayment} variant="outline" className="min-w-0 px-3">
+                    <Plus />
                     <span className="truncate">Add Operation</span>
                   </Button>
                 )}
                 <Button
                   onClick={handleBuild}
                   disabled={isBuilding || compactPayments.length === 0 || Boolean(currentMemoError) || needsMemo || memoConflict}
-                  className="flex-1 min-w-0 bg-gradient-success text-success-foreground hover:text-success-foreground hover:opacity-90 disabled:opacity-50 hover:animate-[glow-pulse-purple_1s_ease-in-out] active:animate-[glow-expand-purple_0.3s_ease-out]"
-                  size="lg"
+                  className="min-w-0 px-3"
                 >
                   {isBuilding ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    <>
+                      <Spinner />
                       <span className="truncate">Building...</span>
-                    </div>
+                    </>
                   ) : (
                     <span className="truncate">Build Transaction</span>
                   )}
@@ -769,37 +752,26 @@ export const PaymentForm = ({
             {!hasActiveForm &&
               (editingPaymentId ? (
                 <>
-                  <Button
-                    onClick={handleSaveEdit}
-                    disabled={!isFormValid()}
-                    size="mobile"
-                    className="flex-1 min-w-0 !bg-stellar-yellow !text-black hover:!bg-stellar-yellow/90 disabled:opacity-50"
-                  >
-                    <span className="truncate">Save Changes</span>
-                  </Button>
-                  <Button onClick={cancelCurrentPayment} variant="destructive" className="flex-1 min-w-0" size="mobile">
+                  <Button onClick={cancelCurrentPayment} variant="outline" className="min-w-0">
                     <span className="truncate">Cancel Edit</span>
+                  </Button>
+                  <Button onClick={handleSaveEdit} disabled={!isFormValid()} className="min-w-0">
+                    <span className="truncate">Save Changes</span>
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button
-                    onClick={handleBundlePayment}
-                    variant="outline"
-                    disabled={!isFormValid()}
-                    size="mobile"
-                    className="flex-1 min-w-0 border-dashed border-primary hover:border-primary hover:bg-primary/5 text-primary hover:text-primary transition-colors disabled:opacity-50 disabled:border-border/60 disabled:text-muted-foreground hover:animate-[glow-pulse_1s_ease-in-out] active:animate-[glow-expand_0.3s_ease-out]"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    <span className="truncate">Bundle</span>
-                  </Button>
-                  <Button onClick={cancelCurrentPayment} variant="destructive" className="flex-1 min-w-0" size="mobile">
+                  <Button onClick={cancelCurrentPayment} variant="outline" className="min-w-0">
                     <span className="truncate">Cancel</span>
+                  </Button>
+                  <Button onClick={handleBundlePayment} disabled={!isFormValid()} className="min-w-0">
+                    <Plus />
+                    <span className="truncate">Bundle</span>
                   </Button>
                 </>
               ))}
-          </div>
-        </div>
+          </Dock>
+        </>
       )}
 
       <QRScanner isOpen={showQRScanner} onClose={() => setShowQRScanner(false)} onScan={handleQRScan} />

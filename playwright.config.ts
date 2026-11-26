@@ -8,12 +8,14 @@ const PORT = 5190;
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: false,
+  // Every test funds its own throwaway accounts, so the tests run side by side.
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: 1,
+  workers: process.env.CI ? 2 : 4,
   reporter: 'list',
-  timeout: 180_000,
+  // A testnet submission lands in about 5 s; a test that waits longer than this is stuck.
+  timeout: 90_000,
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: 'retain-on-failure',

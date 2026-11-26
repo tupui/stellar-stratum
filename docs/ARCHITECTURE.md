@@ -24,6 +24,13 @@ the browser and has no server of its own.
 - Planned: contract calls described through the draft SEP for contract display descriptors, and a
   warning before paying an address that StellarExpert's public directory flags as malicious or unsafe.
 
+The interface follows the design canvas (see `AGENTS.md`). Its tokens, type scale and shared parts are in
+[`src/index.css`](../src/index.css); the primitives in `src/components/ui` and the brand parts in
+`src/components/brand` (the mark, the header, notices, the signature strip, the phone's bottom bar) build
+every screen from them. The fonts (Chivo, Chivo Mono, Jersey 15) are bundled, so no page loads a font
+from another site. The logo and the mountain under it are SVG files in `public/brand`, drawn from the
+settled logo. Motion is stepped, plays once, and is off when the system asks for reduced motion.
+
 The app is served from Radicle Pages. The host publishes the commit it serves and the hash of every file
 in its [manifest](https://consulting-manao.radicle.page/stellar-stratum/.git-pages/manifest.json). The
 Content Security Policy is sent as a header from [`public/_headers`](../public/_headers), with

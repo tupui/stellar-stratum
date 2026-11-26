@@ -1,32 +1,27 @@
-import { Ban, FileText, HandCoins, KeyRound, Landmark } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LegalHeader, Section, Summary } from '@/components/legal';
 import { TEXT_LINK } from '@/lib/legal';
 
 const Terms = () => (
   <>
-    <LegalHeader icon={FileText} title="Terms of use">
+    <LegalHeader title="Terms of use">
       The rules for using Stellar Stratum. Using the app means you accept them.
     </LegalHeader>
     <Summary
       points={[
         {
-          icon: KeyRound,
           title: 'Your keys, your transactions',
           text: 'Your wallet signs. The app never holds your keys or funds, and nobody can reverse a transaction the network accepted.',
         },
         {
-          icon: Ban,
           title: 'No financial service',
           text: 'Stellar Stratum is not a broker or custodian, and nothing in it is advice.',
         },
         {
-          icon: Landmark,
           title: 'Not operated by SDF',
           text: 'The Stellar Development Foundation does not operate Stellar Stratum and is not liable for it.',
         },
         {
-          icon: HandCoins,
           title: 'Free',
           text: 'The app costs nothing. Each transaction pays its Stellar network fee.',
         },

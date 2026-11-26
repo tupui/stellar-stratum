@@ -18,7 +18,8 @@ import { BOARDS, type Board } from './screens.ts';
 
 export type Uploads = {
   stylesheet: string;
-  fonts: { inter: string; mono: string };
+  /** The bundled fonts: Chivo 400 and 600, Chivo Mono 400 and 500, Jersey 15. */
+  fonts: { chivo400: string; chivo600: string; mono400: string; mono500: string; jersey: string };
   /** Images the app serves by path, by that path. */
   images: Record<string, string>;
   /** Images drawn inline as data: URIs, by the first 10 hex characters of their SHA-1. */
@@ -55,8 +56,10 @@ export const resolveImages = (html: string, uploads: Uploads) => {
     if (!url) throw new Error(`image ${img.key}.${img.ext} is not uploaded`);
     out = out.replace(img.uri, url);
   }
-  for (const [path, url] of Object.entries(uploads.images)) out = out.replaceAll(`src="${path}"`, `src="${url}"`);
-  const local = out.match(/src="\/(?!_blob\/)[^"]*"/);
+  for (const [path, url] of Object.entries(uploads.images)) {
+    out = out.replaceAll(`src="${path}"`, `src="${url}"`).replaceAll(`srcset="${path}"`, `srcset="${url}"`);
+  }
+  const local = out.match(/src(?:set)?="\/(?!_blob\/)[^"]*"/);
   if (local) throw new Error(`image ${local[0]} has no upload in uploads.json`);
   if (out.includes('{{') || out.includes('}}')) throw new Error('the screen holds {{ or }}, which a board reads as a template hole');
   return out;
@@ -80,8 +83,11 @@ export const artboard = (board: Board, body: string, h: number, uploads: Uploads
 <x-dc>
 <helmet>
 <style>
-@font-face{font-family:'Inter Variable';font-style:normal;font-display:swap;font-weight:100 900;src:url(${uploads.fonts.inter}) format('woff2-variations')}
-@font-face{font-family:'JetBrains Mono Variable';font-style:normal;font-display:swap;font-weight:100 800;src:url(${uploads.fonts.mono}) format('woff2-variations')}
+@font-face{font-family:'Chivo';font-style:normal;font-display:swap;font-weight:400;src:url(${uploads.fonts.chivo400}) format('woff2')}
+@font-face{font-family:'Chivo';font-style:normal;font-display:swap;font-weight:600;src:url(${uploads.fonts.chivo600}) format('woff2')}
+@font-face{font-family:'Chivo Mono';font-style:normal;font-display:swap;font-weight:400;src:url(${uploads.fonts.mono400}) format('woff2')}
+@font-face{font-family:'Chivo Mono';font-style:normal;font-display:swap;font-weight:500;src:url(${uploads.fonts.mono500}) format('woff2')}
+@font-face{font-family:'Jersey 15';font-style:normal;font-display:swap;font-weight:400;src:url(${uploads.fonts.jersey}) format('woff2')}
 body{margin:0}
 </style>
 </helmet>

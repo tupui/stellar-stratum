@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { updateUrlParams } from '@/lib/urlState';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Send, FileCode, ArrowLeft, ArrowLeftRight, Landmark, Blocks, Coins } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { AppHeader, BackButton, Wrap } from '@/components/brand/Shell';
+import { cn } from '@/lib/utils';
+import { shortAddress } from '@/lib/xdr/describe';
 import { useToast } from '@/hooks/use-toast';
 import { pullFromRefractor, createHorizonServer, type AccountData } from '@/lib/stellar';
 import { isRefusal, parseTransactionPayload } from '@/lib/sep7';
@@ -60,6 +62,31 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
   const [formKey, setFormKey] = useState(0);
   const currentXdr = xdrData.output || xdrData.input;
   useRefreshOnNewTransaction(currentXdr, currentNetwork, onAccountRefresh);
+  // While a transaction is reviewed, the builder folds to one row; a new one folds it again.
+  const reviewing = Boolean(currentXdr) && !xdrInputError;
+  const [builderOpen, setBuilderOpen] = useState(!reviewing);
+  const [wasReviewing, setWasReviewing] = useState(reviewing);
+  if (wasReviewing !== reviewing) {
+    setWasReviewing(reviewing);
+    setBuilderOpen(!reviewing);
+  }
+  // The review appears above the builder: once a transaction is built or imported, take the page to it,
+  // so the person reads what they are about to sign instead of the form they just filled.
+  const reviewRef = useRef<HTMLDivElement>(null);
+  const reviewedXdr = useRef('');
+  useEffect(() => {
+    if (!reviewing || !currentXdr) {
+      reviewedXdr.current = '';
+      return;
+    }
+    if (reviewedXdr.current) return; // already reviewing: a new signature does not move the page
+    reviewedXdr.current = currentXdr;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    requestAnimationFrame(() => {
+      reviewRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+      reviewRef.current?.querySelector<HTMLElement>('h2, h3')?.focus({ preventScroll: true });
+    });
+  }, [reviewing, currentXdr]);
 
   useEffect(() => {
     // Reset tab-specific state when switching tabs to avoid stale data
@@ -114,7 +141,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
       sessionStorage.removeItem('deeplink-xdr');
       sessionStorage.removeItem('deeplink-refractor-id');
       sessionStorage.removeItem('deeplink-source-account');
-      toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
+      toast({ title: 'Transaction loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
     }
   }, [handleXdrInputChange, toast]);
 
@@ -130,7 +157,7 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
         sessionStorage.removeItem('deeplink-xdr');
         sessionStorage.removeItem('deeplink-refractor-id');
         sessionStorage.removeItem('deeplink-source-account');
-        toast({ title: 'Transaction Loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
+        toast({ title: 'Transaction loaded', description: 'XDR loaded for review and signing.', duration: 3000 });
       }
     };
     // Custom event for deep link handling
@@ -296,201 +323,219 @@ export const TransactionBuilder = ({ onBack, accountPublicKey, signerPublicKey, 
     });
   };
 
+  const tabTrigger = 'min-h-11';
+  // The underline tabs of the DeFi protocols, under the segmented mode switch
+  const protocolTrigger =
+    'flex-none border-l-0 px-[18px] min-h-12 text-sm text-muted-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-[inset_0_-2px_0_hsl(var(--foreground))]';
+
   return (
-    <div className="min-h-screen bg-background p-3 sm:p-6">
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          {accountPublicKey ? (
-            <Button onClick={onBack} variant="outline" className="self-start gap-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back to Wallet
-            </Button>
+    <div className="flex-1 bg-background">
+      <AppHeader
+        right={
+          accountPublicKey ? (
+            <BackButton label="Back to Wallet" onClick={onBack} />
           ) : (
-            <Button onClick={onBack} className="self-start bg-success hover:bg-success/90 text-success-foreground">
+            <Button onClick={onBack} variant="outline" size="sm">
               Connect Wallet
             </Button>
+          )
+        }
+      />
+
+      {/* On the phone every section is bare and full width, with its own 16 px padding. */}
+      <Wrap className="flex flex-col px-0 sm:gap-8 sm:px-8 sm:py-8">
+        {/* Once a transaction is loaded, its review comes first: Transaction Verification, then signing. */}
+        <div
+          ref={reviewRef}
+          className={cn(
+            // nothing to show (no transaction, nothing submitted): no gap either
+            'grid scroll-mt-4 items-start sm:gap-6 has-[>div:only-child:empty]:hidden',
+            currentXdr && 'lg:grid-cols-[7fr_5fr]',
+            reviewing ? 'order-first' : 'order-last',
           )}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold whitespace-nowrap">Transaction Builder</h1>
-            <p className="text-muted-foreground text-sm">Create and prepare transactions for multisig</p>
+        >
+          {currentXdr && (
+            <div className="min-w-0">
+              <XdrDetails xdr={currentXdr} networkType={currentNetwork} accountData={accountData} />
+            </div>
+          )}
+
+          {/* Signing, then submission or coordination. Always mounted: it outlives the transaction it submitted. */}
+          <div className="flex min-w-0 flex-col sm:gap-6 lg:sticky lg:top-6">
+            <TransactionSigningPanel
+              xdr={currentXdr && !xdrInputError ? currentXdr : ''}
+              network={currentNetwork}
+              account={accountData}
+              onXdrChange={(signedXdr) => setXdrData(prev => ({ ...prev, output: signedXdr }))}
+              onSubmitted={handleSubmitted}
+              onRefractorSubmitted={setRefractorId}
+              onDone={onBack}
+            />
           </div>
         </div>
 
-        {/* Source Account Selector - Editable */}
-        {accountData && (
-          <Card className="shadow-card">
-            <CardContent className="pt-4 sm:pt-6">
-              <SourceAccountSelector
-                sourceAccount={accountPublicKey}
-                connectedWalletKey={signerPublicKey || ''}
-                onSourceAccountChange={(newAccount) => onSourceAccountChange?.(newAccount)}
-                network={currentNetwork}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <div className="flex flex-col sm:gap-4">
+          {/* While a transaction is reviewed, the builder folds to one row. */}
+          {reviewing && !builderOpen && (
+            <section aria-labelledby="tb-folded" className="flex items-center gap-3 border-t border-line p-4 sm:border sm:bg-ink-2">
+              <div className="min-w-0 flex-1">
+                <h2 id="tb-folded" className="sec">Transaction Builder</h2>
+                <p className="mt-2 text-[13px] text-muted-foreground">
+                  Source account <span className="font-address">{shortAddress(accountPublicKey)}</span>
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Expand Transaction Builder"
+                aria-expanded={false}
+                onClick={() => setBuilderOpen(true)}
+                className="shrink-0"
+              >
+                <ChevronDown className="!size-5" />
+              </Button>
+            </section>
+          )}
 
-        {/* Transaction Builder */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-base sm:text-lg whitespace-nowrap flex items-center gap-2">
-              <FileCode className="w-4 h-4" />
-              Build Transaction
-            </CardTitle>
-            <CardDescription>
-              Send payments, call any Soroban contract, use DeFi protocols, or import a transaction to sign
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <div className="p-2 bg-muted/50 rounded-lg">
-                <TabsList className="grid grid-cols-4 w-full p-0 bg-transparent gap-2">
-                  <TabsTrigger
-                    value="payment"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
+          <div className={cn('flex flex-col sm:gap-4', reviewing && !builderOpen && 'hidden')}>
+            <section
+              aria-labelledby="tb"
+              className={cn('flex flex-col gap-4 p-4 sm:p-0', reviewing && 'border-t border-line sm:border-0')}
+            >
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <h1 id="tb" className="sec">Transaction Builder</h1>
+                  <p className="mt-2 text-[13px] text-muted-foreground">Create and prepare transactions for multisig</p>
+                </div>
+                {reviewing && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="Collapse Transaction Builder"
+                    aria-expanded
+                    onClick={() => setBuilderOpen(false)}
+                    className="shrink-0"
                   >
-                    <Send className="w-4 h-4" />
-                    <span>Payment</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="contract"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
-                  >
-                    <Blocks className="w-4 h-4" />
-                    <span>Contract</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="defi"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
-                  >
-                    <Coins className="w-4 h-4" />
-                    <span>DeFi</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="import"
-                    className="w-full h-10 flex items-center gap-2 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-md border-0 px-3"
-                  >
-                    <FileCode className="w-4 h-4" />
-                    <span>Import</span>
-                  </TabsTrigger>
-                </TabsList>
+                    <ChevronUp className="!size-5" />
+                  </Button>
+                )}
               </div>
 
-              <TabsContent value="payment" className="space-y-4 mt-6">
-                {accountData && (
-                  <PaymentForm
+              {/* Source account: editable */}
+              {accountData && (
+                <SourceAccountSelector
+                  sourceAccount={accountPublicKey}
+                  connectedWalletKey={signerPublicKey || ''}
+                  onSourceAccountChange={(newAccount) => onSourceAccountChange?.(newAccount)}
+                  network={currentNetwork}
+                />
+              )}
+            </section>
+
+            <section
+              aria-labelledby="bt"
+              className="flex flex-col gap-4 border-t border-line p-4 sm:border sm:bg-ink-2"
+            >
+              <div>
+                <h2 id="bt" className="sub">Build Transaction</h2>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Send payments, call any Soroban contract, use DeFi protocols, or import a transaction to sign
+                </p>
+              </div>
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList aria-label="Build Transaction">
+                  <TabsTrigger value="payment" className={tabTrigger}>Payment</TabsTrigger>
+                  <TabsTrigger value="contract" className={tabTrigger}>Contract</TabsTrigger>
+                  <TabsTrigger value="defi" className={tabTrigger}>DeFi</TabsTrigger>
+                  <TabsTrigger value="import" className={tabTrigger}>Import</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="payment">
+                  {accountData && (
+                    <PaymentForm
+                      key={formKey}
+                      paymentData={paymentData}
+                      onPaymentDataChange={setPaymentData}
+                      availableAssets={getAvailableAssets()}
+                      assetPrices={assetPrices}
+                      onFetchAssetPrice={fetchAdditionalAssetPrice}
+                      onBuild={handlePaymentBuild}
+                      isBuilding={isBuilding}
+                      accountData={accountData}
+                      accountPublicKey={accountPublicKey}
+                      isTransactionBuilt={isTransactionBuilt}
+                      onClearTransaction={clearTransaction}
+                    />
+                  )}
+                </TabsContent>
+
+                <TabsContent value="contract">
+                  <ContractCallTab
                     key={formKey}
-                    paymentData={paymentData}
-                    onPaymentDataChange={setPaymentData}
-                    availableAssets={getAvailableAssets()}
-                    assetPrices={assetPrices}
-                    onFetchAssetPrice={fetchAdditionalAssetPrice}
-                    onBuild={handlePaymentBuild}
-                    isBuilding={isBuilding}
-                    accountData={accountData}
                     accountPublicKey={accountPublicKey}
+                    network={currentNetwork}
+                    onBuild={handleSdkBuild}
+                    isBuilding={isBuilding}
                     isTransactionBuilt={isTransactionBuilt}
                     onClearTransaction={clearTransaction}
                   />
-                )}
-              </TabsContent>
+                </TabsContent>
 
-              <TabsContent value="contract" className="space-y-4 mt-6">
-                <ContractCallTab
-                  key={formKey}
-                  accountPublicKey={accountPublicKey}
-                  network={currentNetwork}
-                  onBuild={handleSdkBuild}
-                  isBuilding={isBuilding}
-                  isTransactionBuilt={isTransactionBuilt}
-                  onClearTransaction={clearTransaction}
-                />
-              </TabsContent>
+                <TabsContent value="defi">
+                  <Tabs
+                    value={defiTab}
+                    onValueChange={(tab) => {
+                      // A transaction built in one protocol tab must not linger under the other.
+                      clearTransaction();
+                      setDefiTab(tab);
+                    }}
+                  >
+                    <TabsList aria-label="DeFi protocol" className="border-0 border-b border-line">
+                      <TabsTrigger value="soroswap" className={protocolTrigger}>Soroswap</TabsTrigger>
+                      <TabsTrigger value="defindex" className={protocolTrigger}>DeFindex</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="soroswap">
+                      <SoroswapTab
+                        key={formKey}
+                        accountPublicKey={accountPublicKey}
+                        accountData={accountData}
+                        network={currentNetwork}
+                        onBuild={handleSdkBuild}
+                        isBuilding={isBuilding}
+                        isTransactionBuilt={isTransactionBuilt}
+                        onClearTransaction={clearTransaction}
+                      />
+                    </TabsContent>
+                    <TabsContent value="defindex">
+                      <DeFindexTab
+                        key={formKey}
+                        accountPublicKey={accountPublicKey}
+                        accountData={accountData}
+                        network={currentNetwork}
+                        onBuild={handleSdkBuild}
+                        isBuilding={isBuilding}
+                        isTransactionBuilt={isTransactionBuilt}
+                        onClearTransaction={clearTransaction}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </TabsContent>
 
-              <TabsContent value="defi" className="space-y-4 mt-6">
-                <Tabs
-                  value={defiTab}
-                  onValueChange={(tab) => {
-                    // A transaction built in one protocol tab must not linger under the other.
-                    clearTransaction();
-                    setDefiTab(tab);
-                  }}
-                >
-                  <TabsList className="grid grid-cols-2 w-full">
-                    <TabsTrigger value="soroswap" className="flex items-center gap-2">
-                      <ArrowLeftRight className="w-4 h-4" />
-                      <span>Soroswap</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="defindex" className="flex items-center gap-2">
-                      <Landmark className="w-4 h-4" />
-                      <span>DeFindex</span>
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="soroswap" className="space-y-4 mt-4">
-                    <SoroswapTab
-                      key={formKey}
-                      accountPublicKey={accountPublicKey}
-                      accountData={accountData}
-                      network={currentNetwork}
-                      onBuild={handleSdkBuild}
-                      isBuilding={isBuilding}
-                      isTransactionBuilt={isTransactionBuilt}
-                      onClearTransaction={clearTransaction}
-                    />
-                  </TabsContent>
-                  <TabsContent value="defindex" className="space-y-4 mt-4">
-                    <DeFindexTab
-                      key={formKey}
-                      accountPublicKey={accountPublicKey}
-                      accountData={accountData}
-                      network={currentNetwork}
-                      onBuild={handleSdkBuild}
-                      isBuilding={isBuilding}
-                      isTransactionBuilt={isTransactionBuilt}
-                      onClearTransaction={clearTransaction}
-                    />
-                  </TabsContent>
-                </Tabs>
-              </TabsContent>
-
-              <TabsContent value="import" className="space-y-4 mt-6">
-                <ImportTab
-                  xdrInput={xdrData.input}
-                  xdrError={xdrInputError}
-                  onXdrInputChange={handleXdrInputChange}
-                  onPullTransaction={handlePullFromRefractor}
-                  lastRefractorId={refractorId}
-                  network={currentNetwork}
-                />
-              </TabsContent>
-
-            </Tabs>
-          </CardContent>
-        </Card>
-
-
-        {/* Transaction Verification */}
-        {currentXdr && (
-          <XdrDetails 
-            xdr={currentXdr}
-            networkType={currentNetwork}
-            accountData={accountData}
-          />
-        )}
-
-        {/* Signing, then submission or coordination */}
-        <TransactionSigningPanel
-          xdr={currentXdr && !xdrInputError ? currentXdr : ''}
-          network={currentNetwork}
-          account={accountData}
-          onXdrChange={(signedXdr) => setXdrData(prev => ({ ...prev, output: signedXdr }))}
-          onSubmitted={handleSubmitted}
-          onRefractorSubmitted={setRefractorId}
-          onDone={onBack}
-        />
-
-      </div>
+                <TabsContent value="import">
+                  <ImportTab
+                    xdrInput={xdrData.input}
+                    xdrError={xdrInputError}
+                    onXdrInputChange={handleXdrInputChange}
+                    onPullTransaction={handlePullFromRefractor}
+                    lastRefractorId={refractorId}
+                    network={currentNetwork}
+                  />
+                </TabsContent>
+              </Tabs>
+            </section>
+          </div>
+        </div>
+      </Wrap>
     </div>
   );
 };

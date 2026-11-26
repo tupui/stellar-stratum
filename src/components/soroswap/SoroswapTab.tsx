@@ -9,7 +9,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowDownUp, Plus, Minus, Loader2, Settings2, Info } from 'lucide-react';
+import { ArrowDownUp, Plus, Minus, Settings2 } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
+import { Notice } from '@/components/brand/Shell';
 import { AssetIcon } from '@/components/AssetIcon';
 import { formatBalance, spendableBalance } from '@/lib/balance-utils';
 import { soroswapSDK, getSoroswapNetwork } from '@/lib/soroswap-client';
@@ -207,19 +209,7 @@ export const SoroswapTab = (props: SoroswapTabProps) =>
   props.network === 'testnet' ? <MainnetOnly /> : <SoroswapPanel {...props} />;
 
 const MainnetOnly = () => (
-  <Card className="border-dashed">
-    <CardContent className="pt-6">
-      <div className="flex items-start gap-3 text-muted-foreground">
-        <Info className="w-5 h-5 mt-0.5 shrink-0" />
-        <div>
-          <p className="font-medium text-foreground">Mainnet Only</p>
-          <p className="text-sm mt-1">
-            Soroswap swaps and liquidity are only available on Mainnet. Switch to Mainnet to use them.
-          </p>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
+  <Notice title="Mainnet only">Soroswap swaps and liquidity are only available on Mainnet. Switch to Mainnet to use them.</Notice>
 );
 
 const SoroswapPanel = ({
@@ -296,7 +286,7 @@ const SoroswapPanel = ({
   if (isLoadingAssets) {
     return (
       <div className="flex items-center justify-center py-8 text-muted-foreground">
-        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+        <Spinner className="mr-2" />
         <span className="text-sm">Loading assets...</span>
       </div>
     );
@@ -776,7 +766,7 @@ const SwapForm = ({
               onChange={(e) => handleTypeSell(e.target.value)}
             />
             {independentField === 'buy' && isQuoting && (
-              <Loader2 className="w-4 h-4 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Spinner className="absolute right-2 top-1/2 -translate-y-1/2" />
             )}
           </div>
         </div>
@@ -784,7 +774,7 @@ const SwapForm = ({
 
       {/* Direction indicator */}
       <div className="flex justify-center">
-        <div className="rounded-full border bg-muted/40 p-1.5">
+        <div className="grid size-10 place-items-center border border-line-2 bg-ink">
           <ArrowDownUp className="w-4 h-4 text-muted-foreground" />
         </div>
       </div>
@@ -835,7 +825,7 @@ const SwapForm = ({
               onChange={(e) => handleTypeBuy(e.target.value)}
             />
             {independentField === 'sell' && isQuoting && (
-              <Loader2 className="w-4 h-4 animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Spinner className="absolute right-2 top-1/2 -translate-y-1/2" />
             )}
           </div>
         </div>
@@ -931,7 +921,7 @@ const SwapForm = ({
           onClick={handleBuild}
           disabled={loading || isTransactionBuilt || !quoted || overSpendable || rate?.status === 'off'}
         >
-          {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          {loading && <Spinner />}
           Build Swap Transaction
         </Button>
       )}
@@ -1091,7 +1081,7 @@ const AddLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBuildi
       {/* Pool Info, as read on chain */}
       {isLoadingPool && (
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Spinner />
           Loading pool...
         </div>
       )}
@@ -1158,7 +1148,7 @@ const AddLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBuildi
         onClick={handleBuild}
         disabled={loading || !rawA || !rawB || !assetA || !assetB || assetA === assetB || isTransactionBuilt}
       >
-        {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+        {loading && <Spinner />}
         Build Add Liquidity Transaction
       </Button>
     </div>
@@ -1262,7 +1252,7 @@ const RemoveLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBui
   if (isLoadingPositions) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground py-4">
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <Spinner />
         <span className="text-sm">Loading positions...</span>
       </div>
     );
@@ -1287,7 +1277,7 @@ const RemoveLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBui
           {positions.map((pos, i) => (
             <Card
               key={pos.poolInformation.address}
-              className={`cursor-pointer transition-colors ${selectedIndex === i ? 'border-primary' : 'hover:border-primary/50'}`}
+              className={`cursor-pointer transition-colors ${selectedIndex === i ? 'border-foreground' : 'hover:border-foreground/50'}`}
               onClick={() => { setSelectedIndex(i); updateLpAmount(''); }}
             >
               <CardContent className="pt-3 pb-3">
@@ -1352,7 +1342,7 @@ const RemoveLiquidityForm = ({ assets, network, accountPublicKey, onBuild, isBui
           onClick={handleBuild}
           disabled={loading || !validLiquidity || isTransactionBuilt}
         >
-          {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          {loading && <Spinner />}
           Build Remove Liquidity Transaction
         </Button>
       )}

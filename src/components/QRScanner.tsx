@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Camera, Upload, X, RotateCcw } from 'lucide-react';
+import { AlertCircle, Upload, X, RotateCcw } from 'lucide-react';
+import { Spinner } from '@/components/brand/Mark';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
 import { DecodeHintType, BarcodeFormat } from '@zxing/library';
 import jsQR from 'jsqr';
@@ -178,7 +179,7 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
         if (done) return;
         setStatus('error');
         toast({
-          title: 'Camera Error',
+          title: 'Camera error',
           description: 'Camera access denied or unavailable. Try switching camera or upload an image.',
           variant: 'destructive',
         });
@@ -210,61 +211,65 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
       setIsProcessingImage(false);
       lastText.current = '';
       if (text) handle(text);
-      else toast({ title: 'Scan Failed', description: 'No valid QR code found in the uploaded image', variant: 'destructive' });
+      else toast({ title: 'Scan failed', description: 'No valid QR code found in the uploaded image', variant: 'destructive' });
     };
     fileReader.onerror = () => {
       setIsProcessingImage(false);
-      toast({ title: 'Upload Failed', description: 'Could not read the uploaded image file', variant: 'destructive' });
+      toast({ title: 'Upload failed', description: 'Could not read the uploaded image file', variant: 'destructive' });
     };
     fileReader.readAsDataURL(file);
   };
+
+  const pill = 'whitespace-nowrap border border-line-2 bg-ink px-3 py-1 text-[13px] font-semibold text-foreground';
+  // four solid corner brackets around where the code goes
+  const brackets = [
+    'left-6 top-6 border-l-2 border-t-2',
+    'right-6 top-6 border-r-2 border-t-2',
+    'bottom-6 left-6 border-b-2 border-l-2',
+    'bottom-6 right-6 border-b-2 border-r-2',
+  ];
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Camera className="w-5 h-5" />
-            Scan QR Code
-          </DialogTitle>
-          <DialogDescription>Position the QR code within the camera frame to scan it</DialogDescription>
+          <DialogTitle className="sec">Scan QR Code</DialogTitle>
+          <DialogDescription className="text-sm">Position the QR code within the camera frame to scan it</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="relative aspect-square bg-muted rounded-lg overflow-hidden">
-            <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+        <div className="flex flex-col">
+          <div className="relative h-[280px] overflow-hidden border border-line-2 bg-ink sm:h-auto sm:aspect-square">
+            <video ref={videoRef} className="h-full w-full object-cover" autoPlay muted playsInline />
 
-            <div className="absolute inset-4 border-2 border-dashed border-primary/50 rounded-lg pointer-events-none">
-              <div className="absolute inset-0 flex items-center justify-center">
-                {status === 'waiting' && (
-                  <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">Waiting for camera permission...</div>
-                )}
-                {status === 'scanning' && (
-                  <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">{progress ? 'Reading animated QR...' : 'Scanning...'}</div>
-                )}
-                {status === 'error' && <div className="bg-black/50 text-white px-3 py-1 rounded-full text-sm">No camera available</div>}
-              </div>
+            <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+              {brackets.map((corner) => (
+                <i key={corner} className={`absolute size-8 border-foreground ${corner}`} />
+              ))}
+            </div>
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              {status === 'waiting' && <div className={pill}>Waiting for camera permission...</div>}
+              {status === 'scanning' && <div className={pill}>{progress ? 'Reading animated QR...' : 'Scanning...'}</div>}
+              {status === 'error' && <div className={pill}>No camera available</div>}
             </div>
 
             {devices.length > 1 && (
-              <div className="absolute top-2 right-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setDeviceIndex((i) => (i + 1) % devices.length)}
-                  className="bg-black/50 text-white hover:bg-black/70"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </Button>
-              </div>
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => setDeviceIndex((i) => (i + 1) % devices.length)}
+                aria-label="Switch camera"
+                className="absolute bottom-2 right-2 bg-ink"
+              >
+                <RotateCcw />
+              </Button>
             )}
           </div>
 
           {progress && (
-            <div className="space-y-2">
+            <div className="mt-3 flex flex-col gap-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{receiving(progress.type)}</span>
-                <span className="text-muted-foreground">{progress.percent}%</span>
+                <span className="font-semibold">{receiving(progress.type)}</span>
+                <span className="tabular-nums text-muted-foreground">{progress.percent}%</span>
               </div>
               <div
                 role="progressbar"
@@ -272,42 +277,40 @@ export const QRScanner = ({ isOpen, onClose, onScan }: QRScannerProps) => {
                 aria-valuenow={progress.percent}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                className="h-2 rounded-full bg-muted overflow-hidden"
+                className="h-2.5 overflow-hidden border border-line-2 bg-ink-3"
               >
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress.percent}%` }} />
+                <div className="h-full bg-foreground transition-[width]" style={{ width: `${progress.percent}%` }} />
               </div>
-              <p className="text-xs text-muted-foreground">Keep the camera on the code. Parts can be read in any order.</p>
+              <p className="text-[13px] text-muted-foreground">Keep the camera on the code. Parts can be read in any order.</p>
             </div>
           )}
 
           {notice && (
-            <div role="alert" className="flex gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />
-              <div className="space-y-1">
-                <p className="font-medium text-destructive">{notice.title}</p>
-                <p className="text-foreground/80">{notice.description}</p>
+            <div role="alert" className="notice red mt-3">
+              <AlertCircle className="mt-0.5 h-5 w-5" aria-hidden="true" />
+              <div>
+                <p className="font-semibold">{notice.title}</p>
+                <p className="mt-1">{notice.description}</p>
               </div>
             </div>
           )}
 
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-2">Or upload an image containing a QR code</p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-            <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()} disabled={isProcessingImage}>
-              <Upload className="w-4 h-4 mr-2" />
-              {isProcessingImage ? 'Processing...' : 'Upload Image'}
-            </Button>
-          </div>
+          <p className="mb-2 mt-4 text-center text-[13px] text-muted-foreground">Or upload an image containing a QR code</p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+          <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()} disabled={isProcessingImage}>
+            {isProcessingImage ? <Spinner /> : <Upload />}
+            {isProcessingImage ? 'Processing...' : 'Upload Image'}
+          </Button>
 
-          <div className="flex justify-end gap-2">
+          <div className="mt-3 flex justify-end">
             <Button variant="outline" onClick={onClose}>
-              <X className="w-4 h-4 mr-2" />
+              <X />
               Cancel
             </Button>
           </div>

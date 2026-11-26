@@ -1,8 +1,11 @@
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 // Fonts are bundled and served from this origin: no request to a font CDN.
-import '@fontsource-variable/inter';
-import '@fontsource-variable/jetbrains-mono';
+import '@fontsource/chivo/400.css';
+import '@fontsource/chivo/600.css';
+import '@fontsource/chivo-mono/400.css';
+import '@fontsource/chivo-mono/500.css';
+import '@fontsource/jersey-15/400.css';
 import './index.css';
 
 // Earlier builds registered a caching service worker that could keep serving an old version

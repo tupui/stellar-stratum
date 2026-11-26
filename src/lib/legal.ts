@@ -10,4 +10,4 @@ export const LEGAL_PAGES: readonly { to: string; label: string; icon: LucideIcon
 export const LEGAL_EMAIL = 'legal@consulting-manao.com';
 
 /** A link in running text. */
-export const TEXT_LINK = 'font-medium text-foreground underline underline-offset-4 hover:text-stellar-yellow transition-colors';
+export const TEXT_LINK = 'text-foreground underline decoration-line-2 underline-offset-[3px] hover:decoration-current';
