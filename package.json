@@ -15,6 +15,7 @@
     "design:boards": "node scripts/design/boards.ts",
     "design:stylesheet": "node scripts/design/stylesheet.ts",
     "lint": "eslint .",
+    "build:action": "rolldown -c action/rolldown.config.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

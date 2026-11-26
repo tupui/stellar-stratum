@@ -1,0 +1,46 @@
+name: Stratum signing request
+description: Build an unsigned Soroban transaction for a multisig account, store it on Refractor and link to Stellar Stratum so the signers can review and sign it. The action never sees a secret key.
+branding:
+  icon: key
+  color: blue
+
+inputs:
+  source-account:
+    description: Public key (G...) of the multisig account that deploys or upgrades.
+    required: true
+  network:
+    description: testnet or mainnet.
+    required: true
+  operation:
+    description: upload, deploy or call. A deploy needs the WASM to be uploaded already. A call is how a contract is upgraded.
+    default: upload
+  wasm:
+    description: Path to a .wasm file, for upload and deploy.
+    default: ''
+  contract:
+    description: Contract id (C...) to call.
+    default: ''
+  method:
+    description: Contract function to call, for example upgrade.
+    default: ''
+  args:
+    description: 'JSON object of argument values by name, written as in the contract form of the app, for a deploy with constructor arguments or a call. Example: {"new_wasm_hash": "d5fa..."}.'
+    default: ''
+  comment:
+    description: Where to post the link, pr, commit or none. The job summary is always written.
+    default: none
+  github-token:
+    description: Token used to post the comment. Only needed when comment is not none.
+    default: ''
+
+outputs:
+  refractor-id:
+    description: Transaction hash, which is also the Refractor id. Empty when the transaction is too large for Refractor.
+  stratum-link:
+    description: Link that opens the transaction in Stratum.
+  artifact-path:
+    description: Set instead of refractor-id when the transaction is too large for Refractor. The file holds the XDR to import in Stratum.
+
+runs:
+  using: node24
+  main: dist/propose.mjs
