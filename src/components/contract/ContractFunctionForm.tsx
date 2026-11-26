@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Play, Hammer, Loader2 } from 'lucide-react';
 import { ContractValueInput } from './ContractValueInput';
 import {
-  classifyParam,
+  classifyParams,
   defaultFormValue,
   describeType,
   formatResult,
@@ -36,7 +36,7 @@ interface ParsedFunction {
 
 const parseFunction = (loaded: LoadedContract, name: string): ParsedFunction => {
   const fn = loaded.spec.getFunc(name);
-  const params = fn.inputs.map((input) => classifyParam(input.name.toString(), input.type, loaded.spec));
+  const params = classifyParams(fn, loaded.spec);
   const outputs = fn.outputs;
   const returnLabel = outputs.length === 0 ? 'void' : outputs.map(describeType).join(', ');
   return { params, returnLabel, doc: fn.doc.toString() };

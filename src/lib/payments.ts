@@ -60,7 +60,7 @@ const recordAsset = (r: { asset_type: string; asset_code?: string; asset_issuer?
 /** What a payment to a contract needs from Soroban RPC: ledger entries and the simulation. */
 export type SorobanServer = Pick<rpc.Server, 'getContractData' | 'prepareTransaction'>;
 
-const sorobanServer = (network: NetworkId): SorobanServer =>
+export const sorobanServer = (network: NetworkId) =>
   new rpc.Server(network === 'testnet' ? appConfig.TESTNET_SOROBAN_RPC : appConfig.MAINNET_SOROBAN_RPC);
 
 const contractExists = async (soroban: SorobanServer, contractId: string): Promise<boolean> => {

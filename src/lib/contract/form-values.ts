@@ -199,6 +199,9 @@ export const classifyParam = (name: string, type: xdr.ScSpecTypeDef, spec: contr
   return shape;
 };
 
+export const classifyParams = (fn: xdr.ScSpecFunctionV0, spec: contract.Spec): ParamShape[] =>
+  fn.inputs.map((input) => classifyParam(input.name.toString(), input.type, spec));
+
 /** A form's raw values, keyed by parameter name. Everything is a string except JSON parses. */
 export type FormValues = Record<string, unknown>;
 
