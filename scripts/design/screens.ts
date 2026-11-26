@@ -148,6 +148,12 @@ const signerFlow = (phone: boolean): Flow => {
   };
 };
 
+/** While a transaction is reviewed the builder is folded to one row: open it. */
+const unfold = async (page: Page) => {
+  const expand = page.getByRole('button', { name: 'Expand Transaction Builder' });
+  if (await expand.isVisible()) await expand.click();
+};
+
 export const FLOWS: Flow[] = [
   {
     name: 'connect',
@@ -281,6 +287,7 @@ export const FLOWS: Flow[] = [
       await closeOverlay(page);
       await page.getByText('Refractor (Online)').click();
 
+      await unfold(page);
       await page.getByRole('tab', { name: 'Import' }).click();
       const paste = page.getByPlaceholder('Paste transaction XDR here...');
       await shot('review-partly-signed', async () => {
@@ -295,11 +302,13 @@ export const FLOWS: Flow[] = [
       });
       await closeOverlay(page);
       await shot('share-link', async () => {
+        await unfold(page);
         await page.getByText('Last Submitted').locator('xpath=../..').getByRole('button').last().click();
         await page.getByText('Share Transaction for Signature').waitFor({ timeout: 10_000 });
       });
       await closeOverlay(page);
       await shot('review-ready', async () => {
+        await unfold(page);
         await paste.fill(sign(xdr, accounts.A, accounts.B));
         await page.getByRole('img', { name: 'Weight 2 of 2' }).waitFor({ timeout: 30_000 });
         await page.waitForTimeout(1500);

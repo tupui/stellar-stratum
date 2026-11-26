@@ -1,13 +1,18 @@
 {
-  "stylesheet": "/_blob/2b43586c818cc03790b7e3554e33fd9f",
+  "stylesheet": "/_blob/4e18bf489c206a408544758f20c61ad2",
   "fonts": {
-    "inter": "/_blob/4f1c7368f908bf450ac2afe872e92fe2",
-    "mono": "/_blob/0f1153e5569f9f1651d7acdb30162a27"
+    "chivo400": "/_blob/1ccb31a947af59996c4cbe7d99286e41",
+    "chivo600": "/_blob/424eac83313288811dcaf4990a1fac9c",
+    "mono400": "/_blob/c601e17d9a94ded834520d911d408ec6",
+    "mono500": "/_blob/b3def1f0eef307707928a544a7d73ca0",
+    "jersey": "/_blob/51d199b67a098fb8859578975d8a60d1"
   },
   "images": {
     "/xlm-logo.png": "/_blob/076dea6bb96b4157f6783084dcc450d3",
     "/ledger-logo.png": "/_blob/71dae41f16d7167150bc827eeab60b70",
-    "/src/assets/refractor-favicon.ico": "/_blob/371262c418bf40afe1eba9ac108201c9"
+    "/src/assets/refractor-favicon.ico": "/_blob/371262c418bf40afe1eba9ac108201c9",
+    "/brand/summit-phone.svg": "/_blob/70c1579e623c81071d1389bcc3aa1ff2",
+    "/brand/summit-desktop.svg": "/_blob/e1803cb0914f05efe1447d96a920ae9f"
   },
   "data": {
     "9712a75efa": "/_blob/111eea26ce5855ef43e7fd958f2ac070",
