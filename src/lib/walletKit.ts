@@ -3,7 +3,7 @@ import { AlbedoModule } from '@creit-tech/stellar-wallets-kit/modules/albedo';
 import { BitgetModule } from '@creit-tech/stellar-wallets-kit/modules/bitget';
 import { CactusLinkModule } from '@creit-tech/stellar-wallets-kit/modules/cactuslink';
 import { FordefiModule } from '@creit-tech/stellar-wallets-kit/modules/fordefi';
-import { FreighterModule } from '@creit-tech/stellar-wallets-kit/modules/freighter';
+import { VarialModule } from '@creit-tech/stellar-wallets-kit/modules/varial';
 import { GhostsigModule } from '@creit-tech/stellar-wallets-kit/modules/ghostsig';
 import { HanaModule } from '@creit-tech/stellar-wallets-kit/modules/hana';
 import { KleverModule } from '@creit-tech/stellar-wallets-kit/modules/klever';
@@ -33,7 +33,7 @@ StellarWalletsKit.init({
   modules: [
     new GhostsigModule(),
     new AlbedoModule(),
-    new FreighterModule(),
+    new VarialModule(),
     new FordefiModule(),
     new RabetModule(),
     new xBullModule(),
@@ -53,6 +53,6 @@ StellarWalletsKit.init({
  * user switches accounts in the wallet. Web wallets (Albedo, xBull, Ghostsig…) open a popup for
  * every address lookup and hardware wallets need a device interaction, so they are not polled.
  */
-export const WATCHABLE_WALLETS = ['freighter'];
+export const WATCHABLE_WALLETS = ['varial'];
 
 export { StellarWalletsKit };
