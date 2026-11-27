@@ -303,7 +303,7 @@ export const FLOWS: Flow[] = [
       await closeOverlay(page);
       await shot('share-link', async () => {
         await unfold(page);
-        await page.getByText('Last Submitted').locator('xpath=../..').getByRole('button').last().click();
+        await page.getByText('Last Submitted').locator('xpath=..').getByRole('button', { name: 'Share' }).click();
         await page.getByText('Share Transaction for Signature').waitFor({ timeout: 10_000 });
       });
       await closeOverlay(page);

@@ -92,6 +92,14 @@ const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream',
 const failed: string[] = [];
 const blocked = new Set<string>();
 
+// A cold dev server compiles the wallet kit on its first page load, which can take longer than a
+// navigation may wait. Load each entry once, with time to spare, before any flow starts.
+{
+  const warm = await browser.newPage();
+  for (const path of ['/', '/sign']) await warm.goto(`${base}${path}`, { waitUntil: 'load', timeout: 180_000 });
+  await warm.close();
+}
+
 try {
   const accounts = await setupAccounts();
   for (const flow of flows) {
@@ -99,15 +107,16 @@ try {
       viewport: flow.phone ? { width: 390, height: 844 } : { width: 1280, height: 900 },
       permissions: ['clipboard-read', 'clipboard-write', 'camera'],
     });
+    context.setDefaultNavigationTimeout(120_000);
     (await guardMainnet(context)).forEach((h) => blocked.add(h));
     const page = await context.newPage();
     const shot: Ctx['shot'] = async (name, ready) => {
       try {
         await ready();
-        // The splash of index.html stays at least 1.5 s, then fades
+        // The loading screen of index.html leaves (display: none) once the app renders
         await page.waitForFunction(() => {
           const loader = document.getElementById('app-loader');
-          return !loader || getComputedStyle(loader).visibility === 'hidden';
+          return !loader || getComputedStyle(loader).display === 'none' || getComputedStyle(loader).visibility === 'hidden';
         }, null, { timeout: 15_000 });
         if (!wanted(name, flow.name)) return;
         await page.waitForTimeout(600);
