@@ -87,6 +87,7 @@ and phone widths outside `/sign` (the Acid redesign page draws every screen at 3
 | Dashboard | `dash-balances` | `components/AccountOverview.tsx`, `AssetBalancePanel.tsx`, `AssetIcon.tsx`, `contexts/FiatCurrencyContext.tsx` | `lib/reflector.test.ts`, `lib/reflector-client.test.ts` |
 | Dashboard | `dash-activity` | `components/history/` | `lib/labels.test.ts` |
 | Dashboard | `dash-multisig`, `multisig-confirm` | the multisig tab of `components/AccountOverview.tsx`, `ThresholdInfoTooltip.tsx` | `lib/labels.test.ts` |
+| Dashboard | `dash-account` | `components/AccountMenu.tsx`, the header of `components/AccountOverview.tsx`, `components/brand/Shell.tsx` | |
 | Dashboard | `dash-endpoints` | `components/HorizonSettingsDialog.tsx`, `lib/horizonSettings.ts` | |
 | Dashboard | `multisig-edit` | `components/MultisigConfigBuilder.tsx` | `lib/multisig.test.ts`, `lib/validation.test.ts` |
 | Build | `build-payment`, `build-payment-filled`, `build-payment-bundled` | `components/TransactionBuilder.tsx`, `components/payment/`, `SwapInterface.tsx`, `AddressAutocomplete.tsx`, `SourceAccountSelector.tsx` | `lib/payments.test.ts`, `lib/validation.test.ts`, `hooks/useAddressBook.test.ts`, `lib/sep7.test.ts`, `tests/testnet-flows.spec.ts` |

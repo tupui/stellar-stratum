@@ -3,8 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Server, Trash2, RotateCcw, Check, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Trash2, RotateCcw, Check, AlertTriangle } from 'lucide-react';
 import { Spinner } from '@/components/brand/Mark';
 import { cn } from '@/lib/utils';
 import { useNetwork } from '@/contexts/NetworkContext';
@@ -20,14 +20,13 @@ const hostOf = (url: string) => {
 };
 
 /**
- * Endpoints button + sheet to choose which Horizon endpoints are used (and in what
+ * The sheet to choose which Horizon endpoints are used (and in what
  * order) for the current network. Custom endpoints are probed before being added.
  */
-export const HorizonSettingsDialog = ({ className }: { className?: string }) => {
+export const HorizonSettingsDialog = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   const { network } = useNetwork();
   const { toast } = useToast();
   const endpoints = useHorizonEndpoints(network);
-  const [open, setOpen] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [probing, setProbing] = useState(false);
   const [probe, setProbe] = useState<HorizonProbe | null>(null);
@@ -58,19 +57,7 @@ export const HorizonSettingsDialog = ({ className }: { className?: string }) => 
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          className={cn('md:w-auto md:px-4', className)}
-          title="Horizon endpoints"
-          aria-label="Endpoints"
-        >
-          <Server className="!size-[18px] md:!size-4" />
-          <span className="hidden md:inline">Endpoints</span>
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Horizon Endpoints · {network === 'testnet' ? 'Testnet' : 'Mainnet'}</DialogTitle>

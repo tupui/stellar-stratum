@@ -31,9 +31,11 @@ network and current view, so any screen can be reloaded or shared.
   (Proceed with Caution) because a wrong change can lock the account. The Multisig tab stays selected
   while editing; it is also the way back.
 
-On a phone the tabs are a bar at the bottom, with **Create** beside them to open the transaction
-builder; Endpoints and Disconnect are icons in the header. On a computer the tabs sit under the
-account and **Initiate Multisig Transaction** is in the header.
+The account is a pill in the header with its short key. It opens the full key, **Copy public key**,
+**Share** (a link that reopens this account), **Open in explorer**, **Horizon endpoints** and, last,
+**Disconnect**: a menu under the pill on a computer, a sheet from the bottom on a phone. On a computer
+the tabs and **New Transaction** are in the header too. On a phone the tabs are a bar at the bottom,
+with **Create** beside them to open the transaction builder.
 
 ## Build a transaction
 

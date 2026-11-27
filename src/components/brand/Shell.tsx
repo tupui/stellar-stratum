@@ -13,7 +13,18 @@ export const Wrap = ({ className, children }: { className?: string; children: Re
  * Every page's header: the logo and wordmark at left, the page's own controls at right.
  * `brand` replaces the wordmark (the air-gapped signer shows its own title beside the mark).
  */
-export const AppHeader = ({ right, brand, homeHref = '/' }: { right?: ReactNode; brand?: ReactNode; homeHref?: string }) => (
+export const AppHeader = ({
+  right,
+  nav,
+  brand,
+  homeHref = '/',
+}: {
+  right?: ReactNode;
+  /** Shown after the brand from md up, stretched to the bar's height (the dashboard's tabs). */
+  nav?: ReactNode;
+  brand?: ReactNode;
+  homeHref?: string;
+}) => (
   <header className="border-b border-line bg-ink">
     <Wrap className="flex min-h-[69px] items-center gap-3 sm:min-h-[77px]">
       {brand ?? (
@@ -21,6 +32,7 @@ export const AppHeader = ({ right, brand, homeHref = '/' }: { right?: ReactNode;
           <Wordmark />
         </Link>
       )}
+      {nav && <div className="ml-5 hidden self-stretch md:flex">{nav}</div>}
       <div className="ml-auto flex items-center gap-2">{right}</div>
     </Wrap>
   </header>

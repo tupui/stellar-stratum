@@ -55,7 +55,9 @@ const guardMainnet = async (page: Page) => {
 
 const openAccount = async (page: Page, account: string) => {
   await page.goto(`/?address=${account}&network=testnet`);
-  await expect(page.getByText(account).first()).toBeVisible({ timeout: 60_000 });
+  // The header's account pill reads the short key
+  const short = `${account.slice(0, 8)}…${account.slice(-8)}`;
+  await expect(page.getByRole('button', { name: `Account ${short}` })).toBeVisible({ timeout: 60_000 });
 };
 
 const sign = (xdr: string, ...signers: Keypair[]) => {
@@ -66,7 +68,7 @@ const sign = (xdr: string, ...signers: Keypair[]) => {
 
 /** Build a payment in the Payment tab and return the XDR the app shows. */
 const buildPayment = async (page: Page, destination: string, amount: string) => {
-  await page.getByRole('button', { name: /Initiate Multisig Transaction/ }).click();
+  await page.getByRole('button', { name: 'New Transaction' }).click();
   await page.getByPlaceholder('Enter address').fill(destination);
   await page.getByRole('button', { name: 'Edit amount to send' }).click();
   await page.getByLabel('Amount to send').fill(amount);
@@ -252,7 +254,7 @@ test('air-gap: an animated QR out, a Signature QR back', async ({ page }) => {
   const blocked = await guardMainnet(page);
 
   await openAccount(page, A.publicKey());
-  await page.getByRole('button', { name: /Initiate Multisig Transaction/ }).click();
+  await page.getByRole('button', { name: 'New Transaction' }).click();
   await importXdr(page, tx.toXDR());
   await expect(page.getByRole('img', { name: 'Weight 0 of 1' })).toBeVisible({ timeout: 30_000 });
   await page.getByText('Air-gapped (Offline)').click();

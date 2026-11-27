@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Copy, Share2, ExternalLink, Power, Plus, Coins, Activity, Shield, AlertTriangle } from 'lucide-react';
+import { Copy, Plus, Coins, Activity, Shield, AlertTriangle } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ import { ThresholdInfoTooltip } from './ThresholdInfoTooltip';
 import { MultisigConfigBuilder } from './MultisigConfigBuilder';
 import { XdrDetails } from './XdrDetails';
 import { TransactionSigningPanel } from './transaction/TransactionSigningPanel';
-import { HorizonSettingsDialog } from './HorizonSettingsDialog';
+import { AccountMenu } from './AccountMenu';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { AssetBalancePanel } from './AssetBalancePanel';
 import { TransactionHistoryPanel } from './history/TransactionHistoryPanel';
@@ -19,10 +19,9 @@ import { useAssetPrices } from '@/hooks/useAssetPrices';
 import { useDefindexPositions } from '@/hooks/useDefindexPositions';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useRefreshOnNewTransaction } from '@/hooks/useRefreshOnNewTransaction';
-import { useToast } from '@/hooks/use-toast';
 
 import type { AccountData } from '@/lib/stellar';
-import { buildAccountUrl, readUrlParam, updateUrlParams } from '@/lib/urlState';
+import { readUrlParam, updateUrlParams } from '@/lib/urlState';
 import { signerTypeLabel } from '@/lib/labels';
 import { shortAddress } from '@/lib/xdr/describe';
 
@@ -98,22 +97,11 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
   const [showEditConfirm, setShowEditConfirm] = useState(false);
   const [multisigConfigXdr, setMultisigConfigXdr] = useState<string | null>(null);
 
-  const { toast } = useToast();
   const { network: currentNetwork } = useNetwork();
   useRefreshOnNewTransaction(multisigConfigXdr ?? '', currentNetwork, onRefreshBalances);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-  };
-
-  // Shareable URL that reopens this account directly (?public_key=G...), skipping manual entry
-  const handleShareUrl = () => {
-    navigator.clipboard.writeText(buildAccountUrl(accountData.publicKey, currentNetwork));
-    toast({
-      title: 'Account link copied',
-      description: `Opening it loads ${shortAddress(accountData.publicKey)} directly`,
-      duration: 3000,
-    });
   };
 
   // DeFindex vault deposits — shown alongside wallet assets and counted in the portfolio total
@@ -148,76 +136,11 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
   const openEditConfirm = () => setShowEditConfirm(true);
 
   const totalWeight = accountData.signers.reduce((sum, signer) => sum + signer.weight, 0);
-  const iconSize = '!size-[18px]';
 
   return (
     <div className="flex flex-1 flex-col">
       <AppHeader
-        right={
-          <>
-            <HorizonSettingsDialog />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={onDisconnect}
-              aria-label="Disconnect"
-              className="md:w-auto md:border-transparent md:px-2.5 md:text-muted-foreground md:hover:border-transparent md:hover:text-foreground"
-            >
-              <Power className={cn(iconSize, 'md:!size-4')} />
-              <span className="hidden md:inline">Disconnect</span>
-            </Button>
-            <Button onClick={onInitiateTransaction} className="hidden md:inline-flex">
-              <Plus />
-              Initiate Multisig Transaction
-            </Button>
-          </>
-        }
-      />
-
-      <Wrap className="flex flex-col px-0 sm:px-0 md:gap-6 md:px-8 md:py-8">
-        {/* The account */}
-        <section
-          aria-label="Account Information"
-          className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:gap-4 md:border md:border-line md:bg-ink-2 md:py-3.5"
-        >
-          <div className="flex min-w-0 flex-1 flex-col gap-3 md:gap-1">
-            <span className="field-label">Public key</span>
-            <p className="font-address text-[13px] break-all">{accountData.publicKey}</p>
-          </div>
-          <div className="flex gap-2 md:gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => copyToClipboard(accountData.publicKey)}
-              title="Copy public key"
-              aria-label="Copy public key"
-            >
-              <Copy className={iconSize} />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleShareUrl}
-              title="Copy shareable link to this account"
-              aria-label="Share"
-            >
-              <Share2 className={iconSize} />
-            </Button>
-            <Button variant="outline" size="icon" asChild title="View on Stellar Expert">
-              <a
-                href={`https://stellar.expert/explorer/${currentNetwork === 'testnet' ? 'testnet' : 'public'}/account/${accountData.publicKey}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Open in explorer"
-              >
-                <ExternalLink className={iconSize} />
-              </a>
-            </Button>
-          </div>
-        </section>
-
-        {/* Desktop: underline tabs, with the multisig tab's own action at the right */}
-        <div className="hidden items-center gap-4 border-b border-line md:flex">
+        nav={
           <nav aria-label="Account" className="flex">
             {TABS.map((tab) => (
               <button
@@ -226,7 +149,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
                 onClick={() => setActiveTab(tab.value)}
                 aria-current={litTab === tab.value ? 'page' : undefined}
                 className={cn(
-                  'inline-flex min-h-12 items-center px-[18px] text-sm font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                  'inline-flex items-center px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
                   litTab === tab.value
                     ? 'text-foreground shadow-[inset_0_-2px_0_hsl(var(--foreground))]'
                     : 'text-muted-foreground hover:text-foreground'
@@ -236,13 +159,19 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
               </button>
             ))}
           </nav>
-          {showEditButton && (
-            <Button variant="outline" size="sm" className="ml-auto" onClick={openEditConfirm}>
-              Edit Configuration
+        }
+        right={
+          <>
+            <Button onClick={onInitiateTransaction} className="hidden md:inline-flex">
+              <Plus />
+              New Transaction
             </Button>
-          )}
-        </div>
+            <AccountMenu publicKey={accountData.publicKey} network={currentNetwork} onDisconnect={onDisconnect} />
+          </>
+        }
+      />
 
+      <Wrap className="flex flex-col px-0 sm:px-0 md:gap-6 md:px-8 md:py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsContent value="balances" className="mt-0">
             <AssetBalancePanel balances={mergedBalances} onRefreshBalances={handleRefreshBalances} />
@@ -260,10 +189,10 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
           </TabsContent>
 
           <TabsContent value="multisig" className="mt-0">
-            {/* Phone: the multisig tab's action at the top */}
+            {/* The multisig tab's action, at the top */}
             {showEditButton && (
-              <div className="border-t border-line p-4 md:hidden">
-                <Button variant="outline" className="w-full" onClick={openEditConfirm}>
+              <div className="border-t border-line p-4 md:mb-6 md:flex md:justify-end md:border-0 md:p-0">
+                <Button variant="outline" className="w-full md:w-auto" onClick={openEditConfirm}>
                   Edit Configuration
                 </Button>
               </div>

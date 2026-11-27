@@ -43,13 +43,13 @@ export const PAGES = [
 
 const openAccount = async ({ page, base, accounts }: Ctx) => {
   await page.goto(`${base}/?address=${accounts.A.publicKey()}&network=testnet`);
-  await page.getByText('Public key').waitFor({ timeout: 60_000 });
+  await page.getByRole('button', { name: /^Account G/ }).waitFor({ timeout: 60_000 });
   await page.waitForTimeout(2500);
 };
 
 const openBuilder = async (ctx: Ctx) => {
   await openAccount(ctx);
-  await ctx.page.getByRole('button', { name: /Initiate Multisig Transaction/ }).click();
+  await ctx.page.getByRole('button', { name: 'New Transaction' }).click();
   await ctx.page.getByText('Transaction Builder').waitFor();
 };
 
@@ -181,6 +181,7 @@ export const FLOWS: Flow[] = [
       { name: 'dash-balances', page: 'dashboard', title: 'Balances' },
       { name: 'dash-activity', page: 'dashboard', title: 'Activity' },
       { name: 'dash-multisig', page: 'dashboard', title: 'Multisig' },
+      { name: 'dash-account', page: 'dashboard', title: 'Account menu', dialog: true },
       { name: 'dash-endpoints', page: 'dashboard', title: 'Horizon endpoints', dialog: true },
       { name: 'multisig-confirm', page: 'dashboard', title: 'Edit configuration · confirm' },
       { name: 'multisig-edit', page: 'dashboard', title: 'Edit configuration' },
@@ -193,8 +194,12 @@ export const FLOWS: Flow[] = [
         await page.getByRole('button', { name: 'Activity', exact: true }).click();
         await page.waitForTimeout(6000);
       });
+      await shot('dash-account', async () => {
+        await page.getByRole('button', { name: /^Account G/ }).click();
+        await page.waitForTimeout(800);
+      });
       await shot('dash-endpoints', async () => {
-        await page.getByTitle('Horizon endpoints').click();
+        await page.getByRole('button', { name: 'Horizon endpoints' }).click();
         await page.waitForTimeout(1500);
       });
       await page.keyboard.press('Escape');
