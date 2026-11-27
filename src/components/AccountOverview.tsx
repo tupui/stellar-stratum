@@ -162,7 +162,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
         }
         right={
           <>
-            <Button onClick={onInitiateTransaction} className="hidden md:inline-flex">
+            <Button size="sm" onClick={onInitiateTransaction} className="hidden md:inline-flex">
               <Plus />
               New Transaction
             </Button>
