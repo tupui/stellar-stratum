@@ -1,0 +1,24 @@
+name: Deploy contract through Stratum
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: upload first, then deploy once the upload has been signed and sent
+        type: choice
+        options: [upload, deploy]
+        default: upload
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup target add wasm32v1-none && cargo build --release --target wasm32v1-none
+      - uses: tupui/stellar-stratum/action@action-v1
+        with:
+          source-account: ${{ vars.DEPLOYER_ACCOUNT }}
+          network: testnet
+          operation: ${{ inputs.stage }}
+          wasm: target/wasm32v1-none/release/my_contract.wasm
+          # args: '{"admin": "G..."}'  # constructor arguments, when the contract has a constructor

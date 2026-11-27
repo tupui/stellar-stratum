@@ -1,0 +1,28 @@
+name: Release action
+on:
+  push:
+    tags: ['action-v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:action
+      - name: Publish the tag and the major tag with the bundle
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --force action/dist
+          git commit --message "Release ${GITHUB_REF_NAME}"
+          git tag --force "${GITHUB_REF_NAME}"
+          git tag --force "${GITHUB_REF_NAME%%.*}"
+          git push --force origin "refs/tags/${GITHUB_REF_NAME}" "refs/tags/${GITHUB_REF_NAME%%.*}"

@@ -14,15 +14,20 @@ export interface Invocation {
   publicKey: string;
 }
 
+/** Convert the form values into the ScVals that `functionName` takes. */
+export const argsToScVals = (spec: contract.Spec, functionName: string, params: ParamShape[], values: FormValues) => {
+  const nativeArgs = Object.fromEntries(params.map((p) => [p.name, coerceFormValue(p, values[p.name], spec)]));
+  return spec.funcArgsToScVals(functionName, nativeArgs);
+};
+
 /**
  * Convert the form values and simulate the call. Throws when the simulation fails:
  * `AssembledTransaction.build` does not, it keeps the unsimulated transaction instead.
  */
 export const simulateInvocation = async ({ loaded, functionName, params, values, publicKey }: Invocation) => {
-  const nativeArgs = Object.fromEntries(params.map((p) => [p.name, coerceFormValue(p, values[p.name], loaded.spec)]));
   const tx = await contract.AssembledTransaction.build({
     method: functionName,
-    args: loaded.spec.funcArgsToScVals(functionName, nativeArgs),
+    args: argsToScVals(loaded.spec, functionName, params, values),
     fee: String(appConfig.DEFAULT_BASE_FEE_STROOPS),
     timeoutInSeconds: appConfig.TX_VALIDITY_SECONDS,
     simulate: true,
