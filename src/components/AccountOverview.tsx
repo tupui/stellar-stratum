@@ -149,7 +149,7 @@ const AccountOverview = ({ accountData, onInitiateTransaction, onDisconnect, onR
                 onClick={() => setActiveTab(tab.value)}
                 aria-current={litTab === tab.value ? 'page' : undefined}
                 className={cn(
-                  'inline-flex items-center px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                  'inline-flex items-center px-3 text-sm font-semibold lg:px-4 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
                   litTab === tab.value
                     ? 'text-foreground shadow-[inset_0_-2px_0_hsl(var(--foreground))]'
                     : 'text-muted-foreground hover:text-foreground'

@@ -34,8 +34,8 @@ export interface OperationView {
 }
 
 /** 8+8 characters: a look-alike address matching that much cannot be ground out. */
-export const shortAddress = (address: string): string =>
-  address.length > 20 ? `${address.slice(0, 8)}…${address.slice(-8)}` : address;
+export const shortAddress = (address: string, keep = 8): string =>
+  address.length > 2 * keep + 4 ? `${address.slice(0, keep)}…${address.slice(-keep)}` : address;
 
 type AssetLike = {
   code?: string;

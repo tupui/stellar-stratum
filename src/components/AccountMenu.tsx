@@ -42,10 +42,7 @@ export const AccountMenu = ({ publicKey, network, onDisconnect }: AccountMenuPro
       <button
         type="button"
         className={row}
-        onClick={act(() => {
-          navigator.clipboard.writeText(publicKey);
-          toast({ title: 'Public key copied', duration: 3000 });
-        })}
+        onClick={act(() => navigator.clipboard.writeText(publicKey))}
       >
         <Copy aria-hidden="true" />
         Copy public key
@@ -90,13 +87,15 @@ export const AccountMenu = ({ publicKey, network, onDisconnect }: AccountMenuPro
   const pill = (
     <button
       type="button"
-      aria-label={`Account ${shortAddress(publicKey)}`}
       aria-expanded={open}
       onClick={isMobile ? () => setOpen(true) : undefined}
-      className="inline-flex h-11 items-center gap-2.5 border border-line-2 bg-ink-2 pl-3 pr-2.5 font-address text-[13px] text-foreground hover:border-foreground focus-visible:outline-2 focus-visible:outline-ring"
+      className="inline-flex h-11 items-center gap-2.5 whitespace-nowrap border border-line-2 bg-ink-2 pl-3 pr-2.5 font-address text-[13px] text-foreground hover:border-foreground focus-visible:outline-2 focus-visible:outline-ring"
     >
-      <span aria-hidden="true" className="size-2 bg-foreground" />
-      {shortAddress(publicKey)}
+      <span aria-hidden="true" className="size-2 shrink-0 bg-foreground" />
+      <span className="sr-only">Account </span>
+      {/* Below 360 px the full short form does not fit beside the logo */}
+      <span className="max-[359px]:hidden">{shortAddress(publicKey)}</span>
+      <span className="min-[360px]:hidden">{shortAddress(publicKey, 4)}</span>
       <ChevronDown aria-hidden="true" className={cn('size-4 text-muted-foreground', open && 'rotate-180')} />
     </button>
   );

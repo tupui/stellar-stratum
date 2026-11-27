@@ -32,7 +32,7 @@ export const AppHeader = ({
           <Wordmark />
         </Link>
       )}
-      {nav && <div className="ml-5 hidden self-stretch md:flex">{nav}</div>}
+      {nav && <div className="ml-2 hidden self-stretch md:flex lg:ml-5">{nav}</div>}
       <div className="ml-auto flex items-center gap-2">{right}</div>
     </Wrap>
   </header>
