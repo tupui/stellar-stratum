@@ -148,7 +148,11 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
   const [isOpen, setIsOpen] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
   const [opsExpanded, setOpsExpanded] = useState(false);
+  // a raw XDR longer than this many characters shows five lines until opened
+  const [xdrOpen, setXdrOpen] = useState(false);
+  const xdrLong = xdr.length > 300;
   const titleId = useId();
+  const xdrId = useId();
 
   const parsed = tryParseTransaction(xdr, networkType);
 
@@ -545,7 +549,29 @@ export const XdrDetails = ({ xdr, defaultExpanded = true, networkType, offlineMo
                 {copied ? <Check className="h-[18px] w-[18px]" /> : <Copy className="h-[18px] w-[18px]" />}
               </RowAction>
             </div>
-            <p className="mt-2 break-all font-mono text-xs text-muted-foreground">{xdr}</p>
+            {/* The whole XDR stays in the page (copy and the tests read it); a long one is clamped to five
+                lines that fade out, with a toggle to read all of it. */}
+            <p
+              id={xdrId}
+              className={cn(
+                'mt-2 break-all font-mono text-xs leading-[18px] text-muted-foreground',
+                xdrLong && !xdrOpen && 'max-h-[90px] overflow-hidden [mask-image:linear-gradient(to_bottom,#000_55%,transparent)]',
+              )}
+            >
+              {xdr}
+            </p>
+            {xdrLong && (
+              <button
+                type="button"
+                aria-expanded={xdrOpen}
+                aria-controls={xdrId}
+                onClick={() => setXdrOpen((open) => !open)}
+                className="-mb-2 mt-1 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                {xdrOpen ? 'Show Less' : `Show All (${xdr.length.toLocaleString('en-US')} characters)`}
+                <ChevronDown className={cn('h-4 w-4', xdrOpen && 'rotate-180')} />
+              </button>
+            )}
           </div>
         </>
       )}
