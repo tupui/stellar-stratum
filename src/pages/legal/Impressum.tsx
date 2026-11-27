@@ -28,7 +28,6 @@ const Impressum = () => (
       </Pair>
       <Pair label="Firmenbuch">FN 571029z, Landesgericht für ZRS Graz</Pair>
       <Pair label="UID-Nummer">ATU77780135</Pair>
-      <Pair label="Geschäftsführung">Dr. DI Pamphile Tupui Christophe Roy</Pair>
       <Pair label="Unternehmensgegenstand">
         Dienstleistungen in der automatischen Datenverarbeitung und Informationstechnik
       </Pair>
